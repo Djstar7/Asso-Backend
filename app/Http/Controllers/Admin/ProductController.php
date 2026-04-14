@@ -11,6 +11,7 @@ use App\Models\Shop;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\File;
+use App\Models\DeliveryPricelist;
 
 class ProductController extends Controller
 {
@@ -88,6 +89,7 @@ class ProductController extends Controller
             'min_price' => 'required_if:price_type,variable|nullable|numeric|min:0',
             'max_price' => 'required_if:price_type,variable|nullable|numeric|min:0',
             'type' => 'required|in:service,article',
+            'weight_category' => 'sometimes|in:' . implode(',', Product::WEIGHT_CATEGORIES),
             'stock' => 'required|integer|min:0',
             'status' => 'required|in:active,inactive',
             'images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
@@ -96,6 +98,7 @@ class ProductController extends Controller
         // Get shop owner
         $shop = Shop::findOrFail($validated['shop_id']);
         $validated['user_id'] = $shop->user_id;
+        $validated['weight_category'] = $validated['weight_category'] ?? 'X-small';
 
         // Generate slug
         $validated['slug'] = Str::slug($validated['name']);
@@ -150,6 +153,7 @@ class ProductController extends Controller
             'min_price' => 'required_if:price_type,variable|nullable|numeric|min:0',
             'max_price' => 'required_if:price_type,variable|nullable|numeric|min:0',
             'type' => 'required|in:service,article',
+            'weight_category' => 'sometimes|in:' . implode(',', Product::WEIGHT_CATEGORIES),
             'stock' => 'required|integer|min:0',
             'status' => 'required|in:active,inactive',
             'images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',

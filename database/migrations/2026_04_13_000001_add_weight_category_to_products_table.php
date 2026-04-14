@@ -11,8 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('notifications', function (Blueprint $table) {
-            $table->boolean('is_sent')->default(false)->after('is_read');
+        Schema::table('products', function (Blueprint $table) {
+            $table->string('weight_category')->default('X-small')->after('stock');
         });
     }
 
@@ -21,8 +21,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('notifications', function (Blueprint $table) {
-            $table->dropColumn('is_sent');
+        Schema::table('products', function (Blueprint $table) {
+            $table->dropColumn('weight_category');
         });
     }
 };

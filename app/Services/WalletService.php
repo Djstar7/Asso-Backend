@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\User;
+use App\Models\Order;
 use App\Models\WalletTransaction;
 use App\Models\Transaction;
 use Illuminate\Support\Facades\DB;
@@ -30,17 +31,17 @@ class WalletService
         string $provider = 'freemopay'
     ): WalletTransaction {
         return DB::transaction(function () use ($user, $amount, $transaction, $description, $metadata, $provider) {
-            // Déterminer quel wallet mettre à jour
+            // Dï¿½terminer quel wallet mettre ï¿½ jour
             $walletField = $provider === 'paypal' ? 'paypal_wallet_balance' : 'freemopay_wallet_balance';
 
             $balanceBefore = $user->{$walletField} ?? 0;
             $balanceAfter = $balanceBefore + $amount;
 
-            // Mettre à jour le solde du wallet spécifique
+            // Mettre ï¿½ jour le solde du wallet spï¿½cifique
             $user->{$walletField} = $balanceAfter;
             $user->save();
 
-            // Créer la transaction
+            // Crï¿½er la transaction
             $walletTransaction = WalletTransaction::create([
                 'user_id' => $user->id,
                 'type' => 'credit',
@@ -67,13 +68,13 @@ class WalletService
     }
 
     /**
-     * Débite le wallet d'un utilisateur
+     * Dï¿½bite le wallet d'un utilisateur
      *
      * @param User $user
      * @param float $amount
      * @param string $description
-     * @param string|null $referenceType Type de référence (order, subscription, etc.)
-     * @param int|null $referenceId ID de la référence
+     * @param string|null $referenceType Type de rï¿½fï¿½rence (order, subscription, etc.)
+     * @param int|null $referenceId ID de la rï¿½fï¿½rence
      * @param array $metadata
      * @param string $provider Provider OBLIGATOIRE (freemopay ou paypal)
      * @return WalletTransaction
@@ -91,27 +92,30 @@ class WalletService
         return DB::transaction(function () use ($user, $amount, $description, $referenceType, $referenceId, $metadata, $provider) {
             // Valider le provider
             if (!in_array($provider, ['freemopay', 'paypal'])) {
-                throw new \Exception("Provider invalide. Doit être 'freemopay' ou 'paypal'.");
+                throw new \Exception("Provider invalide. Doit ï¿½tre 'freemopay' ou 'paypal'.");
             }
 
-            // Déterminer quel wallet débiter
+            // Dï¿½terminer quel wallet dï¿½biter
             $walletField = $provider === 'paypal' ? 'paypal_wallet_balance' : 'freemopay_wallet_balance';
+            $lockedField = $provider === 'paypal' ? 'locked_paypal_balance' : 'locked_freemopay_balance';
 
             $balanceBefore = $user->{$walletField} ?? 0;
+            $locked = $user->{$lockedField} ?? 0;
+            $available = $balanceBefore - $locked;
 
-            // Vérifier le solde
-            if ($balanceBefore < $amount) {
+            // Vï¿½rifier le solde disponible (non bloquÃ©)
+            if ($available < $amount) {
                 $providerName = $provider === 'paypal' ? 'PayPal' : 'FreeMoPay';
-                throw new \Exception("Solde {$providerName} insuffisant. Solde actuel: {$balanceBefore} FCFA, Montant requis: {$amount} FCFA");
+                throw new \Exception("Solde {$providerName} disponible insuffisant. Disponible: {$available} FCFA, Montant requis: {$amount} FCFA");
             }
 
             $balanceAfter = $balanceBefore - $amount;
 
-            // Mettre à jour le solde du wallet spécifique
+            // Mettre ï¿½ jour le solde du wallet spï¿½cifique
             $user->{$walletField} = $balanceAfter;
             $user->save();
 
-            // Créer la transaction
+            // Crï¿½er la transaction
             $walletTransaction = WalletTransaction::create([
                 'user_id' => $user->id,
                 'type' => 'debit',
@@ -142,19 +146,19 @@ class WalletService
     /**
      * Rembourse une transaction (remet l'argent dans le wallet)
      *
-     * @param WalletTransaction $originalTransaction Transaction à rembourser
+     * @param WalletTransaction $originalTransaction Transaction ï¿½ rembourser
      * @param string|null $reason Raison du remboursement
      * @return WalletTransaction
      */
     public function refund(WalletTransaction $originalTransaction, ?string $reason = null): WalletTransaction
     {
-        // On ne peut rembourser qu'un débit
+        // On ne peut rembourser qu'un dï¿½bit
         if ($originalTransaction->type !== 'debit') {
-            throw new \Exception("Seuls les débits peuvent être remboursés");
+            throw new \Exception("Seuls les dï¿½bits peuvent ï¿½tre remboursï¿½s");
         }
 
         if ($originalTransaction->status !== 'completed') {
-            throw new \Exception("Seules les transactions complétées peuvent être remboursées");
+            throw new \Exception("Seules les transactions complï¿½tï¿½es peuvent ï¿½tre remboursï¿½es");
         }
 
         $user = $originalTransaction->user;
@@ -228,7 +232,7 @@ class WalletService
      * Ajustement manuel par un admin
      *
      * @param User $user
-     * @param float $amount Positif pour ajouter, négatif pour retirer
+     * @param float $amount Positif pour ajouter, nï¿½gatif pour retirer
      * @param User $admin Admin effectuant l'ajustement
      * @param string $reason Raison de l'ajustement
      * @param string $provider
@@ -247,9 +251,9 @@ class WalletService
             $balanceBefore = $user->{$walletField} ?? 0;
             $balanceAfter = $balanceBefore + $amount;
 
-            // Ne pas permettre de balance négative
+            // Ne pas permettre de balance nï¿½gative
             if ($balanceAfter < 0) {
-                throw new \Exception("L'ajustement rendrait le solde négatif");
+                throw new \Exception("L'ajustement rendrait le solde nï¿½gatif");
             }
 
             $user->{$walletField} = $balanceAfter;
@@ -286,7 +290,7 @@ class WalletService
     }
 
     /**
-     * Récupère l'historique des transactions avec pagination
+     * Rï¿½cupï¿½re l'historique des transactions avec pagination
      *
      * @param User $user
      * @param int $perPage
@@ -319,7 +323,7 @@ class WalletService
     {
         $transactions = $user->walletTransactions()->completed();
 
-        // Récupérer les soldes séparés
+        // Rï¿½cupï¿½rer les soldes sï¿½parï¿½s
         $freemopayBalance = $user->freemopay_wallet_balance ?? 0;
         $paypalBalance = $user->paypal_wallet_balance ?? 0;
         $totalBalance = $freemopayBalance + $paypalBalance;
@@ -334,12 +338,25 @@ class WalletService
         $totalCredits = $freemopayCredits + $paypalCredits;
         $totalDebits = $freemopayDebits + $paypalDebits;
 
+        // Soldes bloquÃ©s
+        $lockedFreemopay = $user->locked_freemopay_balance ?? 0;
+        $lockedPaypal = $user->locked_paypal_balance ?? 0;
+        $totalLocked = $lockedFreemopay + $lockedPaypal;
+        $availableTotal = $totalBalance - $totalLocked;
+
         return [
             // Soldes par provider
             'freemopay_balance' => $freemopayBalance,
             'paypal_balance' => $paypalBalance,
             'current_balance' => $totalBalance,
             'formatted_balance' => number_format($totalBalance, 0, ',', ' ') . ' FCFA',
+
+            // Soldes bloquÃ©s (escrow)
+            'locked_freemopay_balance' => $lockedFreemopay,
+            'locked_paypal_balance' => $lockedPaypal,
+            'total_locked_balance' => $totalLocked,
+            'available_balance' => $availableTotal,
+            'formatted_available_balance' => number_format($availableTotal, 0, ',', ' ') . ' FCFA',
 
             // Totaux
             'total_credits' => $totalCredits,
@@ -355,52 +372,245 @@ class WalletService
         ];
     }
 
+    // ================================
+    // ESCROW (Solde bloquÃ©)
+    // ================================
+
     /**
-     * Vérifie si un user peut effectuer un paiement avec son wallet
+     * Bloque un montant sur le wallet (escrow)
+     * Le montant reste dans le wallet mais n'est plus disponible
+     */
+    public function lockFunds(
+        User $user,
+        float $amount,
+        string $description,
+        ?string $referenceType = null,
+        ?int $referenceId = null,
+        array $metadata = [],
+        string $provider = 'freemopay'
+    ): WalletTransaction {
+        return DB::transaction(function () use ($user, $amount, $description, $referenceType, $referenceId, $metadata, $provider) {
+            $user->lockForUpdate();
+            $user->refresh();
+
+            if (!in_array($provider, ['freemopay', 'paypal'])) {
+                throw new \Exception("Provider invalide. Doit Ãªtre 'freemopay' ou 'paypal'.");
+            }
+
+            $walletField = $provider === 'paypal' ? 'paypal_wallet_balance' : 'freemopay_wallet_balance';
+            $lockedField = $provider === 'paypal' ? 'locked_paypal_balance' : 'locked_freemopay_balance';
+
+            $available = ($user->{$walletField} ?? 0) - ($user->{$lockedField} ?? 0);
+
+            if ($available < $amount) {
+                $providerName = $provider === 'paypal' ? 'PayPal' : 'FreeMoPay';
+                throw new \Exception("Solde {$providerName} disponible insuffisant. Disponible: {$available} FCFA, Requis: {$amount} FCFA");
+            }
+
+            $lockedBefore = $user->{$lockedField} ?? 0;
+            $user->{$lockedField} = $lockedBefore + $amount;
+            $user->save();
+
+            $walletTransaction = WalletTransaction::create([
+                'user_id' => $user->id,
+                'type' => 'lock',
+                'amount' => $amount,
+                'balance_before' => $user->{$walletField},
+                'balance_after' => $user->{$walletField},
+                'description' => $description,
+                'reference_type' => $referenceType,
+                'reference_id' => $referenceId,
+                'metadata' => array_merge($metadata, [
+                    'locked_amount' => $amount,
+                    'locked_balance_after' => $user->{$lockedField},
+                ]),
+                'status' => 'completed',
+                'provider' => $provider,
+            ]);
+
+            Log::info("[WalletService] Funds locked (escrow)", [
+                'user_id' => $user->id,
+                'provider' => $provider,
+                'amount' => $amount,
+                'locked_total' => $user->{$lockedField},
+                'transaction_id' => $walletTransaction->id,
+                'reference' => "{$referenceType}:{$referenceId}",
+            ]);
+
+            return $walletTransaction;
+        });
+    }
+
+    /**
+     * DÃ©bloque un montant (annulation de l'escrow, remise Ã  disposition)
+     */
+    public function unlockFunds(
+        User $user,
+        float $amount,
+        string $description,
+        ?string $referenceType = null,
+        ?int $referenceId = null,
+        array $metadata = [],
+        string $provider = 'freemopay'
+    ): WalletTransaction {
+        return DB::transaction(function () use ($user, $amount, $description, $referenceType, $referenceId, $metadata, $provider) {
+            $user->lockForUpdate();
+            $user->refresh();
+
+            $lockedField = $provider === 'paypal' ? 'locked_paypal_balance' : 'locked_freemopay_balance';
+            $walletField = $provider === 'paypal' ? 'paypal_wallet_balance' : 'freemopay_wallet_balance';
+
+            $lockedBefore = $user->{$lockedField} ?? 0;
+
+            if ($lockedBefore < $amount) {
+                throw new \Exception("Impossible de dÃ©bloquer {$amount} FCFA. Seulement {$lockedBefore} FCFA bloquÃ©.");
+            }
+
+            $user->{$lockedField} = $lockedBefore - $amount;
+            $user->save();
+
+            $walletTransaction = WalletTransaction::create([
+                'user_id' => $user->id,
+                'type' => 'unlock',
+                'amount' => $amount,
+                'balance_before' => $user->{$walletField},
+                'balance_after' => $user->{$walletField},
+                'description' => $description,
+                'reference_type' => $referenceType,
+                'reference_id' => $referenceId,
+                'metadata' => array_merge($metadata, [
+                    'unlocked_amount' => $amount,
+                    'locked_balance_after' => $user->{$lockedField},
+                ]),
+                'status' => 'completed',
+                'provider' => $provider,
+            ]);
+
+            Log::info("[WalletService] Funds unlocked", [
+                'user_id' => $user->id,
+                'provider' => $provider,
+                'amount' => $amount,
+                'locked_remaining' => $user->{$lockedField},
+                'transaction_id' => $walletTransaction->id,
+            ]);
+
+            return $walletTransaction;
+        });
+    }
+
+    /**
+     * LibÃ¨re l'escrow : dÃ©bloque ET dÃ©bite en une seule opÃ©ration atomique.
+     * UtilisÃ© quand la commande est confirmÃ©e / livrÃ©e.
+     */
+    public function releaseEscrow(
+        User $user,
+        float $amount,
+        string $description,
+        ?string $referenceType = null,
+        ?int $referenceId = null,
+        array $metadata = [],
+        string $provider = 'freemopay'
+    ): WalletTransaction {
+        return DB::transaction(function () use ($user, $amount, $description, $referenceType, $referenceId, $metadata, $provider) {
+            $user->lockForUpdate();
+            $user->refresh();
+
+            $walletField = $provider === 'paypal' ? 'paypal_wallet_balance' : 'freemopay_wallet_balance';
+            $lockedField = $provider === 'paypal' ? 'locked_paypal_balance' : 'locked_freemopay_balance';
+
+            $lockedBefore = $user->{$lockedField} ?? 0;
+            $balanceBefore = $user->{$walletField} ?? 0;
+
+            if ($lockedBefore < $amount) {
+                throw new \Exception("Montant bloquÃ© insuffisant pour libÃ©ration. BloquÃ©: {$lockedBefore} FCFA, Requis: {$amount} FCFA");
+            }
+
+            // DÃ©bloquer + dÃ©biter en mÃªme temps
+            $user->{$lockedField} = $lockedBefore - $amount;
+            $user->{$walletField} = $balanceBefore - $amount;
+            $user->save();
+
+            $walletTransaction = WalletTransaction::create([
+                'user_id' => $user->id,
+                'type' => 'escrow_release',
+                'amount' => $amount,
+                'balance_before' => $balanceBefore,
+                'balance_after' => $user->{$walletField},
+                'description' => $description,
+                'reference_type' => $referenceType,
+                'reference_id' => $referenceId,
+                'metadata' => array_merge($metadata, [
+                    'released_amount' => $amount,
+                    'locked_balance_after' => $user->{$lockedField},
+                ]),
+                'status' => 'completed',
+                'provider' => $provider,
+            ]);
+
+            Log::info("[WalletService] Escrow released", [
+                'user_id' => $user->id,
+                'provider' => $provider,
+                'amount' => $amount,
+                'balance_after' => $user->{$walletField},
+                'locked_remaining' => $user->{$lockedField},
+                'transaction_id' => $walletTransaction->id,
+            ]);
+
+            return $walletTransaction;
+        });
+    }
+
+    /**
+     * Vï¿½rifie si un user peut effectuer un paiement avec son wallet
      *
      * @param User $user
      * @param float $amount
-     * @param string|null $provider Provider spécifique (null = total des deux wallets)
+     * @param string|null $provider Provider spï¿½cifique (null = total des deux wallets)
      * @return array ['can_pay' => bool, 'message' => string, 'missing_amount' => float]
      */
     public function canPayWithWallet(User $user, float $amount, ?string $provider = null): array
     {
         if ($provider) {
-            // Vérifier un wallet spécifique
             $walletField = $provider === 'paypal' ? 'paypal_wallet_balance' : 'freemopay_wallet_balance';
-            $balance = $user->{$walletField} ?? 0;
+            $lockedField = $provider === 'paypal' ? 'locked_paypal_balance' : 'locked_freemopay_balance';
+            $totalBalance = $user->{$walletField} ?? 0;
+            $locked = $user->{$lockedField} ?? 0;
+            $available = $totalBalance - $locked;
             $providerName = $provider === 'paypal' ? 'PayPal' : 'FreeMoPay';
 
-            $canPay = $balance >= $amount;
+            $canPay = $available >= $amount;
 
             return [
                 'can_pay' => $canPay,
-                'current_balance' => $balance,
+                'total_balance' => $totalBalance,
+                'locked_balance' => $locked,
+                'available_balance' => $available,
                 'required_amount' => $amount,
-                'missing_amount' => $canPay ? 0 : ($amount - $balance),
+                'missing_amount' => $canPay ? 0 : ($amount - $available),
                 'provider' => $provider,
                 'message' => $canPay
                     ? "Paiement possible avec wallet {$providerName}"
-                    : "Solde {$providerName} insuffisant. Il vous manque " . number_format($amount - $balance, 0, ',', ' ') . " FCFA",
+                    : "Solde {$providerName} disponible insuffisant. Il vous manque " . number_format($amount - $available, 0, ',', ' ') . " FCFA",
             ];
         } else {
-            // Vérifier le total des deux wallets
-            $freemopayBalance = $user->freemopay_wallet_balance ?? 0;
-            $paypalBalance = $user->paypal_wallet_balance ?? 0;
-            $totalBalance = $freemopayBalance + $paypalBalance;
+            $available = $user->available_total_balance;
+            $totalBalance = ($user->freemopay_wallet_balance ?? 0) + ($user->paypal_wallet_balance ?? 0);
+            $totalLocked = $user->total_locked_balance;
 
-            $canPay = $totalBalance >= $amount;
+            $canPay = $available >= $amount;
 
             return [
                 'can_pay' => $canPay,
-                'freemopay_balance' => $freemopayBalance,
-                'paypal_balance' => $paypalBalance,
+                'freemopay_balance' => $user->freemopay_wallet_balance ?? 0,
+                'paypal_balance' => $user->paypal_wallet_balance ?? 0,
                 'total_balance' => $totalBalance,
+                'locked_balance' => $totalLocked,
+                'available_balance' => $available,
                 'required_amount' => $amount,
-                'missing_amount' => $canPay ? 0 : ($amount - $totalBalance),
+                'missing_amount' => $canPay ? 0 : ($amount - $available),
                 'message' => $canPay
                     ? "Paiement possible"
-                    : "Solde total insuffisant. Il vous manque " . number_format($amount - $totalBalance, 0, ',', ' ') . " FCFA",
+                    : "Solde disponible insuffisant. Il vous manque " . number_format($amount - $available, 0, ',', ' ') . " FCFA",
             ];
         }
     }

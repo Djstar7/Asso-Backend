@@ -115,6 +115,12 @@
                         <span class="text-xs text-gray-400">({{ $product->reviews_count }})</span>
                     </div>
 
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="px-2 py-0.5 text-xs rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/50">
+                            <i class="fas fa-weight-hanging mr-1"></i>{{ $product->weight_category ?? 'X-small' }}
+                        </span>
+                    </div>
+
                     <div class="flex items-center justify-between mb-3">
                         <span class="text-primary-500 font-bold">{{ $product->formatted_price }}</span>
                         <span class="text-xs text-gray-400">Stock: {{ $product->stock }}</span>
@@ -195,6 +201,9 @@
                                     </span>
                                     <span class="px-2 py-1 text-xs rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/50">
                                         {{ $product->type == 'article' ? 'Article' : 'Service' }}
+                                    </span>
+                                    <span class="px-2 py-1 text-xs rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/50">
+                                        <i class="fas fa-weight-hanging mr-1"></i>{{ $product->weight_category ?? 'X-small' }}
                                     </span>
                                     <span class="text-xs text-gray-400">
                                         <i class="fas fa-box mr-1"></i>Stock: {{ $product->stock }}

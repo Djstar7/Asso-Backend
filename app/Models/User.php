@@ -43,7 +43,9 @@ class User extends Authenticatable
         'pending_earnings',
         'withdrawn_earnings',
         'freemopay_wallet_balance',
+        'locked_freemopay_balance',
         'paypal_wallet_balance',
+        'locked_paypal_balance',
         'otp_code',
         'otp_expires_at',
         'is_profile_complete',
@@ -304,6 +306,38 @@ class User extends Authenticatable
     public function getFormattedPaypalBalanceAttribute(): string
     {
         return number_format($this->paypal_wallet_balance ?? 0, 0, ',', ' ') . ' FCFA';
+    }
+
+    /**
+     * Solde FreeMoPay disponible (total - bloqué)
+     */
+    public function getAvailableFreemopayBalanceAttribute(): float
+    {
+        return ($this->freemopay_wallet_balance ?? 0) - ($this->locked_freemopay_balance ?? 0);
+    }
+
+    /**
+     * Solde PayPal disponible (total - bloqué)
+     */
+    public function getAvailablePaypalBalanceAttribute(): float
+    {
+        return ($this->paypal_wallet_balance ?? 0) - ($this->locked_paypal_balance ?? 0);
+    }
+
+    /**
+     * Solde total disponible (non bloqué)
+     */
+    public function getAvailableTotalBalanceAttribute(): float
+    {
+        return $this->available_freemopay_balance + $this->available_paypal_balance;
+    }
+
+    /**
+     * Total solde bloqué
+     */
+    public function getTotalLockedBalanceAttribute(): float
+    {
+        return ($this->locked_freemopay_balance ?? 0) + ($this->locked_paypal_balance ?? 0);
     }
 
     /**

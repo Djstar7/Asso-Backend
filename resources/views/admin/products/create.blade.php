@@ -202,6 +202,21 @@
                         </div>
                     </div>
 
+                    <!-- Weight Category -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-white mb-2">
+                            <i class="fas fa-weight-hanging text-primary-500 mr-1"></i>
+                            Catégorie de poids
+                        </label>
+                        <select name="weight_category" class="w-full px-4 py-2 bg-dark-50 border border-dark-300 rounded-lg focus:ring-2 focus:ring-primary-500 @error('weight_category') border-red-500 @enderror">
+                            @foreach(\App\Models\DeliveryPricelist::WEIGHT_CATEGORIES as $key => $label)
+                                <option value="{{ $key }}" {{ old('weight_category', 'X-small') == $key ? 'selected' : '' }}>{{ $key }} — {{ $label }}</option>
+                            @endforeach
+                        </select>
+                        <p class="mt-1 text-xs text-gray-400">Détermine le prix de livraison chez les partenaires</p>
+                        @error('weight_category')<p class="mt-1 text-sm text-red-400">{{ $message }}</p>@enderror
+                    </div>
+
                     <!-- Stock -->
                     <div class="mb-4">
                         <label class="block text-sm font-medium text-white mb-2">
