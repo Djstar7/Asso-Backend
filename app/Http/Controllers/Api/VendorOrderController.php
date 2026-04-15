@@ -327,25 +327,70 @@ class VendorOrderController extends Controller
     }
 
     /**
-     * Get available delivery persons
+     * Get available delivery persons for a specific order's delivery company.
+     * Returns only deliverers synced with the company chosen by the client.
+     *
+     * GET /vendor/orders/delivery-persons?order_id=X
+     * GET /vendor/orders/delivery-persons?company_id=X
      */
     public function availableDeliveryPersons(Request $request)
     {
-        $deliveryPersons = User::where('role', 'livreur')
-            ->select('id', 'first_name', 'last_name', 'phone', 'address', 'avatar', 'latitude', 'longitude')
+        $companyId = $request->input('company_id');
+
+        // Si order_id fourni, récupérer la company depuis la commande
+        if (!$companyId && $request->input('order_id')) {
+            $order = Order::find($request->input('order_id'));
+            if ($order) {
+                $companyId = $order->delivery_company_id;
+            }
+        }
+
+        if (!$companyId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Veuillez fournir order_id ou company_id',
+            ], 422);
+        }
+
+        // Récupérer la company
+        $company = \App\Models\DelivererCompany::find($companyId);
+        if (!$company) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Entreprise de livraison non trouvée',
+            ], 404);
+        }
+
+        // Récupérer les livreurs synchronisés et actifs de cette company
+        $syncs = DelivererCodeSync::where('company_id', $companyId)
+            ->active()
+            ->with('user')
             ->get();
+
+        $deliveryPersons = $syncs
+            ->filter(fn($sync) => $sync->user !== null)
+            ->map(fn($sync) => [
+                'id' => $sync->user->id,
+                'name' => $sync->user->first_name . ' ' . $sync->user->last_name,
+                'phone' => $sync->user->phone,
+                'address' => $sync->user->address,
+                'avatar' => $sync->user->avatar ? asset('storage/' . $sync->user->avatar) : null,
+                'latitude' => $sync->user->latitude,
+                'longitude' => $sync->user->longitude,
+                'synced_at' => $sync->synced_at?->toIso8601String(),
+            ])
+            ->values();
 
         return response()->json([
             'success' => true,
-            'delivery_persons' => $deliveryPersons->map(fn($dp) => [
-                'id' => $dp->id,
-                'name' => $dp->name,
-                'phone' => $dp->phone,
-                'address' => $dp->address,
-                'avatar' => $dp->avatar,
-                'latitude' => $dp->latitude,
-                'longitude' => $dp->longitude,
-            ]),
+            'company' => [
+                'id' => $company->id,
+                'name' => $company->name,
+                'phone' => $company->phone,
+                'logo' => $company->logo ? asset('storage/' . $company->logo) : null,
+            ],
+            'delivery_persons' => $deliveryPersons,
+            'total' => $deliveryPersons->count(),
         ]);
     }
 

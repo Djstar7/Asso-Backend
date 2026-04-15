@@ -283,16 +283,17 @@ class OrderController extends Controller
             $data['confirmation_code'] = $order->confirmation_code;
         }
 
+        // Timestamps toujours inclus (nécessaires pour le tracking client)
+        $data['confirmed_at'] = $order->confirmed_at?->toIso8601String();
+        $data['shipped_at'] = $order->shipped_at?->toIso8601String();
+        $data['delivered_at'] = $order->delivered_at?->toIso8601String();
+        $data['cancelled_at'] = $order->cancelled_at?->toIso8601String();
+        $data['cancel_reason'] = $order->cancel_reason;
+
         if ($detailed) {
             $data['notes'] = $order->notes;
-            $data['cancel_reason'] = $order->cancel_reason;
-            $data['confirmed_at'] = $order->confirmed_at?->toIso8601String();
-            $data['shipped_at'] = $order->shipped_at?->toIso8601String();
-            $data['delivered_at'] = $order->delivered_at?->toIso8601String();
-            $data['cancelled_at'] = $order->cancelled_at?->toIso8601String();
             $data['confirmed_by_client_at'] = $order->confirmed_by_client_at?->toIso8601String();
             $data['confirmed_by_deliverer_at'] = $order->confirmed_by_deliverer_at?->toIso8601String();
-            $data['rated_at'] = $order->rated_at?->toIso8601String();
         }
 
         return $data;

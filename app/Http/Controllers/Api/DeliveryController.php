@@ -124,6 +124,9 @@ class DeliveryController extends Controller
                 );
             }
 
+            // Notifier les AUTRES livreurs de la company que la commande est prise
+            $this->notifyOtherDeliverers($order, $user);
+
             Log::info("[DeliveryController] Delivery accepted", [
                 'order_id' => $order->id,
                 'deliverer_id' => $user->id,
@@ -578,6 +581,38 @@ class DeliveryController extends Controller
         $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
 
         return $earthRadius * $c;
+    }
+
+    /**
+     * Notifier les autres livreurs de la company que la commande a été prise.
+     * Ils recevront un refresh de leur dashboard.
+     */
+    private function notifyOtherDeliverers(Order $order, User $acceptedBy): void
+    {
+        if (!$order->delivery_company_id) return;
+
+        $otherSyncs = \App\Models\DelivererCodeSync::where('company_id', $order->delivery_company_id)
+            ->active()
+            ->where('user_id', '!=', $acceptedBy->id)
+            ->with('user')
+            ->get();
+
+        foreach ($otherSyncs as $sync) {
+            if ($sync->user) {
+                $this->fcmService->sendToUser(
+                    $sync->user,
+                    'Commande prise',
+                    "La commande #{$order->order_number} a été acceptée par un autre livreur.",
+                    [
+                        'type' => 'delivery_taken',
+                        'order_id' => (string) $order->id,
+                        'order_number' => $order->order_number,
+                    ]
+                );
+            }
+        }
+
+        Log::info("[DeliveryController] Notified " . $otherSyncs->count() . " other deliverers that order #{$order->order_number} was taken");
     }
 
     private function formatDeliveryRequest($order): array
