@@ -266,6 +266,27 @@
                     </div>
                 </div>
 
+                <!-- Weight Category -->
+                <div class="bg-dark-100 rounded-xl shadow-lg p-6">
+                    <h2 class="text-lg font-semibold text-white mb-4 flex items-center">
+                        <i class="fas fa-weight-hanging text-primary-500 mr-2"></i>
+                        Catégorie de poids
+                    </h2>
+
+                    <div>
+                        <label for="weight_category" class="block text-sm font-medium text-white mb-2">
+                            Taille du produit
+                        </label>
+                        <select name="weight_category" id="weight_category"
+                                class="w-full px-4 py-2 bg-dark-50 border border-dark-300 rounded-lg text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent">
+                            @foreach(\App\Models\DeliveryPricelist::WEIGHT_CATEGORIES as $key => $label)
+                                <option value="{{ $key }}" {{ old('weight_category', $product->weight_category) == $key ? 'selected' : '' }}>{{ $key }} — {{ $label }}</option>
+                            @endforeach
+                        </select>
+                        <p class="text-xs text-gray-400 mt-2">Détermine le prix de livraison chez les partenaires</p>
+                    </div>
+                </div>
+
                 <!-- Stock -->
                 <div class="bg-dark-100 rounded-xl shadow-lg p-6">
                     <h2 class="text-lg font-semibold text-white mb-4 flex items-center">

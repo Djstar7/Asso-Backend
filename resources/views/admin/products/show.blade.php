@@ -122,6 +122,14 @@
                         <div class="font-semibold text-white">{{ $product->subcategory->name ?? 'Aucune' }}</div>
                     </div>
 
+                    <!-- Weight Category -->
+                    <div class="p-4 bg-dark-50 rounded-lg">
+                        <div class="text-sm text-gray-400 mb-1">
+                            <i class="fas fa-weight-hanging mr-2"></i>Catégorie de poids
+                        </div>
+                        <div class="font-semibold text-white">{{ $product->weight_category ?? 'X-small' }}</div>
+                    </div>
+
                     <!-- Slug -->
                     <div class="p-4 bg-dark-50 rounded-lg">
                         <div class="text-sm text-gray-400 mb-1">

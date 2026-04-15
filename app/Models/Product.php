@@ -9,6 +9,18 @@ use Illuminate\Support\Str;
 
 class Product extends Model
 {
+    /**
+     * Weight categories matching DeliveryPricelist system
+     */
+    const WEIGHT_CATEGORIES = [
+        'X-small',
+        '30 Deep',
+        '50 Deep',
+        '60 Deep',
+        'Rainbow XL',
+        'Pallet',
+    ];
+
     protected $fillable = [
         'shop_id',
         'user_id',
@@ -23,7 +35,7 @@ class Product extends Model
         'price_type',
         'type',
         'stock',
-        'weight',
+        'weight_category',
         'status',
     ];
 

@@ -20,7 +20,7 @@ use Carbon\Carbon;
  *
  * @property int $id
  * @property int $user_id
- * @property string $type (credit|debit|refund|bonus|adjustment)
+ * @property string $type (credit|debit|refund|bonus|adjustment|lock|unlock|escrow_release)
  * @property float $amount
  * @property float $balance_before
  * @property float $balance_after
@@ -103,7 +103,15 @@ class WalletTransaction extends Model
      */
     public function isDebit(): bool
     {
-        return $this->type === 'debit' || ($this->type === 'adjustment' && $this->amount < 0);
+        return in_array($this->type, ['debit', 'escrow_release']) || ($this->type === 'adjustment' && $this->amount < 0);
+    }
+
+    /**
+     * Vérifie si c'est une opération escrow
+     */
+    public function isEscrow(): bool
+    {
+        return in_array($this->type, ['lock', 'unlock', 'escrow_release']);
     }
 
     /**
@@ -133,6 +141,9 @@ class WalletTransaction extends Model
             'refund' => 'info',
             'bonus' => 'warning',
             'adjustment' => 'secondary',
+            'lock' => 'warning',
+            'unlock' => 'info',
+            'escrow_release' => 'danger',
             default => 'dark',
         };
     }
@@ -148,6 +159,9 @@ class WalletTransaction extends Model
             'refund' => 'Remboursement',
             'bonus' => 'Bonus',
             'adjustment' => 'Ajustement',
+            'lock' => 'Blocage escrow',
+            'unlock' => 'Déblocage escrow',
+            'escrow_release' => 'Libération escrow',
             default => ucfirst($this->type),
         };
     }
@@ -163,6 +177,9 @@ class WalletTransaction extends Model
             'refund' => 'fas fa-undo',
             'bonus' => 'fas fa-gift',
             'adjustment' => 'fas fa-wrench',
+            'lock' => 'fas fa-lock',
+            'unlock' => 'fas fa-unlock',
+            'escrow_release' => 'fas fa-hand-holding-usd',
             default => 'fas fa-exchange-alt',
         };
     }

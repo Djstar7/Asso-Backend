@@ -490,17 +490,35 @@ class ProfileController extends Controller
         // Load deliverer company with zones
         $user->load(['delivererCompany.deliveryZones.pricelist']);
 
-        $deliveries = \App\Models\Order::where('delivery_person_id', $user->id)
-            ->with(['items.product.primaryImage', 'user'])
+        // 1. Commandes assignées directement à ce livreur
+        $directOrders = \App\Models\Order::where('delivery_person_id', $user->id)
+            ->with(['items.product.primaryImage', 'user', 'deliveryCompany'])
             ->orderBy('created_at', 'desc')
-            ->limit(20)
             ->get();
 
+        // 2. Commandes de sa company (confirmed, pas encore de delivery_person)
+        $companyIds = \App\Models\DelivererCodeSync::where('user_id', $user->id)
+            ->where('is_active', true)
+            ->where('is_banned', false)
+            ->pluck('company_id');
+
+        $companyOrders = collect();
+        if ($companyIds->isNotEmpty()) {
+            $companyOrders = \App\Models\Order::whereIn('delivery_company_id', $companyIds)
+                ->whereNull('delivery_person_id')
+                ->where('status', 'confirmed')
+                ->with(['items.product.primaryImage', 'user', 'deliveryCompany'])
+                ->orderBy('created_at', 'desc')
+                ->get();
+        }
+
+        $deliveries = $directOrders->merge($companyOrders)->unique('id')->sortByDesc('created_at')->values();
+
         $stats = [
-            'total_deliveries' => \App\Models\Order::where('delivery_person_id', $user->id)->count(),
-            'completed' => \App\Models\Order::where('delivery_person_id', $user->id)->where('status', 'delivered')->count(),
-            'in_progress' => \App\Models\Order::where('delivery_person_id', $user->id)->where('status', 'shipped')->count(),
-            'pending' => \App\Models\Order::where('delivery_person_id', $user->id)->whereIn('status', ['confirmed', 'preparing'])->count(),
+            'total_deliveries' => $deliveries->count(),
+            'completed' => $directOrders->where('status', 'delivered')->count(),
+            'in_progress' => $directOrders->where('status', 'shipped')->count(),
+            'pending' => $deliveries->whereIn('status', ['confirmed', 'preparing'])->count(),
         ];
 
         // Get company info if exists
@@ -548,19 +566,33 @@ class ProfileController extends Controller
             'company' => $companyData,
             'deliveries' => $deliveries->map(fn($order) => [
                 'id' => $order->id,
+                'order_id' => $order->id,
                 'order_number' => $order->order_number,
                 'status' => $order->status,
                 'total' => (float) $order->total,
+                'delivery_fee' => (float) $order->delivery_fee,
+                'commission' => (float) $order->delivery_fee,
                 'delivery_address' => $order->delivery_address,
                 'delivery_latitude' => $order->delivery_latitude,
                 'delivery_longitude' => $order->delivery_longitude,
-                'customer' => [
+                'customer_name' => $order->user ? $order->user->name : 'Client',
+                'customer_phone' => $order->user ? $order->user->phone : '',
+                'customer' => $order->user ? [
                     'id' => $order->user->id,
                     'name' => $order->user->name,
                     'phone' => $order->user->phone,
-                ],
+                    'address' => $order->user->address,
+                ] : null,
+                'delivery_company' => $order->deliveryCompany ? [
+                    'id' => $order->deliveryCompany->id,
+                    'name' => $order->deliveryCompany->name,
+                ] : null,
+                'pickup_address' => '',
                 'items_count' => $order->items->count(),
                 'created_at' => $order->created_at->toIso8601String(),
+                'confirmed_at' => $order->confirmed_at?->toIso8601String(),
+                'shipped_at' => $order->shipped_at?->toIso8601String(),
+                'delivered_at' => $order->delivered_at?->toIso8601String(),
             ]),
             'stats' => $stats,
         ]);

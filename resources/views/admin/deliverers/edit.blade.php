@@ -920,8 +920,28 @@ function updatePricelistZones() {
         return;
     }
 
+    // Save existing pricing data before rebuilding
+    const savedPricingData = {};
+    activeZones.forEach(zone => {
+        const pricingTypeEl = document.getElementById(`pricing-type-${zone.id}`);
+        if (pricingTypeEl && pricingTypeEl.value) {
+            savedPricingData[zone.id] = {
+                pricingType: pricingTypeEl.value,
+                fieldValues: {}
+            };
+            const fieldsContainer = document.getElementById(`pricing-fields-${zone.id}`);
+            if (fieldsContainer) {
+                fieldsContainer.querySelectorAll('input, select').forEach(input => {
+                    if (input.name) {
+                        savedPricingData[zone.id].fieldValues[input.name] = input.value;
+                    }
+                });
+            }
+        }
+    });
+
     pricelistContainer.innerHTML = activeZones.map(zone => `
-        <div class="p-6 bg-dark-50 rounded-lg border border-dark-300">
+        <div class="p-6 bg-dark-50 rounded-lg border border-dark-300" data-pricelist-zone="${zone.id}">
             <h4 class="text-white font-semibold mb-4">
                 <i class="fas fa-map-pin text-primary-500 mr-2"></i>
                 ${zone.name}
@@ -946,6 +966,26 @@ function updatePricelistZones() {
             </div>
         </div>
     `).join('');
+
+    // Restore saved pricing data after rebuilding
+    Object.keys(savedPricingData).forEach(zoneId => {
+        const saved = savedPricingData[zoneId];
+        const pricingTypeEl = document.getElementById(`pricing-type-${zoneId}`);
+        if (pricingTypeEl && saved.pricingType) {
+            pricingTypeEl.value = saved.pricingType;
+            updatePricingFields(parseInt(zoneId));
+
+            setTimeout(() => {
+                Object.keys(saved.fieldValues).forEach(fieldName => {
+                    const fields = document.getElementsByName(fieldName);
+                    const field = fields.length > 0 ? fields[0] : null;
+                    if (field) {
+                        field.value = saved.fieldValues[fieldName];
+                    }
+                });
+            }, 10);
+        }
+    });
 }
 
 // Generate preview sync code (XXXX-XXXX-XXXX format = 14 chars)
