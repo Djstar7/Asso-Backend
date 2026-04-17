@@ -258,7 +258,37 @@ class DeliveryController extends Controller
                     }
                 }
 
-                // 5. FCM au client
+                // 5. Décrémenter le stock des produits et créer les entrées d'inventaire
+                foreach ($order->items as $item) {
+                    $product = $item->product;
+                    if ($product) {
+                        $previousStock = $product->stock ?? 0;
+                        $newStock = max(0, $previousStock - $item->quantity);
+
+                        // Mettre à jour le stock du produit
+                        $product->update(['stock' => $newStock]);
+
+                        // Créer une entrée d'inventaire (sortie)
+                        \App\Models\Inventory::create([
+                            'product_id' => $product->id,
+                            'user_id' => $item->seller_id,
+                            'type' => 'exit',
+                            'quantity' => -$item->quantity, // Négatif pour une sortie
+                            'stock_after' => $newStock,
+                            'order_id' => $order->id,
+                            'notes' => "Vente - Commande #{$order->order_number}",
+                        ]);
+
+                        Log::info("[DeliveryController] Stock décrémenté", [
+                            'product_id' => $product->id,
+                            'quantity' => $item->quantity,
+                            'stock_before' => $previousStock,
+                            'stock_after' => $newStock,
+                        ]);
+                    }
+                }
+
+                // 6. FCM au client
                 $client = $order->user;
                 if ($client) {
                     $this->fcmService->sendToUser(

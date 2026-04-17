@@ -354,6 +354,8 @@ class VendorProductController extends Controller
             'stock' => $product->stock,
             'weight' => $product->weight,
             'status' => $product->status,
+            'latitude' => $product->latitude ? (float) $product->latitude : null,
+            'longitude' => $product->longitude ? (float) $product->longitude : null,
             'primary_image' => $product->primaryImage ? $this->getImageUrl($product->primaryImage->image_path) : null,
             'images' => $product->images->map(fn($img) => [
                 'id' => $img->id,
@@ -374,6 +376,10 @@ class VendorProductController extends Controller
                 'name' => $product->shop->name,
                 'slug' => $product->shop->slug,
                 'logo' => $product->shop->logo,
+                'is_certified' => (bool) $product->shop->is_certified,
+                'latitude' => $product->shop->latitude ? (float) $product->shop->latitude : null,
+                'longitude' => $product->shop->longitude ? (float) $product->shop->longitude : null,
+                'address' => $product->shop->address,
             ] : null,
             'created_at' => $product->created_at->toIso8601String(),
             'updated_at' => $product->updated_at->toIso8601String(),
@@ -606,5 +612,61 @@ class VendorProductController extends Controller
                 'message' => 'Erreur lors de la mise à jour du stock',
             ], 500);
         }
+    }
+
+    /**
+     * Get inventory history for the authenticated vendor
+     */
+    public function getInventoryHistory(Request $request)
+    {
+        $user = $request->user();
+
+        $query = Inventory::with(['product'])
+            ->where('user_id', $user->id)
+            ->orderBy('created_at', 'desc');
+
+        // Filter by type if provided (entry, exit, adjustment)
+        if ($request->has('type') && $request->type) {
+            $query->where('type', $request->type);
+        }
+
+        // Filter by product if provided
+        if ($request->has('product_id') && $request->product_id) {
+            $query->where('product_id', $request->product_id);
+        }
+
+        $perPage = $request->get('per_page', 50);
+        $inventoryEntries = $query->paginate($perPage);
+
+        $data = $inventoryEntries->getCollection()->map(function ($entry) {
+            return [
+                'id' => (string) $entry->id,
+                'product_id' => (string) $entry->product_id,
+                'product_name' => $entry->product ? $entry->product->name : 'Produit supprimé',
+                'type' => $entry->type,
+                'quantity' => $entry->quantity,
+                'stock_after' => $entry->stock_after,
+                'order_id' => $entry->order_id ? (string) $entry->order_id : null,
+                'notes' => $entry->notes,
+                'date' => $entry->created_at->toIso8601String(),
+            ];
+        });
+
+        \Log::info('[VENDOR_INVENTORY] Inventory fetched:', [
+            'user_id' => $user->id,
+            'total' => $inventoryEntries->total(),
+            'current_page' => $inventoryEntries->currentPage(),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'data' => $data,
+            'meta' => [
+                'current_page' => $inventoryEntries->currentPage(),
+                'last_page' => $inventoryEntries->lastPage(),
+                'per_page' => $inventoryEntries->perPage(),
+                'total' => $inventoryEntries->total(),
+            ],
+        ]);
     }
 }

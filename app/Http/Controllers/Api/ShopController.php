@@ -70,7 +70,7 @@ class ShopController extends Controller
     }
 
     /**
-     * Get public shop info by ID
+     * Get public shop info by ID with products
      */
     public function showPublic($shopId)
     {
@@ -91,11 +91,40 @@ class ShopController extends Controller
             ], 403);
         }
 
-        $shop->load('user', 'products');
+        $shop->load([
+            'user',
+            'products' => function ($query) {
+                $query->where('status', 'active')
+                      ->with(['images', 'primaryImage', 'category'])
+                      ->orderBy('created_at', 'desc');
+            }
+        ]);
+
+        // Calculate shop stats
+        $productIds = $shop->products->pluck('id');
+        $averageRating = 0.0;
+        $totalReviews = 0;
+
+        if ($productIds->count() > 0) {
+            $reviews = DB::table('product_reviews')
+                ->whereIn('product_id', $productIds)
+                ->get();
+
+            if ($reviews->count() > 0) {
+                $totalReviews = $reviews->count();
+                $sumRatings = $reviews->sum('rating');
+                $averageRating = round($sumRatings / $totalReviews, 1);
+            }
+        }
 
         return response()->json([
             'success' => true,
-            'shop' => $this->formatShopPublic($shop)
+            'shop' => $this->formatShopPublicWithProducts($shop),
+            'stats' => [
+                'products_count' => $shop->products->count(),
+                'average_rating' => $averageRating,
+                'reviews_count' => $totalReviews,
+            ],
         ]);
     }
 
@@ -369,6 +398,7 @@ class ShopController extends Controller
             'longitude' => $shop->longitude,
             'categories' => $shop->categories ?? [],
             'status' => $shop->status,
+            'is_certified' => (bool) $shop->is_certified,
             'phone' => $shop->phone ?? $shop->user->phone,
             'email' => $shop->email ?? $shop->user->email,
             'products_count' => $shop->products()->count(),
@@ -392,8 +422,73 @@ class ShopController extends Controller
             'latitude' => $shop->latitude,
             'longitude' => $shop->longitude,
             'categories' => $shop->categories ?? [],
+            'is_certified' => (bool) $shop->is_certified,
             'phone' => $shop->phone ?? $shop->user->phone,
             'products_count' => $shop->products()->count(),
+        ];
+    }
+
+    /**
+     * Format shop for public response with products
+     */
+    private function formatShopPublicWithProducts(Shop $shop): array
+    {
+        $products = $shop->products->map(function ($product) {
+            // Get all images
+            $images = [];
+
+            // Add primary image first
+            if ($product->primaryImage) {
+                $images[] = asset('storage/' . $product->primaryImage->image_path);
+            }
+
+            // Add all other images
+            if ($product->images && $product->images->count() > 0) {
+                foreach ($product->images as $image) {
+                    $imageUrl = asset('storage/' . $image->image_path);
+                    if (!in_array($imageUrl, $images)) {
+                        $images[] = $imageUrl;
+                    }
+                }
+            }
+
+            return [
+                'id' => $product->id,
+                'name' => $product->name,
+                'slug' => $product->slug,
+                'description' => $product->description,
+                'price' => (float) $product->price,
+                'stock' => (int) $product->stock,
+                'primary_image' => $product->primaryImage ? asset('storage/' . $product->primaryImage->image_path) : null,
+                'images' => $images,
+                'category' => $product->category,
+                'condition' => $product->condition,
+                'latitude' => $product->latitude,
+                'longitude' => $product->longitude,
+                'location' => $product->address,
+                'created_at' => $product->created_at->toIso8601String(),
+            ];
+        });
+
+        return [
+            'id' => $shop->id,
+            'name' => $shop->name,
+            'slug' => $shop->slug,
+            'description' => $shop->description,
+            'logo' => $shop->logo ? asset('storage/' . $shop->logo) : null,
+            'address' => $shop->address,
+            'latitude' => $shop->latitude,
+            'longitude' => $shop->longitude,
+            'categories' => $shop->categories ?? [],
+            'is_certified' => (bool) $shop->is_certified,
+            'phone' => $shop->phone ?? $shop->user->phone,
+            'email' => $shop->email ?? $shop->user->email,
+            'products' => $products,
+            'owner' => [
+                'id' => $shop->user->id,
+                'name' => $shop->user->first_name . ' ' . $shop->user->last_name,
+                'profile_picture' => $shop->user->profile_picture ? asset('storage/' . $shop->user->profile_picture) : null,
+            ],
         ];
     }
 
@@ -408,6 +503,7 @@ class ShopController extends Controller
             'slug' => $shop->slug,
             'logo' => $shop->logo ? asset('storage/' . $shop->logo) : null,
             'status' => $shop->status,
+            'is_certified' => (bool) $shop->is_certified,
             'products_count' => $shop->products()->count(),
         ];
     }

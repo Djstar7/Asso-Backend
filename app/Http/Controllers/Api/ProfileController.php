@@ -201,6 +201,7 @@ class ProfileController extends Controller
                     'longitude' => $shop->longitude,
                     'categories' => $shop->categories,
                     'status' => $shop->status,
+                    'is_certified' => (bool) $shop->is_certified,
                 ],
                 'user' => [
                     'id' => $user->id,
@@ -431,6 +432,7 @@ class ProfileController extends Controller
                         'longitude' => $shop->longitude,
                         'categories' => $shop->categories,
                         'status' => $shop->status,
+                        'is_certified' => (bool) $shop->is_certified,
                     ],
                     'stats' => [
                         'total_orders' => $ordersCount,

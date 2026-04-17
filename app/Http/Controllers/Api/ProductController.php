@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Models\Category;
 use App\Models\DeliveryPricelist;
+use App\Models\Inventory;
 use Illuminate\Http\Request;
 
 class ProductController extends Controller
@@ -21,12 +22,14 @@ class ProductController extends Controller
                 $q->where('status', 'active');
             });
 
-        // Search
+        // Search (accent-insensitive using PostgreSQL f_unaccent function)
         if ($request->has('search') && $request->search) {
             $search = $request->search;
+
             $query->where(function ($q) use ($search) {
-                $q->where('name', 'LIKE', "%{$search}%")
-                    ->orWhere('description', 'LIKE', "%{$search}%");
+                // Use PostgreSQL f_unaccent function for accent-insensitive search
+                $q->whereRaw('f_unaccent(name) ILIKE ?', ['%' . $search . '%'])
+                    ->orWhereRaw('f_unaccent(description) ILIKE ?', ['%' . $search . '%']);
             });
         }
 
@@ -434,6 +437,8 @@ class ProductController extends Controller
             'stock' => $product->stock,
             'weight' => $product->weight,
             'status' => $product->status,
+            'latitude' => $product->latitude ? (float) $product->latitude : null,
+            'longitude' => $product->longitude ? (float) $product->longitude : null,
             'is_favorite' => in_array($product->id, $favoriteIds),
             'primary_image' => $product->primaryImage ? $this->getImageUrl($product->primaryImage->image_path) : null,
             'images' => $product->images->map(fn($img) => [
@@ -453,7 +458,7 @@ class ProductController extends Controller
             'seller' => $product->user ? [
                 'id' => $product->user->id,
                 'name' => $product->user->name,
-                'avatar' => $product->user->avatar,
+                'avatar' => $product->user->avatar ? $this->getImageUrl($product->user->avatar) : null,
                 'rating' => $product->average_rating,
                 'reviews_count' => $product->reviews_count,
             ] : null,
@@ -461,7 +466,11 @@ class ProductController extends Controller
                 'id' => $product->shop->id,
                 'name' => $product->shop->name,
                 'slug' => $product->shop->slug,
-                'logo' => $product->shop->logo,
+                'logo' => $product->shop->logo ? $this->getImageUrl($product->shop->logo) : null,
+                'is_certified' => (bool) $product->shop->is_certified,
+                'latitude' => $product->shop->latitude ? (float) $product->shop->latitude : null,
+                'longitude' => $product->shop->longitude ? (float) $product->shop->longitude : null,
+                'address' => $product->shop->address,
             ] : null,
             'location' => $product->shop ? $product->shop->address : ($product->user ? $product->user->address : null),
             'created_at' => $product->created_at->toIso8601String(),
@@ -474,7 +483,7 @@ class ProductController extends Controller
                 'user' => [
                     'id' => $review->user->id,
                     'name' => $review->user->name,
-                    'avatar' => $review->user->avatar,
+                    'avatar' => $review->user->avatar ? $this->getImageUrl($review->user->avatar) : null,
                 ],
                 'rating' => $review->rating,
                 'comment' => $review->comment,
@@ -504,5 +513,30 @@ class ProductController extends Controller
             : $imagePath;
 
         return asset('storage/' . $cleanPath);
+    }
+
+    /**
+     * Remove accents from a string for accent-insensitive search
+     */
+    private function removeAccents($string)
+    {
+        $accents = [
+            'à' => 'a', 'á' => 'a', 'â' => 'a', 'ã' => 'a', 'ä' => 'a', 'å' => 'a',
+            'è' => 'e', 'é' => 'e', 'ê' => 'e', 'ë' => 'e',
+            'ì' => 'i', 'í' => 'i', 'î' => 'i', 'ï' => 'i',
+            'ò' => 'o', 'ó' => 'o', 'ô' => 'o', 'õ' => 'o', 'ö' => 'o',
+            'ù' => 'u', 'ú' => 'u', 'û' => 'u', 'ü' => 'u',
+            'ý' => 'y', 'ÿ' => 'y',
+            'ñ' => 'n', 'ç' => 'c',
+            'À' => 'A', 'Á' => 'A', 'Â' => 'A', 'Ã' => 'A', 'Ä' => 'A', 'Å' => 'A',
+            'È' => 'E', 'É' => 'E', 'Ê' => 'E', 'Ë' => 'E',
+            'Ì' => 'I', 'Í' => 'I', 'Î' => 'I', 'Ï' => 'I',
+            'Ò' => 'O', 'Ó' => 'O', 'Ô' => 'O', 'Õ' => 'O', 'Ö' => 'O',
+            'Ù' => 'U', 'Ú' => 'U', 'Û' => 'U', 'Ü' => 'U',
+            'Ý' => 'Y',
+            'Ñ' => 'N', 'Ç' => 'C',
+        ];
+
+        return strtr($string, $accents);
     }
 }

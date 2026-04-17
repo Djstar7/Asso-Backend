@@ -451,6 +451,314 @@ class AuthController extends Controller
     }
 
     /**
+     * Request phone number change - sends OTP to new number
+     */
+    public function requestPhoneChange(Request $request)
+    {
+        $request->validate([
+            'new_phone' => 'required|string|min:8|max:20',
+            'country_code' => 'nullable|string|max:5',
+        ]);
+
+        $user = $request->user();
+        $newPhone = $request->new_phone;
+        $countryCode = $request->country_code ?? '+237';
+        $fullNewPhone = $countryCode . $newPhone;
+
+        Log::info('[AUTH] ========== REQUEST PHONE CHANGE ==========', [
+            'user_id' => $user->id,
+            'current_phone' => $user->phone,
+            'new_phone' => $fullNewPhone,
+        ]);
+
+        // Check if new phone is already in use by another user
+        $existingUser = User::where('phone', $fullNewPhone)
+            ->where('id', '!=', $user->id)
+            ->first();
+
+        if ($existingUser) {
+            Log::warning('[AUTH] Phone change failed - phone already in use', [
+                'user_id' => $user->id,
+                'new_phone' => $fullNewPhone,
+                'existing_user_id' => $existingUser->id,
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Ce numéro de téléphone est déjà utilisé',
+            ], 422);
+        }
+
+        // Check if it's the same as current phone
+        if ($user->phone === $fullNewPhone) {
+            Log::warning('[AUTH] Phone change failed - same as current', [
+                'user_id' => $user->id,
+                'phone' => $fullNewPhone,
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Le nouveau numéro est identique à l\'actuel',
+            ], 422);
+        }
+
+        // Generate 6-digit OTP
+        $otpCode = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+        Log::info('[AUTH] OTP code generated for phone change', [
+            'user_id' => $user->id,
+            'new_phone' => $fullNewPhone,
+            'code' => $otpCode
+        ]);
+
+        // Store OTP in phone_otps table with metadata
+        PhoneOtp::create([
+            'phone' => $fullNewPhone,
+            'code' => $otpCode,
+            'expires_at' => Carbon::now()->addMinutes(5),
+            'metadata' => json_encode([
+                'action' => 'phone_change',
+                'user_id' => $user->id,
+                'old_phone' => $user->phone,
+            ]),
+        ]);
+        Log::info('[AUTH] OTP stored for phone change', ['new_phone' => $fullNewPhone]);
+
+        // Send OTP using OtpService
+        $otpService = new \App\Services\OtpService();
+        $result = $otpService->sendOtp($fullNewPhone, $otpCode, null);
+
+        Log::info('[AUTH] OTP send result for phone change', [
+            'user_id' => $user->id,
+            'new_phone' => $fullNewPhone,
+            'success' => $result['success'],
+            'channel' => $result['channel'],
+        ]);
+
+        $response = [
+            'success' => $result['success'],
+            'message' => $result['message'],
+            'channel' => $result['channel'],
+        ];
+
+        // In development, return the code
+        if (app()->environment('local')) {
+            $response['otp_code'] = $otpCode;
+        }
+
+        return response()->json($response);
+    }
+
+    /**
+     * Confirm phone number change with OTP
+     */
+    public function confirmPhoneChange(Request $request)
+    {
+        $request->validate([
+            'new_phone' => 'required|string',
+            'otp_code' => 'required|string|size:6',
+        ]);
+
+        $user = $request->user();
+        $countryCode = $request->country_code ?? '+237';
+        $newPhone = $request->new_phone;
+
+        // Ensure full phone format
+        $fullNewPhone = str_starts_with($newPhone, '+') ? $newPhone : $countryCode . $newPhone;
+
+        Log::info('[AUTH] ========== CONFIRM PHONE CHANGE ==========', [
+            'user_id' => $user->id,
+            'current_phone' => $user->phone,
+            'new_phone' => $fullNewPhone,
+        ]);
+
+        // Check OTP from phone_otps table
+        $phoneOtp = PhoneOtp::where('phone', $fullNewPhone)
+            ->where('code', $request->otp_code)
+            ->where('verified', false)
+            ->where('expires_at', '>', now())
+            ->latest()
+            ->first();
+
+        if (!$phoneOtp) {
+            Log::warning('[AUTH] Phone change OTP verification failed - invalid or expired', [
+                'user_id' => $user->id,
+                'new_phone' => $fullNewPhone,
+                'provided_code' => $request->otp_code,
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Code OTP incorrect ou expiré',
+            ], 422);
+        }
+
+        // Verify metadata to ensure this OTP was for phone change
+        $metadata = json_decode($phoneOtp->metadata, true);
+        if (!$metadata || $metadata['action'] !== 'phone_change' || $metadata['user_id'] != $user->id) {
+            Log::error('[AUTH] Phone change OTP metadata mismatch', [
+                'user_id' => $user->id,
+                'metadata' => $metadata,
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Code OTP invalide',
+            ], 422);
+        }
+
+        // Mark OTP as verified
+        $phoneOtp->update(['verified' => true]);
+
+        // Update user's phone number
+        $oldPhone = $user->phone;
+        $user->update(['phone' => $fullNewPhone]);
+
+        Log::info('[AUTH] Phone number changed successfully', [
+            'user_id' => $user->id,
+            'old_phone' => $oldPhone,
+            'new_phone' => $fullNewPhone,
+        ]);
+
+        // Revoke all existing tokens for security
+        $user->tokens()->delete();
+        Log::info('[AUTH] All tokens revoked after phone change', ['user_id' => $user->id]);
+
+        // Create new token
+        $token = $user->createToken('mobile-app')->plainTextToken;
+        Log::info('[AUTH] New token created after phone change', ['user_id' => $user->id]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Numéro de téléphone modifié avec succès',
+            'token' => $token,
+            'user' => [
+                'id' => $user->id,
+                'first_name' => $user->first_name,
+                'last_name' => $user->last_name,
+                'email' => $user->email,
+                'phone' => $user->phone,
+                'role' => $user->role,
+                'roles' => $user->getRoles(),
+                'avatar' => $user->avatar,
+                'country' => $user->country,
+                'address' => $user->address,
+                'is_profile_complete' => (bool) $user->is_profile_complete,
+                'preferences' => $user->preferences,
+                'referral_code' => $user->referral_code,
+                'company_name' => $user->company_name,
+                'created_at' => $user->created_at->toIso8601String(),
+            ],
+        ]);
+    }
+
+    /**
+     * Delete user account (RGPD compliant)
+     */
+    public function deleteAccount(Request $request)
+    {
+        $user = $request->user();
+
+        Log::info('[AUTH] ========== ACCOUNT DELETION START ==========', [
+            'user_id' => $user->id,
+            'phone' => $user->phone,
+        ]);
+
+        \DB::beginTransaction();
+
+        try {
+            // 1. Revoke all tokens
+            $user->tokens()->delete();
+            Log::info('[AUTH] All tokens revoked', ['user_id' => $user->id]);
+
+            // 2. Delete device tokens (FCM)
+            \App\Models\DeviceToken::where('user_id', $user->id)->delete();
+            Log::info('[AUTH] Device tokens deleted', ['user_id' => $user->id]);
+
+            // 3. Delete notifications
+            $user->notifications()->delete();
+            Log::info('[AUTH] Notifications deleted', ['user_id' => $user->id]);
+
+            // 4. Anonymize messages (RGPD - keep conversation history but anonymize)
+            \App\Models\Message::where('sender_id', $user->id)->update([
+                'sender_id' => null,
+                'message' => '[Message supprimé]',
+            ]);
+            Log::info('[AUTH] Messages anonymized', ['user_id' => $user->id]);
+
+            // 5. Delete favorites
+            $user->favorites()->detach();
+            Log::info('[AUTH] Favorites deleted', ['user_id' => $user->id]);
+
+            // 6. Handle products (if vendor)
+            if ($user->hasAnyRole(['vendeur', 'vendor'])) {
+                foreach ($user->products as $product) {
+                    // Delete product images
+                    $product->images()->delete();
+                    // Soft delete product
+                    $product->delete();
+                }
+
+                // Deactivate shops
+                $user->shops()->update([
+                    'status' => 'deleted',
+                    'user_id' => null,
+                ]);
+
+                Log::info('[AUTH] Vendor products and shops handled', [
+                    'user_id' => $user->id,
+                    'products_count' => $user->products()->withTrashed()->count(),
+                    'shops_count' => $user->shops()->count(),
+                ]);
+            }
+
+            // 7. Cancel pending orders
+            \App\Models\Order::where('user_id', $user->id)
+                ->whereIn('status', ['pending', 'confirmed', 'preparing'])
+                ->update(['status' => 'cancelled']);
+
+            // 8. Anonymize completed orders (RGPD)
+            \App\Models\Order::where('user_id', $user->id)->update([
+                'user_id' => null,
+                'delivery_address' => 'Adresse supprimée',
+                'delivery_latitude' => null,
+                'delivery_longitude' => null,
+                'notes' => null,
+            ]);
+            Log::info('[AUTH] Orders anonymized', ['user_id' => $user->id]);
+
+            // 9. Delete wallet transactions (soft delete)
+            $user->walletTransactions()->delete();
+            Log::info('[AUTH] Wallet transactions deleted', ['user_id' => $user->id]);
+
+            // 10. Delete user (soft delete)
+            $user->delete();
+            Log::info('[AUTH] User soft deleted', ['user_id' => $user->id]);
+
+            \DB::commit();
+
+            Log::info('[AUTH] ========== ACCOUNT DELETION SUCCESS ==========', [
+                'user_id' => $user->id,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Compte supprimé avec succès',
+            ]);
+
+        } catch (\Exception $e) {
+            \DB::rollBack();
+
+            Log::error('[AUTH] ========== ACCOUNT DELETION FAILED ==========', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la suppression du compte',
+                'error' => app()->environment('local') ? $e->getMessage() : null,
+            ], 500);
+        }
+    }
+
+    /**
      * Logout (revoke current token)
      */
     public function logout(Request $request)

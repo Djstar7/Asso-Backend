@@ -36,6 +36,8 @@ class Product extends Model
         'type',
         'stock',
         'weight_category',
+        'latitude',
+        'longitude',
         'status',
     ];
 
@@ -43,6 +45,8 @@ class Product extends Model
         'price' => 'decimal:2',
         'min_price' => 'decimal:2',
         'max_price' => 'decimal:2',
+        'latitude' => 'decimal:8',
+        'longitude' => 'decimal:8',
     ];
 
     /**

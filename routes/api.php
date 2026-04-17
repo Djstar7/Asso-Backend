@@ -23,6 +23,8 @@ use App\Http\Controllers\Api\DeviceTokenController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\DelivererSyncController;
 use App\Http\Controllers\Api\ShopController;
+use App\Http\Controllers\Api\AppController;
+use App\Http\Controllers\Api\SearchController;
 use Illuminate\Support\Facades\Broadcast;
 
 /*
@@ -69,6 +71,12 @@ Route::prefix('settings')->group(function () {
     Route::get('/{key}', [SettingController::class, 'show'])->name('api.settings.show');
 });
 
+// App information (public)
+Route::prefix('v1/app')->group(function () {
+    Route::get('/about', [AppController::class, 'about']);
+    Route::get('/version', [AppController::class, 'version']);
+});
+
 // Public products & categories
 Route::prefix('v1')->group(function () {
     // Specific routes BEFORE parametrized routes
@@ -80,6 +88,13 @@ Route::prefix('v1')->group(function () {
     Route::get('/products/{id}', [ProductController::class, 'show']);
     Route::get('/categories', [CategoryController::class, 'index']);
     Route::get('/banners', [BannerController::class, 'index']);
+
+    // ============================================
+    // INTELLIGENT SEARCH ROUTES (Public)
+    // ============================================
+    Route::get('/search', [SearchController::class, 'search']);
+    Route::get('/search/suggestions', [SearchController::class, 'suggestions']);
+    Route::get('/search/popular', [SearchController::class, 'popularSearches']);
 
     // Public shop routes
     Route::get('/shops/{shopId}', [ShopController::class, 'showPublic']);
@@ -109,6 +124,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/profile', [AuthController::class, 'updateProfile']);
         Route::get('/preferences', [AuthController::class, 'getPreferences']);
         Route::put('/preferences', [AuthController::class, 'updatePreferences']);
+        Route::post('/request-phone-change', [AuthController::class, 'requestPhoneChange']);
+        Route::post('/confirm-phone-change', [AuthController::class, 'confirmPhoneChange']);
+        Route::post('/delete-account', [AuthController::class, 'deleteAccount']);
         Route::post('/logout', [AuthController::class, 'logout']);
     });
 
@@ -142,6 +160,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Invoices
         Route::prefix('invoices')->group(function () {
+            Route::get('/', [InvoiceController::class, 'index']);
             Route::get('/package/{token}', [InvoiceController::class, 'showPackageInvoice']);
             Route::get('/download/{vendorPackageId}', [InvoiceController::class, 'download'])->name('api.invoices.download');
             Route::get('/pdf/{vendorPackageId}', [InvoiceController::class, 'downloadPdf'])->name('api.invoices.pdf');
@@ -224,7 +243,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Inventory management
         Route::prefix('vendor/inventory')->group(function () {
-            Route::get('/', [VendorProductController::class, 'getInventory']);
+            Route::get('/', [VendorProductController::class, 'getInventoryHistory']);
             Route::post('/entry', [VendorProductController::class, 'addInventoryEntry']);
         });
 
