@@ -25,6 +25,7 @@ use App\Http\Controllers\Api\DelivererSyncController;
 use App\Http\Controllers\Api\ShopController;
 use App\Http\Controllers\Api\AppController;
 use App\Http\Controllers\Api\SearchController;
+use App\Http\Controllers\Api\AnalyzeProductController;
 use Illuminate\Support\Facades\Broadcast;
 
 /*
@@ -88,6 +89,11 @@ Route::prefix('v1')->group(function () {
     Route::get('/products/{id}', [ProductController::class, 'show']);
     Route::get('/categories', [CategoryController::class, 'index']);
     Route::get('/banners', [BannerController::class, 'index']);
+
+    // AI Product Analysis (Gemini Vision)
+    Route::post('/products/analyze', [AnalyzeProductController::class, 'analyze']);
+    Route::get('/products/categories', [AnalyzeProductController::class, 'categories']);
+    Route::get('/products/analyze/health', [AnalyzeProductController::class, 'health']);
 
     // ============================================
     // INTELLIGENT SEARCH ROUTES (Public)

@@ -529,13 +529,15 @@ class DeliveryController extends Controller
             $productId = $request->input('product_id');
             $latitude = $request->input('latitude');
             $longitude = $request->input('longitude');
+            $city = $request->input('city');
 
             // Si product_id fourni, retourner les partenaires avec prix calculé
             if ($productId) {
                 $partners = $this->orderService->getDeliveryPartnersWithPricing(
                     (int) $productId,
                     $latitude ? (float) $latitude : null,
-                    $longitude ? (float) $longitude : null
+                    $longitude ? (float) $longitude : null,
+                    $city
                 );
 
                 return response()->json([

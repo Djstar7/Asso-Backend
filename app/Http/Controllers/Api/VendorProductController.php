@@ -79,7 +79,7 @@ class VendorProductController extends Controller
             'subcategory_id' => 'sometimes|nullable|exists:subcategories,id',
             'type' => 'sometimes|in:article,service',
             'condition' => 'sometimes|in:new,used,refurbished',
-            'weight_category' => 'sometimes|in:' . implode(',', Product::WEIGHT_CATEGORIES),
+            'weight_category' => 'sometimes|nullable|in:' . implode(',', Product::WEIGHT_CATEGORIES),
             'stock' => 'sometimes|integer|min:0',
             'weight' => 'sometimes|nullable|string|max:255',
             'images' => 'sometimes|array',
@@ -131,12 +131,21 @@ class VendorProductController extends Controller
             $updateData = $validated;
             unset($updateData['images']);
 
+            // Convert empty strings to null for weight fields
+            if (isset($updateData['weight']) && $updateData['weight'] === '') {
+                $updateData['weight'] = null;
+            }
+            if (isset($updateData['weight_category']) && $updateData['weight_category'] === '') {
+                $updateData['weight_category'] = null;
+            }
+
             \Log::info('[VENDOR_PRODUCT_UPDATE] Updating product:', [
                 'product_id' => $product->id,
                 'update_data' => $updateData,
                 'before' => [
                     'name' => $product->name,
                     'weight' => $product->weight,
+                    'weight_category' => $product->weight_category,
                     'stock' => $product->stock,
                 ],
             ]);
@@ -148,6 +157,7 @@ class VendorProductController extends Controller
                 'after' => [
                     'name' => $product->name,
                     'weight' => $product->weight,
+                    'weight_category' => $product->weight_category,
                     'stock' => $product->stock,
                 ],
             ]);

@@ -84,6 +84,7 @@ class DelivererController extends Controller
                 // Delivery zones (JSON array)
                 'delivery_zones' => 'required|array|min:1',
                 'delivery_zones.*.name' => 'required|string|max:255',
+                'delivery_zones.*.city' => 'required|string|max:255',
                 'delivery_zones.*.center_latitude' => 'required|numeric|between:-90,90',
                 'delivery_zones.*.center_longitude' => 'required|numeric|between:-180,180',
 
@@ -140,6 +141,7 @@ class DelivererController extends Controller
                 $zone = DeliveryZone::create([
                     'deliverer_company_id' => $company->id,
                     'name' => $zoneData['name'],
+                    'city' => $zoneData['city'],
                     'zone_data' => null, // We only use center coordinates now
                     'center_latitude' => $zoneData['center_latitude'],
                     'center_longitude' => $zoneData['center_longitude'],
@@ -334,6 +336,7 @@ class DelivererController extends Controller
             'delivery_zones' => 'required|array|min:1',
             'delivery_zones.*.id' => 'nullable|exists:delivery_zones,id',
             'delivery_zones.*.name' => 'required|string|max:255',
+            'delivery_zones.*.city' => 'required|string|max:255',
             'delivery_zones.*.center_latitude' => 'required|numeric|between:-90,90',
             'delivery_zones.*.center_longitude' => 'required|numeric|between:-180,180',
 
@@ -375,6 +378,7 @@ class DelivererController extends Controller
                     $zone = DeliveryZone::find($zoneData['id']);
                     $zone->update([
                         'name' => $zoneData['name'],
+                        'city' => $zoneData['city'],
                         'center_latitude' => $zoneData['center_latitude'],
                         'center_longitude' => $zoneData['center_longitude'],
                     ]);
@@ -399,6 +403,7 @@ class DelivererController extends Controller
                     $zone = DeliveryZone::create([
                         'deliverer_company_id' => $deliverer->id,
                         'name' => $zoneData['name'],
+                        'city' => $zoneData['city'],
                         'zone_data' => null,
                         'center_latitude' => $zoneData['center_latitude'],
                         'center_longitude' => $zoneData['center_longitude'],

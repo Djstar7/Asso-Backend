@@ -271,7 +271,7 @@ class ProductController extends Controller
             'condition' => 'required|in:new,used,refurbished',
             'stock' => 'nullable|integer|min:0',
             'weight' => 'nullable|string|max:255',
-            'weight_category' => 'sometimes|in:' . implode(',', Product::WEIGHT_CATEGORIES),
+            'weight_category' => 'nullable|in:' . implode(',', Product::WEIGHT_CATEGORIES),
             'images' => 'required|array|min:1',
             'images.*' => 'file|image|mimes:jpeg,png,jpg,gif|max:5120',
         ]);

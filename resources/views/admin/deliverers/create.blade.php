@@ -113,20 +113,40 @@
             @enderror
         </div>
 
-        <!-- Pricelists Section -->
+        <!-- Pricing Section -->
         <div class="bg-dark-100 rounded-xl shadow-lg p-6 mb-6 border border-dark-200">
             <div class="flex items-center mb-4">
                 <h3 class="text-lg font-semibold text-white flex items-center">
                     <i class="fas fa-dollar-sign text-primary-500 mr-2"></i>
-                    Tarification par zone
+                    Tarification
                 </h3>
             </div>
 
-            <div id="pricelists-container" class="space-y-6">
-                <p class="text-gray-400 text-sm">
+            <div class="p-4 bg-blue-900/30 border border-blue-500/50 rounded-lg mb-4">
+                <p class="text-blue-300 text-sm">
                     <i class="fas fa-info-circle mr-2"></i>
-                    Définissez les tarifs pour chaque zone de livraison créée ci-dessus
+                    Cette tarification s'appliquera à toutes les zones de livraison de ce partenaire
                 </p>
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-white mb-2">
+                    Type de tarification <span class="text-red-500">*</span>
+                </label>
+                <select name="pricing_type" id="pricing-type" onchange="updatePricingFields()" required
+                        class="w-full px-4 py-2 bg-dark-100 border border-dark-300 text-white rounded-lg focus:ring-2 focus:ring-primary-500 @error('pricing_type') border-red-500 @enderror">
+                    <option value="">Sélectionnez le type</option>
+                    <option value="fixed" {{ old('pricing_type') == 'fixed' ? 'selected' : '' }}>Prix fixe</option>
+                    <option value="weight_category" {{ old('pricing_type') == 'weight_category' ? 'selected' : '' }}>Par catégorie de poids</option>
+                    <option value="volumetric_weight" {{ old('pricing_type') == 'volumetric_weight' ? 'selected' : '' }}>Par poids volumétrique</option>
+                </select>
+                @error('pricing_type')
+                    <p class="mt-1 text-sm text-red-400">{{ $message }}</p>
+                @enderror
+            </div>
+
+            <div id="pricing-fields">
+                <!-- Pricing fields will be added dynamically -->
             </div>
         </div>
 
@@ -412,8 +432,36 @@ function addZone() {
                 </label>
                 <input type="text" name="delivery_zones[${zoneId}][name]" id="zone-name-${zoneId}" required
                        placeholder="Ex: Centre ville, Zone périphérique..."
-                       onchange="updatePricelistZones()"
                        class="w-full px-4 py-2 bg-dark-100 border border-dark-300 text-white rounded-lg focus:ring-2 focus:ring-primary-500">
+            </div>
+
+            <!-- City Name (Auto-filled or Manual) -->
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-white mb-2 flex items-center justify-between">
+                    <span>
+                        <i class="fas fa-city text-primary-500 mr-1"></i>
+                        Ville <span class="text-red-500">*</span>
+                    </span>
+                    <span class="text-xs text-gray-400 flex items-center" id="city-auto-label-${zoneId}">
+                        <i class="fas fa-magic mr-1"></i>
+                        Détection automatique activée
+                    </span>
+                </label>
+                <div class="flex gap-2">
+                    <input type="text" name="delivery_zones[${zoneId}][city]" id="zone-city-${zoneId}" required
+                           placeholder="Ex: Douala, Yaoundé, Bafoussam..."
+                           class="flex-1 px-4 py-2 bg-dark-100 border border-dark-300 text-white rounded-lg focus:ring-2 focus:ring-primary-500">
+                    <button type="button" onclick="detectCity(${zoneId})"
+                            class="px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-lg transition-colors flex items-center gap-2"
+                            title="Détecter automatiquement la ville">
+                        <i class="fas fa-map-marked-alt"></i>
+                        <span class="hidden md:inline">Auto</span>
+                    </button>
+                </div>
+                <p class="mt-1 text-xs text-gray-400">
+                    <i class="fas fa-info-circle mr-1"></i>
+                    La ville sera automatiquement détectée lorsque vous placerez le marqueur sur la carte
+                </p>
             </div>
 
             <!-- Map with autocomplete search -->
@@ -440,6 +488,12 @@ function addZone() {
                 </p>
                 <input type="hidden" name="delivery_zones[${zoneId}][center_latitude]" id="center-lat-${zoneId}" required>
                 <input type="hidden" name="delivery_zones[${zoneId}][center_longitude]" id="center-lng-${zoneId}" required>
+
+                <!-- Pricing type (will be populated on submit) -->
+                <input type="hidden" name="delivery_zones[${zoneId}][pricing_type]" class="zone-pricing-type">
+
+                <!-- Container for pricing_data fields (will be populated on submit) -->
+                <div class="zone-pricing-data-container" data-zone-id="${zoneId}"></div>
             </div>
         </div>
     `;
@@ -447,7 +501,6 @@ function addZone() {
     container.insertAdjacentHTML('beforeend', zoneHtml);
     initializeMap(zoneId);
     zones.push(zoneId);
-    updatePricelistZones();
 }
 
 function removeZone(zoneId) {
@@ -506,11 +559,17 @@ function initializeMap(zoneId) {
             document.getElementById(`center-lat-${zoneId}`).value = lat;
             document.getElementById(`center-lng-${zoneId}`).value = lng;
 
+            // Auto-detect city
+            detectCity(zoneId);
+
             // Handle marker drag
             marker.on('dragend', function(e) {
                 const position = e.target.getLatLng();
                 document.getElementById(`center-lat-${zoneId}`).value = position.lat;
                 document.getElementById(`center-lng-${zoneId}`).value = position.lng;
+
+                // Auto-detect city after drag
+                detectCity(zoneId);
             });
 
             // Add popup
@@ -733,9 +792,10 @@ function selectSearchResult(zoneId, lat, lon, displayName) {
     setTimeout(() => searchInput.classList.remove('border-green-500'), 2000);
 }
 
-function updatePricingFields(zoneId) {
-    const pricingType = document.getElementById(`pricing-type-${zoneId}`).value;
-    const container = document.getElementById(`pricing-fields-${zoneId}`);
+// Update pricing fields based on selected pricing type (GLOBAL)
+function updatePricingFields() {
+    const pricingType = document.getElementById('pricing-type').value;
+    const container = document.getElementById('pricing-fields');
 
     if (!pricingType) {
         container.innerHTML = '';
@@ -750,7 +810,8 @@ function updatePricingFields(zoneId) {
                 <label class="block text-sm font-medium text-white mb-2">
                     Prix fixe (FCFA) <span class="text-red-500">*</span>
                 </label>
-                <input type="number" name="delivery_zones[${zoneId}][pricing_data][price]" required step="0.01" min="0"
+                <input type="number" name="pricing_data[price]" required step="0.01" min="0"
+                       value="{{ old('pricing_data.price') }}"
                        placeholder="Ex: 1500"
                        class="w-full px-4 py-2 bg-dark-50 border border-dark-300 text-white rounded-lg focus:ring-2 focus:ring-primary-500">
             </div>
@@ -763,7 +824,7 @@ function updatePricingFields(zoneId) {
                     <label class="block text-sm font-medium text-white mb-2">
                         ${category} - ${description} <span class="text-red-500">*</span>
                     </label>
-                    <input type="number" name="delivery_zones[${zoneId}][pricing_data][${category}]" required step="0.01" min="0"
+                    <input type="number" name="pricing_data[${category}]" required step="0.01" min="0"
                            placeholder="Prix en FCFA"
                            class="w-full px-4 py-2 bg-dark-50 border border-dark-300 text-white rounded-lg focus:ring-2 focus:ring-primary-500">
                 </div>
@@ -779,10 +840,10 @@ function updatePricingFields(zoneId) {
                         Formule de calcul: (Longueur × Largeur × Hauteur) / 139
                     </p>
                 </div>
-                <div id="volumetric-ranges-${zoneId}" class="space-y-3">
+                <div id="volumetric-ranges" class="space-y-3">
                     <!-- Ranges will be added here -->
                 </div>
-                <button type="button" onclick="addVolumetricRange(${zoneId})"
+                <button type="button" onclick="addVolumetricRange()"
                         class="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 text-sm">
                     <i class="fas fa-plus mr-2"></i> Ajouter une plage
                 </button>
@@ -794,42 +855,38 @@ function updatePricingFields(zoneId) {
 
     // If volumetric, add first range
     if (pricingType === 'volumetric_weight') {
-        addVolumetricRange(zoneId);
+        addVolumetricRange();
     }
 }
 
-let volumetricRangeCounters = {};
+let volumetricRangeCounter = 0;
 
-function addVolumetricRange(zoneId) {
-    if (!volumetricRangeCounters[zoneId]) {
-        volumetricRangeCounters[zoneId] = 0;
-    }
-
-    const rangeId = volumetricRangeCounters[zoneId]++;
-    const container = document.getElementById(`volumetric-ranges-${zoneId}`);
+function addVolumetricRange() {
+    const rangeId = volumetricRangeCounter++;
+    const container = document.getElementById('volumetric-ranges');
 
     const html = `
         <div class="p-4 bg-dark-100 rounded-lg border border-dark-300" data-range-id="${rangeId}">
             <div class="flex items-center justify-between mb-3">
                 <span class="text-white font-medium">Plage #${rangeId + 1}</span>
-                <button type="button" onclick="removeVolumetricRange(${zoneId}, ${rangeId})" class="text-red-400 hover:text-red-300 text-sm">
+                <button type="button" onclick="removeVolumetricRange(${rangeId})" class="text-red-400 hover:text-red-300 text-sm">
                     <i class="fas fa-trash"></i>
                 </button>
             </div>
             <div class="grid grid-cols-3 gap-3">
                 <div>
                     <label class="block text-sm text-gray-400 mb-1">Poids min (kg)</label>
-                    <input type="number" name="delivery_zones[${zoneId}][pricing_data][ranges][${rangeId}][min]" required step="0.01" min="0"
+                    <input type="number" name="pricing_data[ranges][${rangeId}][min]" required step="0.01" min="0"
                            class="w-full px-3 py-2 bg-dark-50 border border-dark-300 text-white rounded-lg text-sm">
                 </div>
                 <div>
                     <label class="block text-sm text-gray-400 mb-1">Poids max (kg)</label>
-                    <input type="number" name="delivery_zones[${zoneId}][pricing_data][ranges][${rangeId}][max]" required step="0.01" min="0"
+                    <input type="number" name="pricing_data[ranges][${rangeId}][max]" required step="0.01" min="0"
                            class="w-full px-3 py-2 bg-dark-50 border border-dark-300 text-white rounded-lg text-sm">
                 </div>
                 <div>
                     <label class="block text-sm text-gray-400 mb-1">Prix (FCFA)</label>
-                    <input type="number" name="delivery_zones[${zoneId}][pricing_data][ranges][${rangeId}][price]" required step="0.01" min="0"
+                    <input type="number" name="pricing_data[ranges][${rangeId}][price]" required step="0.01" min="0"
                            class="w-full px-3 py-2 bg-dark-50 border border-dark-300 text-white rounded-lg text-sm">
                 </div>
             </div>
@@ -839,101 +896,11 @@ function addVolumetricRange(zoneId) {
     container.insertAdjacentHTML('beforeend', html);
 }
 
-function removeVolumetricRange(zoneId, rangeId) {
-    const rangeElement = document.querySelector(`#volumetric-ranges-${zoneId} [data-range-id="${rangeId}"]`);
+function removeVolumetricRange(rangeId) {
+    const rangeElement = document.querySelector(`#volumetric-ranges [data-range-id="${rangeId}"]`);
     if (rangeElement) {
         rangeElement.remove();
     }
-}
-
-// Update pricelists when zones are added/removed
-function updatePricelistZones() {
-    const pricelistContainer = document.getElementById('pricelists-container');
-    const activeZones = [];
-
-    zones.forEach(zoneId => {
-        const zoneName = document.getElementById(`zone-name-${zoneId}`)?.value || `Zone #${zoneId + 1}`;
-        activeZones.push({ id: zoneId, name: zoneName });
-    });
-
-    if (activeZones.length === 0) {
-        pricelistContainer.innerHTML = `
-            <p class="text-gray-400 text-sm">
-                <i class="fas fa-info-circle mr-2"></i>
-                Définissez les tarifs pour chaque zone de livraison créée ci-dessus
-            </p>
-        `;
-        return;
-    }
-
-    // Save existing pricing data before rebuilding
-    const savedPricingData = {};
-    activeZones.forEach(zone => {
-        const pricingTypeEl = document.getElementById(`pricing-type-${zone.id}`);
-        if (pricingTypeEl && pricingTypeEl.value) {
-            savedPricingData[zone.id] = {
-                pricingType: pricingTypeEl.value,
-                fieldValues: {}
-            };
-            // Save all input values inside the pricing fields container
-            const fieldsContainer = document.getElementById(`pricing-fields-${zone.id}`);
-            if (fieldsContainer) {
-                fieldsContainer.querySelectorAll('input, select').forEach(input => {
-                    if (input.name) {
-                        savedPricingData[zone.id].fieldValues[input.name] = input.value;
-                    }
-                });
-            }
-        }
-    });
-
-    pricelistContainer.innerHTML = activeZones.map(zone => `
-        <div class="p-6 bg-dark-50 rounded-lg border border-dark-300" data-pricelist-zone="${zone.id}">
-            <h4 class="text-white font-semibold mb-4">
-                <i class="fas fa-map-pin text-primary-500 mr-2"></i>
-                ${zone.name}
-            </h4>
-
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-white mb-2">
-                    Type de tarification <span class="text-red-500">*</span>
-                </label>
-                <select name="delivery_zones[${zone.id}][pricing_type]" id="pricing-type-${zone.id}"
-                        onchange="updatePricingFields(${zone.id})" required
-                        class="w-full px-4 py-2 bg-dark-100 border border-dark-300 text-white rounded-lg focus:ring-2 focus:ring-primary-500">
-                    <option value="">Sélectionnez le type</option>
-                    <option value="fixed">Prix fixe</option>
-                    <option value="weight_category">Par catégorie de poids</option>
-                    <option value="volumetric_weight">Par poids volumétrique</option>
-                </select>
-            </div>
-
-            <div id="pricing-fields-${zone.id}">
-                <!-- Pricing fields will be added dynamically -->
-            </div>
-        </div>
-    `).join('');
-
-    // Restore saved pricing data after rebuilding
-    Object.keys(savedPricingData).forEach(zoneId => {
-        const saved = savedPricingData[zoneId];
-        const pricingTypeEl = document.getElementById(`pricing-type-${zoneId}`);
-        if (pricingTypeEl && saved.pricingType) {
-            pricingTypeEl.value = saved.pricingType;
-            updatePricingFields(parseInt(zoneId));
-
-            // Restore field values after pricing fields are rebuilt
-            setTimeout(() => {
-                Object.keys(saved.fieldValues).forEach(fieldName => {
-                    const fields = document.getElementsByName(fieldName);
-                    const field = fields.length > 0 ? fields[0] : null;
-                    if (field) {
-                        field.value = saved.fieldValues[fieldName];
-                    }
-                });
-            }, 10);
-        }
-    });
 }
 
 // Generate preview sync code (XXXX-XXXX-XXXX format = 14 chars)
@@ -952,13 +919,6 @@ function generatePreviewCode() {
     setTimeout(() => previewEl.classList.remove('animate-pulse'), 1000);
 }
 
-// Override removeZone to update pricelists
-const originalRemoveZone = removeZone;
-removeZone = function(zoneId) {
-    originalRemoveZone(zoneId);
-    updatePricelistZones();
-};
-
 // Add first zone on page load
 document.addEventListener('DOMContentLoaded', function() {
     addZone();
@@ -973,11 +933,16 @@ document.addEventListener('DOMContentLoaded', function() {
         let hasValidZones = false;
         let validationErrors = [];
 
+        // Check pricing type
+        const pricingType = document.getElementById('pricing-type')?.value;
+        if (!pricingType) {
+            validationErrors.push('Le type de tarification est requis');
+        }
+
         zones.forEach(zoneId => {
             const zoneName = document.getElementById(`zone-name-${zoneId}`)?.value;
             const centerLat = document.getElementById(`center-lat-${zoneId}`)?.value;
             const centerLng = document.getElementById(`center-lng-${zoneId}`)?.value;
-            const pricingType = document.getElementById(`pricing-type-${zoneId}`)?.value;
 
             if (!zoneName || !zoneName.trim()) {
                 validationErrors.push(`Zone #${zoneId + 1}: Le nom de la zone est requis`);
@@ -987,10 +952,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 validationErrors.push(`Zone #${zoneId + 1}: Vous devez placer le marqueur sur la carte`);
             } else {
                 hasValidZones = true;
-            }
-
-            if (!pricingType) {
-                validationErrors.push(`Zone #${zoneId + 1}: Le type de tarification est requis`);
             }
         });
 
@@ -1003,6 +964,61 @@ document.addEventListener('DOMContentLoaded', function() {
             showAlert('Vous devez créer au moins une zone de livraison et placer le marqueur sur la carte.', 'error');
             return false;
         }
+
+        // Copy global pricing to each zone
+        const globalPricingType = document.getElementById('pricing-type').value;
+
+        // Apply pricing_type to all zones
+        document.querySelectorAll('.zone-pricing-type').forEach(input => {
+            input.value = globalPricingType;
+        });
+
+        // Copy pricing_data fields to each zone
+        document.querySelectorAll('.zone-pricing-data-container').forEach(container => {
+            const zoneId = container.getAttribute('data-zone-id');
+            container.innerHTML = ''; // Clear existing fields
+
+            if (globalPricingType === 'fixed') {
+                const priceInput = document.querySelector('input[name="pricing_data[price]"]');
+                if (priceInput) {
+                    const newInput = document.createElement('input');
+                    newInput.type = 'hidden';
+                    newInput.name = `delivery_zones[${zoneId}][pricing_data][price]`;
+                    newInput.value = priceInput.value;
+                    container.appendChild(newInput);
+                }
+            } else if (globalPricingType === 'weight_category') {
+                for (const category in WEIGHT_CATEGORIES) {
+                    const input = document.querySelector(`input[name="pricing_data[${category}]"]`);
+                    if (input) {
+                        const newInput = document.createElement('input');
+                        newInput.type = 'hidden';
+                        newInput.name = `delivery_zones[${zoneId}][pricing_data][${category}]`;
+                        newInput.value = input.value;
+                        container.appendChild(newInput);
+                    }
+                }
+            } else if (globalPricingType === 'volumetric_weight') {
+                const rangeInputs = document.querySelectorAll('#volumetric-ranges > div[data-range-id]');
+                rangeInputs.forEach((rangeDiv, index) => {
+                    const rangeId = rangeDiv.getAttribute('data-range-id');
+                    const minInput = rangeDiv.querySelector(`input[name="pricing_data[ranges][${rangeId}][min]"]`);
+                    const maxInput = rangeDiv.querySelector(`input[name="pricing_data[ranges][${rangeId}][max]"]`);
+                    const priceInput = rangeDiv.querySelector(`input[name="pricing_data[ranges][${rangeId}][price]"]`);
+
+                    if (minInput && maxInput && priceInput) {
+                        // Create hidden fields for this range
+                        ['min', 'max', 'price'].forEach(field => {
+                            const newInput = document.createElement('input');
+                            newInput.type = 'hidden';
+                            newInput.name = `delivery_zones[${zoneId}][pricing_data][ranges][${rangeId}][${field}]`;
+                            newInput.value = field === 'min' ? minInput.value : (field === 'max' ? maxInput.value : priceInput.value);
+                            container.appendChild(newInput);
+                        });
+                    }
+                });
+            }
+        });
 
         // Show confirmation modal
         const companyName = document.querySelector('[name="company_name"]').value;
@@ -1038,5 +1054,75 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 });
+
+/**
+ * Détecte automatiquement la ville via reverse geocoding (Nominatim)
+ */
+async function detectCity(zoneId) {
+    const latInput = document.getElementById(`center-lat-${zoneId}`);
+    const lngInput = document.getElementById(`center-lng-${zoneId}`);
+    const cityInput = document.getElementById(`zone-city-${zoneId}`);
+    const autoLabel = document.getElementById(`city-auto-label-${zoneId}`);
+
+    if (!latInput || !lngInput || !cityInput) return;
+
+    const lat = parseFloat(latInput.value);
+    const lng = parseFloat(lngInput.value);
+
+    if (!lat || !lng) return;
+
+    // Update label to show loading
+    if (autoLabel) {
+        autoLabel.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Détection en cours...';
+    }
+
+    try {
+        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1&zoom=10`, {
+            headers: {
+                'User-Agent': 'AssoApp/1.0'
+            }
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            const address = data.address || {};
+
+            // Essayer différents champs pour extraire la ville
+            const cityFields = ['city', 'town', 'municipality', 'village', 'state', 'county'];
+            let city = null;
+
+            for (const field of cityFields) {
+                if (address[field]) {
+                    city = address[field];
+                    break;
+                }
+            }
+
+            // Fallback: utiliser le display_name et extraire la première partie
+            if (!city && data.display_name) {
+                const parts = data.display_name.split(',');
+                city = parts[0].trim();
+            }
+
+            if (city) {
+                cityInput.value = city;
+                if (autoLabel) {
+                    autoLabel.innerHTML = '<i class="fas fa-check-circle text-green-500 mr-1"></i> Ville détectée automatiquement';
+                }
+            } else {
+                if (autoLabel) {
+                    autoLabel.innerHTML = '<i class="fas fa-exclamation-triangle text-yellow-500 mr-1"></i> Ville non détectée';
+                }
+            }
+        } else {
+            throw new Error('API error');
+        }
+    } catch (error) {
+        console.error('Erreur détection ville:', error);
+        if (autoLabel) {
+            autoLabel.innerHTML = '<i class="fas fa-times-circle text-red-500 mr-1"></i> Erreur de détection';
+        }
+    }
+}
 </script>
 @endpush

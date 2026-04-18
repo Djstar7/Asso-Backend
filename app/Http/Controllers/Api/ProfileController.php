@@ -489,8 +489,13 @@ class ProfileController extends Controller
     {
         $user = $request->user();
 
-        // Load deliverer company with zones
-        $user->load(['delivererCompany.deliveryZones.pricelist']);
+        \Log::info('========================================');
+        \Log::info('🚚 DELIVERY DASHBOARD: START');
+        \Log::info('========================================');
+        \Log::info("  └─ User ID: {$user->id}");
+        \Log::info("  └─ User: {$user->first_name} {$user->last_name}");
+        \Log::info("  └─ Role: {$user->role}");
+        \Log::info("  └─ Roles: " . json_encode($user->roles));
 
         // 1. Commandes assignées directement à ce livreur
         $directOrders = \App\Models\Order::where('delivery_person_id', $user->id)
@@ -498,12 +503,33 @@ class ProfileController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
-        // 2. Commandes de sa company (confirmed, pas encore de delivery_person)
+        \Log::info("📦 Direct Orders: {$directOrders->count()}");
+
+        // 2. Get company via deliverer_code_syncs table (NEW SYSTEM)
+        $activeSync = \App\Models\DelivererCodeSync::where('user_id', $user->id)
+            ->where('is_active', true)
+            ->where('is_banned', false)
+            ->with(['company.deliveryZones.pricelist'])
+            ->first();
+
+        \Log::info('🔗 Active Sync:');
+        if ($activeSync) {
+            \Log::info("  └─ Sync ID: {$activeSync->id}");
+            \Log::info("  └─ Company: {$activeSync->company->name} (ID: {$activeSync->company_id})");
+            \Log::info("  └─ Zones: {$activeSync->company->deliveryZones->count()}");
+        } else {
+            \Log::info('  └─ No active sync found');
+        }
+
+        // Get all company IDs for this user
         $companyIds = \App\Models\DelivererCodeSync::where('user_id', $user->id)
             ->where('is_active', true)
             ->where('is_banned', false)
             ->pluck('company_id');
 
+        \Log::info("🏢 Company IDs: " . $companyIds->implode(', '));
+
+        // 3. Commandes de sa company (confirmed, pas encore de delivery_person)
         $companyOrders = collect();
         if ($companyIds->isNotEmpty()) {
             $companyOrders = \App\Models\Order::whereIn('delivery_company_id', $companyIds)
@@ -514,7 +540,11 @@ class ProfileController extends Controller
                 ->get();
         }
 
+        \Log::info("📦 Company Orders (pending): {$companyOrders->count()}");
+
         $deliveries = $directOrders->merge($companyOrders)->unique('id')->sortByDesc('created_at')->values();
+
+        \Log::info("📊 Total Deliveries: {$deliveries->count()}");
 
         $stats = [
             'total_deliveries' => $deliveries->count(),
@@ -523,10 +553,19 @@ class ProfileController extends Controller
             'pending' => $deliveries->whereIn('status', ['confirmed', 'preparing'])->count(),
         ];
 
-        // Get company info if exists
+        \Log::info('📈 Stats:');
+        \Log::info('  ├─ Total: ' . $stats['total_deliveries']);
+        \Log::info('  ├─ Completed: ' . $stats['completed']);
+        \Log::info('  ├─ In Progress: ' . $stats['in_progress']);
+        \Log::info('  └─ Pending: ' . $stats['pending']);
+
+        // Get company info via active sync (NEW SYSTEM)
         $companyData = null;
-        if ($user->delivererCompany) {
-            $company = $user->delivererCompany;
+        if ($activeSync && $activeSync->company) {
+            $company = $activeSync->company;
+            \Log::info('✅ Company Data Retrieved:');
+            \Log::info("  └─ Company: {$company->name}");
+
             $companyData = [
                 'id' => $company->id,
                 'user_id' => $company->user_id,
@@ -561,7 +600,16 @@ class ProfileController extends Controller
                     ];
                 }),
             ];
+        } else {
+            \Log::warning('⚠️ No company data found for this deliverer');
         }
+
+        \Log::info('========================================');
+        \Log::info('✅ DELIVERY DASHBOARD: RESPONSE READY');
+        \Log::info('  ├─ Company: ' . ($companyData ? $companyData['name'] : 'null'));
+        \Log::info('  ├─ Deliveries: ' . $deliveries->count());
+        \Log::info('  └─ Stats: ' . json_encode($stats));
+        \Log::info('========================================');
 
         return response()->json([
             'success' => true,

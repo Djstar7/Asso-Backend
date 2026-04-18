@@ -35,6 +35,7 @@ class Product extends Model
         'price_type',
         'type',
         'stock',
+        'weight',
         'weight_category',
         'latitude',
         'longitude',
