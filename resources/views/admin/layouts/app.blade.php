@@ -294,6 +294,12 @@
                         Services
                     </a>
 
+                    <a href="{{ route('admin.otp-bypass.index') }}"
+                       class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.otp-bypass.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
+                        <i class="fas fa-mobile-alt w-5 mr-3"></i>
+                        Bypass OTP
+                    </a>
+
                     <a href="{{ route('admin.legal-pages.index') }}"
                        class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.legal-pages.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <i class="fas fa-file-contract w-5 mr-3"></i>

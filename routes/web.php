@@ -25,6 +25,7 @@ use App\Http\Controllers\Admin\DatabaseController;
 use App\Http\Controllers\Admin\VaultController;
 use App\Http\Controllers\Admin\PreferenceController;
 use App\Http\Controllers\Admin\FcmTokenController;
+use App\Http\Controllers\Admin\OtpBypassController;
 
 // Redirect root to admin login
 Route::get('/', function () {
@@ -201,6 +202,15 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/fcm-tokens/{user}', [FcmTokenController::class, 'show'])->name('fcm-tokens.show');
         Route::delete('/fcm-tokens/token/{token}', [FcmTokenController::class, 'destroyToken'])->name('fcm-tokens.token.destroy');
         Route::post('/fcm-tokens/token/{token}/toggle', [FcmTokenController::class, 'toggleToken'])->name('fcm-tokens.token.toggle');
+
+        // OTP Bypass - Gestion des numéros autorisés à bypasser l'OTP
+        Route::prefix('otp-bypass')->name('otp-bypass.')->group(function () {
+            Route::get('/', [OtpBypassController::class, 'index'])->name('index');
+            Route::post('/', [OtpBypassController::class, 'store'])->name('store');
+            Route::put('/{id}', [OtpBypassController::class, 'update'])->name('update');
+            Route::patch('/{id}/toggle', [OtpBypassController::class, 'toggleStatus'])->name('toggle');
+            Route::delete('/{id}', [OtpBypassController::class, 'destroy'])->name('destroy');
+        });
 
     });
 });

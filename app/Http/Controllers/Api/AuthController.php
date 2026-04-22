@@ -52,6 +52,31 @@ class AuthController extends Controller
             Log::info('[AUTH] Existing user found', ['user_id' => $user->id, 'phone' => $fullPhone]);
         }
 
+        // Check if phone is in OTP bypass list
+        $isBypassAllowed = \App\Models\OtpBypassPhone::isAllowedToBypass($fullPhone);
+
+        if ($isBypassAllowed) {
+            Log::info('[AUTH] OTP bypass enabled for this phone - skipping OTP generation and sending', [
+                'phone' => $fullPhone,
+                'user_id' => $user->id
+            ]);
+
+            // Clear any existing OTP from user
+            $user->update([
+                'otp_code' => null,
+                'otp_expires_at' => null,
+            ]);
+
+            // Return special response indicating bypass is active
+            return response()->json([
+                'success' => true,
+                'message' => 'Connexion directe autorisée via WhatsApp',
+                'bypass_enabled' => true,
+                'channel' => 'whatsapp',
+                'is_new_user' => !$user->is_profile_complete,
+            ]);
+        }
+
         // Generate 6-digit OTP
         $otpCode = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
         Log::info('[AUTH] OTP code generated', ['phone' => $fullPhone, 'code' => $otpCode]);
@@ -137,6 +162,60 @@ class AuthController extends Controller
             'user_id' => $user->id,
             'phone' => $request->phone
         ]);
+
+        // Check if phone is in OTP bypass list
+        $isBypassAllowed = \App\Models\OtpBypassPhone::isAllowedToBypass($request->phone);
+
+        if ($isBypassAllowed) {
+            Log::info('[AUTH] OTP bypass enabled for this phone number', [
+                'phone' => $request->phone,
+                'user_id' => $user->id
+            ]);
+
+            // Clear any existing OTP from user
+            $user->update([
+                'otp_code' => null,
+                'otp_expires_at' => null,
+            ]);
+
+            // Mark any pending phone OTPs as verified
+            PhoneOtp::where('phone', $request->phone)
+                ->where('verified', false)
+                ->update(['verified' => true]);
+
+            // Create Sanctum token
+            $token = $user->createToken('mobile-app')->plainTextToken;
+
+            Log::info('[AUTH] OTP bypass successful - user authenticated via WhatsApp', [
+                'user_id' => $user->id,
+                'phone' => $user->phone
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Connexion réussie via WhatsApp',
+                'token' => $token,
+                'user' => [
+                    'id' => $user->id,
+                    'first_name' => $user->first_name,
+                    'last_name' => $user->last_name,
+                    'email' => $user->email,
+                    'phone' => $user->phone,
+                    'role' => $user->role,
+                    'roles' => $user->getRoles(),
+                    'avatar' => $user->avatar,
+                    'country' => $user->country,
+                    'address' => $user->address,
+                    'is_profile_complete' => (bool) $user->is_profile_complete,
+                    'preferences' => $user->preferences,
+                    'referral_code' => $user->referral_code,
+                    'company_name' => $user->company_name,
+                    'created_at' => $user->created_at->toIso8601String(),
+                ],
+                'is_new_user' => !$user->is_profile_complete,
+                'bypass_mode' => true, // Indicate this was a bypass authentication
+            ]);
+        }
 
         // Check OTP from phone_otps table first
         $phoneOtp = PhoneOtp::where('phone', $request->phone)
