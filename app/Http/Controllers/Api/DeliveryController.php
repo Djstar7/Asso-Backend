@@ -226,16 +226,16 @@ class DeliveryController extends Controller
                     }
                 }
 
-                // 4. Débloquer les fonds de l'entreprise de livraison
-                $deliveryFee = (float) $order->delivery_fee;
-                if ($deliveryFee > 0 && $order->delivery_company_id) {
+                // 4. Débloquer les fonds de l'entreprise de livraison (prix de base)
+                $baseDeliveryPrice = (float) $order->base_delivery_price;
+                if ($baseDeliveryPrice > 0 && $order->delivery_company_id) {
                     $deliveryCompany = \App\Models\DelivererCompany::find($order->delivery_company_id);
                     if ($deliveryCompany && $deliveryCompany->user_id) {
                         $companyUser = User::find($deliveryCompany->user_id);
                         if ($companyUser) {
                             $this->walletService->unlockFunds(
                                 $companyUser,
-                                $deliveryFee,
+                                $baseDeliveryPrice,
                                 "Livraison confirmée #{$order->order_number} — commission disponible",
                                 'order',
                                 $order->id,
@@ -247,18 +247,48 @@ class DeliveryController extends Controller
                             $this->fcmService->sendToUser(
                                 $companyUser,
                                 'Commission débloquée !',
-                                "Livraison #{$order->order_number} confirmée. " . number_format($deliveryFee, 0, ',', ' ') . " FCFA disponibles.",
+                                "Livraison #{$order->order_number} confirmée. " . number_format($baseDeliveryPrice, 0, ',', ' ') . " FCFA disponibles.",
                                 [
                                     'type' => 'delivery_commission_released',
                                     'order_id' => (string) $order->id,
-                                    'amount' => (string) $deliveryFee,
+                                    'amount' => (string) $baseDeliveryPrice,
                                 ]
                             );
                         }
                     }
                 }
 
-                // 5. Décrémenter le stock des produits et créer les entrées d'inventaire
+                // 5. Débloquer la commission ASSO (plateforme)
+                $assoCommission = (float) $order->delivery_commission;
+                if ($assoCommission > 0) {
+                    // Récupérer le user admin ASSO (par convention, user_id = 1 ou email = admin@asso.com)
+                    $assoAdmin = User::where('email', 'admin@asso.com')->first();
+
+                    if ($assoAdmin) {
+                        $this->walletService->unlockFunds(
+                            $assoAdmin,
+                            $assoCommission,
+                            "Commission ASSO — Commande #{$order->order_number}",
+                            'order',
+                            $order->id,
+                            [],
+                            $walletProvider
+                        );
+
+                        Log::info("[DeliveryController] Commission ASSO débloquée", [
+                            'order_id' => $order->id,
+                            'asso_admin_id' => $assoAdmin->id,
+                            'commission' => $assoCommission,
+                        ]);
+                    } else {
+                        Log::warning("[DeliveryController] User admin ASSO non trouvé pour débloquer commission", [
+                            'order_id' => $order->id,
+                            'commission' => $assoCommission,
+                        ]);
+                    }
+                }
+
+                // 6. Décrémenter le stock des produits et créer les entrées d'inventaire
                 foreach ($order->items as $item) {
                     $product = $item->product;
                     if ($product) {
@@ -288,7 +318,7 @@ class DeliveryController extends Controller
                     }
                 }
 
-                // 6. FCM au client
+                // 7. FCM au client
                 $client = $order->user;
                 if ($client) {
                     $this->fcmService->sendToUser(
@@ -323,7 +353,9 @@ class DeliveryController extends Controller
                 Log::info("[DeliveryController] Delivery completed — escrow released", [
                     'order_id' => $order->id,
                     'deliverer_id' => $user->id,
-                    'delivery_fee' => $deliveryFee,
+                    'total_delivery_fee' => (float) $order->delivery_fee,
+                    'base_delivery_price' => $baseDeliveryPrice,
+                    'asso_commission' => $assoCommission,
                 ]);
             });
 

@@ -135,8 +135,9 @@ class VendorProductController extends Controller
             if (isset($updateData['weight']) && $updateData['weight'] === '') {
                 $updateData['weight'] = null;
             }
+            // Don't update weight_category if it's an empty string - keep existing value
             if (isset($updateData['weight_category']) && $updateData['weight_category'] === '') {
-                $updateData['weight_category'] = null;
+                unset($updateData['weight_category']);
             }
 
             \Log::info('[VENDOR_PRODUCT_UPDATE] Updating product:', [

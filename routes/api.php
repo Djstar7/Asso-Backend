@@ -49,9 +49,15 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 
 // Auth
 Route::prefix('v1/auth')->group(function () {
+    // Phone-based authentication
     Route::post('/send-otp', [AuthController::class, 'sendOtp']);
     Route::post('/verify-otp', [AuthController::class, 'verifyOtp']);
     Route::post('/login', [AuthController::class, 'login']);
+
+    // Email-based authentication
+    Route::post('/register-email', [AuthController::class, 'registerWithEmail']);
+    Route::post('/login-email', [AuthController::class, 'loginWithEmail']);
+    Route::post('/verify-email-otp', [AuthController::class, 'verifyEmailOtp']);
 });
 
 // Deliverer Sync - verify-sync-code is public, sync-profile requires auth
@@ -114,6 +120,16 @@ Route::prefix('v1')->group(function () {
 
 // Payment webhooks (no auth)
 Route::post('/v1/payments/webhook/freemopay', [PaymentController::class, 'webhookFreemopay']);
+
+// ============================================
+// CURRENCY & EXCHANGE RATES (Public)
+// ============================================
+Route::prefix('v1/currencies')->group(function () {
+    Route::get('/', [\App\Http\Controllers\Api\V1\CurrencyController::class, 'index']); // Get all currencies
+    Route::get('/all-with-countries', [\App\Http\Controllers\Api\V1\CurrencyController::class, 'getAllWithCountries']); // Get all currencies with countries for country selection
+    Route::get('/by-country', [\App\Http\Controllers\Api\V1\CurrencyController::class, 'getByCountry']); // Get currency by country name
+    Route::get('/exchange-rate', [\App\Http\Controllers\Api\V1\CurrencyController::class, 'getExchangeRate']); // Get specific exchange rate
+});
 
 // ============================================
 // PROTECTED ROUTES (auth:sanctum)
@@ -260,6 +276,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/{id}/messages', [ConversationController::class, 'messages']);
             Route::post('/{id}/messages', [ConversationController::class, 'sendMessage']);
             Route::post('/{id}/typing', [ConversationController::class, 'typing']);
+            Route::post('/{id}/hide', [ConversationController::class, 'hide']);
         });
 
         // User online status
@@ -306,24 +323,66 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 });
 
-// Confession Routes (Protected by auth:sanctum)
-// TODO: Uncomment when ConfessionController is created
-/*
-Route::middleware('auth:sanctum')->prefix('v1/confessions')->group(function () {
-    Route::get('/', [ConfessionController::class, 'index']);
-    Route::get('/favorites', [ConfessionController::class, 'favorites']);
-    Route::post('/', [ConfessionController::class, 'store']);
-    Route::get('/{id}', [ConfessionController::class, 'show']);
-    Route::put('/{id}', [ConfessionController::class, 'update']);
-    Route::delete('/{id}', [ConfessionController::class, 'destroy']);
+// ============================================
+// MY VOICE / POSTS ROUTES (auth:sanctum)
+// ============================================
 
-    // Actions
-    Route::post('/{id}/favorite', [ConfessionController::class, 'toggleFavorite']);
-    Route::post('/{id}/reveal-identity', [ConfessionController::class, 'revealIdentity']);
-    Route::post('/{id}/like', [ConfessionController::class, 'like']);
-    Route::delete('/{id}/like', [ConfessionController::class, 'unlike']);
+use App\Http\Controllers\Api\PostController;
+use App\Http\Controllers\Api\PostCommentController;
+
+Route::middleware('auth:sanctum')->prefix('v1/posts')->group(function () {
+    // Posts CRUD
+    Route::get('/', [PostController::class, 'index']);
+    Route::get('/my-posts', [PostController::class, 'myPosts']);
+    Route::post('/', [PostController::class, 'store']);
+    Route::get('/{id}', [PostController::class, 'show']);
+    Route::put('/{id}', [PostController::class, 'update']);
+    Route::delete('/{id}', [PostController::class, 'destroy']);
+
+    // Post Reactions (like/dislike)
+    Route::post('/{id}/react', [PostController::class, 'react']);
+    Route::delete('/{id}/react', [PostController::class, 'unreact']);
+
+    // Comments
+    Route::get('/{postId}/comments', [PostCommentController::class, 'index']);
+    Route::post('/{postId}/comments', [PostCommentController::class, 'store']);
+    Route::put('/{postId}/comments/{commentId}', [PostCommentController::class, 'update']);
+    Route::delete('/{postId}/comments/{commentId}', [PostCommentController::class, 'destroy']);
+
+    // Comment Reactions (like only)
+    Route::post('/{postId}/comments/{commentId}/react', [PostCommentController::class, 'react']);
+    Route::delete('/{postId}/comments/{commentId}/react', [PostCommentController::class, 'unreact']);
 });
-*/
+
+// ============================================
+// DIASPO EXCHANGE ROUTES (auth:sanctum)
+// ============================================
+
+use App\Http\Controllers\Api\DiaspoOfferController;
+use App\Http\Controllers\Api\DiaspoBookingController;
+
+Route::middleware('auth:sanctum')->prefix('v1/diaspo')->group(function () {
+    // Verification
+    Route::post('/upload-verification', [DiaspoOfferController::class, 'uploadVerificationDocument']);
+    Route::get('/verification-status', [DiaspoOfferController::class, 'getVerificationStatus']);
+
+    // Offers
+    Route::get('/offers', [DiaspoOfferController::class, 'index']);
+    Route::get('/offers/my-offers', [DiaspoOfferController::class, 'myOffers']);
+    Route::post('/offers', [DiaspoOfferController::class, 'store']);
+    Route::get('/offers/{id}', [DiaspoOfferController::class, 'show']);
+    Route::put('/offers/{id}', [DiaspoOfferController::class, 'update']);
+    Route::delete('/offers/{id}', [DiaspoOfferController::class, 'destroy']);
+
+    // Bookings
+    Route::get('/bookings', [DiaspoBookingController::class, 'index']);
+    Route::get('/bookings/{id}', [DiaspoBookingController::class, 'show']);
+    Route::post('/offers/{offerId}/book', [DiaspoBookingController::class, 'store']);
+    Route::post('/bookings/{id}/confirm-receipt', [DiaspoBookingController::class, 'confirmReceipt']); // Deprecated
+    Route::post('/bookings/{id}/seller-confirm-code', [DiaspoBookingController::class, 'sellerConfirmDelivery']);
+    Route::post('/confirm-by-code', [DiaspoBookingController::class, 'confirmByCodeOnly']); // Quick unlock from wallet
+    Route::post('/bookings/{id}/cancel', [DiaspoBookingController::class, 'cancel']);
+});
 
 // ============================================
 // ADMIN ROUTES (auth:sanctum + admin role)
@@ -336,6 +395,14 @@ Route::middleware('auth:sanctum')->prefix('v1/admin')->group(function () {
         Route::get('/{locationRequest}', [App\Http\Controllers\Admin\ShopLocationRequestController::class, 'show']);
         Route::post('/{locationRequest}/approve', [App\Http\Controllers\Admin\ShopLocationRequestController::class, 'approve']);
         Route::post('/{locationRequest}/reject', [App\Http\Controllers\Admin\ShopLocationRequestController::class, 'reject']);
+    });
+
+    // DIASPO verification management
+    Route::prefix('diaspo')->group(function () {
+        Route::get('/verifications', [App\Http\Controllers\Admin\DiaspoVerificationController::class, 'index']);
+        Route::get('/verifications/{userId}', [App\Http\Controllers\Admin\DiaspoVerificationController::class, 'show']);
+        Route::post('/verifications/{userId}/approve', [App\Http\Controllers\Admin\DiaspoVerificationController::class, 'approve']);
+        Route::post('/verifications/{userId}/reject', [App\Http\Controllers\Admin\DiaspoVerificationController::class, 'reject']);
     });
 });
 
