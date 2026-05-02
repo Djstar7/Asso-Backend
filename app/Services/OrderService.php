@@ -117,8 +117,12 @@ class OrderService
                 }
 
                 // Calculer le prix selon le type de pricing de l'entreprise
-                $price = $this->calculateDeliveryPrice($pricelist, $product, $latitude, $longitude, $zone);
-                Log::info("      └─ Prix calculé: {$price} FCFA (Type: {$pricelist->pricing_type})");
+                $basePrice = $this->calculateDeliveryPrice($pricelist, $product, $latitude, $longitude, $zone);
+                $assoCommission = (float) $pricelist->asso_commission;
+                $price = $basePrice + $assoCommission;
+                Log::info("      └─ Prix de base (livreur): {$basePrice} FCFA");
+                Log::info("      └─ Commission ASSO: {$assoCommission} FCFA");
+                Log::info("      └─ Prix total client: {$price} FCFA (Type: {$pricelist->pricing_type})");
 
                 // Calculer la distance si les coordonnées du client sont fournies
                 $distance = null;
@@ -306,7 +310,15 @@ class OrderService
 
             // Utiliser le premier produit pour le calcul (ou le plus lourd)
             $firstProduct = Product::find($items[0]['product_id']);
-            $deliveryFee = $this->calculateDeliveryPrice($pricelist, $firstProduct, $deliveryLatitude, $deliveryLongitude, $zone);
+            $baseDeliveryPrice = $this->calculateDeliveryPrice($pricelist, $firstProduct, $deliveryLatitude, $deliveryLongitude, $zone);
+            $assoCommission = (float) $pricelist->asso_commission;
+            $deliveryFee = $baseDeliveryPrice + $assoCommission;
+
+            Log::info("[OrderService] Frais de livraison calculés", [
+                'base_delivery_price' => $baseDeliveryPrice,
+                'asso_commission' => $assoCommission,
+                'total_delivery_fee' => $deliveryFee,
+            ]);
 
             $total = $subtotal + $deliveryFee;
 
@@ -327,6 +339,8 @@ class OrderService
                 'status' => 'pending',
                 'subtotal' => $subtotal,
                 'delivery_fee' => $deliveryFee,
+                'base_delivery_price' => $baseDeliveryPrice,
+                'delivery_commission' => $assoCommission,
                 'total' => $total,
                 'delivery_address' => $deliveryAddress,
                 'delivery_latitude' => $deliveryLatitude,

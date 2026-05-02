@@ -870,4 +870,249 @@ class AuthController extends Controller
             'message' => 'Déconnexion réussie',
         ]);
     }
+
+    /**
+     * Register with email and password (sends OTP to email)
+     */
+    public function registerWithEmail(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email|unique:users,email',
+            'password' => 'required|string|min:6|confirmed',
+            'first_name' => 'nullable|string|max:255',
+            'last_name' => 'nullable|string|max:255',
+        ]);
+
+        Log::info('[AUTH] ========== REGISTER WITH EMAIL ==========', [
+            'email' => $request->email,
+        ]);
+
+        try {
+            // Create user
+            $user = User::create([
+                'email' => $request->email,
+                'password' => Hash::make($request->password),
+                'first_name' => $request->first_name ?? 'Utilisateur',
+                'last_name' => $request->last_name ?? 'ASSO',
+                'role' => 'client',
+                'phone' => null, // Email auth doesn't require phone
+            ]);
+
+            Log::info('[AUTH] User created with email', [
+                'user_id' => $user->id,
+                'email' => $user->email
+            ]);
+
+            // Generate 6-digit OTP
+            $otpCode = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+            Log::info('[AUTH] OTP code generated', ['email' => $user->email, 'code' => $otpCode]);
+
+            // Store OTP in user model
+            $user->update([
+                'otp_code' => $otpCode,
+                'otp_expires_at' => Carbon::now()->addMinutes(5),
+            ]);
+
+            // Send OTP email
+            \Mail::to($user->email)->send(new \App\Mail\OtpCodeMail($otpCode));
+
+            Log::info('[AUTH] OTP email sent', ['email' => $user->email]);
+
+            $response = [
+                'success' => true,
+                'message' => 'Inscription réussie. Un code de vérification a été envoyé à votre email.',
+                'is_new_user' => true,
+            ];
+
+            // In development, return the code
+            if (app()->environment('local')) {
+                $response['otp_code'] = $otpCode;
+            }
+
+            return response()->json($response);
+
+        } catch (\Exception $e) {
+            Log::error('[AUTH] Register with email failed', [
+                'email' => $request->email,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Une erreur est survenue lors de l\'inscription.',
+            ], 500);
+        }
+    }
+
+    /**
+     * Login with email and password (no OTP required)
+     */
+    public function loginWithEmail(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email',
+            'password' => 'required|string',
+        ]);
+
+        Log::info('[AUTH] ========== LOGIN WITH EMAIL ==========', ['email' => $request->email]);
+
+        $user = User::where('email', $request->email)->first();
+
+        if (!$user) {
+            Log::warning('[AUTH] User not found for email login', ['email' => $request->email]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Email ou mot de passe incorrect',
+            ], 401);
+        }
+
+        // Check password
+        if (!Hash::check($request->password, $user->password)) {
+            Log::warning('[AUTH] Invalid password for email login', [
+                'user_id' => $user->id,
+                'email' => $request->email
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Email ou mot de passe incorrect',
+            ], 401);
+        }
+
+        Log::info('[AUTH] Email login successful', ['user_id' => $user->id, 'email' => $user->email]);
+
+        // Create Sanctum token
+        $token = $user->createToken('mobile-app')->plainTextToken;
+        Log::info('[AUTH] Sanctum token created for email login', [
+            'user_id' => $user->id,
+            'email' => $user->email
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Connexion réussie',
+            'token' => $token,
+            'user' => [
+                'id' => $user->id,
+                'first_name' => $user->first_name,
+                'last_name' => $user->last_name,
+                'name' => $user->name,
+                'email' => $user->email,
+                'phone' => $user->phone,
+                'role' => $user->role,
+                'roles' => $user->getRoles(),
+                'gender' => $user->gender,
+                'birth_date' => $user->birth_date?->format('Y-m-d'),
+                'avatar' => $user->avatar,
+                'country' => $user->country,
+                'address' => $user->address,
+                'latitude' => $user->latitude,
+                'longitude' => $user->longitude,
+                'is_profile_complete' => (bool) $user->is_profile_complete,
+                'preferences' => $user->preferences,
+                'referral_code' => $user->referral_code,
+                'company_name' => $user->company_name,
+                'company_logo' => $user->company_logo,
+                'total_earnings' => $user->total_earnings,
+                'pending_earnings' => $user->pending_earnings,
+                'created_at' => $user->created_at->toIso8601String(),
+            ],
+        ]);
+    }
+
+    /**
+     * Verify OTP sent to email after registration
+     */
+    public function verifyEmailOtp(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email',
+            'otp_code' => 'required|string|size:6',
+        ]);
+
+        Log::info('[AUTH] ========== VERIFY EMAIL OTP ==========', [
+            'email' => $request->email,
+            'otp_code' => $request->otp_code,
+        ]);
+
+        $user = User::where('email', $request->email)->first();
+
+        if (!$user) {
+            Log::warning('[AUTH] User not found for email OTP verification', ['email' => $request->email]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Utilisateur non trouvé',
+            ], 404);
+        }
+
+        // Check OTP
+        if ($user->otp_code !== $request->otp_code) {
+            Log::warning('[AUTH] Invalid OTP code for email verification', [
+                'user_id' => $user->id,
+                'email' => $request->email,
+                'provided_code' => $request->otp_code
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Code OTP incorrect',
+            ], 422);
+        }
+
+        // Check expiration
+        if ($user->otp_expires_at && Carbon::parse($user->otp_expires_at)->isPast()) {
+            Log::warning('[AUTH] OTP expired for email verification', [
+                'user_id' => $user->id,
+                'email' => $request->email,
+                'otp_expires_at' => $user->otp_expires_at
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Code OTP expiré. Veuillez en demander un nouveau.',
+            ], 422);
+        }
+
+        // Clear OTP from user
+        $user->update([
+            'otp_code' => null,
+            'otp_expires_at' => null,
+            'email_verified_at' => now(),
+        ]);
+        Log::info('[AUTH] OTP cleared and email verified', ['user_id' => $user->id]);
+
+        // Create Sanctum token
+        $token = $user->createToken('mobile-app')->plainTextToken;
+        Log::info('[AUTH] Sanctum token created', [
+            'user_id' => $user->id,
+            'email' => $user->email
+        ]);
+
+        Log::info('[AUTH] Email OTP verification successful', [
+            'user_id' => $user->id,
+            'email' => $user->email,
+            'is_new_user' => !$user->is_profile_complete,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Email vérifié avec succès',
+            'token' => $token,
+            'user' => [
+                'id' => $user->id,
+                'first_name' => $user->first_name,
+                'last_name' => $user->last_name,
+                'email' => $user->email,
+                'phone' => $user->phone,
+                'role' => $user->role,
+                'roles' => $user->getRoles(),
+                'avatar' => $user->avatar,
+                'country' => $user->country,
+                'address' => $user->address,
+                'is_profile_complete' => (bool) $user->is_profile_complete,
+                'preferences' => $user->preferences,
+                'referral_code' => $user->referral_code,
+                'company_name' => $user->company_name,
+                'created_at' => $user->created_at->toIso8601String(),
+            ],
+            'is_new_user' => !$user->is_profile_complete,
+        ]);
+    }
 }

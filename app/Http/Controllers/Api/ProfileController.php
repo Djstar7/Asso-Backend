@@ -328,6 +328,14 @@ class ProfileController extends Controller
                 ->distinct('order_id')
                 ->count('order_id');
 
+            // Calculate pending orders count
+            $pendingOrdersCount = \DB::table('order_items')
+                ->join('orders', 'order_items.order_id', '=', 'orders.id')
+                ->where('order_items.seller_id', $user->id)
+                ->where('orders.status', 'pending')
+                ->distinct('order_items.order_id')
+                ->count('order_items.order_id');
+
             // Calculate total sales from completed orders
             $totalSales = \DB::table('order_items')
                 ->join('orders', 'order_items.order_id', '=', 'orders.id')
@@ -411,6 +419,7 @@ class ProfileController extends Controller
 
             \Log::info('[VENDOR_DASHBOARD] Stats calculated:', [
                 'orders_count' => $ordersCount,
+                'pending_orders_count' => $pendingOrdersCount,
                 'total_sales' => $totalSales,
                 'products_count' => $products->count(),
                 'reviews_count' => $totalReviews,
@@ -436,6 +445,7 @@ class ProfileController extends Controller
                     ],
                     'stats' => [
                         'total_orders' => $ordersCount,
+                        'pending_orders' => $pendingOrdersCount,
                         'total_sales' => (float) $totalSales,
                         'total_products' => $products->count(),
                         'total_reviews' => $totalReviews,

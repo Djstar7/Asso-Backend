@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Models\Category;
 use App\Models\DeliveryPricelist;
 use App\Models\Inventory;
+use App\Services\FirebaseMessagingService;
 use Illuminate\Http\Request;
 
 class ProductController extends Controller
@@ -402,9 +403,38 @@ class ProductController extends Controller
         }
 
         // Load relations for response
-        $product->load(['images', 'primaryImage', 'category', 'subcategory', 'user']);
+        $product->load(['images', 'primaryImage', 'category', 'subcategory', 'user', 'shop']);
 
         \Log::info('[PRODUCT_STORE] Product loaded with relations');
+
+        // Envoyer une notification push à tous les utilisateurs si la boutique est vérifiée
+        if ($shop && $shop->is_certified) {
+            \Log::info('[PRODUCT_STORE] Shop is certified, sending push notification to all users');
+            try {
+                $fcmService = new FirebaseMessagingService();
+                $fcmService->sendToTopic(
+                    'all_users',
+                    '🛍️ Nouveau produit disponible',
+                    "{$shop->name} a publié : {$product->name}",
+                    [
+                        'type' => 'new_product',
+                        'product_id' => (string) $product->id,
+                        'product_name' => $product->name,
+                        'shop_id' => (string) $shop->id,
+                        'shop_name' => $shop->name,
+                        'price' => (string) $product->price,
+                        'category_id' => (string) $product->category_id,
+                    ]
+                );
+                \Log::info('[PRODUCT_STORE] Push notification sent successfully');
+            } catch (\Exception $e) {
+                \Log::error('[PRODUCT_STORE] Error sending push notification: ' . $e->getMessage());
+                // On ne bloque pas la création du produit si la notification échoue
+            }
+        } else {
+            \Log::info('[PRODUCT_STORE] Shop is not certified, skipping push notification');
+        }
+
         \Log::info('========== PRODUCT STORE SUCCESS ==========');
 
         return response()->json([

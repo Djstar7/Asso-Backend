@@ -114,16 +114,16 @@ class VendorOrderController extends Controller
                     $walletProvider
                 );
 
-                // 3b. Créditer l'entreprise de livraison avec fonds BLOQUÉS (delivery_fee)
-                $deliveryFee = (float) $order->delivery_fee;
-                if ($deliveryFee > 0 && $order->delivery_company_id) {
+                // 3b. Créditer l'entreprise de livraison avec fonds BLOQUÉS (base_delivery_price)
+                $baseDeliveryPrice = (float) $order->base_delivery_price;
+                if ($baseDeliveryPrice > 0 && $order->delivery_company_id) {
                     $deliveryCompany = \App\Models\DelivererCompany::find($order->delivery_company_id);
                     if ($deliveryCompany && $deliveryCompany->user_id) {
                         $companyUser = \App\Models\User::find($deliveryCompany->user_id);
                         if ($companyUser) {
                             $this->walletService->credit(
                                 $companyUser,
-                                $deliveryFee,
+                                $baseDeliveryPrice,
                                 null,
                                 "Commission livraison #{$order->order_number} (en attente livraison)",
                                 ['order_id' => $order->id, 'escrow' => true],
@@ -132,7 +132,7 @@ class VendorOrderController extends Controller
 
                             $this->walletService->lockFunds(
                                 $companyUser,
-                                $deliveryFee,
+                                $baseDeliveryPrice,
                                 "Escrow livraison #{$order->order_number} — bloqué jusqu'à livraison",
                                 'order',
                                 $order->id,
@@ -140,6 +140,49 @@ class VendorOrderController extends Controller
                                 $walletProvider
                             );
                         }
+                    }
+                }
+
+                // 3c. Créditer ASSO avec fonds BLOQUÉS (delivery_commission)
+                $assoCommission = (float) $order->delivery_commission;
+                if ($assoCommission > 0) {
+                    // Récupérer le user admin ASSO (par convention, user_id = 1 ou email = admin@asso.com)
+                    $assoAdmin = \App\Models\User::where('email', 'admin@asso.com')->first();
+                    if (!$assoAdmin) {
+                        // Fallback sur user_id = 1
+                        $assoAdmin = \App\Models\User::find(1);
+                    }
+
+                    if ($assoAdmin) {
+                        $this->walletService->credit(
+                            $assoAdmin,
+                            $assoCommission,
+                            null,
+                            "Commission ASSO — Commande #{$order->order_number} (en attente livraison)",
+                            ['order_id' => $order->id, 'escrow' => true],
+                            $walletProvider
+                        );
+
+                        $this->walletService->lockFunds(
+                            $assoAdmin,
+                            $assoCommission,
+                            "Escrow commission ASSO #{$order->order_number} — bloqué jusqu'à livraison",
+                            'order',
+                            $order->id,
+                            [],
+                            $walletProvider
+                        );
+
+                        \Log::info("[VendorOrderController] Commission ASSO bloquée", [
+                            'order_id' => $order->id,
+                            'asso_admin_id' => $assoAdmin->id,
+                            'commission' => $assoCommission,
+                        ]);
+                    } else {
+                        \Log::warning("[VendorOrderController] User admin ASSO non trouvé", [
+                            'order_id' => $order->id,
+                            'commission' => $assoCommission,
+                        ]);
                     }
                 }
 

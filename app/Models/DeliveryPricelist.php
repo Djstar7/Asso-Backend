@@ -11,11 +11,13 @@ class DeliveryPricelist extends Model
         'delivery_zone_id',
         'pricing_type',
         'pricing_data',
+        'asso_commission',
         'is_active',
     ];
 
     protected $casts = [
         'pricing_data' => 'array',
+        'asso_commission' => 'float',
         'is_active' => 'boolean',
     ];
 

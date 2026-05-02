@@ -91,6 +91,7 @@ class DelivererController extends Controller
                 // Pricelists for each zone
                 'delivery_zones.*.pricing_type' => 'required|in:fixed,weight_category,volumetric_weight',
                 'delivery_zones.*.pricing_data' => 'required|array',
+                'delivery_zones.*.asso_commission' => 'required|numeric|min:0',
 
                 // Notification preferences (only email is supported)
                 'send_code_via' => 'required|in:email',
@@ -152,6 +153,7 @@ class DelivererController extends Controller
                     'delivery_zone_id' => $zone->id,
                     'pricing_type' => $zoneData['pricing_type'],
                     'pricing_data' => $zoneData['pricing_data'],
+                    'asso_commission' => $zoneData['asso_commission'],
                 ]);
                 Log::info("[DELIVERER_STORE] Pricelist créée", ['pricelist_id' => $pricelist->id]);
             }
@@ -343,6 +345,7 @@ class DelivererController extends Controller
             // Pricelists for each zone
             'delivery_zones.*.pricing_type' => 'required|in:fixed,weight_category,volumetric_weight',
             'delivery_zones.*.pricing_data' => 'required|array',
+            'delivery_zones.*.asso_commission' => 'required|numeric|min:0',
         ]);
 
         try {
@@ -388,12 +391,14 @@ class DelivererController extends Controller
                         $zone->pricelist->update([
                             'pricing_type' => $zoneData['pricing_type'],
                             'pricing_data' => $zoneData['pricing_data'],
+                            'asso_commission' => $zoneData['asso_commission'],
                         ]);
                     } else {
                         DeliveryPricelist::create([
                             'delivery_zone_id' => $zone->id,
                             'pricing_type' => $zoneData['pricing_type'],
                             'pricing_data' => $zoneData['pricing_data'],
+                            'asso_commission' => $zoneData['asso_commission'],
                         ]);
                     }
 
@@ -413,6 +418,7 @@ class DelivererController extends Controller
                         'delivery_zone_id' => $zone->id,
                         'pricing_type' => $zoneData['pricing_type'],
                         'pricing_data' => $zoneData['pricing_data'],
+                        'asso_commission' => $zoneData['asso_commission'],
                     ]);
 
                     $updatedZoneIds[] = $zone->id;

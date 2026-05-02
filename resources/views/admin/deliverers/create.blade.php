@@ -145,6 +145,26 @@
                 @enderror
             </div>
 
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-white mb-2">
+                    Commission ASSO <span class="text-red-500">*</span>
+                </label>
+                <div class="relative">
+                    <input type="number" name="asso_commission" id="asso-commission" step="0.01" min="0" required
+                           value="{{ old('asso_commission', 0) }}"
+                           placeholder="Ex: 500"
+                           class="w-full px-4 py-2 bg-dark-100 border border-dark-300 text-white rounded-lg focus:ring-2 focus:ring-primary-500 @error('asso_commission') border-red-500 @enderror">
+                    <span class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400">FCFA</span>
+                </div>
+                <p class="mt-1 text-sm text-gray-400">
+                    <i class="fas fa-info-circle mr-1"></i>
+                    Montant ajouté au prix du livreur. Le client paiera : Prix livreur + Commission ASSO
+                </p>
+                @error('asso_commission')
+                    <p class="mt-1 text-sm text-red-400">{{ $message }}</p>
+                @enderror
+            </div>
+
             <div id="pricing-fields">
                 <!-- Pricing fields will be added dynamically -->
             </div>
@@ -491,6 +511,9 @@ function addZone() {
 
                 <!-- Pricing type (will be populated on submit) -->
                 <input type="hidden" name="delivery_zones[${zoneId}][pricing_type]" class="zone-pricing-type">
+
+                <!-- ASSO Commission (will be populated on submit) -->
+                <input type="hidden" name="delivery_zones[${zoneId}][asso_commission]" class="zone-asso-commission">
 
                 <!-- Container for pricing_data fields (will be populated on submit) -->
                 <div class="zone-pricing-data-container" data-zone-id="${zoneId}"></div>
@@ -967,10 +990,16 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Copy global pricing to each zone
         const globalPricingType = document.getElementById('pricing-type').value;
+        const globalAssoCommission = document.getElementById('asso-commission').value;
 
         // Apply pricing_type to all zones
         document.querySelectorAll('.zone-pricing-type').forEach(input => {
             input.value = globalPricingType;
+        });
+
+        // Apply asso_commission to all zones
+        document.querySelectorAll('.zone-asso-commission').forEach(input => {
+            input.value = globalAssoCommission;
         });
 
         // Copy pricing_data fields to each zone
