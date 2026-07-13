@@ -98,7 +98,7 @@ class PackageController extends Controller
 
         $validated = $request->validate([
             'package_id' => 'required|exists:packages,id',
-            'wallet_type' => 'required|in:freemopay,paypal',
+            'wallet_type' => 'required|in:kpay,paypal',
         ]);
 
         $user = $request->user();

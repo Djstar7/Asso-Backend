@@ -181,8 +181,8 @@ class DeliveryController extends Controller
         try {
             DB::transaction(function () use ($user, $order) {
                 $walletProvider = str_replace('wallet_', '', $order->payment_method);
-                if (!in_array($walletProvider, ['freemopay', 'paypal'])) {
-                    $walletProvider = 'freemopay';
+                if (!in_array($walletProvider, ['kpay', 'paypal'])) {
+                    $walletProvider = 'kpay';
                 }
 
                 // 1. Marquer la commande comme livrée + supprimer le code

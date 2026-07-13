@@ -111,7 +111,7 @@ Route::prefix('v1')->group(function () {
 });
 
 // Payment webhooks (no auth)
-Route::post('/v1/payments/webhook/freemopay', [PaymentController::class, 'webhookFreemopay']);
+Route::post('/v1/payments/webhook/kpay', [PaymentController::class, 'webhookKpay']);
 
 // ============================================
 // PROTECTED ROUTES (auth:sanctum)
@@ -260,7 +260,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
             // Retrait wallet
             Route::get('/withdrawal-balances', [WalletController::class, 'getWithdrawalBalances']);
-            Route::post('/withdraw/freemopay', [WalletController::class, 'initiateFreeMoPayWithdrawal']);
+            Route::post('/withdraw/kpay', [WalletController::class, 'initiateKpayWithdrawal']);
             Route::post('/withdraw/paypal', [WalletController::class, 'initiatePayPalWithdrawal']);
             Route::get('/withdrawals', [WalletController::class, 'getWithdrawalHistory']);
             Route::get('/withdrawal-status/{withdrawalId}', [WalletController::class, 'checkWithdrawalStatus']);

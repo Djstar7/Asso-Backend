@@ -53,7 +53,7 @@ class ServiceConfiguration extends Model
     const SERVICE_NEXAAH_SMS = 'nexaah_sms';
     const SERVICE_FEDAPAY = 'fedapay';
     const SERVICE_PAYPAL = 'paypal';
-    const SERVICE_FREEMOPAY = 'freemopay';
+    const SERVICE_KPAY = 'kpay';
 
     /**
      * Get configuration for a specific service type (new method matching Estuaire Emploi)
@@ -159,13 +159,13 @@ class ServiceConfiguration extends Model
     }
 
     /**
-     * Récupérer la configuration FreemoPay.
+     * Récupérer la configuration KPay.
      *
      * @return array|null
      */
-    public static function getFreemopayConfig(): ?array
+    public static function getKpayConfig(): ?array
     {
-        return self::getConfig(self::SERVICE_FREEMOPAY);
+        return self::getConfig(self::SERVICE_KPAY);
     }
 
     /**
@@ -277,7 +277,7 @@ class ServiceConfiguration extends Model
         $errors = match($this->service_type ?? $this->service_name) {
             'whatsapp' => $this->validateWhatsAppConfig(),
             'nexaah_sms' => [], // Add validation if needed
-            'freemopay' => [], // Add validation if needed
+            'kpay' => [], // Add validation if needed
             default => [],
         };
 

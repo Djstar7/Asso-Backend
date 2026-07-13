@@ -55,7 +55,7 @@ class InvoiceService
 
             // Payment info
             'payment' => [
-                'method' => $transaction->provider === 'freemopay' ? 'FreeMoPay' : 'PayPal',
+                'method' => $transaction->provider === 'kpay' ? 'KPay' : 'PayPal',
                 'status' => 'Payé',
                 'transaction_id' => $transaction->id,
             ],

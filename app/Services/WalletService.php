@@ -28,11 +28,11 @@ class WalletService
         ?Transaction $transaction = null,
         string $description = 'Recharge wallet',
         array $metadata = [],
-        string $provider = 'freemopay'
+        string $provider = 'kpay'
     ): WalletTransaction {
         return DB::transaction(function () use ($user, $amount, $transaction, $description, $metadata, $provider) {
             // D�terminer quel wallet mettre � jour
-            $walletField = $provider === 'paypal' ? 'paypal_wallet_balance' : 'freemopay_wallet_balance';
+            $walletField = $provider === 'paypal' ? 'paypal_wallet_balance' : 'kpay_wallet_balance';
 
             $balanceBefore = $user->{$walletField} ?? 0;
             $balanceAfter = $balanceBefore + $amount;
@@ -91,13 +91,13 @@ class WalletService
     ): WalletTransaction {
         return DB::transaction(function () use ($user, $amount, $description, $referenceType, $referenceId, $metadata, $provider) {
             // Valider le provider
-            if (!in_array($provider, ['freemopay', 'paypal'])) {
-                throw new \Exception("Provider invalide. Doit �tre 'freemopay' ou 'paypal'.");
+            if (!in_array($provider, ['kpay', 'paypal'])) {
+                throw new \Exception("Provider invalide. Doit �tre 'kpay' ou 'paypal'.");
             }
 
             // D�terminer quel wallet d�biter
-            $walletField = $provider === 'paypal' ? 'paypal_wallet_balance' : 'freemopay_wallet_balance';
-            $lockedField = $provider === 'paypal' ? 'locked_paypal_balance' : 'locked_freemopay_balance';
+            $walletField = $provider === 'paypal' ? 'paypal_wallet_balance' : 'kpay_wallet_balance';
+            $lockedField = $provider === 'paypal' ? 'locked_paypal_balance' : 'locked_kpay_balance';
 
             $balanceBefore = $user->{$walletField} ?? 0;
             $locked = $user->{$lockedField} ?? 0;
@@ -105,7 +105,7 @@ class WalletService
 
             // V�rifier le solde disponible (non bloqué)
             if ($available < $amount) {
-                $providerName = $provider === 'paypal' ? 'PayPal' : 'FreeMoPay';
+                $providerName = $provider === 'paypal' ? 'PayPal' : 'KPay';
                 throw new \Exception("Solde {$providerName} disponible insuffisant. Disponible: {$available} FCFA, Montant requis: {$amount} FCFA");
             }
 
@@ -194,10 +194,10 @@ class WalletService
         float $amount,
         string $description = 'Bonus',
         array $metadata = [],
-        string $provider = 'freemopay'
+        string $provider = 'kpay'
     ): WalletTransaction {
         return DB::transaction(function () use ($user, $amount, $description, $metadata, $provider) {
-            $walletField = $provider === 'paypal' ? 'paypal_wallet_balance' : 'freemopay_wallet_balance';
+            $walletField = $provider === 'paypal' ? 'paypal_wallet_balance' : 'kpay_wallet_balance';
 
             $balanceBefore = $user->{$walletField} ?? 0;
             $balanceAfter = $balanceBefore + $amount;
@@ -243,10 +243,10 @@ class WalletService
         float $amount,
         User $admin,
         string $reason,
-        string $provider = 'freemopay'
+        string $provider = 'kpay'
     ): WalletTransaction {
         return DB::transaction(function () use ($user, $amount, $admin, $reason, $provider) {
-            $walletField = $provider === 'paypal' ? 'paypal_wallet_balance' : 'freemopay_wallet_balance';
+            $walletField = $provider === 'paypal' ? 'paypal_wallet_balance' : 'kpay_wallet_balance';
 
             $balanceBefore = $user->{$walletField} ?? 0;
             $balanceAfter = $balanceBefore + $amount;
@@ -324,13 +324,13 @@ class WalletService
         $transactions = $user->walletTransactions()->completed();
 
         // R�cup�rer les soldes s�par�s
-        $freemopayBalance = $user->freemopay_wallet_balance ?? 0;
+        $freemopayBalance = $user->kpay_wallet_balance ?? 0;
         $paypalBalance = $user->paypal_wallet_balance ?? 0;
         $totalBalance = $freemopayBalance + $paypalBalance;
 
         // Stats par provider
-        $freemopayCredits = $transactions->clone()->where('provider', 'freemopay')->credits()->sum('amount');
-        $freemopayDebits = abs($transactions->clone()->where('provider', 'freemopay')->debits()->sum('amount'));
+        $freemopayCredits = $transactions->clone()->where('provider', 'kpay')->credits()->sum('amount');
+        $freemopayDebits = abs($transactions->clone()->where('provider', 'kpay')->debits()->sum('amount'));
 
         $paypalCredits = $transactions->clone()->where('provider', 'paypal')->credits()->sum('amount');
         $paypalDebits = abs($transactions->clone()->where('provider', 'paypal')->debits()->sum('amount'));
@@ -339,20 +339,20 @@ class WalletService
         $totalDebits = $freemopayDebits + $paypalDebits;
 
         // Soldes bloqués
-        $lockedFreemopay = $user->locked_freemopay_balance ?? 0;
+        $lockedFreemopay = $user->locked_kpay_balance ?? 0;
         $lockedPaypal = $user->locked_paypal_balance ?? 0;
         $totalLocked = $lockedFreemopay + $lockedPaypal;
         $availableTotal = $totalBalance - $totalLocked;
 
         return [
             // Soldes par provider
-            'freemopay_balance' => $freemopayBalance,
+            'kpay_wallet_balance' => $freemopayBalance,
             'paypal_balance' => $paypalBalance,
             'current_balance' => $totalBalance,
             'formatted_balance' => number_format($totalBalance, 0, ',', ' ') . ' FCFA',
 
             // Soldes bloqués (escrow)
-            'locked_freemopay_balance' => $lockedFreemopay,
+            'locked_kpay_balance' => $lockedFreemopay,
             'locked_paypal_balance' => $lockedPaypal,
             'total_locked_balance' => $totalLocked,
             'available_balance' => $availableTotal,
@@ -387,23 +387,23 @@ class WalletService
         ?string $referenceType = null,
         ?int $referenceId = null,
         array $metadata = [],
-        string $provider = 'freemopay'
+        string $provider = 'kpay'
     ): WalletTransaction {
         return DB::transaction(function () use ($user, $amount, $description, $referenceType, $referenceId, $metadata, $provider) {
             $user->lockForUpdate();
             $user->refresh();
 
-            if (!in_array($provider, ['freemopay', 'paypal'])) {
-                throw new \Exception("Provider invalide. Doit être 'freemopay' ou 'paypal'.");
+            if (!in_array($provider, ['kpay', 'paypal'])) {
+                throw new \Exception("Provider invalide. Doit être 'kpay' ou 'paypal'.");
             }
 
-            $walletField = $provider === 'paypal' ? 'paypal_wallet_balance' : 'freemopay_wallet_balance';
-            $lockedField = $provider === 'paypal' ? 'locked_paypal_balance' : 'locked_freemopay_balance';
+            $walletField = $provider === 'paypal' ? 'paypal_wallet_balance' : 'kpay_wallet_balance';
+            $lockedField = $provider === 'paypal' ? 'locked_paypal_balance' : 'locked_kpay_balance';
 
             $available = ($user->{$walletField} ?? 0) - ($user->{$lockedField} ?? 0);
 
             if ($available < $amount) {
-                $providerName = $provider === 'paypal' ? 'PayPal' : 'FreeMoPay';
+                $providerName = $provider === 'paypal' ? 'PayPal' : 'KPay';
                 throw new \Exception("Solde {$providerName} disponible insuffisant. Disponible: {$available} FCFA, Requis: {$amount} FCFA");
             }
 
@@ -451,14 +451,14 @@ class WalletService
         ?string $referenceType = null,
         ?int $referenceId = null,
         array $metadata = [],
-        string $provider = 'freemopay'
+        string $provider = 'kpay'
     ): WalletTransaction {
         return DB::transaction(function () use ($user, $amount, $description, $referenceType, $referenceId, $metadata, $provider) {
             $user->lockForUpdate();
             $user->refresh();
 
-            $lockedField = $provider === 'paypal' ? 'locked_paypal_balance' : 'locked_freemopay_balance';
-            $walletField = $provider === 'paypal' ? 'paypal_wallet_balance' : 'freemopay_wallet_balance';
+            $lockedField = $provider === 'paypal' ? 'locked_paypal_balance' : 'locked_kpay_balance';
+            $walletField = $provider === 'paypal' ? 'paypal_wallet_balance' : 'kpay_wallet_balance';
 
             $lockedBefore = $user->{$lockedField} ?? 0;
 
@@ -509,14 +509,14 @@ class WalletService
         ?string $referenceType = null,
         ?int $referenceId = null,
         array $metadata = [],
-        string $provider = 'freemopay'
+        string $provider = 'kpay'
     ): WalletTransaction {
         return DB::transaction(function () use ($user, $amount, $description, $referenceType, $referenceId, $metadata, $provider) {
             $user->lockForUpdate();
             $user->refresh();
 
-            $walletField = $provider === 'paypal' ? 'paypal_wallet_balance' : 'freemopay_wallet_balance';
-            $lockedField = $provider === 'paypal' ? 'locked_paypal_balance' : 'locked_freemopay_balance';
+            $walletField = $provider === 'paypal' ? 'paypal_wallet_balance' : 'kpay_wallet_balance';
+            $lockedField = $provider === 'paypal' ? 'locked_paypal_balance' : 'locked_kpay_balance';
 
             $lockedBefore = $user->{$lockedField} ?? 0;
             $balanceBefore = $user->{$walletField} ?? 0;
@@ -571,12 +571,12 @@ class WalletService
     public function canPayWithWallet(User $user, float $amount, ?string $provider = null): array
     {
         if ($provider) {
-            $walletField = $provider === 'paypal' ? 'paypal_wallet_balance' : 'freemopay_wallet_balance';
-            $lockedField = $provider === 'paypal' ? 'locked_paypal_balance' : 'locked_freemopay_balance';
+            $walletField = $provider === 'paypal' ? 'paypal_wallet_balance' : 'kpay_wallet_balance';
+            $lockedField = $provider === 'paypal' ? 'locked_paypal_balance' : 'locked_kpay_balance';
             $totalBalance = $user->{$walletField} ?? 0;
             $locked = $user->{$lockedField} ?? 0;
             $available = $totalBalance - $locked;
-            $providerName = $provider === 'paypal' ? 'PayPal' : 'FreeMoPay';
+            $providerName = $provider === 'paypal' ? 'PayPal' : 'KPay';
 
             $canPay = $available >= $amount;
 
@@ -594,14 +594,14 @@ class WalletService
             ];
         } else {
             $available = $user->available_total_balance;
-            $totalBalance = ($user->freemopay_wallet_balance ?? 0) + ($user->paypal_wallet_balance ?? 0);
+            $totalBalance = ($user->kpay_wallet_balance ?? 0) + ($user->paypal_wallet_balance ?? 0);
             $totalLocked = $user->total_locked_balance;
 
             $canPay = $available >= $amount;
 
             return [
                 'can_pay' => $canPay,
-                'freemopay_balance' => $user->freemopay_wallet_balance ?? 0,
+                'kpay_wallet_balance' => $user->kpay_wallet_balance ?? 0,
                 'paypal_balance' => $user->paypal_wallet_balance ?? 0,
                 'total_balance' => $totalBalance,
                 'locked_balance' => $totalLocked,

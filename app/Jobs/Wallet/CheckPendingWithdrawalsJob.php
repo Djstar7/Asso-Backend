@@ -27,10 +27,10 @@ class CheckPendingWithdrawalsJob implements ShouldQueue
         // Trouver les retraits pending ou processing:
         // - Créés il y a au moins 1 minute (laisser le temps au provider de traiter)
         // - Créés il y a maximum 48 heures (après ça, le CleanupJob s'en occupe)
-        // - Provider = 'freemopay' (Orange Money / MTN MoMo)
+        // - Provider = 'kpay' (Orange Money / MTN MoMo)
         // - Updated il y a plus de 30 secondes (éviter de spammer l'API)
         $pendingWithdrawals = PlatformWithdrawal::whereIn('status', ['pending', 'processing'])
-            ->where('provider', 'freemopay')
+            ->where('provider', 'kpay')
             ->where('created_at', '>=', now()->subHours(48))
             ->where('created_at', '<=', now()->subMinute())
             // Éviter de vérifier trop souvent
@@ -46,7 +46,7 @@ class CheckPendingWithdrawalsJob implements ShouldQueue
 
         // Dispatcher un job pour chaque retrait
         foreach ($pendingWithdrawals as $withdrawal) {
-            $reference = $withdrawal->freemopay_reference;
+            $reference = $withdrawal->kpay_reference;
 
             if (!$reference) {
                 Log::warning('⚠️ [CHECK-WITHDRAWALS] Withdrawal without FreeMoPay reference', [

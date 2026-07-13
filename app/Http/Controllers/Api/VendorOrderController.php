@@ -86,8 +86,8 @@ class VendorOrderController extends Controller
 
                 // 2. Déterminer le wallet provider depuis le payment_method
                 $walletProvider = str_replace('wallet_', '', $order->payment_method);
-                if (!in_array($walletProvider, ['freemopay', 'paypal'])) {
-                    $walletProvider = 'freemopay';
+                if (!in_array($walletProvider, ['kpay', 'paypal'])) {
+                    $walletProvider = 'kpay';
                 }
 
                 // 3. Créditer le vendeur avec fonds BLOQUÉS (escrow)
@@ -218,7 +218,7 @@ class VendorOrderController extends Controller
 
                 // 2. Débloquer les fonds du client
                 $walletProvider = str_replace('wallet_', '', $order->payment_method);
-                if (in_array($walletProvider, ['freemopay', 'paypal'])) {
+                if (in_array($walletProvider, ['kpay', 'paypal'])) {
                     $client = $order->user;
                     if ($client) {
                         $this->walletService->unlockFunds(

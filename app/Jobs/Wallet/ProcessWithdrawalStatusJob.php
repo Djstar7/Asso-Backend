@@ -4,7 +4,7 @@ namespace App\Jobs\Wallet;
 
 use App\Models\PlatformWithdrawal;
 use App\Models\WalletTransaction;
-use App\Services\FreemopayService;
+use App\Services\KPayService;
 use App\Services\FirebaseMessagingService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -30,7 +30,7 @@ class ProcessWithdrawalStatusJob implements ShouldQueue
         public int $withdrawalId
     ) {}
 
-    public function handle(FreemopayService $freemopayService, FirebaseMessagingService $fcmService)
+    public function handle(KPayService $freemopayService, FirebaseMessagingService $fcmService)
     {
         $withdrawal = PlatformWithdrawal::find($this->withdrawalId);
 
@@ -50,7 +50,7 @@ class ProcessWithdrawalStatusJob implements ShouldQueue
             return;
         }
 
-        $reference = $withdrawal->freemopay_reference;
+        $reference = $withdrawal->kpay_reference;
 
         if (!$reference) {
             Log::error('❌ [PROCESS-WITHDRAWAL] No FreeMoPay reference found', [
@@ -94,12 +94,12 @@ class ProcessWithdrawalStatusJob implements ShouldQueue
                 }
 
                 // Mettre à jour la réponse FreeMoPay
-                $withdrawal->freemopay_response = array_merge($withdrawal->freemopay_response ?? [], [
+                $withdrawal->kpay_response = array_merge($withdrawal->kpay_response ?? [], [
                     'last_status_check' => now()->toISOString(),
                     'status' => $status,
                     'response' => $statusResponse,
                     'checked_via' => 'job',
-                    'check_attempts' => ($withdrawal->freemopay_response['check_attempts'] ?? 0) + 1,
+                    'check_attempts' => ($withdrawal->kpay_response['check_attempts'] ?? 0) + 1,
                 ]);
 
                 if (in_array($status, ['SUCCESS', 'SUCCESSFUL', 'COMPLETED'])) {
@@ -171,7 +171,7 @@ class ProcessWithdrawalStatusJob implements ShouldQueue
 
                     // Marquer comme échoué
                     $withdrawal->status = 'failed';
-                    $withdrawal->failure_code = 'FREEMOPAY_' . $status;
+                    $withdrawal->failure_code = 'KPAY_' . $status;
                     $withdrawal->failure_reason = $reason ?? 'Withdrawal failed';
                     $withdrawal->save();
 
@@ -282,7 +282,7 @@ class ProcessWithdrawalStatusJob implements ShouldQueue
                 return;
             }
 
-            $balanceBefore = $user->freemopay_balance ?? 0;
+            $balanceBefore = $user->kpay_wallet_balance ?? 0;
 
             // Créditer le montant demandé (amount_requested) car c'est ce qui a été débité initialement
             $refundAmount = $withdrawal->amount_requested;
@@ -298,7 +298,7 @@ class ProcessWithdrawalStatusJob implements ShouldQueue
                 'reference_type' => 'platform_withdrawal_refund',
                 'reference_id' => $withdrawal->id,
                 'status' => 'completed',
-                'provider' => 'freemopay',
+                'provider' => 'kpay',
                 'metadata' => [
                     'withdrawal_id' => $withdrawal->id,
                     'original_amount' => $withdrawal->amount_requested,
@@ -308,13 +308,13 @@ class ProcessWithdrawalStatusJob implements ShouldQueue
             ]);
 
             // Créditer le wallet de l'utilisateur
-            $user->increment('freemopay_balance', $refundAmount);
+            $user->increment('kpay_wallet_balance', $refundAmount);
 
             Log::info('💰 [PROCESS-WITHDRAWAL] Withdrawal refunded to user wallet', [
                 'withdrawal_id' => $withdrawal->id,
                 'user_id' => $user->id,
                 'refund_amount' => $refundAmount,
-                'new_balance' => $user->fresh()->freemopay_balance,
+                'new_balance' => $user->fresh()->kpay_wallet_balance,
             ]);
 
         } catch (\Exception $e) {

@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\Transaction;
-use App\Services\FreemopayService;
+use App\Services\KPayService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -18,26 +18,30 @@ class PaymentController extends Controller
     {
         $request->validate([
             'order_id' => 'required|exists:orders,id',
-            'payment_method' => 'required|in:freemopay,mobile,paypal,cash',
-            'phone_number' => 'required_if:payment_method,freemopay,mobile|string',
+            'payment_method' => 'required|in:kpay,mobile,paypal,cash',
+            // provider = code opérateur KPay (ex. MTN_MOMO_CMR) — détermine pays et devise
+            'provider' => 'required_if:payment_method,kpay,mobile|string',
+            'phone_number' => 'required_if:payment_method,kpay,mobile|string',
         ]);
 
         $order = Order::where('user_id', $request->user()->id)
             ->where('payment_status', 'pending')
             ->findOrFail($request->order_id);
 
-        if ($request->payment_method === 'freemopay' || $request->payment_method === 'mobile') {
-            $freemopay = new FreemopayService();
-            $result = $freemopay->initializePayment([
+        if ($request->payment_method === 'kpay' || $request->payment_method === 'mobile') {
+            $kpay = new KPayService();
+            $result = $kpay->initializePayment([
                 'amount' => (int) $order->total,
-                'currency' => 'XAF',
+                'provider' => $request->provider,
                 'phone_number' => $request->phone_number,
                 'description' => "Commande {$order->order_number}",
                 'external_reference' => $order->order_number,
             ]);
 
             if ($result['success']) {
-                // Create transaction record
+                // Create transaction record — external_reference = externalId (order_number)
+                // pour retrouver la transaction depuis le webhook KPay ; l'id KPay
+                // (pour le polling) est conservé dans metadata.
                 $transaction = Transaction::create([
                     'reference' => 'TXN' . strtoupper(substr(md5(uniqid()), 0, 10)),
                     'buyer_id' => $request->user()->id,
@@ -46,9 +50,9 @@ class PaymentController extends Controller
                     'status' => 'pending',
                     'type' => 'purchase',
                     'payment_method' => 'mobile',
-                    'external_reference' => $result['reference'] ?? null,
+                    'external_reference' => $order->order_number,
                     'description' => "Paiement commande {$order->order_number}",
-                    'metadata' => ['order_id' => $order->id, 'freemopay_data' => $result['data']],
+                    'metadata' => ['order_id' => $order->id, 'kpay_id' => $result['id'], 'kpay_reference' => $result['reference'], 'kpay_data' => $result['data']],
                     'payer_name' => $request->user()->name,
                 ]);
 
@@ -61,6 +65,7 @@ class PaymentController extends Controller
                     'success' => true,
                     'message' => 'Paiement initié. Veuillez valider sur votre téléphone.',
                     'payment_reference' => $result['reference'],
+                    'kpay_id' => $result['id'],
                     'transaction_id' => $transaction->id,
                 ]);
             }
@@ -94,8 +99,9 @@ class PaymentController extends Controller
      */
     public function status(Request $request, $reference)
     {
-        $freemopay = new FreemopayService();
-        $result = $freemopay->checkStatus($reference);
+        // $reference = id KPay (pay_xxx) conservé côté client (metadata.kpay_id)
+        $kpay = new KPayService();
+        $result = $kpay->checkPaymentStatus($reference);
 
         return response()->json([
             'success' => true,
@@ -105,29 +111,44 @@ class PaymentController extends Controller
     }
 
     /**
-     * FreemoPay webhook callback
+     * KPay webhook callback (deposits).
+     * Signature HMAC-SHA256 (hex) sur le corps BRUT, en-tête X-KPAY-Signature.
      */
-    public function webhookFreemopay(Request $request)
+    public function webhookKpay(Request $request)
     {
-        Log::info('FreemoPay webhook received', $request->all());
+        $rawBody = $request->getContent();
+        $signature = $request->header('X-KPAY-Signature');
 
-        $reference = $request->input('reference');
-        $status = $request->input('status');
+        if (!KPayService::verifyWebhookSignature($rawBody, $signature)) {
+            Log::warning('KPay webhook: signature invalide', ['event' => $request->header('X-KPAY-Event')]);
+            return response()->json(['message' => 'Invalid signature'], 401);
+        }
 
-        if (!$reference || !$status) {
+        Log::info('KPay webhook received', $request->all());
+
+        // externalId permet de retrouver la transaction (idempotence) ; status terminal.
+        $externalId = $request->input('externalId');
+        $status = $request->input('status'); // COMPLETED | FAILED | CANCELLED
+
+        if (!$externalId || !$status) {
             return response()->json(['message' => 'Invalid payload'], 400);
         }
 
-        $transaction = Transaction::where('external_reference', $reference)->first();
+        $transaction = Transaction::where('external_reference', $externalId)->first();
 
         if (!$transaction) {
-            Log::warning('FreemoPay webhook: transaction not found', ['reference' => $reference]);
+            Log::warning('KPay webhook: transaction not found', ['externalId' => $externalId]);
             return response()->json(['message' => 'Transaction not found'], 404);
+        }
+
+        // Idempotence : ne pas retraiter une transaction déjà finalisée.
+        if (in_array($transaction->status, ['completed', 'cancelled'])) {
+            return response()->json(['message' => 'Already processed']);
         }
 
         $orderId = $transaction->metadata['order_id'] ?? null;
 
-        if ($status === 'SUCCESS') {
+        if ($status === 'COMPLETED') {
             $transaction->update([
                 'status' => 'completed',
                 'completed_at' => now(),
@@ -158,7 +179,7 @@ class PaymentController extends Controller
                     }
                 }
             }
-        } elseif ($status === 'FAILED') {
+        } elseif (in_array($status, ['FAILED', 'CANCELLED'])) {
             $transaction->update(['status' => 'cancelled']);
 
             if ($orderId) {

@@ -18,7 +18,7 @@ class ServiceConfigurationController extends Controller
     {
         $whatsappConfig = ServiceConfiguration::getWhatsAppConfig();
         $nexahConfig = ServiceConfiguration::where('service_name', 'nexaah_sms')->first();
-        $freemopayConfig = ServiceConfiguration::where('service_name', 'freemopay')->first();
+        $freemopayConfig = ServiceConfiguration::where('service_name', 'kpay')->first();
 
         return view('admin.service-config.index', compact('whatsappConfig', 'nexahConfig', 'freemopayConfig'));
     }
@@ -139,7 +139,7 @@ class ServiceConfigurationController extends Controller
                     return $nexahService->testConnection();
 
                 case ServiceConfiguration::SERVICE_FREEMOPAY:
-                    $freemopayService = new \App\Services\FreemopayService();
+                    $freemopayService = new \App\Services\KPayService();
                     return $freemopayService->testConnection();
 
                 default:

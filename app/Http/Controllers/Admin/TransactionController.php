@@ -74,10 +74,10 @@ class TransactionController extends Controller
         // Statistiques par provider (méthode de paiement)
         $paymentMethodStats = collect([
             (object)[
-                'payment_method' => 'freemopay',
-                'label' => 'FreeMoPay',
-                'count' => (clone $baseStatsQuery)->completed()->where('provider', 'freemopay')->count(),
-                'total' => (clone $baseStatsQuery)->completed()->where('provider', 'freemopay')->sum('amount'),
+                'payment_method' => 'kpay',
+                'label' => 'KPay',
+                'count' => (clone $baseStatsQuery)->completed()->where('provider', 'kpay')->count(),
+                'total' => (clone $baseStatsQuery)->completed()->where('provider', 'kpay')->sum('amount'),
             ],
             (object)[
                 'payment_method' => 'paypal',
@@ -111,9 +111,9 @@ class TransactionController extends Controller
 
         // Données pour le graphique par provider
         $paymentMethodChartData = [
-            'freemopay' => WalletTransaction::query()
+            'kpay' => WalletTransaction::query()
                 ->completed()
-                ->where('provider', 'freemopay')
+                ->where('provider', 'kpay')
                 ->whereBetween('created_at', [$chartStartDate, $chartEndDate])
                 ->sum('amount'),
             'paypal' => WalletTransaction::query()

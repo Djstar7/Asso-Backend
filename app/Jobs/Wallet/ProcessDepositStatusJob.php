@@ -4,7 +4,7 @@ namespace App\Jobs\Wallet;
 
 use App\Models\WalletTransaction;
 use App\Models\User;
-use App\Services\FreemopayService;
+use App\Services\KPayService;
 use App\Services\FirebaseMessagingService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -30,7 +30,7 @@ class ProcessDepositStatusJob implements ShouldQueue
         public int $walletTransactionId
     ) {}
 
-    public function handle(FreemopayService $freemopayService, FirebaseMessagingService $fcmService)
+    public function handle(KPayService $freemopayService, FirebaseMessagingService $fcmService)
     {
         $deposit = WalletTransaction::find($this->walletTransactionId);
 
@@ -84,8 +84,8 @@ class ProcessDepositStatusJob implements ShouldQueue
             DB::transaction(function () use ($deposit, $status, $reason, $statusResponse, $metadata, $fcmService) {
                 // Mettre à jour les metadata avec la dernière réponse
                 $metadata['last_status_check'] = now()->toISOString();
-                $metadata['freemopay_status'] = $status;
-                $metadata['freemopay_response'] = $statusResponse;
+                $metadata['kpay_status'] = $status;
+                $metadata['kpay_response'] = $statusResponse;
                 $metadata['checked_via'] = 'job';
                 $metadata['check_attempts'] = ($metadata['check_attempts'] ?? 0) + 1;
 
@@ -97,7 +97,7 @@ class ProcessDepositStatusJob implements ShouldQueue
 
                     // Mettre à jour le statut et balance_after
                     $user = $deposit->user;
-                    $currentBalance = $user->freemopay_wallet_balance ?? 0;
+                    $currentBalance = $user->kpay_wallet_balance ?? 0;
 
                     $deposit->update([
                         'status' => 'completed',
@@ -109,13 +109,13 @@ class ProcessDepositStatusJob implements ShouldQueue
                     ]);
 
                     // Créditer le wallet FreeMoPay de l'utilisateur
-                    $user->increment('freemopay_wallet_balance', $deposit->amount);
+                    $user->increment('kpay_wallet_balance', $deposit->amount);
 
                     Log::info('💰 [PROCESS-DEPOSIT] FreeMoPay wallet credited successfully', [
                         'wallet_transaction_id' => $deposit->id,
                         'user_id' => $user->id,
                         'amount' => $deposit->amount,
-                        'new_balance' => $user->fresh()->freemopay_wallet_balance,
+                        'new_balance' => $user->fresh()->kpay_wallet_balance,
                     ]);
 
                     // Envoyer notification FCM de succès
@@ -128,7 +128,7 @@ class ProcessDepositStatusJob implements ShouldQueue
                                 'type' => 'wallet_credit',
                                 'wallet_transaction_id' => (string) $deposit->id,
                                 'amount' => (string) $deposit->amount,
-                                'provider' => 'freemopay',
+                                'provider' => 'kpay',
                                 'status' => 'completed',
                                 'click_action' => 'OPEN_WALLET',
                             ]
@@ -179,7 +179,7 @@ class ProcessDepositStatusJob implements ShouldQueue
                                 'type' => 'wallet_credit_failed',
                                 'wallet_transaction_id' => (string) $deposit->id,
                                 'amount' => (string) $deposit->amount,
-                                'provider' => 'freemopay',
+                                'provider' => 'kpay',
                                 'status' => 'failed',
                                 'reason' => $reason ?? 'Unknown error',
                                 'click_action' => 'OPEN_WALLET',

@@ -27,10 +27,10 @@ class CheckPendingDepositsJob implements ShouldQueue
         // Trouver les dépôts en attente de type 'credit' (recharges):
         // - Créés il y a au moins 30 secondes (laisser le temps au provider de traiter)
         // - Créés il y a maximum 24 heures (après ça, le CleanupJob s'en occupe)
-        // - Avec provider = 'freemopay' (Orange Money / MTN MoMo)
+        // - Avec provider = 'kpay' (Orange Money / MTN MoMo)
         $pendingDeposits = WalletTransaction::where('type', 'credit')
             ->where('status', 'pending')
-            ->where('provider', 'freemopay')
+            ->where('provider', 'kpay')
             ->where('created_at', '>=', now()->subHours(24))
             ->where('created_at', '<=', now()->subSeconds(30))
             ->get();

@@ -42,8 +42,8 @@ class User extends Authenticatable
         'total_earnings',
         'pending_earnings',
         'withdrawn_earnings',
-        'freemopay_wallet_balance',
-        'locked_freemopay_balance',
+        'kpay_wallet_balance',
+        'locked_kpay_balance',
         'paypal_wallet_balance',
         'locked_paypal_balance',
         'otp_code',
@@ -281,7 +281,7 @@ class User extends Authenticatable
      */
     public function getTotalWalletBalanceAttribute(): float
     {
-        return ($this->freemopay_wallet_balance ?? 0) + ($this->paypal_wallet_balance ?? 0);
+        return ($this->kpay_wallet_balance ?? 0) + ($this->paypal_wallet_balance ?? 0);
     }
 
     /**
@@ -295,9 +295,9 @@ class User extends Authenticatable
     /**
      * Get formatted FreeMoPay wallet balance
      */
-    public function getFormattedFreemopayBalanceAttribute(): string
+    public function getFormattedKpayBalanceAttribute(): string
     {
-        return number_format($this->freemopay_wallet_balance ?? 0, 0, ',', ' ') . ' FCFA';
+        return number_format($this->kpay_wallet_balance ?? 0, 0, ',', ' ') . ' FCFA';
     }
 
     /**
@@ -311,9 +311,9 @@ class User extends Authenticatable
     /**
      * Solde FreeMoPay disponible (total - bloqué)
      */
-    public function getAvailableFreemopayBalanceAttribute(): float
+    public function getAvailableKpayBalanceAttribute(): float
     {
-        return ($this->freemopay_wallet_balance ?? 0) - ($this->locked_freemopay_balance ?? 0);
+        return ($this->kpay_wallet_balance ?? 0) - ($this->locked_kpay_balance ?? 0);
     }
 
     /**
@@ -329,7 +329,7 @@ class User extends Authenticatable
      */
     public function getAvailableTotalBalanceAttribute(): float
     {
-        return $this->available_freemopay_balance + $this->available_paypal_balance;
+        return $this->available_kpay_balance + $this->available_paypal_balance;
     }
 
     /**
@@ -337,7 +337,7 @@ class User extends Authenticatable
      */
     public function getTotalLockedBalanceAttribute(): float
     {
-        return ($this->locked_freemopay_balance ?? 0) + ($this->locked_paypal_balance ?? 0);
+        return ($this->locked_kpay_balance ?? 0) + ($this->locked_paypal_balance ?? 0);
     }
 
     /**

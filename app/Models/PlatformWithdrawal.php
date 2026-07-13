@@ -21,8 +21,8 @@ class PlatformWithdrawal extends Model
         'payment_account_name',
         'status',
         'transaction_reference',
-        'freemopay_reference',
-        'freemopay_response',
+        'kpay_reference',
+        'kpay_response',
         'paypal_batch_id',
         'paypal_payout_item_id',
         'paypal_response',
@@ -39,7 +39,7 @@ class PlatformWithdrawal extends Model
         'commission_rate' => 'decimal:2',
         'commission_amount' => 'decimal:2',
         'amount_sent' => 'decimal:2',
-        'freemopay_response' => 'array',
+        'kpay_response' => 'array',
         'paypal_response' => 'array',
         'completed_at' => 'datetime',
     ];
@@ -115,8 +115,8 @@ class PlatformWithdrawal extends Model
             $updateData['paypal_batch_id'] = $reference;
             $updateData['paypal_response'] = $response;
         } else {
-            $updateData['freemopay_reference'] = $reference;
-            $updateData['freemopay_response'] = $response;
+            $updateData['kpay_reference'] = $reference;
+            $updateData['kpay_response'] = $response;
         }
 
         $this->update($updateData);
@@ -133,9 +133,9 @@ class PlatformWithdrawal extends Model
     /**
      * Check if withdrawal is using FreeMoPay
      */
-    public function isFreeMoPay(): bool
+    public function isKpay(): bool
     {
-        return $this->provider === 'freemopay';
+        return $this->provider === 'kpay';
     }
 
     /**

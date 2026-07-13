@@ -38,7 +38,7 @@ class CleanupStaleTransactionsJob implements ShouldQueue
             // 1. Nettoyer les dépôts (type = credit) pending depuis plus de 24 heures
             $staleDeposits = WalletTransaction::where('type', 'credit')
                 ->where('status', 'pending')
-                ->where('provider', 'freemopay')
+                ->where('provider', 'kpay')
                 ->where('created_at', '<', now()->subHours(24))
                 ->get();
 
@@ -60,12 +60,12 @@ class CleanupStaleTransactionsJob implements ShouldQueue
 
             // 2. Nettoyer les retraits pending ou processing depuis plus de 48 heures
             $staleWithdrawals = PlatformWithdrawal::whereIn('status', ['pending', 'processing'])
-                ->where('provider', 'freemopay')
+                ->where('provider', 'kpay')
                 ->where('created_at', '<', now()->subHours(48))
                 ->get();
 
             foreach ($staleWithdrawals as $withdrawal) {
-                $freemopayResponse = $withdrawal->freemopay_response ?? [];
+                $freemopayResponse = $withdrawal->kpay_response ?? [];
                 $freemopayResponse['failed_reason'] = 'Timeout - No response after 48 hours';
                 $freemopayResponse['auto_failed_at'] = now()->toISOString();
                 $freemopayResponse['auto_failed_by'] = 'CleanupJob';
@@ -74,7 +74,7 @@ class CleanupStaleTransactionsJob implements ShouldQueue
                     'status' => 'failed',
                     'failure_code' => 'TIMEOUT',
                     'failure_reason' => 'Timeout - No response after 48 hours',
-                    'freemopay_response' => $freemopayResponse,
+                    'kpay_response' => $freemopayResponse,
                 ]);
 
                 // IMPORTANT: Rembourser l'utilisateur si le montant a déjà été débité
@@ -125,7 +125,7 @@ class CleanupStaleTransactionsJob implements ShouldQueue
                 return;
             }
 
-            $balanceBefore = $user->freemopay_balance ?? 0;
+            $balanceBefore = $user->kpay_wallet_balance ?? 0;
             $refundAmount = $withdrawal->amount_requested;
 
             // Créer la transaction de remboursement
@@ -139,7 +139,7 @@ class CleanupStaleTransactionsJob implements ShouldQueue
                 'reference_type' => 'platform_withdrawal_refund',
                 'reference_id' => $withdrawal->id,
                 'status' => 'completed',
-                'provider' => 'freemopay',
+                'provider' => 'kpay',
                 'metadata' => [
                     'withdrawal_id' => $withdrawal->id,
                     'original_amount' => $withdrawal->amount_requested,
@@ -150,13 +150,13 @@ class CleanupStaleTransactionsJob implements ShouldQueue
             ]);
 
             // Créditer le wallet de l'utilisateur
-            $user->increment('freemopay_balance', $refundAmount);
+            $user->increment('kpay_wallet_balance', $refundAmount);
 
             Log::info('💰 [CLEANUP] Timed-out withdrawal refunded to user wallet', [
                 'withdrawal_id' => $withdrawal->id,
                 'user_id' => $user->id,
                 'refund_amount' => $refundAmount,
-                'new_balance' => $user->fresh()->freemopay_balance,
+                'new_balance' => $user->fresh()->kpay_wallet_balance,
             ]);
 
         } catch (\Exception $e) {

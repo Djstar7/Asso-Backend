@@ -78,7 +78,7 @@ class OrderController extends Controller
             'items.*.quantity' => 'required|integer|min:1',
             'delivery_company_id' => 'required|exists:deliverer_companies,id',
             'delivery_zone_id' => 'required|exists:delivery_zones,id',
-            'wallet_provider' => 'required|in:freemopay,paypal',
+            'wallet_provider' => 'required|in:kpay,paypal',
             'delivery_address' => 'nullable|string',
             'delivery_latitude' => 'nullable|numeric',
             'delivery_longitude' => 'nullable|numeric',
@@ -129,7 +129,7 @@ class OrderController extends Controller
             DB::transaction(function () use ($request, $order) {
                 // Débloquer les fonds du client
                 $walletProvider = str_replace('wallet_', '', $order->payment_method);
-                if (in_array($walletProvider, ['freemopay', 'paypal'])) {
+                if (in_array($walletProvider, ['kpay', 'paypal'])) {
                     app(\App\Services\WalletService::class)->unlockFunds(
                         $request->user(),
                         (float) $order->total,
