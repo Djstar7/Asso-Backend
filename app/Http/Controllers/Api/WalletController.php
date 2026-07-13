@@ -148,6 +148,7 @@ class WalletController extends Controller
                     'metadata' => [
                         'phone_number' => $phoneNumber,
                         'kpay_provider' => $provider,
+                        'currency' => \App\Services\KPayCatalog::currencyForProvider($provider),
                         'initiated_at' => now()->toIso8601String(),
                     ],
                 ]);
@@ -359,23 +360,29 @@ class WalletController extends Controller
         try {
             $user = $request->user();
 
-            $kpayBalance = $user->kpay_wallet_balance ?? 0;
-            $paypalBalance = $user->paypal_wallet_balance ?? 0;
-            $totalBalance = $kpayBalance + $paypalBalance;
+            // Soldes KPay par devise (multi-devise)
+            $kpayBalances = $user->walletBalances()
+                ->get()
+                ->map(fn($wb) => [
+                    'currency' => $wb->currency,
+                    'balance' => max(0, (float) $wb->balance),
+                    'locked' => max(0, (float) $wb->locked_balance),
+                    'available' => max(0, (float) $wb->balance - (float) $wb->locked_balance),
+                ])
+                ->values();
 
-            Log::info('[WalletController] Withdrawal balances calculated', [
-                'user_id' => $user->id,
-                'kpay_wallet_balance' => $kpayBalance,
-                'paypal_balance' => $paypalBalance,
-                'total_balance' => $totalBalance,
-            ]);
+            $paypalBalance = $user->paypal_wallet_balance ?? 0;
+            $xafAvailable = $user->kpayAvailableFor('XAF');
 
             return response()->json([
                 'success' => true,
                 'data' => [
-                    'kpay_wallet_balance' => max(0, $kpayBalance),
+                    // Multi-devise : liste des soldes KPay par devise
+                    'kpay_balances' => $kpayBalances,
+                    // Compat rétro (XAF + PayPal)
+                    'kpay_wallet_balance' => max(0, $xafAvailable),
                     'paypal_balance' => max(0, $paypalBalance),
-                    'total_balance' => max(0, $totalBalance),
+                    'total_balance' => max(0, $xafAvailable + $paypalBalance),
                 ],
             ]);
         } catch (\Exception $e) {
@@ -426,26 +433,30 @@ class WalletController extends Controller
         $phone = $request->input('phone');
         $notes = $request->input('notes');
 
-        // Vérifier le solde KPay wallet disponible
-        $availableBalance = $user->kpay_wallet_balance ?? 0;
+        // Devise déduite de l'opérateur (le retrait reste dans le pays de l'opérateur)
+        $currency = \App\Services\KPayCatalog::currencyForProvider($provider);
+
+        // Vérifier le solde KPay disponible dans cette devise
+        $availableBalance = $user->kpayAvailableFor($currency);
 
         if ($amount > $availableBalance) {
             Log::warning("[WalletController] ❌ Insufficient KPay wallet balance", [
+                'currency' => $currency,
                 'available' => $availableBalance,
                 'requested_amount' => $amount,
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Solde KPay insuffisant. Disponible: ' . number_format($availableBalance, 0, ',', ' ') . ' FCFA',
+                'message' => "Solde $currency insuffisant. Disponible: " . number_format($availableBalance, 0, ',', ' ') . " $currency",
             ], 400);
         }
 
         try {
             DB::beginTransaction();
 
-            // Récupérer le solde actuel
-            $currentBalance = $user->kpay_wallet_balance ?? 0;
+            // Récupérer le solde actuel dans la devise
+            $currentBalance = $user->kpayBalanceFor($currency);
 
             // Créer la transaction wallet (débit immédiat pour bloquer les fonds)
             $walletTransaction = \App\Models\WalletTransaction::create([
@@ -462,12 +473,13 @@ class WalletController extends Controller
                 'metadata' => [
                     'phone' => $phone,
                     'payment_method' => $paymentMethod,
+                    'currency' => $currency,
                     'initiated_at' => now()->toIso8601String(),
                 ],
             ]);
 
-            // Débiter le solde immédiatement (les fonds sont bloqués)
-            $user->decrement('kpay_wallet_balance', $amount);
+            // Débiter le solde immédiatement dans la bonne devise (fonds bloqués)
+            $user->debitKpay($currency, $amount);
 
             Log::info("[WalletController] ✅ Wallet transaction created (debit)", [
                 'wallet_transaction_id' => $walletTransaction->id,
@@ -483,7 +495,7 @@ class WalletController extends Controller
                 'commission_rate' => 0,
                 'commission_amount' => 0,
                 'amount_sent' => $amount,
-                'currency' => 'XAF',
+                'currency' => $currency,
                 'provider' => 'kpay',
                 'payment_method' => $paymentMethod,
                 'payment_account' => $phone,
@@ -552,16 +564,17 @@ class WalletController extends Controller
                 $this->fcmService->sendToUser(
                     $user,
                     '💸 Retrait KPay en cours',
-                    "Votre demande de retrait de {$amount} FCFA vers {$phone} ({$paymentMethod}) est en cours de traitement.",
+                    "Votre demande de retrait de {$amount} {$currency} vers {$phone} est en cours de traitement.",
                     [
                         'type' => 'wallet_withdrawal_processing',
                         'provider' => 'kpay',
+                        'currency' => $currency,
                         'amount' => $amount,
                         'withdrawal_id' => $withdrawal->id,
                         'transaction_reference' => $withdrawal->transaction_reference,
                         'phone' => $phone,
                         'payment_method' => $paymentMethod,
-                        'new_balance' => $user->kpay_wallet_balance,
+                        'new_balance' => $user->kpayBalanceFor($currency),
                     ]
                 );
                 Log::info("[WalletController] 📬 FCM notification sent for KPay withdrawal");
@@ -577,8 +590,9 @@ class WalletController extends Controller
                     'wallet_transaction_id' => $walletTransaction->id,
                     'transaction_reference' => $withdrawal->transaction_reference,
                     'amount' => $withdrawal->amount_requested,
+                    'currency' => $currency,
                     'status' => 'processing',
-                    'new_balance' => $user->kpay_wallet_balance, // Nouveau solde après débit
+                    'new_balance' => $user->kpayBalanceFor($currency), // Nouveau solde après débit
                     'balance_before' => $currentBalance, // Solde avant retrait
                 ],
             ]);

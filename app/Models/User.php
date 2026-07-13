@@ -340,6 +340,50 @@ class User extends Authenticatable
         return ($this->locked_kpay_balance ?? 0) + ($this->locked_paypal_balance ?? 0);
     }
 
+    // ==================== Soldes wallet multi-devise (KPay) ====================
+
+    /** Soldes KPay par devise. */
+    public function walletBalances(): HasMany
+    {
+        return $this->hasMany(WalletBalance::class);
+    }
+
+    /** Solde total dans une devise donnée. */
+    public function kpayBalanceFor(string $currency): float
+    {
+        $wb = $this->walletBalances()->where('currency', $currency)->first();
+        return $wb ? (float) $wb->balance : 0.0;
+    }
+
+    /** Solde disponible (total - bloqué) dans une devise donnée. */
+    public function kpayAvailableFor(string $currency): float
+    {
+        $wb = $this->walletBalances()->where('currency', $currency)->first();
+        return $wb ? ((float) $wb->balance - (float) $wb->locked_balance) : 0.0;
+    }
+
+    /** Créditer une devise (crée la ligne si besoin). */
+    public function creditKpay(string $currency, float $amount): WalletBalance
+    {
+        $wb = WalletBalance::firstOrCreate(
+            ['user_id' => $this->id, 'currency' => $currency],
+            ['balance' => 0, 'locked_balance' => 0]
+        );
+        $wb->increment('balance', $amount);
+        return $wb->fresh();
+    }
+
+    /** Débiter une devise. */
+    public function debitKpay(string $currency, float $amount): WalletBalance
+    {
+        $wb = WalletBalance::firstOrCreate(
+            ['user_id' => $this->id, 'currency' => $currency],
+            ['balance' => 0, 'locked_balance' => 0]
+        );
+        $wb->decrement('balance', $amount);
+        return $wb->fresh();
+    }
+
     /**
      * Boot method to generate referral code
      */

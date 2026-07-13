@@ -95,9 +95,10 @@ class ProcessDepositStatusJob implements ShouldQueue
                         'amount' => $deposit->amount,
                     ]);
 
-                    // Mettre à jour le statut et balance_after
+                    // Mettre à jour le statut et balance_after (devise du dépôt)
                     $user = $deposit->user;
-                    $currentBalance = $user->kpay_wallet_balance ?? 0;
+                    $currency = $metadata['currency'] ?? 'XAF';
+                    $currentBalance = $user->kpayBalanceFor($currency);
 
                     $deposit->update([
                         'status' => 'completed',
@@ -108,8 +109,8 @@ class ProcessDepositStatusJob implements ShouldQueue
                         ]),
                     ]);
 
-                    // Créditer le wallet KPay de l'utilisateur
-                    $user->increment('kpay_wallet_balance', $deposit->amount);
+                    // Créditer le wallet KPay de l'utilisateur dans la bonne devise
+                    $user->creditKpay($currency, $deposit->amount);
 
                     Log::info('💰 [PROCESS-DEPOSIT] KPay wallet credited successfully', [
                         'wallet_transaction_id' => $deposit->id,

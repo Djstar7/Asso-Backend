@@ -282,7 +282,9 @@ class ProcessWithdrawalStatusJob implements ShouldQueue
                 return;
             }
 
-            $balanceBefore = $user->kpay_wallet_balance ?? 0;
+            // Rembourser dans la devise du retrait
+            $currency = $withdrawal->currency ?? 'XAF';
+            $balanceBefore = $user->kpayBalanceFor($currency);
 
             // Créditer le montant demandé (amount_requested) car c'est ce qui a été débité initialement
             $refundAmount = $withdrawal->amount_requested;
@@ -307,14 +309,15 @@ class ProcessWithdrawalStatusJob implements ShouldQueue
                 ],
             ]);
 
-            // Créditer le wallet de l'utilisateur
-            $user->increment('kpay_wallet_balance', $refundAmount);
+            // Créditer le wallet de l'utilisateur dans la bonne devise
+            $user->creditKpay($currency, $refundAmount);
 
             Log::info('💰 [PROCESS-WITHDRAWAL] Withdrawal refunded to user wallet', [
                 'withdrawal_id' => $withdrawal->id,
                 'user_id' => $user->id,
                 'refund_amount' => $refundAmount,
-                'new_balance' => $user->fresh()->kpay_wallet_balance,
+                'currency' => $currency,
+                'new_balance' => $user->kpayBalanceFor($currency),
             ]);
 
         } catch (\Exception $e) {
