@@ -111,8 +111,10 @@ Route::prefix('v1')->group(function () {
     Route::get('/delivery/partners', [DeliveryController::class, 'getDeliveryPartners']);
 });
 
-// Payment webhooks (no auth)
+// Payment webhooks (no auth — protégé par vérification de signature HMAC + re-poll KPay)
 Route::post('/v1/payments/webhook/kpay', [PaymentController::class, 'webhookKpay']);
+// Alias court (certaines configs KPay utilisent cette forme)
+Route::post('/webhooks/kpay', [PaymentController::class, 'webhookKpay']);
 
 // ============================================
 // PROTECTED ROUTES (auth:sanctum)

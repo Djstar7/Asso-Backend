@@ -134,23 +134,26 @@ class PaymentController extends Controller
             return response()->json(['message' => 'Invalid payload'], 400);
         }
 
-        // Recharge wallet (externalId = WALLET-{walletTransactionId}) :
-        // on déclenche le job de finalisation (idempotent, re-vérifie le statut KPay).
+        // Recharge wallet (externalId = WALLET-{walletTransactionId}).
+        // Traitement SYNCHRONE : la finalisation re-vérifie le statut directement
+        // auprès de KPay (source d'autorité) — fonctionne sans worker de queue et
+        // ne peut PAS être falsifié par un faux webhook (le crédit dépend de la
+        // réponse authentifiée de KPay, pas du corps du webhook).
         if (str_starts_with($externalId, 'WALLET-')) {
             $walletTxId = (int) substr($externalId, strlen('WALLET-'));
             if ($walletTxId > 0) {
-                \App\Jobs\Wallet\ProcessDepositStatusJob::dispatch($walletTxId);
+                \App\Jobs\Wallet\ProcessDepositStatusJob::dispatchSync($walletTxId);
             }
-            return response()->json(['message' => 'Deposit webhook accepted']);
+            return response()->json(['message' => 'Deposit webhook processed']);
         }
 
         // Retrait wallet (externalId = WITHDRAW-{withdrawalId})
         if (str_starts_with($externalId, 'WITHDRAW-')) {
             $withdrawalId = (int) substr($externalId, strlen('WITHDRAW-'));
             if ($withdrawalId > 0) {
-                \App\Jobs\Wallet\ProcessWithdrawalStatusJob::dispatch($withdrawalId);
+                \App\Jobs\Wallet\ProcessWithdrawalStatusJob::dispatchSync($withdrawalId);
             }
-            return response()->json(['message' => 'Withdrawal webhook accepted']);
+            return response()->json(['message' => 'Withdrawal webhook processed']);
         }
 
         // Sinon : paiement de commande (Transaction)
