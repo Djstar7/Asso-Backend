@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Job qui vérifie le statut d'un retrait spécifique via l'API FreeMoPay
+ * Job qui vérifie le statut d'un retrait spécifique via l'API KPay
  * Envoie une notification FCM à l'utilisateur en cas de succès ou échec
  */
 class ProcessWithdrawalStatusJob implements ShouldQueue
@@ -30,7 +30,7 @@ class ProcessWithdrawalStatusJob implements ShouldQueue
         public int $withdrawalId
     ) {}
 
-    public function handle(KPayService $freemopayService, FirebaseMessagingService $fcmService)
+    public function handle(KPayService $kpayService, FirebaseMessagingService $fcmService)
     {
         $withdrawal = PlatformWithdrawal::find($this->withdrawalId);
 
@@ -53,27 +53,27 @@ class ProcessWithdrawalStatusJob implements ShouldQueue
         $reference = $withdrawal->kpay_reference;
 
         if (!$reference) {
-            Log::error('❌ [PROCESS-WITHDRAWAL] No FreeMoPay reference found', [
+            Log::error('❌ [PROCESS-WITHDRAWAL] No KPay reference found', [
                 'withdrawal_id' => $withdrawal->id,
             ]);
             return;
         }
 
         try {
-            Log::info('🔍 [PROCESS-WITHDRAWAL] Checking withdrawal status with FreeMoPay API', [
+            Log::info('🔍 [PROCESS-WITHDRAWAL] Checking withdrawal status with KPay API', [
                 'withdrawal_id' => $withdrawal->id,
                 'user_id' => $withdrawal->user_id,
                 'reference' => $reference,
                 'attempt' => $this->attempts(),
             ]);
 
-            // Appeler l'API FreeMoPay pour obtenir le statut
-            $statusResponse = $freemopayService->checkDisbursementStatus($reference);
+            // Appeler l'API KPay pour obtenir le statut
+            $statusResponse = $kpayService->checkDisbursementStatus($reference);
 
             $status = strtoupper($statusResponse['status'] ?? 'UNKNOWN');
             $reason = $statusResponse['reason'] ?? $statusResponse['message'] ?? null;
 
-            Log::info('📊 [PROCESS-WITHDRAWAL] FreeMoPay status received', [
+            Log::info('📊 [PROCESS-WITHDRAWAL] KPay status received', [
                 'withdrawal_id' => $withdrawal->id,
                 'status' => $status,
                 'reason' => $reason,
@@ -93,7 +93,7 @@ class ProcessWithdrawalStatusJob implements ShouldQueue
                     return;
                 }
 
-                // Mettre à jour la réponse FreeMoPay
+                // Mettre à jour la réponse KPay
                 $withdrawal->kpay_response = array_merge($withdrawal->kpay_response ?? [], [
                     'last_status_check' => now()->toISOString(),
                     'status' => $status,

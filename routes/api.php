@@ -238,14 +238,14 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('/{id}/complete', [DeliveryController::class, 'complete']);
         });
 
-        // Wallet - Système à deux portefeuilles (FreeMoPay + PayPal)
+        // Wallet - Système à deux portefeuilles (KPay + PayPal)
         Route::prefix('wallet')->group(function () {
             // Stats & historique
             Route::get('/', [WalletController::class, 'index']); // Solde et stats
             Route::get('/transactions', [WalletController::class, 'transactions']); // Historique transactions
 
             // Recharge wallet (dépôt)
-            Route::post('/recharge', [WalletController::class, 'recharge']); // FreeMoPay ou PayPal
+            Route::post('/recharge', [WalletController::class, 'recharge']); // KPay ou PayPal
 
             // PayPal Native Integration
             Route::post('/paypal/create-native-order', [WalletController::class, 'createNativePayPalOrder']);

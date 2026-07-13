@@ -29,17 +29,19 @@ class ServiceConfigurationSeeder extends Seeder
             ]
         );
 
-        // FreeMoPay Configuration
+        // KPay Configuration
         ServiceConfiguration::updateOrCreate(
-            ['service_name' => ServiceConfiguration::SERVICE_FREEMOPAY],
+            ['service_name' => ServiceConfiguration::SERVICE_KPAY],
             [
-                'is_active' => false,
-                'description' => 'Configuration pour les paiements via FreeMoPay',
+                'service_type' => 'payment',
+                'is_active' => true,
+                'description' => 'KPay - Paiements et retraits Mobile Money',
                 'configuration' => [
-                    'base_url' => 'https://api.freemopay.com',
-                    'app_key' => '', // To be filled by admin
-                    'secret_key' => '', // To be filled by admin
-                    'callback_url' => env('APP_URL') . '/api/v1/payments/webhook/freemopay',
+                    'base_url' => 'https://admin.kpay.site',
+                    'mode' => 'sandbox',        // sandbox | live
+                    'api_key' => '',             // kpay_test_... / kpay_live_... (à renseigner)
+                    'secret_key' => '',          // sk_test_... / sk_live_...       (à renseigner)
+                    'webhook_secret' => '',      // secret de signature des webhooks
                 ],
             ]
         );

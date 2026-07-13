@@ -58,7 +58,7 @@ class WalletController extends Controller
             $user = $request->user();
             $perPage = $request->input('per_page', 20);
             $type = $request->input('type'); // credit, debit, etc.
-            $provider = $request->input('provider'); // freemopay, paypal
+            $provider = $request->input('provider'); // kpay, paypal
 
             $paginated = $this->walletService->getTransactionHistory($user, $perPage, $type, $provider);
 
@@ -83,7 +83,7 @@ class WalletController extends Controller
 
     /**
      * Initie une recharge du wallet
-     * Crée un paiement FreeMoPay ou PayPal
+     * Crée un paiement KPay ou PayPal
      *
      * POST /api/v1/wallet/recharge
      */
@@ -173,7 +173,7 @@ class WalletController extends Controller
                     // Supprimer la transaction wallet si le paiement a échoué
                     $walletTransaction->delete();
 
-                    Log::error("[WalletController] ❌ FreeMoPay payment initiation failed", [
+                    Log::error("[WalletController] ❌ KPay payment initiation failed", [
                         'error' => $paymentResult['message'] ?? 'Unknown error',
                     ]);
 
@@ -196,7 +196,7 @@ class WalletController extends Controller
 
                 DB::commit();
 
-                Log::info("[WalletController] ✅ FreeMoPay payment initiated", [
+                Log::info("[WalletController] ✅ KPay payment initiated", [
                     'transaction_id' => $walletTransaction->id,
                     'kpay_reference' => $paymentResult['reference'],
                 ]);
@@ -359,13 +359,13 @@ class WalletController extends Controller
         try {
             $user = $request->user();
 
-            $freemopayBalance = $user->kpay_wallet_balance ?? 0;
+            $kpayBalance = $user->kpay_wallet_balance ?? 0;
             $paypalBalance = $user->paypal_wallet_balance ?? 0;
-            $totalBalance = $freemopayBalance + $paypalBalance;
+            $totalBalance = $kpayBalance + $paypalBalance;
 
             Log::info('[WalletController] Withdrawal balances calculated', [
                 'user_id' => $user->id,
-                'kpay_wallet_balance' => $freemopayBalance,
+                'kpay_wallet_balance' => $kpayBalance,
                 'paypal_balance' => $paypalBalance,
                 'total_balance' => $totalBalance,
             ]);
@@ -373,7 +373,7 @@ class WalletController extends Controller
             return response()->json([
                 'success' => true,
                 'data' => [
-                    'kpay_wallet_balance' => max(0, $freemopayBalance),
+                    'kpay_wallet_balance' => max(0, $kpayBalance),
                     'paypal_balance' => max(0, $paypalBalance),
                     'total_balance' => max(0, $totalBalance),
                 ],
@@ -389,14 +389,14 @@ class WalletController extends Controller
     }
 
     /**
-     * Initie un retrait FreeMoPay depuis le wallet
+     * Initie un retrait KPay depuis le wallet
      *
-     * POST /api/v1/wallet/withdraw/freemopay
+     * POST /api/v1/wallet/withdraw/kpay
      */
     public function initiateKpayWithdrawal(Request $request)
     {
         Log::info("[WalletController] ╔════════════════════════════════════════════════════════════════════╗");
-        Log::info("[WalletController] ║ [FreeMoPay Withdrawal] DEMANDE DE RETRAIT                         ║");
+        Log::info("[WalletController] ║ [KPay Withdrawal] DEMANDE DE RETRAIT                         ║");
         Log::info("[WalletController] ╚════════════════════════════════════════════════════════════════════╝");
 
         $user = $request->user();
@@ -426,18 +426,18 @@ class WalletController extends Controller
         $phone = $request->input('phone');
         $notes = $request->input('notes');
 
-        // Vérifier le solde FreeMoPay wallet disponible
+        // Vérifier le solde KPay wallet disponible
         $availableBalance = $user->kpay_wallet_balance ?? 0;
 
         if ($amount > $availableBalance) {
-            Log::warning("[WalletController] ❌ Insufficient FreeMoPay wallet balance", [
+            Log::warning("[WalletController] ❌ Insufficient KPay wallet balance", [
                 'available' => $availableBalance,
                 'requested_amount' => $amount,
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Solde FreeMoPay insuffisant. Disponible: ' . number_format($availableBalance, 0, ',', ' ') . ' FCFA',
+                'message' => 'Solde KPay insuffisant. Disponible: ' . number_format($availableBalance, 0, ',', ' ') . ' FCFA',
             ], 400);
         }
 
@@ -499,7 +499,7 @@ class WalletController extends Controller
             $walletTransaction->reference_id = $withdrawal->id;
             $walletTransaction->save();
 
-            Log::info("[WalletController] ✅ FreeMoPay withdrawal record created", [
+            Log::info("[WalletController] ✅ KPay withdrawal record created", [
                 'withdrawal_id' => $withdrawal->id,
                 'wallet_transaction_id' => $walletTransaction->id,
                 'user_id' => $user->id,
@@ -520,7 +520,7 @@ class WalletController extends Controller
             if (!$disbursementResult['success']) {
                 DB::rollBack();
 
-                Log::error("[WalletController] ❌ FreeMoPay disbursement initiation failed", [
+                Log::error("[WalletController] ❌ KPay disbursement initiation failed", [
                     'withdrawal_id' => $withdrawal->id,
                     'error' => $disbursementResult['message'] ?? 'Unknown error',
                 ]);
@@ -537,7 +537,7 @@ class WalletController extends Controller
             $withdrawal->markAsProcessing();
             $withdrawal->save();
 
-            Log::info("[WalletController] ✅ FreeMoPay disbursement initiated", [
+            Log::info("[WalletController] ✅ KPay disbursement initiated", [
                 'withdrawal_id' => $withdrawal->id,
                 'kpay_reference' => $disbursementResult['reference'],
             ]);
@@ -551,7 +551,7 @@ class WalletController extends Controller
             try {
                 $this->fcmService->sendToUser(
                     $user,
-                    '💸 Retrait FreeMoPay en cours',
+                    '💸 Retrait KPay en cours',
                     "Votre demande de retrait de {$amount} FCFA vers {$phone} ({$paymentMethod}) est en cours de traitement.",
                     [
                         'type' => 'wallet_withdrawal_processing',
@@ -564,7 +564,7 @@ class WalletController extends Controller
                         'new_balance' => $user->kpay_wallet_balance,
                     ]
                 );
-                Log::info("[WalletController] 📬 FCM notification sent for FreeMoPay withdrawal");
+                Log::info("[WalletController] 📬 FCM notification sent for KPay withdrawal");
             } catch (\Exception $e) {
                 Log::error("[WalletController] ❌ Failed to send FCM notification: " . $e->getMessage());
             }
@@ -585,7 +585,7 @@ class WalletController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error("[WalletController] ❌ FreeMoPay withdrawal error: " . $e->getMessage());
+            Log::error("[WalletController] ❌ KPay withdrawal error: " . $e->getMessage());
 
             return response()->json([
                 'success' => false,

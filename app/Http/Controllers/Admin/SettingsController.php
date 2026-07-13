@@ -172,20 +172,20 @@ class SettingsController extends Controller
                 'fedapay_callback_url' => 'nullable|url',
                 'fedapay_timeout' => 'nullable|integer|min:60|max:600',
                 'fedapay_auto_commission' => 'nullable|boolean',
-                // FreemoPay
-                'freemopay_enabled' => 'nullable|boolean',
-                'freemopay_mode' => 'nullable|in:sandbox,live',
-                'freemopay_app_key' => 'nullable|string',
-                'freemopay_secret_key' => 'nullable|string',
-                'freemopay_callback_url' => 'nullable|url',
-                // FreemoPay Advanced Settings
-                'freemopay_base_url' => 'nullable|url',
-                'freemopay_timeout_init' => 'nullable|integer|min:1|max:120',
-                'freemopay_timeout_verify' => 'nullable|integer|min:1|max:120',
-                'freemopay_timeout_token' => 'nullable|integer|min:1|max:120',
-                'freemopay_token_cache_duration' => 'nullable|integer|min:60|max:3600',
-                'freemopay_retry_attempts' => 'nullable|integer|min:1|max:10',
-                'freemopay_retry_delay' => 'nullable|string',
+                // KPay
+                'kpay_enabled' => 'nullable|boolean',
+                'kpay_mode' => 'nullable|in:sandbox,live',
+                'kpay_app_key' => 'nullable|string',
+                'kpay_secret_key' => 'nullable|string',
+                'kpay_callback_url' => 'nullable|url',
+                // KPay Advanced Settings
+                'kpay_base_url' => 'nullable|url',
+                'kpay_timeout_init' => 'nullable|integer|min:1|max:120',
+                'kpay_timeout_verify' => 'nullable|integer|min:1|max:120',
+                'kpay_timeout_token' => 'nullable|integer|min:1|max:120',
+                'kpay_token_cache_duration' => 'nullable|integer|min:60|max:3600',
+                'kpay_retry_attempts' => 'nullable|integer|min:1|max:10',
+                'kpay_retry_delay' => 'nullable|string',
             ]);
 
             foreach ($validated as $key => $value) {
@@ -195,11 +195,11 @@ class SettingsController extends Controller
                     $type = 'boolean';
                 } elseif (in_array($key, [
                     'fedapay_timeout',
-                    'freemopay_timeout_init',
-                    'freemopay_timeout_verify',
-                    'freemopay_timeout_token',
-                    'freemopay_token_cache_duration',
-                    'freemopay_retry_attempts'
+                    'kpay_timeout_init',
+                    'kpay_timeout_verify',
+                    'kpay_timeout_token',
+                    'kpay_token_cache_duration',
+                    'kpay_retry_attempts'
                 ])) {
                     $type = 'integer';
                 }
@@ -342,34 +342,34 @@ class SettingsController extends Controller
     }
 
     /**
-     * Mettre à jour les configurations de service (FreemoPay, etc).
+     * Mettre à jour les configurations de service (KPay, etc).
      *
      * @param array $validated
      * @return void
      */
     private function updateServiceConfiguration(array $validated): void
     {
-        // FreemoPay Configuration
-        if (isset($validated['freemopay_app_key']) || isset($validated['freemopay_secret_key'])) {
-            $freemopayConfig = [
-                'app_key' => $validated['freemopay_app_key'] ?? '',
-                'secret_key' => $validated['freemopay_secret_key'] ?? '',
-                'callback_url' => $validated['freemopay_callback_url'] ?? '',
-                'mode' => $validated['freemopay_mode'] ?? 'sandbox',
-                'base_url' => $validated['freemopay_base_url'] ?? 'https://api-v2.freemopay.com',
-                'timeout_init' => $validated['freemopay_timeout_init'] ?? 30,
-                'timeout_verify' => $validated['freemopay_timeout_verify'] ?? 30,
-                'timeout_token' => $validated['freemopay_timeout_token'] ?? 30,
-                'token_cache_duration' => $validated['freemopay_token_cache_duration'] ?? 3000,
-                'retry_attempts' => $validated['freemopay_retry_attempts'] ?? 5,
-                'retry_delay' => $validated['freemopay_retry_delay'] ?? '0.5',
+        // KPay Configuration
+        if (isset($validated['kpay_app_key']) || isset($validated['kpay_secret_key'])) {
+            $kpayConfig = [
+                'app_key' => $validated['kpay_app_key'] ?? '',
+                'secret_key' => $validated['kpay_secret_key'] ?? '',
+                'callback_url' => $validated['kpay_callback_url'] ?? '',
+                'mode' => $validated['kpay_mode'] ?? 'sandbox',
+                'base_url' => $validated['kpay_base_url'] ?? 'https://api-v2.kpay.com',
+                'timeout_init' => $validated['kpay_timeout_init'] ?? 30,
+                'timeout_verify' => $validated['kpay_timeout_verify'] ?? 30,
+                'timeout_token' => $validated['kpay_timeout_token'] ?? 30,
+                'token_cache_duration' => $validated['kpay_token_cache_duration'] ?? 3000,
+                'retry_attempts' => $validated['kpay_retry_attempts'] ?? 5,
+                'retry_delay' => $validated['kpay_retry_delay'] ?? '0.5',
             ];
 
             ServiceConfiguration::setConfig(
-                ServiceConfiguration::SERVICE_FREEMOPAY,
-                $freemopayConfig,
-                isset($validated['freemopay_enabled']) && $validated['freemopay_enabled'] == true,
-                'Configuration FreemoPay pour les paiements mobiles'
+                ServiceConfiguration::SERVICE_KPAY,
+                $kpayConfig,
+                isset($validated['kpay_enabled']) && $validated['kpay_enabled'] == true,
+                'Configuration KPay pour les paiements mobiles'
             );
         }
     }

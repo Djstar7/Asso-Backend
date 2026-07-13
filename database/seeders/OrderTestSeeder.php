@@ -25,7 +25,7 @@ class OrderTestSeeder extends Seeder
 
         $this->command->info('');
         $this->command->info('✅ Seeder terminé !');
-        $this->command->info("   Client test: {$client->email} (FreeMoPay: {$client->freemopay_wallet_balance} FCFA)");
+        $this->command->info("   Client test: {$client->email} (KPay: {$client->kpay_wallet_balance} FCFA)");
         $this->command->info('   Produits créés pour les boutiques existantes');
     }
 
@@ -44,20 +44,20 @@ class OrderTestSeeder extends Seeder
                 'latitude' => 4.0435,
                 'longitude' => 9.6966,
                 'country' => 'Cameroun',
-                'freemopay_wallet_balance' => 500000,
+                'kpay_wallet_balance' => 500000,
                 'paypal_wallet_balance' => 100000,
-                'locked_freemopay_balance' => 0,
+                'locked_kpay_balance' => 0,
                 'locked_paypal_balance' => 0,
                 'is_profile_complete' => true,
             ]
         );
 
         // S'assurer que le wallet est garni
-        if ($client->freemopay_wallet_balance < 500000) {
-            $client->update(['freemopay_wallet_balance' => 500000]);
+        if ($client->kpay_wallet_balance < 500000) {
+            $client->update(['kpay_wallet_balance' => 500000]);
         }
 
-        $this->command->info("👤 Client: {$client->email} (wallet: {$client->freemopay_wallet_balance} FCFA)");
+        $this->command->info("👤 Client: {$client->email} (wallet: {$client->kpay_wallet_balance} FCFA)");
 
         return $client;
     }

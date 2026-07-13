@@ -52,7 +52,7 @@
                 <select name="payment_method"
                         class="w-full px-4 py-2 bg-dark-50 border border-dark-300 rounded-lg text-white focus:ring-2 focus:ring-primary-500">
                     <option value="">Tous</option>
-                    <option value="freemopay" {{ request('payment_method') == 'freemopay' ? 'selected' : '' }}>FreeMoPay</option>
+                    <option value="kpay" {{ request('payment_method') == 'kpay' ? 'selected' : '' }}>KPay</option>
                     <option value="paypal" {{ request('payment_method') == 'paypal' ? 'selected' : '' }}>PayPal</option>
                 </select>
             </div>
@@ -169,8 +169,8 @@
                         <span class="text-sm text-gray-400">
                             @if($stat->payment_method == 'paypal')
                                 <i class="fab fa-paypal text-blue-500 mr-1"></i> PayPal
-                            @elseif($stat->payment_method == 'freemopay')
-                                <i class="fas fa-mobile-alt text-orange-500 mr-1"></i> FreeMoPay
+                            @elseif($stat->payment_method == 'kpay')
+                                <i class="fas fa-mobile-alt text-orange-500 mr-1"></i> KPay
                             @endif
                         </span>
                         <span class="text-xs bg-primary-500/20 text-primary-300 px-2 py-1 rounded">{{ $stat->count }}</span>
@@ -255,7 +255,7 @@
                                             @if($transaction->provider == 'paypal')
                                                 <i class="fab fa-paypal mr-1"></i> PayPal
                                             @else
-                                                <i class="fas fa-mobile-alt mr-1"></i> FreeMoPay
+                                                <i class="fas fa-mobile-alt mr-1"></i> KPay
                                             @endif
                                         </span>
                                     @else

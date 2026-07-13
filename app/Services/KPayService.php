@@ -42,6 +42,33 @@ class KPayService
         return !empty($this->apiKey) && !empty($this->secretKey);
     }
 
+    /**
+     * Test the API credentials (used by the admin config panel).
+     * Calls GET /api/v1/payments/me which echoes the application/environment.
+     */
+    public function testConnection(): array
+    {
+        if (!$this->isConfigured()) {
+            return ['success' => false, 'message' => 'Clés API KPay manquantes.'];
+        }
+        try {
+            $response = Http::withHeaders($this->headers())->timeout(20)
+                ->get("{$this->baseUrl}/api/v1/payments/me");
+
+            if ($response->successful()) {
+                $data = $response->json() ?? [];
+                return [
+                    'success' => true,
+                    'message' => 'Connexion KPay réussie (' . ($data['environment'] ?? '—') . ').',
+                    'data' => $data,
+                ];
+            }
+            return ['success' => false, 'message' => 'Échec de connexion KPay (HTTP ' . $response->status() . ').'];
+        } catch (\Exception $e) {
+            return ['success' => false, 'message' => 'Erreur: ' . $e->getMessage()];
+        }
+    }
+
     /** Authenticated request headers. */
     private function headers(): array
     {

@@ -17,11 +17,11 @@ Artisan::command('inspire', function () {
  * =====================================================
  *
  * Ces jobs vérifient automatiquement le statut des dépôts et retraits
- * en interrogeant l'API FreeMoPay de manière asynchrone.
+ * en interrogeant l'API KPay de manière asynchrone.
  */
 
 // Vérifier les dépôts en attente toutes les 30 secondes
-// Les dépôts FreeMoPay (Orange Money / MTN MoMo) peuvent prendre quelques secondes à quelques minutes
+// Les dépôts KPay (Orange Money / MTN MoMo) peuvent prendre quelques secondes à quelques minutes
 // Note: Les Jobs sont automatiquement exécutés via le système de queues de Laravel
 Schedule::job(new CheckPendingDepositsJob)
     ->everyThirtySeconds()

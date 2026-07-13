@@ -48,7 +48,7 @@ class CheckPendingDepositsJob implements ShouldQueue
             $reference = $metadata['provider_reference'] ?? null;
 
             if (!$reference) {
-                Log::warning('⚠️ [CHECK-DEPOSITS] Deposit without FreeMoPay reference', [
+                Log::warning('⚠️ [CHECK-DEPOSITS] Deposit without KPay reference', [
                     'wallet_transaction_id' => $deposit->id,
                     'user_id' => $deposit->user_id,
                 ]);

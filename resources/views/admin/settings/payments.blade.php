@@ -14,10 +14,10 @@
                         class="py-4 px-1 border-b-2 font-medium text-sm transition-colors">
                     <i class="fab fa-paypal mr-2"></i> PayPal
                 </button>
-                <button @click="activePayment = 'freemopay'"
-                        :class="activePayment === 'freemopay' ? 'border-purple-500 text-purple-500' : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-300'"
+                <button @click="activePayment = 'kpay'"
+                        :class="activePayment === 'kpay' ? 'border-purple-500 text-purple-500' : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-300'"
                         class="py-4 px-1 border-b-2 font-medium text-sm transition-colors">
-                    <i class="fas fa-mobile-alt mr-2"></i> FreemoPay
+                    <i class="fas fa-mobile-alt mr-2"></i> KPay
                 </button>
             </nav>
         </div>
@@ -210,12 +210,12 @@
     </div>
 
 
-    <!-- FreemoPay Tab -->
-    <div x-show="activePayment === 'freemopay'" x-cloak>
+    <!-- KPay Tab -->
+    <div x-show="activePayment === 'kpay'" x-cloak>
         <form action="{{ route('admin.settings.payments.update') }}" method="POST">
             @csrf
             @method('PUT')
-            <input type="hidden" name="payment_type" value="freemopay">
+            <input type="hidden" name="payment_type" value="kpay">
 
             <!-- Service Header Card -->
             <div class="bg-gradient-to-br from-purple-500/10 to-purple-600/5 rounded-xl shadow-lg border border-purple-500/20 p-6 mb-6">
@@ -225,14 +225,14 @@
                             <i class="fas fa-mobile-alt text-3xl text-white"></i>
                         </div>
                         <div>
-                            <h3 class="text-2xl font-bold text-white">FreemoPay</h3>
+                            <h3 class="text-2xl font-bold text-white">KPay</h3>
                             <p class="text-gray-400 mt-1">Solution de paiement mobile money pour l'Afrique</p>
                         </div>
                     </div>
                     <!-- Enable/Disable Toggle -->
                     <label class="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" name="freemopay_enabled" value="1"
-                               {{ old('freemopay_enabled', $paymentSettings['freemopay_enabled']->value ?? '0') == '1' ? 'checked' : '' }}
+                        <input type="checkbox" name="kpay_enabled" value="1"
+                               {{ old('kpay_enabled', $paymentSettings['kpay_enabled']->value ?? '0') == '1' ? 'checked' : '' }}
                                class="sr-only peer">
                         <div class="w-16 h-8 bg-dark-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-500/20 rounded-full peer peer-checked:after:translate-x-8 peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[4px] after:bg-white after:rounded-full after:h-7 after:w-7 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-purple-500 peer-checked:to-purple-600 shadow-inner"></div>
                         <span class="ml-3 text-sm font-medium text-gray-300">
@@ -251,7 +251,7 @@
                     </div>
                     <div class="ml-3">
                         <p class="text-sm text-purple-300">
-                            <strong>Important:</strong> FreeMoPay utilise l'API v2 avec authentification Bearer Token.
+                            <strong>Important:</strong> KPay utilise l'API v2 avec authentification Bearer Token.
                         </p>
                     </div>
                 </div>
@@ -261,46 +261,46 @@
             <div class="bg-dark-100 rounded-xl shadow-lg border border-dark-200 p-6 mb-6">
                 <h4 class="text-lg font-semibold text-white mb-6 flex items-center">
                     <i class="fas fa-cog text-purple-500 mr-2"></i>
-                    Configuration de l'API FreemoPay
+                    Configuration de l'API KPay
                 </h4>
 
                 <div class="space-y-6">
                     <!-- URL de base -->
                     <div>
-                        <label for="freemopay_base_url" class="block text-sm font-medium text-gray-300 mb-2">
+                        <label for="kpay_base_url" class="block text-sm font-medium text-gray-300 mb-2">
                             <i class="fas fa-globe text-purple-400 mr-1"></i> URL de base <span class="text-red-500">*</span>
                         </label>
-                        <input type="url" name="freemopay_base_url" id="freemopay_base_url"
-                               value="{{ old('freemopay_base_url', $paymentSettings['freemopay_base_url']->value ?? 'https://api-v2.freemopay.com') }}"
+                        <input type="url" name="kpay_base_url" id="kpay_base_url"
+                               value="{{ old('kpay_base_url', $paymentSettings['kpay_base_url']->value ?? 'https://api-v2.kpay.com') }}"
                                class="w-full px-4 py-3 bg-dark-50 border border-dark-300 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                               placeholder="https://api-v2.freemopay.com">
+                               placeholder="https://api-v2.kpay.com">
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <!-- App Key -->
                         <div>
-                            <label for="freemopay_app_key" class="block text-sm font-medium text-gray-300 mb-2">
+                            <label for="kpay_app_key" class="block text-sm font-medium text-gray-300 mb-2">
                                 <i class="fas fa-key text-purple-400 mr-1"></i> App Key <span class="text-red-500">*</span>
                             </label>
                             <div class="relative">
-                                <input type="text" name="freemopay_app_key" id="freemopay_app_key"
-                                       value="{{ old('freemopay_app_key', $paymentSettings['freemopay_app_key']->value ?? '') }}"
+                                <input type="text" name="kpay_app_key" id="kpay_app_key"
+                                       value="{{ old('kpay_app_key', $paymentSettings['kpay_app_key']->value ?? '') }}"
                                        class="w-full px-4 py-3 bg-dark-50 border border-dark-300 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                                       placeholder="Entrez votre FreemoPay App Key">
+                                       placeholder="Entrez votre KPay App Key">
                             </div>
                         </div>
 
                         <!-- Secret Key -->
                         <div>
-                            <label for="freemopay_secret_key" class="block text-sm font-medium text-gray-300 mb-2">
+                            <label for="kpay_secret_key" class="block text-sm font-medium text-gray-300 mb-2">
                                 <i class="fas fa-lock text-purple-400 mr-1"></i> Secret Key <span class="text-red-500">*</span>
                             </label>
                             <div class="relative">
-                                <input type="password" name="freemopay_secret_key" id="freemopay_secret_key"
-                                       value="{{ old('freemopay_secret_key', $paymentSettings['freemopay_secret_key']->value ?? '') }}"
+                                <input type="password" name="kpay_secret_key" id="kpay_secret_key"
+                                       value="{{ old('kpay_secret_key', $paymentSettings['kpay_secret_key']->value ?? '') }}"
                                        class="w-full px-4 py-3 bg-dark-50 border border-dark-300 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                                       placeholder="Entrez votre FreemoPay Secret Key">
-                                <button type="button" onclick="togglePassword('freemopay_secret_key')"
+                                       placeholder="Entrez votre KPay Secret Key">
+                                <button type="button" onclick="togglePassword('kpay_secret_key')"
                                         class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white">
                                     <i class="fas fa-eye"></i>
                                 </button>
@@ -309,13 +309,13 @@
 
                         <!-- Callback URL -->
                         <div class="md:col-span-2">
-                            <label for="freemopay_callback_url" class="block text-sm font-medium text-gray-300 mb-2">
+                            <label for="kpay_callback_url" class="block text-sm font-medium text-gray-300 mb-2">
                                 <i class="fas fa-link text-purple-400 mr-1"></i> Callback URL <span class="text-red-500">*</span>
                             </label>
-                            <input type="url" name="freemopay_callback_url" id="freemopay_callback_url"
-                                   value="{{ old('freemopay_callback_url', $paymentSettings['freemopay_callback_url']->value ?? url('/api/webhooks/freemopay')) }}"
+                            <input type="url" name="kpay_callback_url" id="kpay_callback_url"
+                                   value="{{ old('kpay_callback_url', $paymentSettings['kpay_callback_url']->value ?? url('/api/webhooks/kpay')) }}"
                                    class="w-full px-4 py-3 bg-dark-50 border border-dark-300 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                                   placeholder="https://votre-site.com/api/webhooks/freemopay">
+                                   placeholder="https://votre-site.com/api/webhooks/kpay">
                             <p class="mt-1 text-xs text-gray-500">URL publique pour recevoir les notifications de paiement (doit être accessible depuis Internet)</p>
                         </div>
                     </div>
@@ -332,44 +332,44 @@
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <!-- Timeout init paiement -->
                     <div>
-                        <label for="freemopay_timeout_init" class="block text-sm font-medium text-gray-300 mb-2">
+                        <label for="kpay_timeout_init" class="block text-sm font-medium text-gray-300 mb-2">
                             Timeout init paiement (s)
                         </label>
-                        <input type="number" name="freemopay_timeout_init" id="freemopay_timeout_init"
-                               value="{{ old('freemopay_timeout_init', $paymentSettings['freemopay_timeout_init']->value ?? '30') }}"
+                        <input type="number" name="kpay_timeout_init" id="kpay_timeout_init"
+                               value="{{ old('kpay_timeout_init', $paymentSettings['kpay_timeout_init']->value ?? '30') }}"
                                min="1" max="120"
                                class="w-full px-4 py-3 bg-dark-50 border border-dark-300 rounded-lg text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all">
                     </div>
 
                     <!-- Timeout vérif statut -->
                     <div>
-                        <label for="freemopay_timeout_verify" class="block text-sm font-medium text-gray-300 mb-2">
+                        <label for="kpay_timeout_verify" class="block text-sm font-medium text-gray-300 mb-2">
                             Timeout vérif statut (s)
                         </label>
-                        <input type="number" name="freemopay_timeout_verify" id="freemopay_timeout_verify"
-                               value="{{ old('freemopay_timeout_verify', $paymentSettings['freemopay_timeout_verify']->value ?? '30') }}"
+                        <input type="number" name="kpay_timeout_verify" id="kpay_timeout_verify"
+                               value="{{ old('kpay_timeout_verify', $paymentSettings['kpay_timeout_verify']->value ?? '30') }}"
                                min="1" max="120"
                                class="w-full px-4 py-3 bg-dark-50 border border-dark-300 rounded-lg text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all">
                     </div>
 
                     <!-- Timeout token -->
                     <div>
-                        <label for="freemopay_timeout_token" class="block text-sm font-medium text-gray-300 mb-2">
+                        <label for="kpay_timeout_token" class="block text-sm font-medium text-gray-300 mb-2">
                             Timeout token (s)
                         </label>
-                        <input type="number" name="freemopay_timeout_token" id="freemopay_timeout_token"
-                               value="{{ old('freemopay_timeout_token', $paymentSettings['freemopay_timeout_token']->value ?? '30') }}"
+                        <input type="number" name="kpay_timeout_token" id="kpay_timeout_token"
+                               value="{{ old('kpay_timeout_token', $paymentSettings['kpay_timeout_token']->value ?? '30') }}"
                                min="1" max="120"
                                class="w-full px-4 py-3 bg-dark-50 border border-dark-300 rounded-lg text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all">
                     </div>
 
                     <!-- Durée cache token -->
                     <div>
-                        <label for="freemopay_token_cache_duration" class="block text-sm font-medium text-gray-300 mb-2">
+                        <label for="kpay_token_cache_duration" class="block text-sm font-medium text-gray-300 mb-2">
                             Durée cache token (s)
                         </label>
-                        <input type="number" name="freemopay_token_cache_duration" id="freemopay_token_cache_duration"
-                               value="{{ old('freemopay_token_cache_duration', $paymentSettings['freemopay_token_cache_duration']->value ?? '3000') }}"
+                        <input type="number" name="kpay_token_cache_duration" id="kpay_token_cache_duration"
+                               value="{{ old('kpay_token_cache_duration', $paymentSettings['kpay_token_cache_duration']->value ?? '3000') }}"
                                min="60" max="3600"
                                class="w-full px-4 py-3 bg-dark-50 border border-dark-300 rounded-lg text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all">
                         <p class="mt-1 text-xs text-gray-500">3000s = 50 min (token expire à 60 min)</p>
@@ -377,22 +377,22 @@
 
                     <!-- Nombre de tentatives -->
                     <div>
-                        <label for="freemopay_retry_attempts" class="block text-sm font-medium text-gray-300 mb-2">
+                        <label for="kpay_retry_attempts" class="block text-sm font-medium text-gray-300 mb-2">
                             Nombre de tentatives
                         </label>
-                        <input type="number" name="freemopay_retry_attempts" id="freemopay_retry_attempts"
-                               value="{{ old('freemopay_retry_attempts', $paymentSettings['freemopay_retry_attempts']->value ?? '5') }}"
+                        <input type="number" name="kpay_retry_attempts" id="kpay_retry_attempts"
+                               value="{{ old('kpay_retry_attempts', $paymentSettings['kpay_retry_attempts']->value ?? '5') }}"
                                min="1" max="10"
                                class="w-full px-4 py-3 bg-dark-50 border border-dark-300 rounded-lg text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all">
                     </div>
 
                     <!-- Délai entre tentatives -->
                     <div>
-                        <label for="freemopay_retry_delay" class="block text-sm font-medium text-gray-300 mb-2">
+                        <label for="kpay_retry_delay" class="block text-sm font-medium text-gray-300 mb-2">
                             Délai entre tentatives (s)
                         </label>
-                        <input type="text" name="freemopay_retry_delay" id="freemopay_retry_delay"
-                               value="{{ old('freemopay_retry_delay', $paymentSettings['freemopay_retry_delay']->value ?? '0.5') }}"
+                        <input type="text" name="kpay_retry_delay" id="kpay_retry_delay"
+                               value="{{ old('kpay_retry_delay', $paymentSettings['kpay_retry_delay']->value ?? '0.5') }}"
                                class="w-full px-4 py-3 bg-dark-50 border border-dark-300 rounded-lg text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all">
                     </div>
                 </div>
@@ -405,11 +405,11 @@
                         <i class="fas fa-info-circle text-purple-500 text-2xl mt-1"></i>
                     </div>
                     <div class="ml-4">
-                        <h4 class="text-base font-semibold text-purple-400 mb-2">Comment configurer FreemoPay ?</h4>
+                        <h4 class="text-base font-semibold text-purple-400 mb-2">Comment configurer KPay ?</h4>
                         <ul class="text-sm text-purple-300/80 space-y-2">
                             <li class="flex items-start">
                                 <i class="fas fa-check-circle text-purple-500 mr-2 mt-0.5"></i>
-                                <span>Créez un compte sur <a href="https://freemopay.com" target="_blank" class="underline hover:text-purple-300">freemopay.com</a></span>
+                                <span>Créez un compte sur <a href="https://kpay.com" target="_blank" class="underline hover:text-purple-300">kpay.com</a></span>
                             </li>
                             <li class="flex items-start">
                                 <i class="fas fa-check-circle text-purple-500 mr-2 mt-0.5"></i>

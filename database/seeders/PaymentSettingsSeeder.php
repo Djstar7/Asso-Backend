@@ -15,81 +15,81 @@ class PaymentSettingsSeeder extends Seeder
     {
         $settings = [
             // ============================================
-            // FreeMoPay Settings (API v2)
+            // KPay Settings (API v2)
             // ============================================
             [
-                'key' => 'freemopay_enabled',
+                'key' => 'kpay_enabled',
                 'value' => '0',
                 'group' => 'payment',
                 'type' => 'boolean',
-                'description' => 'Activer ou désactiver FreeMoPay',
+                'description' => 'Activer ou désactiver KPay',
             ],
             [
-                'key' => 'freemopay_base_url',
-                'value' => 'https://api-v2.freemopay.com',
+                'key' => 'kpay_base_url',
+                'value' => 'https://api-v2.kpay.com',
                 'group' => 'payment',
                 'type' => 'string',
-                'description' => 'URL de base de l\'API FreeMoPay v2',
+                'description' => 'URL de base de l\'API KPay v2',
             ],
             [
-                'key' => 'freemopay_app_key',
+                'key' => 'kpay_app_key',
                 'value' => '',
                 'group' => 'payment',
                 'type' => 'string',
-                'description' => 'App Key FreeMoPay',
+                'description' => 'App Key KPay',
             ],
             [
-                'key' => 'freemopay_secret_key',
+                'key' => 'kpay_secret_key',
                 'value' => '',
                 'group' => 'payment',
                 'type' => 'string',
-                'description' => 'Secret Key FreeMoPay',
+                'description' => 'Secret Key KPay',
             ],
             [
-                'key' => 'freemopay_callback_url',
-                'value' => url('/api/webhooks/freemopay'),
+                'key' => 'kpay_callback_url',
+                'value' => url('/api/webhooks/kpay'),
                 'group' => 'payment',
                 'type' => 'string',
-                'description' => 'URL de callback pour les notifications FreeMoPay',
+                'description' => 'URL de callback pour les notifications KPay',
             ],
-            // Paramètres avancés FreeMoPay
+            // Paramètres avancés KPay
             [
-                'key' => 'freemopay_timeout_init',
+                'key' => 'kpay_timeout_init',
                 'value' => '30',
                 'group' => 'payment',
                 'type' => 'integer',
                 'description' => 'Timeout init paiement (secondes)',
             ],
             [
-                'key' => 'freemopay_timeout_verify',
+                'key' => 'kpay_timeout_verify',
                 'value' => '30',
                 'group' => 'payment',
                 'type' => 'integer',
                 'description' => 'Timeout vérification statut (secondes)',
             ],
             [
-                'key' => 'freemopay_timeout_token',
+                'key' => 'kpay_timeout_token',
                 'value' => '30',
                 'group' => 'payment',
                 'type' => 'integer',
                 'description' => 'Timeout token (secondes)',
             ],
             [
-                'key' => 'freemopay_token_cache_duration',
+                'key' => 'kpay_token_cache_duration',
                 'value' => '3000',
                 'group' => 'payment',
                 'type' => 'integer',
                 'description' => 'Durée cache token (secondes) - 3000s = 50 min',
             ],
             [
-                'key' => 'freemopay_retry_attempts',
+                'key' => 'kpay_retry_attempts',
                 'value' => '5',
                 'group' => 'payment',
                 'type' => 'integer',
                 'description' => 'Nombre de tentatives',
             ],
             [
-                'key' => 'freemopay_retry_delay',
+                'key' => 'kpay_retry_delay',
                 'value' => '0.5',
                 'group' => 'payment',
                 'type' => 'string',
@@ -144,7 +144,7 @@ class PaymentSettingsSeeder extends Seeder
         }
 
         $this->command->info('✅ Payment settings seeded successfully!');
-        $this->command->info('   - FreeMoPay: 7 settings');
+        $this->command->info('   - KPay: 7 settings');
         $this->command->info('   - PayPal: 6 settings');
     }
 }

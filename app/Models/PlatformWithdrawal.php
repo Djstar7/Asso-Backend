@@ -131,7 +131,7 @@ class PlatformWithdrawal extends Model
     }
 
     /**
-     * Check if withdrawal is using FreeMoPay
+     * Check if withdrawal is using KPay
      */
     public function isKpay(): bool
     {

@@ -49,7 +49,7 @@ class CheckPendingWithdrawalsJob implements ShouldQueue
             $reference = $withdrawal->kpay_reference;
 
             if (!$reference) {
-                Log::warning('⚠️ [CHECK-WITHDRAWALS] Withdrawal without FreeMoPay reference', [
+                Log::warning('⚠️ [CHECK-WITHDRAWALS] Withdrawal without KPay reference', [
                     'withdrawal_id' => $withdrawal->id,
                     'user_id' => $withdrawal->user_id,
                 ]);

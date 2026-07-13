@@ -18,9 +18,9 @@ class ServiceConfigurationController extends Controller
     {
         $whatsappConfig = ServiceConfiguration::getWhatsAppConfig();
         $nexahConfig = ServiceConfiguration::where('service_name', 'nexaah_sms')->first();
-        $freemopayConfig = ServiceConfiguration::where('service_name', 'kpay')->first();
+        $kpayConfig = ServiceConfiguration::where('service_name', 'kpay')->first();
 
-        return view('admin.service-config.index', compact('whatsappConfig', 'nexahConfig', 'freemopayConfig'));
+        return view('admin.service-config.index', compact('whatsappConfig', 'nexahConfig', 'kpayConfig'));
     }
 
     /**
@@ -138,9 +138,9 @@ class ServiceConfigurationController extends Controller
                     }
                     return $nexahService->testConnection();
 
-                case ServiceConfiguration::SERVICE_FREEMOPAY:
-                    $freemopayService = new \App\Services\KPayService();
-                    return $freemopayService->testConnection();
+                case ServiceConfiguration::SERVICE_KPAY:
+                    $kpayService = new \App\Services\KPayService();
+                    return $kpayService->testConnection();
 
                 default:
                     return [
@@ -361,11 +361,11 @@ class ServiceConfigurationController extends Controller
     }
 
     /**
-     * Update FreeMoPay configuration (Web form)
+     * Update KPay configuration (Web form)
      */
-    public function updateFreemopayWeb(Request $request)
+    public function updateKpayWeb(Request $request)
     {
-        \Illuminate\Support\Facades\Log::info('Updating FreeMoPay configuration via web', $request->all());
+        \Illuminate\Support\Facades\Log::info('Updating KPay configuration via web', $request->all());
 
         $validated = $request->validate([
             'base_url' => 'required|url',
@@ -384,20 +384,20 @@ class ServiceConfigurationController extends Controller
             ];
 
             $config = ServiceConfiguration::setConfig(
-                ServiceConfiguration::SERVICE_FREEMOPAY,
+                ServiceConfiguration::SERVICE_KPAY,
                 $configuration,
                 $request->has('is_active'),
-                'Configuration pour les paiements via FreeMoPay'
+                'Configuration pour les paiements via KPay'
             );
 
-            \Illuminate\Support\Facades\Log::info('FreeMoPay configuration updated successfully via web', [
+            \Illuminate\Support\Facades\Log::info('KPay configuration updated successfully via web', [
                 'id' => $config->id,
                 'is_active' => $config->is_active,
             ]);
 
-            return redirect()->back()->with('success', 'Configuration FreeMoPay mise à jour avec succès!');
+            return redirect()->back()->with('success', 'Configuration KPay mise à jour avec succès!');
         } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error('Error updating FreeMoPay configuration via web', [
+            \Illuminate\Support\Facades\Log::error('Error updating KPay configuration via web', [
                 'error' => $e->getMessage(),
             ]);
 

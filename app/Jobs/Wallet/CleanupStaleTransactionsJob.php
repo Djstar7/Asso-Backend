@@ -65,16 +65,16 @@ class CleanupStaleTransactionsJob implements ShouldQueue
                 ->get();
 
             foreach ($staleWithdrawals as $withdrawal) {
-                $freemopayResponse = $withdrawal->kpay_response ?? [];
-                $freemopayResponse['failed_reason'] = 'Timeout - No response after 48 hours';
-                $freemopayResponse['auto_failed_at'] = now()->toISOString();
-                $freemopayResponse['auto_failed_by'] = 'CleanupJob';
+                $kpayResponse = $withdrawal->kpay_response ?? [];
+                $kpayResponse['failed_reason'] = 'Timeout - No response after 48 hours';
+                $kpayResponse['auto_failed_at'] = now()->toISOString();
+                $kpayResponse['auto_failed_by'] = 'CleanupJob';
 
                 $withdrawal->update([
                     'status' => 'failed',
                     'failure_code' => 'TIMEOUT',
                     'failure_reason' => 'Timeout - No response after 48 hours',
-                    'kpay_response' => $freemopayResponse,
+                    'kpay_response' => $kpayResponse,
                 ]);
 
                 // IMPORTANT: Rembourser l'utilisateur si le montant a déjà été débité

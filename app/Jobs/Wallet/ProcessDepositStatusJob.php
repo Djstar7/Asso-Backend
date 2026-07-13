@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Job qui vérifie le statut d'un dépôt spécifique via l'API FreeMoPay
+ * Job qui vérifie le statut d'un dépôt spécifique via l'API KPay
  * Envoie une notification FCM à l'utilisateur en cas de succès ou échec
  */
 class ProcessDepositStatusJob implements ShouldQueue
@@ -30,7 +30,7 @@ class ProcessDepositStatusJob implements ShouldQueue
         public int $walletTransactionId
     ) {}
 
-    public function handle(KPayService $freemopayService, FirebaseMessagingService $fcmService)
+    public function handle(KPayService $kpayService, FirebaseMessagingService $fcmService)
     {
         $deposit = WalletTransaction::find($this->walletTransactionId);
 
@@ -54,27 +54,27 @@ class ProcessDepositStatusJob implements ShouldQueue
         $reference = $metadata['provider_reference'] ?? null;
 
         if (!$reference) {
-            Log::error('❌ [PROCESS-DEPOSIT] No FreeMoPay reference found', [
+            Log::error('❌ [PROCESS-DEPOSIT] No KPay reference found', [
                 'wallet_transaction_id' => $deposit->id,
             ]);
             return;
         }
 
         try {
-            Log::info('🔍 [PROCESS-DEPOSIT] Checking deposit status with FreeMoPay API', [
+            Log::info('🔍 [PROCESS-DEPOSIT] Checking deposit status with KPay API', [
                 'wallet_transaction_id' => $deposit->id,
                 'user_id' => $deposit->user_id,
                 'reference' => $reference,
                 'attempt' => $this->attempts(),
             ]);
 
-            // Appeler l'API FreeMoPay pour obtenir le statut
-            $statusResponse = $freemopayService->checkPaymentStatus($reference);
+            // Appeler l'API KPay pour obtenir le statut
+            $statusResponse = $kpayService->checkPaymentStatus($reference);
 
             $status = strtoupper($statusResponse['status'] ?? 'UNKNOWN');
             $reason = $statusResponse['reason'] ?? $statusResponse['message'] ?? null;
 
-            Log::info('📊 [PROCESS-DEPOSIT] FreeMoPay status received', [
+            Log::info('📊 [PROCESS-DEPOSIT] KPay status received', [
                 'wallet_transaction_id' => $deposit->id,
                 'status' => $status,
                 'reason' => $reason,
@@ -108,10 +108,10 @@ class ProcessDepositStatusJob implements ShouldQueue
                         ]),
                     ]);
 
-                    // Créditer le wallet FreeMoPay de l'utilisateur
+                    // Créditer le wallet KPay de l'utilisateur
                     $user->increment('kpay_wallet_balance', $deposit->amount);
 
-                    Log::info('💰 [PROCESS-DEPOSIT] FreeMoPay wallet credited successfully', [
+                    Log::info('💰 [PROCESS-DEPOSIT] KPay wallet credited successfully', [
                         'wallet_transaction_id' => $deposit->id,
                         'user_id' => $user->id,
                         'amount' => $deposit->amount,

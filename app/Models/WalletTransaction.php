@@ -30,7 +30,7 @@ use Carbon\Carbon;
  * @property int|null $payment_id
  * @property array|null $metadata
  * @property string $status
- * @property string $provider (freemopay|paypal)
+ * @property string $provider (kpay|paypal)
  * @property int|null $admin_id
  * @property Carbon $created_at
  * @property Carbon $updated_at
@@ -53,7 +53,7 @@ class WalletTransaction extends Model
         'metadata',
         'status',
         'admin_id',
-        'provider', // freemopay, paypal
+        'provider', // kpay, paypal
     ];
 
     protected function casts(): array

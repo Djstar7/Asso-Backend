@@ -277,7 +277,7 @@ class User extends Authenticatable
     }
 
     /**
-     * Get total wallet balance (FreeMoPay + PayPal)
+     * Get total wallet balance (KPay + PayPal)
      */
     public function getTotalWalletBalanceAttribute(): float
     {
@@ -293,7 +293,7 @@ class User extends Authenticatable
     }
 
     /**
-     * Get formatted FreeMoPay wallet balance
+     * Get formatted KPay wallet balance
      */
     public function getFormattedKpayBalanceAttribute(): string
     {
@@ -309,7 +309,7 @@ class User extends Authenticatable
     }
 
     /**
-     * Solde FreeMoPay disponible (total - bloqué)
+     * Solde KPay disponible (total - bloqué)
      */
     public function getAvailableKpayBalanceAttribute(): float
     {

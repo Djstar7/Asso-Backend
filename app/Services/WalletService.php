@@ -16,10 +16,10 @@ class WalletService
      *
      * @param User $user
      * @param float $amount
-     * @param Transaction|null $transaction Transaction source (FreeMoPay, PayPal, etc.)
+     * @param Transaction|null $transaction Transaction source (KPay, PayPal, etc.)
      * @param string $description
      * @param array $metadata
-     * @param string $provider Provider (freemopay ou paypal)
+     * @param string $provider Provider (kpay ou paypal)
      * @return WalletTransaction
      */
     public function credit(
@@ -76,7 +76,7 @@ class WalletService
      * @param string|null $referenceType Type de r�f�rence (order, subscription, etc.)
      * @param int|null $referenceId ID de la r�f�rence
      * @param array $metadata
-     * @param string $provider Provider OBLIGATOIRE (freemopay ou paypal)
+     * @param string $provider Provider OBLIGATOIRE (kpay ou paypal)
      * @return WalletTransaction
      * @throws \Exception Si solde insuffisant ou provider invalide
      */
@@ -324,35 +324,35 @@ class WalletService
         $transactions = $user->walletTransactions()->completed();
 
         // R�cup�rer les soldes s�par�s
-        $freemopayBalance = $user->kpay_wallet_balance ?? 0;
+        $kpayBalance = $user->kpay_wallet_balance ?? 0;
         $paypalBalance = $user->paypal_wallet_balance ?? 0;
-        $totalBalance = $freemopayBalance + $paypalBalance;
+        $totalBalance = $kpayBalance + $paypalBalance;
 
         // Stats par provider
-        $freemopayCredits = $transactions->clone()->where('provider', 'kpay')->credits()->sum('amount');
-        $freemopayDebits = abs($transactions->clone()->where('provider', 'kpay')->debits()->sum('amount'));
+        $kpayCredits = $transactions->clone()->where('provider', 'kpay')->credits()->sum('amount');
+        $kpayDebits = abs($transactions->clone()->where('provider', 'kpay')->debits()->sum('amount'));
 
         $paypalCredits = $transactions->clone()->where('provider', 'paypal')->credits()->sum('amount');
         $paypalDebits = abs($transactions->clone()->where('provider', 'paypal')->debits()->sum('amount'));
 
-        $totalCredits = $freemopayCredits + $paypalCredits;
-        $totalDebits = $freemopayDebits + $paypalDebits;
+        $totalCredits = $kpayCredits + $paypalCredits;
+        $totalDebits = $kpayDebits + $paypalDebits;
 
         // Soldes bloqués
-        $lockedFreemopay = $user->locked_kpay_balance ?? 0;
+        $lockedKPay = $user->locked_kpay_balance ?? 0;
         $lockedPaypal = $user->locked_paypal_balance ?? 0;
-        $totalLocked = $lockedFreemopay + $lockedPaypal;
+        $totalLocked = $lockedKPay + $lockedPaypal;
         $availableTotal = $totalBalance - $totalLocked;
 
         return [
             // Soldes par provider
-            'kpay_wallet_balance' => $freemopayBalance,
+            'kpay_wallet_balance' => $kpayBalance,
             'paypal_balance' => $paypalBalance,
             'current_balance' => $totalBalance,
             'formatted_balance' => number_format($totalBalance, 0, ',', ' ') . ' FCFA',
 
             // Soldes bloqués (escrow)
-            'locked_kpay_balance' => $lockedFreemopay,
+            'locked_kpay_balance' => $lockedKPay,
             'locked_paypal_balance' => $lockedPaypal,
             'total_locked_balance' => $totalLocked,
             'available_balance' => $availableTotal,
@@ -365,8 +365,8 @@ class WalletService
             'last_transaction' => $transactions->first(),
 
             // Par provider
-            'freemopay_credits' => $freemopayCredits,
-            'freemopay_debits' => $freemopayDebits,
+            'kpay_credits' => $kpayCredits,
+            'kpay_debits' => $kpayDebits,
             'paypal_credits' => $paypalCredits,
             'paypal_debits' => $paypalDebits,
         ];
