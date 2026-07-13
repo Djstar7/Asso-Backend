@@ -453,7 +453,7 @@ class WalletController extends Controller
             ], 422);
         }
 
-        $amount = $request->input('amount');
+        $baseAmount = (float) $request->input('amount'); // montant saisi (devise de base)
         $provider = $request->input('provider'); // code opérateur KPay
         $paymentMethod = $provider;              // stocké tel quel dans platform_withdrawals
         $phone = $request->input('phone');
@@ -461,6 +461,19 @@ class WalletController extends Controller
 
         // Devise déduite de l'opérateur (le retrait reste dans le pays de l'opérateur)
         $currency = \App\Services\KPayCatalog::currencyForProvider($provider);
+
+        // Convertir le montant saisi (devise de base) vers la devise de l'opérateur
+        $kpayCfg = \App\Models\ServiceConfiguration::getConfig('kpay') ?? [];
+        $baseCurrency = strtoupper($kpayCfg['base_currency'] ?? 'XAF');
+        $conv = \App\Services\ExchangeRateService::convert($baseCurrency, $currency, $baseAmount);
+        if (!$conv['success']) {
+            return response()->json([
+                'success' => false,
+                'message' => "Conversion $baseCurrency → $currency indisponible.",
+            ], 400);
+        }
+        // $amount = montant réellement débité / envoyé, en devise de l'opérateur
+        $amount = (float) round($conv['amount']);
 
         // Vérifier le solde KPay disponible dans cette devise
         $availableBalance = $user->kpayAvailableFor($currency);
@@ -500,6 +513,9 @@ class WalletController extends Controller
                     'phone' => $phone,
                     'payment_method' => $paymentMethod,
                     'currency' => $currency,
+                    'base_amount' => $baseAmount,
+                    'base_currency' => $baseCurrency,
+                    'exchange_rate' => $conv['rate'],
                     'initiated_at' => now()->toIso8601String(),
                 ],
             ]);
