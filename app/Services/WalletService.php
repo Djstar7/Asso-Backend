@@ -323,8 +323,18 @@ class WalletService
     {
         $transactions = $user->walletTransactions()->completed();
 
-        // R�cup�rer les soldes s�par�s
-        $kpayBalance = $user->kpay_wallet_balance ?? 0;
+        // Soldes KPay multi-devise (source de vérité : wallet_balances)
+        $kpayBalances = $user->walletBalances()->get()->map(fn($wb) => [
+            'currency' => $wb->currency,
+            'balance' => max(0, (float) $wb->balance),
+            'locked' => max(0, (float) $wb->locked_balance),
+            'available' => max(0, (float) $wb->balance - (float) $wb->locked_balance),
+        ])->values();
+
+        // Solde KPay principal = devise de base (XAF)
+        $kpayBalance = $user->kpayBalanceFor('XAF');
+        $lockedKPay = (float) ($user->walletBalances()->where('currency', 'XAF')->value('locked_balance') ?? 0);
+
         $paypalBalance = $user->paypal_wallet_balance ?? 0;
         $totalBalance = $kpayBalance + $paypalBalance;
 
@@ -338,8 +348,7 @@ class WalletService
         $totalCredits = $kpayCredits + $paypalCredits;
         $totalDebits = $kpayDebits + $paypalDebits;
 
-        // Soldes bloqués
-        $lockedKPay = $user->locked_kpay_balance ?? 0;
+        // Soldes bloqués ($lockedKPay déjà calculé depuis wallet_balances plus haut)
         $lockedPaypal = $user->locked_paypal_balance ?? 0;
         $totalLocked = $lockedKPay + $lockedPaypal;
         $availableTotal = $totalBalance - $totalLocked;
@@ -347,6 +356,7 @@ class WalletService
         return [
             // Soldes par provider
             'kpay_wallet_balance' => $kpayBalance,
+            'kpay_balances' => $kpayBalances, // multi-devise (par devise)
             'paypal_balance' => $paypalBalance,
             'current_balance' => $totalBalance,
             'formatted_balance' => number_format($totalBalance, 0, ',', ' ') . ' FCFA',
