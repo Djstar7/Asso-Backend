@@ -134,6 +134,26 @@ class PaymentController extends Controller
             return response()->json(['message' => 'Invalid payload'], 400);
         }
 
+        // Recharge wallet (externalId = WALLET-{walletTransactionId}) :
+        // on déclenche le job de finalisation (idempotent, re-vérifie le statut KPay).
+        if (str_starts_with($externalId, 'WALLET-')) {
+            $walletTxId = (int) substr($externalId, strlen('WALLET-'));
+            if ($walletTxId > 0) {
+                \App\Jobs\Wallet\ProcessDepositStatusJob::dispatch($walletTxId);
+            }
+            return response()->json(['message' => 'Deposit webhook accepted']);
+        }
+
+        // Retrait wallet (externalId = WITHDRAW-{withdrawalId})
+        if (str_starts_with($externalId, 'WITHDRAW-')) {
+            $withdrawalId = (int) substr($externalId, strlen('WITHDRAW-'));
+            if ($withdrawalId > 0) {
+                \App\Jobs\Wallet\ProcessWithdrawalStatusJob::dispatch($withdrawalId);
+            }
+            return response()->json(['message' => 'Withdrawal webhook accepted']);
+        }
+
+        // Sinon : paiement de commande (Transaction)
         $transaction = Transaction::where('external_reference', $externalId)->first();
 
         if (!$transaction) {
