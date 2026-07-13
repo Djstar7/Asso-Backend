@@ -287,4 +287,28 @@ class VendorProductController extends Controller
 
         return asset('storage/' . $cleanPath);
     }
+
+    /**
+     * Stock movement history for the authenticated vendor.
+     * GET /v1/vendor/inventory
+     *
+     * FAKE/stub: no stock-movement table yet, returns an empty (but well-shaped)
+     * paginated result so the store-management screen loads without error.
+     */
+    public function inventory(Request $request)
+    {
+        $page = (int) $request->query('page', 1);
+        $perPage = (int) $request->query('per_page', 20);
+
+        return response()->json([
+            'success' => true,
+            'data' => [],
+            'meta' => [
+                'total' => 0,
+                'current_page' => $page,
+                'per_page' => $perPage,
+                'last_page' => 1,
+            ],
+        ]);
+    }
 }

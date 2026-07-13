@@ -8,6 +8,10 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\OtpController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\CategoryController;
+use App\Http\Controllers\Api\CurrencyController;
+use App\Http\Controllers\Api\AppController;
+use App\Http\Controllers\Api\PostController;
+use App\Http\Controllers\Api\DiaspoController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\PaymentController;
@@ -49,6 +53,10 @@ Route::prefix('v1/auth')->group(function () {
     Route::post('/send-otp', [AuthController::class, 'sendOtp']);
     Route::post('/verify-otp', [AuthController::class, 'verifyOtp']);
     Route::post('/login', [AuthController::class, 'login']);
+    // Email-based auth
+    Route::post('/register-email', [AuthController::class, 'registerEmail']);
+    Route::post('/login-email', [AuthController::class, 'loginEmail']);
+    Route::post('/verify-email-otp', [AuthController::class, 'verifyEmailOtp']);
 });
 
 // Deliverer Sync - verify-sync-code is public, sync-profile requires auth
@@ -81,6 +89,17 @@ Route::prefix('v1')->group(function () {
     Route::get('/categories', [CategoryController::class, 'index']);
     Route::get('/banners', [BannerController::class, 'index']);
 
+    // Currencies & countries (public - used by country selection & pricing)
+    // Specific routes BEFORE the generic list route.
+    Route::get('/currencies/all-with-countries', [CurrencyController::class, 'allWithCountries']);
+    Route::get('/currencies/by-country', [CurrencyController::class, 'byCountry']);
+    Route::get('/currencies/exchange-rate', [CurrencyController::class, 'exchangeRate']);
+    Route::get('/currencies', [CurrencyController::class, 'index']);
+
+    // App info (public)
+    Route::get('/app/about', [AppController::class, 'about']);
+    Route::get('/app/version', [AppController::class, 'version']);
+
     // Public shop routes
     Route::get('/shops/{shopId}', [ShopController::class, 'showPublic']);
 
@@ -110,6 +129,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/preferences', [AuthController::class, 'getPreferences']);
         Route::put('/preferences', [AuthController::class, 'updatePreferences']);
         Route::post('/logout', [AuthController::class, 'logout']);
+        Route::post('/request-phone-change', [AuthController::class, 'requestPhoneChange']);
+        Route::post('/confirm-phone-change', [AuthController::class, 'confirmPhoneChange']);
+        Route::post('/delete-account', [AuthController::class, 'deleteAccount']);
     });
 
     Route::prefix('v1')->group(function () {
@@ -121,6 +143,42 @@ Route::middleware('auth:sanctum')->group(function () {
         // Favorites
         Route::get('/favorites', [ProductController::class, 'favorites']);
         Route::post('/products/{id}/favorite', [ProductController::class, 'toggleFavorite']);
+
+        // Community feed ("MyVoice") — FAKE data for testing
+        Route::get('/posts/my-posts', [PostController::class, 'myPosts']);
+        Route::get('/posts', [PostController::class, 'index']);
+        Route::post('/posts', [PostController::class, 'store']);
+        Route::get('/posts/{id}', [PostController::class, 'show']);
+        Route::put('/posts/{id}', [PostController::class, 'update']);
+        Route::delete('/posts/{id}', [PostController::class, 'destroy']);
+        Route::post('/posts/{id}/react', [PostController::class, 'react']);
+        Route::delete('/posts/{id}/react', [PostController::class, 'unreact']);
+        Route::get('/posts/{postId}/comments', [PostController::class, 'comments']);
+        Route::post('/posts/{postId}/comments', [PostController::class, 'storeComment']);
+        Route::put('/posts/{postId}/comments/{commentId}', [PostController::class, 'updateComment']);
+        Route::delete('/posts/{postId}/comments/{commentId}', [PostController::class, 'destroyComment']);
+        Route::post('/posts/{postId}/comments/{commentId}/react', [PostController::class, 'reactComment']);
+        Route::delete('/posts/{postId}/comments/{commentId}/react', [PostController::class, 'unreactComment']);
+
+        // Diaspo (kg-sharing) — FAKE data for testing
+        Route::get('/diaspo/verification-status', [DiaspoController::class, 'verificationStatus']);
+        Route::post('/diaspo/upload-verification', [DiaspoController::class, 'uploadVerification']);
+        Route::get('/diaspo/offers/my-offers', [DiaspoController::class, 'myOffers']);
+        Route::get('/diaspo/offers', [DiaspoController::class, 'offers']);
+        Route::post('/diaspo/offers', [DiaspoController::class, 'storeOffer']);
+        Route::get('/diaspo/offers/{id}', [DiaspoController::class, 'showOffer']);
+        Route::put('/diaspo/offers/{id}', [DiaspoController::class, 'updateOffer']);
+        Route::delete('/diaspo/offers/{id}', [DiaspoController::class, 'destroyOffer']);
+        Route::post('/diaspo/offers/{id}/book', [DiaspoController::class, 'bookOffer']);
+        Route::post('/diaspo/confirm-by-code', [DiaspoController::class, 'confirmByCode']);
+        Route::get('/diaspo/bookings', [DiaspoController::class, 'bookings']);
+        Route::get('/diaspo/bookings/{id}', [DiaspoController::class, 'showBooking']);
+        Route::post('/diaspo/bookings/{id}/cancel', [DiaspoController::class, 'cancelBooking']);
+        Route::post('/diaspo/bookings/{id}/confirm-receipt', [DiaspoController::class, 'confirmReceipt']);
+        Route::post('/diaspo/bookings/{id}/seller-confirm-code', [DiaspoController::class, 'sellerConfirmCode']);
+
+        // Vendor stock movements — FAKE (empty) data for testing
+        Route::get('/vendor/inventory', [VendorProductController::class, 'inventory']);
 
         // Orders
         Route::get('/orders', [OrderController::class, 'index']);

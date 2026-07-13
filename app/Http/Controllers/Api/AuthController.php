@@ -313,6 +313,176 @@ class AuthController extends Controller
     }
 
     /**
+     * Register with email and password (sends an OTP to confirm the email)
+     */
+    public function registerEmail(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email',
+            'password' => 'required|string|min:6|confirmed',
+            'first_name' => 'nullable|string|max:100',
+            'last_name' => 'nullable|string|max:100',
+        ]);
+
+        Log::info('[AUTH] ========== REGISTER EMAIL ==========', ['email' => $request->email]);
+
+        $existing = User::where('email', $request->email)->first();
+        if ($existing) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Un compte existe déjà avec cette adresse email.',
+            ], 422);
+        }
+
+        $otpCode = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+
+        $user = User::create([
+            'email' => $request->email,
+            'password' => Hash::make($request->password),
+            'first_name' => $request->first_name ?? 'Utilisateur',
+            'last_name' => $request->last_name ?? '',
+            'role' => 'client',
+            'country' => 'Bénin',
+            'otp_code' => $otpCode,
+            'otp_expires_at' => Carbon::now()->addMinutes(10),
+        ]);
+
+        Log::info('[AUTH] Email user created, OTP generated', ['user_id' => $user->id]);
+
+        $response = [
+            'success' => true,
+            'message' => 'Compte créé. Un code de vérification a été envoyé à votre email.',
+        ];
+
+        // In development, return the code so the flow can be tested without a mail server.
+        if (app()->environment('local')) {
+            $response['otp_code'] = $otpCode;
+        }
+
+        return response()->json($response);
+    }
+
+    /**
+     * Login with email and password (no OTP)
+     */
+    public function loginEmail(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email',
+            'password' => 'required|string',
+        ]);
+
+        Log::info('[AUTH] ========== LOGIN EMAIL ==========', ['email' => $request->email]);
+
+        $user = User::where('email', $request->email)->first();
+
+        if (!$user || !Hash::check($request->password, $user->password)) {
+            Log::warning('[AUTH] Email login failed', ['email' => $request->email]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Email ou mot de passe incorrect',
+            ], 401);
+        }
+
+        $token = $user->createToken('mobile-app')->plainTextToken;
+        Log::info('[AUTH] Email login successful', ['user_id' => $user->id]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Connexion réussie',
+            'token' => $token,
+            'user' => $this->userPayload($user),
+        ]);
+    }
+
+    /**
+     * Verify the OTP sent to the email after registration
+     */
+    public function verifyEmailOtp(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email',
+            'otp_code' => 'required|string|size:6',
+        ]);
+
+        Log::info('[AUTH] ========== VERIFY EMAIL OTP ==========', ['email' => $request->email]);
+
+        $user = User::where('email', $request->email)->first();
+
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Utilisateur non trouvé',
+            ], 404);
+        }
+
+        if ($user->otp_code !== $request->otp_code) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Code de vérification incorrect',
+            ], 422);
+        }
+
+        if (!$user->otp_expires_at || Carbon::parse($user->otp_expires_at)->isPast()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Code de vérification expiré. Veuillez en demander un nouveau.',
+            ], 422);
+        }
+
+        $isNewUser = !$user->is_profile_complete;
+
+        $user->update([
+            'otp_code' => null,
+            'otp_expires_at' => null,
+            'email_verified_at' => $user->email_verified_at ?? Carbon::now(),
+        ]);
+
+        $token = $user->createToken('mobile-app')->plainTextToken;
+        Log::info('[AUTH] Email OTP verified', ['user_id' => $user->id]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Email vérifié avec succès',
+            'token' => $token,
+            'user' => $this->userPayload($user),
+            'is_new_user' => $isNewUser,
+        ]);
+    }
+
+    /**
+     * Shape the authenticated user for the mobile client.
+     */
+    private function userPayload(User $user): array
+    {
+        return [
+            'id' => $user->id,
+            'first_name' => $user->first_name,
+            'last_name' => $user->last_name,
+            'name' => $user->name,
+            'email' => $user->email,
+            'phone' => $user->phone,
+            'role' => $user->role,
+            'roles' => $user->getRoles(),
+            'gender' => $user->gender,
+            'birth_date' => $user->birth_date?->format('Y-m-d'),
+            'avatar' => $user->avatar,
+            'country' => $user->country,
+            'address' => $user->address,
+            'latitude' => $user->latitude,
+            'longitude' => $user->longitude,
+            'is_profile_complete' => (bool) $user->is_profile_complete,
+            'preferences' => $user->preferences,
+            'referral_code' => $user->referral_code,
+            'company_name' => $user->company_name,
+            'company_logo' => $user->company_logo,
+            'total_earnings' => $user->total_earnings,
+            'pending_earnings' => $user->pending_earnings,
+            'created_at' => $user->created_at->toIso8601String(),
+        ];
+    }
+
+    /**
      * Get authenticated user profile
      */
     public function profile(Request $request)
@@ -481,6 +651,113 @@ class AuthController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Déconnexion réussie',
+        ]);
+    }
+
+    /**
+     * Request a phone number change: sends an OTP to the new number.
+     * POST /v1/auth/request-phone-change
+     */
+    public function requestPhoneChange(Request $request)
+    {
+        $request->validate([
+            'new_phone' => 'required|string|min:6|max:20',
+            'country_code' => 'nullable|string|max:5',
+        ]);
+
+        $user = $request->user();
+        $countryCode = $request->country_code ?? '+229';
+        $fullPhone = $countryCode . $request->new_phone;
+
+        if (User::where('phone', $fullPhone)->where('id', '!=', $user->id)->exists()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Ce numéro est déjà utilisé par un autre compte.',
+            ], 422);
+        }
+
+        $otpCode = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+        $user->update([
+            'otp_code' => $otpCode,
+            'otp_expires_at' => Carbon::now()->addMinutes(10),
+        ]);
+
+        Log::info('[AUTH] Phone change requested', ['user_id' => $user->id, 'new_phone' => $fullPhone]);
+
+        $response = [
+            'success' => true,
+            'message' => 'Un code de vérification a été envoyé au nouveau numéro.',
+        ];
+        if (app()->environment('local')) {
+            $response['otp_code'] = $otpCode;
+        }
+
+        return response()->json($response);
+    }
+
+    /**
+     * Confirm a phone number change with the OTP.
+     * POST /v1/auth/confirm-phone-change
+     */
+    public function confirmPhoneChange(Request $request)
+    {
+        $request->validate([
+            'new_phone' => 'required|string|min:6|max:20',
+            'otp_code' => 'required|string|size:6',
+            'country_code' => 'nullable|string|max:5',
+        ]);
+
+        $user = $request->user();
+        $countryCode = $request->country_code ?? '+229';
+        $fullPhone = $countryCode . $request->new_phone;
+
+        if ($user->otp_code !== $request->otp_code) {
+            return response()->json(['success' => false, 'message' => 'Code de vérification incorrect'], 422);
+        }
+        if (!$user->otp_expires_at || Carbon::parse($user->otp_expires_at)->isPast()) {
+            return response()->json(['success' => false, 'message' => 'Code de vérification expiré'], 422);
+        }
+
+        $user->update([
+            'phone' => $fullPhone,
+            'otp_code' => null,
+            'otp_expires_at' => null,
+        ]);
+
+        // Rotate the token for safety.
+        $user->currentAccessToken()?->delete();
+        $token = $user->createToken('mobile-app')->plainTextToken;
+
+        Log::info('[AUTH] Phone change confirmed', ['user_id' => $user->id, 'new_phone' => $fullPhone]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Numéro de téléphone mis à jour',
+            'token' => $token,
+            'user' => $this->userPayload($user->fresh()),
+        ]);
+    }
+
+    /**
+     * Delete the authenticated user's account.
+     * POST /v1/auth/delete-account
+     */
+    public function deleteAccount(Request $request)
+    {
+        $user = $request->user();
+        $userId = $user->id;
+
+        Log::info('[AUTH] ========== DELETE ACCOUNT ==========', ['user_id' => $userId]);
+
+        \App\Models\DeviceToken::where('user_id', $userId)->delete();
+        $user->tokens()->delete();
+        $user->delete();
+
+        Log::info('[AUTH] Account deleted', ['user_id' => $userId]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Compte supprimé avec succès',
         ]);
     }
 }
