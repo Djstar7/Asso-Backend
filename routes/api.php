@@ -94,6 +94,7 @@ Route::prefix('v1')->group(function () {
     Route::get('/currencies/all-with-countries', [CurrencyController::class, 'allWithCountries']);
     Route::get('/currencies/by-country', [CurrencyController::class, 'byCountry']);
     Route::get('/currencies/exchange-rate', [CurrencyController::class, 'exchangeRate']);
+    Route::get('/currencies/convert', [CurrencyController::class, 'convert']);
     Route::get('/currencies', [CurrencyController::class, 'index']);
 
     // App info (public)

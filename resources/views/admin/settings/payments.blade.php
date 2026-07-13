@@ -232,7 +232,7 @@
                     <!-- Enable/Disable Toggle -->
                     <label class="relative inline-flex items-center cursor-pointer">
                         <input type="checkbox" name="kpay_enabled" value="1"
-                               {{ old('kpay_enabled', $paymentSettings['kpay_enabled']->value ?? '0') == '1' ? 'checked' : '' }}
+                               {{ old('kpay_enabled', ($kpayEnabled ?? false) ? '1' : '0') == '1' ? 'checked' : '' }}
                                class="sr-only peer">
                         <div class="w-16 h-8 bg-dark-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-500/20 rounded-full peer peer-checked:after:translate-x-8 peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[4px] after:bg-white after:rounded-full after:h-7 after:w-7 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-purple-500 peer-checked:to-purple-600 shadow-inner"></div>
                         <span class="ml-3 text-sm font-medium text-gray-300">
@@ -240,6 +240,42 @@
                             <span x-show="!$el.previousElementSibling.querySelector('input').checked" class="text-gray-500">Désactivé</span>
                         </span>
                     </label>
+                </div>
+            </div>
+
+            <!-- Statut + Test de connexion -->
+            @php
+                $kpayConfigured = !empty($kpayConfig['api_key']) && !empty($kpayConfig['secret_key']);
+                $kpayMode = $kpayConfig['mode'] ?? 'sandbox';
+            @endphp
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div class="bg-dark-100 rounded-xl border border-dark-200 p-4 flex items-center">
+                    <div class="w-10 h-10 rounded-lg flex items-center justify-center mr-3 {{ $kpayConfigured ? 'bg-green-500/15 text-green-400' : 'bg-yellow-500/15 text-yellow-400' }}">
+                        <i class="fas {{ $kpayConfigured ? 'fa-check' : 'fa-exclamation' }}"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs text-gray-400">Clés API</p>
+                        <p class="text-sm font-semibold {{ $kpayConfigured ? 'text-green-400' : 'text-yellow-400' }}">{{ $kpayConfigured ? 'Configurées' : 'À renseigner' }}</p>
+                    </div>
+                </div>
+                <div class="bg-dark-100 rounded-xl border border-dark-200 p-4 flex items-center">
+                    <div class="w-10 h-10 rounded-lg flex items-center justify-center mr-3 {{ $kpayMode === 'live' ? 'bg-red-500/15 text-red-400' : 'bg-blue-500/15 text-blue-400' }}">
+                        <i class="fas fa-{{ $kpayMode === 'live' ? 'rocket' : 'flask' }}"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs text-gray-400">Environnement</p>
+                        <p class="text-sm font-semibold text-white">{{ $kpayMode === 'live' ? 'Production' : 'Sandbox (test)' }}</p>
+                    </div>
+                </div>
+                <div class="bg-dark-100 rounded-xl border border-dark-200 p-4 flex items-center justify-between">
+                    <div>
+                        <p class="text-xs text-gray-400">Connexion</p>
+                        <p id="kpay-test-result" class="text-sm font-semibold text-gray-300">Non testée</p>
+                    </div>
+                    <button type="button" id="kpay-test-btn"
+                            class="ml-2 px-3 py-2 bg-purple-500/20 text-purple-300 rounded-lg hover:bg-purple-500/30 transition-all text-sm whitespace-nowrap">
+                        <i class="fas fa-plug mr-1"></i> Tester
+                    </button>
                 </div>
             </div>
 
@@ -251,7 +287,12 @@
                     </div>
                     <div class="ml-3">
                         <p class="text-sm text-purple-300">
-                            <strong>Important:</strong> KPay utilise l'API v2 avec authentification Bearer Token.
+                            <strong>Important :</strong> KPay utilise l'API v1 avec authentification par en-têtes
+                            <code class="px-1 bg-purple-500/20 rounded">X-API-Key</code> et
+                            <code class="px-1 bg-purple-500/20 rounded">X-Secret-Key</code>.
+                            L'environnement (sandbox/production) est déduit du préfixe de la clé
+                            (<code class="px-1 bg-purple-500/20 rounded">kpay_test_</code> ou
+                            <code class="px-1 bg-purple-500/20 rounded">kpay_live_</code>).
                         </p>
                     </div>
                 </div>
@@ -265,41 +306,52 @@
                 </h4>
 
                 <div class="space-y-6">
-                    <!-- URL de base -->
-                    <div>
-                        <label for="kpay_base_url" class="block text-sm font-medium text-gray-300 mb-2">
-                            <i class="fas fa-globe text-purple-400 mr-1"></i> URL de base <span class="text-red-500">*</span>
-                        </label>
-                        <input type="url" name="kpay_base_url" id="kpay_base_url"
-                               value="{{ old('kpay_base_url', $paymentSettings['kpay_base_url']->value ?? 'https://api-v2.kpay.com') }}"
-                               class="w-full px-4 py-3 bg-dark-50 border border-dark-300 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                               placeholder="https://api-v2.kpay.com">
-                    </div>
-
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <!-- App Key -->
+                        <!-- URL de base -->
                         <div>
-                            <label for="kpay_app_key" class="block text-sm font-medium text-gray-300 mb-2">
-                                <i class="fas fa-key text-purple-400 mr-1"></i> App Key <span class="text-red-500">*</span>
+                            <label for="kpay_base_url" class="block text-sm font-medium text-gray-300 mb-2">
+                                <i class="fas fa-globe text-purple-400 mr-1"></i> URL de base <span class="text-red-500">*</span>
                             </label>
-                            <div class="relative">
-                                <input type="text" name="kpay_app_key" id="kpay_app_key"
-                                       value="{{ old('kpay_app_key', $paymentSettings['kpay_app_key']->value ?? '') }}"
-                                       class="w-full px-4 py-3 bg-dark-50 border border-dark-300 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                                       placeholder="Entrez votre KPay App Key">
-                            </div>
+                            <input type="url" name="kpay_base_url" id="kpay_base_url"
+                                   value="{{ old('kpay_base_url', $kpayConfig['base_url'] ?? 'https://admin.kpay.site') }}"
+                                   class="w-full px-4 py-3 bg-dark-50 border border-dark-300 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                                   placeholder="https://admin.kpay.site">
+                        </div>
+
+                        <!-- Environnement -->
+                        <div>
+                            <label for="kpay_mode" class="block text-sm font-medium text-gray-300 mb-2">
+                                <i class="fas fa-toggle-on text-purple-400 mr-1"></i> Environnement
+                            </label>
+                            <select name="kpay_mode" id="kpay_mode"
+                                    class="w-full px-4 py-3 bg-dark-50 border border-dark-300 rounded-lg text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all">
+                                <option value="sandbox" {{ old('kpay_mode', $kpayConfig['mode'] ?? 'sandbox') == 'sandbox' ? 'selected' : '' }}>Sandbox (test)</option>
+                                <option value="live" {{ old('kpay_mode', $kpayConfig['mode'] ?? 'sandbox') == 'live' ? 'selected' : '' }}>Production (live)</option>
+                            </select>
+                            <p class="mt-1 text-xs text-gray-500">Généralement déduit du préfixe de la clé (kpay_test_ / kpay_live_).</p>
+                        </div>
+
+                        <!-- API Key -->
+                        <div>
+                            <label for="kpay_api_key" class="block text-sm font-medium text-gray-300 mb-2">
+                                <i class="fas fa-key text-purple-400 mr-1"></i> API Key (X-API-Key) <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" name="kpay_api_key" id="kpay_api_key"
+                                   value="{{ old('kpay_api_key', $kpayConfig['api_key'] ?? '') }}"
+                                   class="w-full px-4 py-3 bg-dark-50 border border-dark-300 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                                   placeholder="kpay_test_... ou kpay_live_...">
                         </div>
 
                         <!-- Secret Key -->
                         <div>
                             <label for="kpay_secret_key" class="block text-sm font-medium text-gray-300 mb-2">
-                                <i class="fas fa-lock text-purple-400 mr-1"></i> Secret Key <span class="text-red-500">*</span>
+                                <i class="fas fa-lock text-purple-400 mr-1"></i> Secret Key (X-Secret-Key) <span class="text-red-500">*</span>
                             </label>
                             <div class="relative">
                                 <input type="password" name="kpay_secret_key" id="kpay_secret_key"
-                                       value="{{ old('kpay_secret_key', $paymentSettings['kpay_secret_key']->value ?? '') }}"
+                                       value=""
                                        class="w-full px-4 py-3 bg-dark-50 border border-dark-300 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                                       placeholder="Entrez votre KPay Secret Key">
+                                       placeholder="{{ !empty($kpayConfig['secret_key']) ? '•••••••• (laisser vide pour conserver)' : 'sk_test_... ou sk_live_...' }}">
                                 <button type="button" onclick="togglePassword('kpay_secret_key')"
                                         class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white">
                                     <i class="fas fa-eye"></i>
@@ -307,93 +359,80 @@
                             </div>
                         </div>
 
-                        <!-- Callback URL -->
+                        <!-- Webhook Secret -->
                         <div class="md:col-span-2">
-                            <label for="kpay_callback_url" class="block text-sm font-medium text-gray-300 mb-2">
-                                <i class="fas fa-link text-purple-400 mr-1"></i> Callback URL <span class="text-red-500">*</span>
+                            <label for="kpay_webhook_secret" class="block text-sm font-medium text-gray-300 mb-2">
+                                <i class="fas fa-shield-alt text-purple-400 mr-1"></i> Webhook Secret (signature HMAC)
                             </label>
-                            <input type="url" name="kpay_callback_url" id="kpay_callback_url"
-                                   value="{{ old('kpay_callback_url', $paymentSettings['kpay_callback_url']->value ?? url('/api/webhooks/kpay')) }}"
-                                   class="w-full px-4 py-3 bg-dark-50 border border-dark-300 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                                   placeholder="https://votre-site.com/api/webhooks/kpay">
-                            <p class="mt-1 text-xs text-gray-500">URL publique pour recevoir les notifications de paiement (doit être accessible depuis Internet)</p>
+                            <div class="relative">
+                                <input type="password" name="kpay_webhook_secret" id="kpay_webhook_secret"
+                                       value=""
+                                       class="w-full px-4 py-3 bg-dark-50 border border-dark-300 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                                       placeholder="{{ !empty($kpayConfig['webhook_secret']) ? '•••••••• (laisser vide pour conserver)' : 'Secret de signature des webhooks KPay' }}">
+                                <button type="button" onclick="togglePassword('kpay_webhook_secret')"
+                                        class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                            <p class="mt-1 text-xs text-gray-500">Utilisé pour vérifier la signature <code>X-KPAY-Signature</code> des webhooks entrants.</p>
+                        </div>
+
+                        <!-- Callback URL (lecture seule) -->
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-medium text-gray-300 mb-2">
+                                <i class="fas fa-link text-purple-400 mr-1"></i> URL de webhook (à déclarer dans le dashboard KPay)
+                            </label>
+                            <input type="text" readonly
+                                   value="{{ url('/api/v1/payments/webhook/kpay') }}"
+                                   class="w-full px-4 py-3 bg-dark-200 border border-dark-300 rounded-lg text-gray-400 cursor-not-allowed">
+                            <p class="mt-1 text-xs text-gray-500">URL publique à configurer côté KPay pour recevoir les notifications (doit être accessible depuis Internet ; en local, utilisez ngrok).</p>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Advanced Settings -->
+            <!-- Conversion de devises (exchangerate-api.com) -->
             <div class="bg-dark-100 rounded-xl shadow-lg border border-dark-200 p-6 mb-6">
-                <h4 class="text-lg font-semibold text-white mb-6 flex items-center">
-                    <i class="fas fa-sliders-h text-purple-500 mr-2"></i>
-                    Paramètres avancés
+                <h4 class="text-lg font-semibold text-white mb-2 flex items-center">
+                    <i class="fas fa-exchange-alt text-purple-500 mr-2"></i>
+                    Conversion de devises
                 </h4>
+                <p class="text-sm text-gray-400 mb-6">
+                    Le montant saisi (en {{ $kpayConfig['base_currency'] ?? 'XAF' }}) est converti dans la devise de
+                    l'opérateur sélectionné (ex. Zambie → ZMW) avant l'envoi à KPay, via
+                    <a href="https://www.exchangerate-api.com" target="_blank" class="underline hover:text-purple-300">exchangerate-api.com</a>.
+                </p>
 
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <!-- Timeout init paiement -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Devise de base -->
                     <div>
-                        <label for="kpay_timeout_init" class="block text-sm font-medium text-gray-300 mb-2">
-                            Timeout init paiement (s)
+                        <label for="kpay_base_currency" class="block text-sm font-medium text-gray-300 mb-2">
+                            <i class="fas fa-coins text-purple-400 mr-1"></i> Devise de base (saisie utilisateur)
                         </label>
-                        <input type="number" name="kpay_timeout_init" id="kpay_timeout_init"
-                               value="{{ old('kpay_timeout_init', $paymentSettings['kpay_timeout_init']->value ?? '30') }}"
-                               min="1" max="120"
-                               class="w-full px-4 py-3 bg-dark-50 border border-dark-300 rounded-lg text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all">
+                        <input type="text" name="kpay_base_currency" id="kpay_base_currency"
+                               value="{{ old('kpay_base_currency', $kpayConfig['base_currency'] ?? 'XAF') }}"
+                               maxlength="3"
+                               class="w-full px-4 py-3 bg-dark-50 border border-dark-300 rounded-lg text-white uppercase placeholder-gray-500 focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                               placeholder="XAF">
+                        <p class="mt-1 text-xs text-gray-500">Devise dans laquelle l'utilisateur saisit le montant (FCFA = XAF).</p>
                     </div>
 
-                    <!-- Timeout vérif statut -->
+                    <!-- Clé API exchangerate-api -->
                     <div>
-                        <label for="kpay_timeout_verify" class="block text-sm font-medium text-gray-300 mb-2">
-                            Timeout vérif statut (s)
+                        <label for="exchange_rate_api_key" class="block text-sm font-medium text-gray-300 mb-2">
+                            <i class="fas fa-key text-purple-400 mr-1"></i> Clé API exchangerate-api.com
                         </label>
-                        <input type="number" name="kpay_timeout_verify" id="kpay_timeout_verify"
-                               value="{{ old('kpay_timeout_verify', $paymentSettings['kpay_timeout_verify']->value ?? '30') }}"
-                               min="1" max="120"
-                               class="w-full px-4 py-3 bg-dark-50 border border-dark-300 rounded-lg text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all">
-                    </div>
-
-                    <!-- Timeout token -->
-                    <div>
-                        <label for="kpay_timeout_token" class="block text-sm font-medium text-gray-300 mb-2">
-                            Timeout token (s)
-                        </label>
-                        <input type="number" name="kpay_timeout_token" id="kpay_timeout_token"
-                               value="{{ old('kpay_timeout_token', $paymentSettings['kpay_timeout_token']->value ?? '30') }}"
-                               min="1" max="120"
-                               class="w-full px-4 py-3 bg-dark-50 border border-dark-300 rounded-lg text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all">
-                    </div>
-
-                    <!-- Durée cache token -->
-                    <div>
-                        <label for="kpay_token_cache_duration" class="block text-sm font-medium text-gray-300 mb-2">
-                            Durée cache token (s)
-                        </label>
-                        <input type="number" name="kpay_token_cache_duration" id="kpay_token_cache_duration"
-                               value="{{ old('kpay_token_cache_duration', $paymentSettings['kpay_token_cache_duration']->value ?? '3000') }}"
-                               min="60" max="3600"
-                               class="w-full px-4 py-3 bg-dark-50 border border-dark-300 rounded-lg text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all">
-                        <p class="mt-1 text-xs text-gray-500">3000s = 50 min (token expire à 60 min)</p>
-                    </div>
-
-                    <!-- Nombre de tentatives -->
-                    <div>
-                        <label for="kpay_retry_attempts" class="block text-sm font-medium text-gray-300 mb-2">
-                            Nombre de tentatives
-                        </label>
-                        <input type="number" name="kpay_retry_attempts" id="kpay_retry_attempts"
-                               value="{{ old('kpay_retry_attempts', $paymentSettings['kpay_retry_attempts']->value ?? '5') }}"
-                               min="1" max="10"
-                               class="w-full px-4 py-3 bg-dark-50 border border-dark-300 rounded-lg text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all">
-                    </div>
-
-                    <!-- Délai entre tentatives -->
-                    <div>
-                        <label for="kpay_retry_delay" class="block text-sm font-medium text-gray-300 mb-2">
-                            Délai entre tentatives (s)
-                        </label>
-                        <input type="text" name="kpay_retry_delay" id="kpay_retry_delay"
-                               value="{{ old('kpay_retry_delay', $paymentSettings['kpay_retry_delay']->value ?? '0.5') }}"
-                               class="w-full px-4 py-3 bg-dark-50 border border-dark-300 rounded-lg text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all">
+                        <div class="relative">
+                            <input type="password" name="exchange_rate_api_key" id="exchange_rate_api_key"
+                                   value=""
+                                   class="w-full px-4 py-3 bg-dark-50 border border-dark-300 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                                   placeholder="{{ !empty($exchangeRateApiKey ?? '') ? '•••••••• (laisser vide pour conserver)' : 'Votre clé exchangerate-api.com' }}">
+                            <button type="button" onclick="togglePassword('exchange_rate_api_key')"
+                                    class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                        <p class="mt-1 text-xs text-gray-500">Créez une clé gratuite sur exchangerate-api.com. Les taux sont mis en cache 1&nbsp;h.</p>
                     </div>
                 </div>
             </div>
@@ -409,23 +448,23 @@
                         <ul class="text-sm text-purple-300/80 space-y-2">
                             <li class="flex items-start">
                                 <i class="fas fa-check-circle text-purple-500 mr-2 mt-0.5"></i>
-                                <span>Créez un compte sur <a href="https://kpay.com" target="_blank" class="underline hover:text-purple-300">kpay.com</a></span>
+                                <span>Depuis votre tableau de bord <a href="https://admin.kpay.site" target="_blank" class="underline hover:text-purple-300">admin.kpay.site</a>, récupérez vos clés <strong>API Key</strong> (X-API-Key) et <strong>Secret Key</strong> (X-Secret-Key).</span>
                             </li>
                             <li class="flex items-start">
                                 <i class="fas fa-check-circle text-purple-500 mr-2 mt-0.5"></i>
-                                <span>Accédez à votre tableau de bord et récupérez vos clés API (App Key et Secret Key)</span>
+                                <span>Collez-les ci-dessus. L'environnement est déduit du préfixe (<code>kpay_test_</code> = sandbox, <code>kpay_live_</code> = production).</span>
                             </li>
                             <li class="flex items-start">
                                 <i class="fas fa-check-circle text-purple-500 mr-2 mt-0.5"></i>
-                                <span>Configurez les webhooks pour recevoir les notifications de paiement</span>
+                                <span>Déclarez l'<strong>URL de webhook</strong> ci-dessus dans le dashboard KPay et renseignez le <strong>Webhook Secret</strong> correspondant.</span>
                             </li>
                             <li class="flex items-start">
                                 <i class="fas fa-check-circle text-purple-500 mr-2 mt-0.5"></i>
-                                <span>Testez en mode Sandbox avant de passer en production</span>
+                                <span>Renseignez la clé <strong>exchangerate-api.com</strong> pour la conversion automatique des devises.</span>
                             </li>
                             <li class="flex items-start">
                                 <i class="fas fa-check-circle text-purple-500 mr-2 mt-0.5"></i>
-                                <span>Assurez-vous que votre URL de callback est correctement configurée</span>
+                                <span>Cliquez sur <strong>Tester</strong> pour vérifier la connexion, puis passez en production après validation.</span>
                             </li>
                         </ul>
                     </div>
@@ -463,6 +502,43 @@ function togglePassword(fieldId) {
         icon.classList.add('fa-eye');
     }
 }
+
+// Test de connexion KPay (AJAX)
+(function () {
+    const btn = document.getElementById('kpay-test-btn');
+    const result = document.getElementById('kpay-test-result');
+    if (!btn) return;
+    btn.addEventListener('click', async function () {
+        const original = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Test...';
+        result.textContent = 'Test en cours…';
+        result.className = 'text-sm font-semibold text-gray-300';
+        try {
+            const res = await fetch('{{ route('admin.settings.payments.test-kpay') }}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    'Accept': 'application/json',
+                },
+            });
+            const data = await res.json();
+            if (data.success) {
+                result.textContent = '✓ ' + (data.message || 'Connexion réussie');
+                result.className = 'text-sm font-semibold text-green-400';
+            } else {
+                result.textContent = '✗ ' + (data.message || 'Échec');
+                result.className = 'text-sm font-semibold text-red-400';
+            }
+        } catch (e) {
+            result.textContent = '✗ Erreur réseau';
+            result.className = 'text-sm font-semibold text-red-400';
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = original;
+        }
+    });
+})();
 </script>
 @endpush
 @endsection

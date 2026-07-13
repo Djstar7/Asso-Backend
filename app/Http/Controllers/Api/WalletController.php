@@ -131,37 +131,59 @@ class WalletController extends Controller
             ]);
 
             if ($paymentMethod === 'kpay') {
-                // Créer d'abord la transaction wallet en status pending
-                $currentBalance = $user->kpay_wallet_balance ?? 0;
+                // Devise de saisie (base) et devise de l'opérateur (cible)
+                $kpayCfg = \App\Models\ServiceConfiguration::getConfig('kpay') ?? [];
+                $baseCurrency = strtoupper($kpayCfg['base_currency'] ?? 'XAF');
+                $targetCurrency = \App\Services\KPayCatalog::currencyForProvider($provider);
+
+                // Convertir le montant saisi (base) vers la devise de l'opérateur
+                $conv = \App\Services\ExchangeRateService::convert($baseCurrency, $targetCurrency, (float) $amount);
+                if (!$conv['success']) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Conversion $baseCurrency → $targetCurrency indisponible. Vérifiez la clé exchangerate-api dans la configuration.",
+                    ], 400);
+                }
+                // Montant réellement débité chez l'opérateur (arrondi à l'unité — Mobile Money)
+                $chargeAmount = (float) round($conv['amount']);
+
+                // Créer d'abord la transaction wallet en status pending (devise cible)
+                $currentBalance = $user->kpayBalanceFor($targetCurrency);
 
                 DB::beginTransaction();
 
                 $walletTransaction = \App\Models\WalletTransaction::create([
                     'user_id' => $user->id,
                     'type' => 'credit',
-                    'amount' => $amount,
+                    'amount' => $chargeAmount, // montant dans la devise de l'opérateur
                     'balance_before' => $currentBalance,
                     'balance_after' => $currentBalance, // Pas encore crédité
-                    'description' => 'Recharge wallet via KPay',
+                    'description' => "Recharge wallet via KPay ($targetCurrency)",
                     'status' => 'pending',
                     'provider' => 'kpay',
                     'metadata' => [
                         'phone_number' => $phoneNumber,
                         'kpay_provider' => $provider,
-                        'currency' => \App\Services\KPayCatalog::currencyForProvider($provider),
+                        'currency' => $targetCurrency,
+                        'base_amount' => (float) $amount,
+                        'base_currency' => $baseCurrency,
+                        'exchange_rate' => $conv['rate'],
                         'initiated_at' => now()->toIso8601String(),
                     ],
                 ]);
 
                 Log::info("[WalletController] ✅ Wallet transaction created in pending state", [
                     'transaction_id' => $walletTransaction->id,
+                    'base' => "$amount $baseCurrency",
+                    'charge' => "$chargeAmount $targetCurrency",
+                    'rate' => $conv['rate'],
                 ]);
 
-                // Appeler KPay pour initier le paiement USSD (push direct)
+                // Appeler KPay pour initier le paiement USSD (montant en devise opérateur)
                 $kpayService = app(\App\Services\KPayService::class);
 
                 $paymentResult = $kpayService->initializePayment([
-                    'amount' => $amount,
+                    'amount' => $chargeAmount,
                     'provider' => $provider,
                     'phone_number' => $phoneNumber,
                     'description' => "Recharge wallet #{$walletTransaction->id}",
@@ -207,7 +229,11 @@ class WalletController extends Controller
                     'message' => 'Paiement initié. Veuillez composer le code USSD reçu sur votre téléphone.',
                     'data' => [
                         'transaction_id' => $walletTransaction->id,
-                        'amount' => $amount,
+                        'base_amount' => (float) $amount,
+                        'base_currency' => $baseCurrency,
+                        'charge_amount' => $chargeAmount,
+                        'currency' => $targetCurrency,
+                        'exchange_rate' => $conv['rate'],
                         'payment_method' => $paymentMethod,
                         'status' => 'pending',
                         'kpay_reference' => $paymentResult['reference'] ?? null,

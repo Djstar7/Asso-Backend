@@ -142,7 +142,25 @@ class SettingsController extends Controller
     {
         $paymentSettings = Setting::where('group', 'payment')->get()->keyBy('key');
 
-        return view('admin.settings.payments', compact('paymentSettings'));
+        // KPay : source de vérité = service_configurations (lue par KPayService)
+        $kpayService = ServiceConfiguration::where('service_name', ServiceConfiguration::SERVICE_KPAY)->first();
+        $kpayConfig = $kpayService->configuration ?? [];
+        $kpayEnabled = (bool) ($kpayService->is_active ?? false);
+
+        // Conversion de devises (exchangerate-api.com)
+        $exchangeRateConfig = ServiceConfiguration::where('service_name', 'exchange_rate')->first();
+        $exchangeRateApiKey = $exchangeRateConfig->configuration['api_key'] ?? '';
+
+        return view('admin.settings.payments', compact('paymentSettings', 'kpayConfig', 'kpayEnabled', 'exchangeRateApiKey'));
+    }
+
+    /**
+     * Tester la connexion à l'API KPay (AJAX).
+     */
+    public function testKpay()
+    {
+        $result = (new \App\Services\KPayService())->testConnection();
+        return response()->json($result);
     }
 
     /**
@@ -172,42 +190,37 @@ class SettingsController extends Controller
                 'fedapay_callback_url' => 'nullable|url',
                 'fedapay_timeout' => 'nullable|integer|min:60|max:600',
                 'fedapay_auto_commission' => 'nullable|boolean',
-                // KPay
+                // KPay (API v1 — en-têtes X-API-Key / X-Secret-Key)
                 'kpay_enabled' => 'nullable|boolean',
                 'kpay_mode' => 'nullable|in:sandbox,live',
-                'kpay_app_key' => 'nullable|string',
-                'kpay_secret_key' => 'nullable|string',
-                'kpay_callback_url' => 'nullable|url',
-                // KPay Advanced Settings
                 'kpay_base_url' => 'nullable|url',
-                'kpay_timeout_init' => 'nullable|integer|min:1|max:120',
-                'kpay_timeout_verify' => 'nullable|integer|min:1|max:120',
-                'kpay_timeout_token' => 'nullable|integer|min:1|max:120',
-                'kpay_token_cache_duration' => 'nullable|integer|min:60|max:3600',
-                'kpay_retry_attempts' => 'nullable|integer|min:1|max:10',
-                'kpay_retry_delay' => 'nullable|string',
+                'kpay_api_key' => 'nullable|string',
+                'kpay_secret_key' => 'nullable|string',
+                'kpay_webhook_secret' => 'nullable|string',
+                'kpay_base_currency' => 'nullable|string|size:3',
+                // Conversion de devises (exchangerate-api.com)
+                'exchange_rate_api_key' => 'nullable|string',
             ]);
 
             foreach ($validated as $key => $value) {
+                // KPay et exchange-rate sont stockés dans service_configurations
+                // (source de vérité), pas dans la table settings.
+                if (str_starts_with($key, 'kpay_') || str_starts_with($key, 'exchange_rate_')) {
+                    continue;
+                }
+
                 // Déterminer le type
                 $type = 'string';
                 if (str_ends_with($key, '_enabled') || str_ends_with($key, '_commission')) {
                     $type = 'boolean';
-                } elseif (in_array($key, [
-                    'fedapay_timeout',
-                    'kpay_timeout_init',
-                    'kpay_timeout_verify',
-                    'kpay_timeout_token',
-                    'kpay_token_cache_duration',
-                    'kpay_retry_attempts'
-                ])) {
+                } elseif (in_array($key, ['fedapay_timeout'])) {
                     $type = 'integer';
                 }
 
                 Setting::set($key, $value ?? '', $type, 'payment');
             }
 
-            // Also save to ServiceConfiguration if using that model
+            // KPay → service_configurations
             $this->updateServiceConfiguration($validated);
 
             return redirect()->route('admin.settings.payments')
@@ -349,27 +362,56 @@ class SettingsController extends Controller
      */
     private function updateServiceConfiguration(array $validated): void
     {
-        // KPay Configuration
-        if (isset($validated['kpay_app_key']) || isset($validated['kpay_secret_key'])) {
-            $kpayConfig = [
-                'app_key' => $validated['kpay_app_key'] ?? '',
-                'secret_key' => $validated['kpay_secret_key'] ?? '',
-                'callback_url' => $validated['kpay_callback_url'] ?? '',
-                'mode' => $validated['kpay_mode'] ?? 'sandbox',
-                'base_url' => $validated['kpay_base_url'] ?? 'https://api-v2.kpay.com',
-                'timeout_init' => $validated['kpay_timeout_init'] ?? 30,
-                'timeout_verify' => $validated['kpay_timeout_verify'] ?? 30,
-                'timeout_token' => $validated['kpay_timeout_token'] ?? 30,
-                'token_cache_duration' => $validated['kpay_token_cache_duration'] ?? 3000,
-                'retry_attempts' => $validated['kpay_retry_attempts'] ?? 5,
-                'retry_delay' => $validated['kpay_retry_delay'] ?? '0.5',
-            ];
+        // KPay : clés attendues par KPayService (api_key, secret_key, webhook_secret, base_url, mode).
+        // On repart de la config existante ; les secrets laissés vides sont conservés.
+        $existing = ServiceConfiguration::getConfig(ServiceConfiguration::SERVICE_KPAY) ?? [];
 
+        $kpayConfig = array_merge([
+            'base_url' => 'https://admin.kpay.site',
+            'mode' => 'sandbox',
+            'api_key' => '',
+            'secret_key' => '',
+            'webhook_secret' => '',
+        ], $existing);
+
+        if (!empty($validated['kpay_base_url'])) {
+            $kpayConfig['base_url'] = $validated['kpay_base_url'];
+        }
+        if (!empty($validated['kpay_mode'])) {
+            $kpayConfig['mode'] = $validated['kpay_mode'];
+        }
+        // Ne pas écraser une clé existante par une valeur vide (laisser vide = conserver)
+        if (!empty($validated['kpay_api_key'])) {
+            $kpayConfig['api_key'] = $validated['kpay_api_key'];
+        }
+        if (!empty($validated['kpay_secret_key'])) {
+            $kpayConfig['secret_key'] = $validated['kpay_secret_key'];
+        }
+        if (!empty($validated['kpay_webhook_secret'])) {
+            $kpayConfig['webhook_secret'] = $validated['kpay_webhook_secret'];
+        }
+        if (!empty($validated['kpay_base_currency'])) {
+            $kpayConfig['base_currency'] = strtoupper($validated['kpay_base_currency']);
+        }
+        if (empty($kpayConfig['base_currency'])) {
+            $kpayConfig['base_currency'] = 'XAF';
+        }
+
+        ServiceConfiguration::setConfig(
+            ServiceConfiguration::SERVICE_KPAY,
+            $kpayConfig,
+            isset($validated['kpay_enabled']) && $validated['kpay_enabled'],
+            'KPay - Paiements et retraits Mobile Money'
+        );
+
+        // Clé exchangerate-api.com (conversion de devises) — conservée si laissée vide.
+        if (!empty($validated['exchange_rate_api_key'])) {
+            $erExisting = ServiceConfiguration::getConfig('exchange_rate') ?? [];
             ServiceConfiguration::setConfig(
-                ServiceConfiguration::SERVICE_KPAY,
-                $kpayConfig,
-                isset($validated['kpay_enabled']) && $validated['kpay_enabled'] == true,
-                'Configuration KPay pour les paiements mobiles'
+                'exchange_rate',
+                array_merge($erExisting, ['api_key' => $validated['exchange_rate_api_key']]),
+                true,
+                'Conversion de devises (exchangerate-api.com)'
             );
         }
     }

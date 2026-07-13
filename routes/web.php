@@ -99,6 +99,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
             // Payments
             Route::get('/payments', [SettingsController::class, 'payments'])->name('payments');
             Route::put('/payments/update', [SettingsController::class, 'updatePayments'])->name('payments.update');
+            Route::post('/payments/test-kpay', [SettingsController::class, 'testKpay'])->name('payments.test-kpay');
 
             // Services
             Route::get('/services', [SettingsController::class, 'services'])->name('services');

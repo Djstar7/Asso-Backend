@@ -79,6 +79,45 @@ class CurrencyController extends Controller
     }
 
     /**
+     * Convert an amount between two currencies (exchangerate-api.com).
+     * GET /v1/currencies/convert?from=XAF&to=ZMW&amount=100
+     * Utilisé par le mobile pour prévisualiser le montant réellement débité.
+     */
+    public function convert(Request $request)
+    {
+        $from = strtoupper(trim((string) $request->query('from', '')));
+        $to = strtoupper(trim((string) $request->query('to', '')));
+        $amount = (float) $request->query('amount', 0);
+
+        if ($from === '' || $to === '' || $amount <= 0) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Paramètres "from", "to" et "amount" requis.',
+            ], 422);
+        }
+
+        $result = \App\Services\ExchangeRateService::convert($from, $to, $amount);
+
+        if (!$result['success']) {
+            return response()->json([
+                'success' => false,
+                'message' => "Conversion $from → $to indisponible.",
+            ], 400);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'from' => $from,
+                'to' => $to,
+                'amount' => $amount,
+                'rate' => $result['rate'],
+                'converted' => round($result['amount']),
+            ],
+        ]);
+    }
+
+    /**
      * Exchange rate between two currency codes.
      * GET /v1/currencies/exchange-rate?from=EUR&to=XOF
      */
