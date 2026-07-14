@@ -78,7 +78,12 @@ class OrderController extends Controller
             'items.*.quantity' => 'required|integer|min:1',
             'delivery_company_id' => 'required|exists:deliverer_companies,id',
             'delivery_zone_id' => 'required|exists:delivery_zones,id',
-            'wallet_provider' => 'required|in:kpay,paypal',
+            // Mode de paiement : 'wallet' (escrow depuis solde) ou 'kpay_direct' (PayIn KPay)
+            'payment_mode' => 'nullable|in:wallet,kpay_direct',
+            'wallet_provider' => 'required_if:payment_mode,wallet|in:kpay,paypal',
+            // Requis en mode kpay_direct
+            'provider' => 'required_if:payment_mode,kpay_direct|string',
+            'phone_number' => 'required_if:payment_mode,kpay_direct|string',
             'delivery_address' => 'nullable|string',
             'delivery_latitude' => 'nullable|numeric',
             'delivery_longitude' => 'nullable|numeric',
@@ -86,22 +91,32 @@ class OrderController extends Controller
         ]);
 
         try {
+            $paymentMode = $request->input('payment_mode', 'wallet');
+
             $order = $this->orderService->createOrder(
                 client: $request->user(),
                 items: $request->items,
                 deliveryCompanyId: (int) $request->delivery_company_id,
                 deliveryZoneId: (int) $request->delivery_zone_id,
-                walletProvider: $request->wallet_provider,
+                walletProvider: $request->input('wallet_provider', 'kpay'),
                 deliveryAddress: $request->delivery_address,
                 deliveryLatitude: $request->delivery_latitude,
                 deliveryLongitude: $request->delivery_longitude,
                 notes: $request->notes,
+                paymentMode: $paymentMode,
+                kpayProvider: $request->input('provider'),
+                kpayPhone: $request->input('phone_number'),
             );
 
             return response()->json([
                 'success' => true,
-                'message' => 'Commande créée avec succès. Fonds bloqués en attente de validation.',
+                'message' => $paymentMode === 'kpay_direct'
+                    ? 'Commande créée. Validez le paiement sur votre téléphone (USSD).'
+                    : 'Commande créée avec succès. Fonds bloqués en attente de validation.',
                 'order' => $this->formatOrder($order),
+                // Pour le polling du statut de paiement en mode kpay_direct
+                'payment_reference' => $order->payment_reference,
+                'order_id' => $order->id,
             ], 201);
 
         } catch (\Exception $e) {
@@ -110,6 +125,40 @@ class OrderController extends Controller
                 'message' => $e->getMessage(),
             ], 422);
         }
+    }
+
+    /**
+     * Statut de paiement d'une commande (mode kpay_direct).
+     * Re-vérifie chez KPay et confirme la commande si le paiement est complété.
+     * GET /v1/orders/{id}/payment-status  — utilisé par le polling mobile.
+     */
+    public function paymentStatus(Request $request, $id)
+    {
+        $order = Order::where('user_id', $request->user()->id)->findOrFail($id);
+
+        if ($order->payment_status === 'pending'
+            && $order->payment_method === 'kpay_direct'
+            && $order->payment_reference) {
+            $result = (new \App\Services\KPayService())->checkPaymentStatus($order->payment_reference);
+            $status = strtoupper($result['status'] ?? 'UNKNOWN');
+
+            if (in_array($status, ['SUCCESS', 'SUCCESSFUL', 'COMPLETED'])) {
+                $this->orderService->confirmKpayOrderPayment($order);
+                $order->refresh();
+            } elseif (in_array($status, ['FAILED', 'FAILURE', 'ERROR', 'REJECTED', 'CANCELLED', 'CANCELED'])) {
+                $order->update(['payment_status' => 'failed']);
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'order_id' => $order->id,
+                'order_number' => $order->order_number,
+                'payment_status' => $order->payment_status, // pending | paid | failed
+                'status' => $order->status,
+            ],
+        ]);
     }
 
     /**

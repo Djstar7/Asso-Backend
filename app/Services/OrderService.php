@@ -147,11 +147,15 @@ class OrderService
         ?string $deliveryAddress = null,
         ?float $deliveryLatitude = null,
         ?float $deliveryLongitude = null,
-        ?string $notes = null
+        ?string $notes = null,
+        string $paymentMode = 'wallet', // 'wallet' (escrow depuis solde) | 'kpay_direct' (PayIn KPay)
+        ?string $kpayProvider = null,   // code opérateur KPay (mode kpay_direct)
+        ?string $kpayPhone = null       // numéro Mobile Money (mode kpay_direct)
     ): Order {
         return DB::transaction(function () use (
             $client, $items, $deliveryCompanyId, $deliveryZoneId, $walletProvider,
-            $deliveryAddress, $deliveryLatitude, $deliveryLongitude, $notes
+            $deliveryAddress, $deliveryLatitude, $deliveryLongitude, $notes,
+            $paymentMode, $kpayProvider, $kpayPhone
         ) {
             Log::info("[OrderService] === CREATION COMMANDE ===", [
                 'client_id' => $client->id,
@@ -218,16 +222,21 @@ class OrderService
 
             $total = $subtotal + $deliveryFee;
 
-            // 3. Verrouiller les fonds du client (escrow)
-            $this->walletService->lockFunds(
-                $client,
-                $total,
-                "Escrow commande - En attente de validation vendeur",
-                'order',
-                null, // L'ID de l'order sera mis à jour après création
-                ['subtotal' => $subtotal, 'delivery_fee' => $deliveryFee],
-                $walletProvider
-            );
+            $isKpayDirect = $paymentMode === 'kpay_direct';
+
+            // 3. Mode wallet : verrouiller les fonds du client (escrow depuis le solde).
+            //    Mode kpay_direct : pas de verrou — le client paie via KPay (PayIn) ci-dessous.
+            if (!$isKpayDirect) {
+                $this->walletService->lockFunds(
+                    $client,
+                    $total,
+                    "Escrow commande - En attente de validation vendeur",
+                    'order',
+                    null, // L'ID de l'order sera mis à jour après création
+                    ['subtotal' => $subtotal, 'delivery_fee' => $deliveryFee],
+                    $walletProvider
+                );
+            }
 
             // 4. Créer la commande
             $order = Order::create([
@@ -241,14 +250,34 @@ class OrderService
                 'delivery_longitude' => $deliveryLongitude,
                 'delivery_company_id' => $deliveryCompanyId,
                 'delivery_zone_id' => $deliveryZoneId,
-                'payment_method' => 'wallet_' . $walletProvider,
-                'payment_status' => 'paid',
+                'payment_method' => $isKpayDirect ? 'kpay_direct' : ('wallet_' . $walletProvider),
+                // kpay_direct : en attente du paiement Mobile Money ; wallet : déjà payé (fonds bloqués)
+                'payment_status' => $isKpayDirect ? 'pending' : 'paid',
                 'notes' => $notes,
             ]);
 
             // Créer les items
             foreach ($orderItems as $itemData) {
                 $order->items()->create($itemData);
+            }
+
+            // 4b. Mode kpay_direct : initier le PayIn KPay pour le total de la commande
+            if ($isKpayDirect) {
+                $kpayResult = app(\App\Services\KPayService::class)->initializePayment([
+                    'amount' => (float) round($total),
+                    'provider' => $kpayProvider,
+                    'phone_number' => $kpayPhone,
+                    'description' => "Commande {$order->order_number}",
+                    'external_reference' => $order->order_number,
+                ]);
+
+                if (empty($kpayResult['success'])) {
+                    // Rollback : la commande ne doit pas exister si le paiement n'a pu être initié
+                    throw new \Exception($kpayResult['message'] ?? "Échec de l'initiation du paiement KPay.");
+                }
+
+                // payment_reference = id KPay (pay_xxx) pour le polling du statut
+                $order->update(['payment_reference' => $kpayResult['id'] ?? null]);
             }
 
             // 5. Envoyer les notifications FCM
@@ -296,6 +325,53 @@ class OrderService
 
             return $order;
         });
+    }
+
+    /**
+     * Confirme le paiement KPay direct d'une commande (idempotent).
+     * Marque la commande payée/confirmée et crédite les gains (pending) des
+     * vendeurs — les fonds sont séquestrés par la plateforme (compte KPay).
+     */
+    public function confirmKpayOrderPayment(Order $order): void
+    {
+        DB::transaction(function () use ($order) {
+            $order = Order::whereKey($order->id)->lockForUpdate()->with('items')->first();
+            if (!$order || $order->payment_status === 'paid') {
+                return; // déjà traité
+            }
+
+            $order->update([
+                'payment_status' => 'paid',
+                'status' => 'confirmed',
+                'confirmed_at' => now(),
+            ]);
+
+            // Créditer les gains en attente de chaque vendeur (séquestre plateforme)
+            $sellerTotals = [];
+            foreach ($order->items as $item) {
+                $sellerTotals[$item->seller_id] = ($sellerTotals[$item->seller_id] ?? 0) + (float) $item->total_price;
+            }
+            foreach ($sellerTotals as $sellerId => $amount) {
+                User::where('id', $sellerId)->increment('pending_earnings', $amount);
+            }
+
+            Log::info('[OrderService] Commande KPay confirmée (payée)', [
+                'order_id' => $order->id,
+                'order_number' => $order->order_number,
+            ]);
+        });
+
+        // Notifier le client (hors transaction)
+        try {
+            $this->fcmService->sendToUser(
+                $order->user,
+                '✅ Paiement confirmé',
+                "Votre paiement pour la commande #{$order->order_number} a été confirmé.",
+                ['type' => 'order_paid', 'order_id' => (string) $order->id, 'order_number' => $order->order_number]
+            );
+        } catch (\Exception $e) {
+            Log::warning('[OrderService] FCM order_paid échec: ' . $e->getMessage());
+        }
     }
 
     /**

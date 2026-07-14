@@ -156,6 +156,19 @@ class PaymentController extends Controller
             return response()->json(['message' => 'Withdrawal webhook processed']);
         }
 
+        // Commande payée en direct KPay (externalId = order_number)
+        $directOrder = Order::where('order_number', $externalId)
+            ->where('payment_method', 'kpay_direct')
+            ->first();
+        if ($directOrder) {
+            if (in_array($status, ['COMPLETED', 'SUCCESS', 'SUCCESSFUL'])) {
+                app(\App\Services\OrderService::class)->confirmKpayOrderPayment($directOrder);
+            } elseif (in_array($status, ['FAILED', 'CANCELLED'])) {
+                $directOrder->update(['payment_status' => 'failed']);
+            }
+            return response()->json(['message' => 'Order payment webhook processed']);
+        }
+
         // Sinon : paiement de commande (Transaction)
         $transaction = Transaction::where('external_reference', $externalId)->first();
 
