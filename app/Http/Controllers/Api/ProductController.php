@@ -50,6 +50,11 @@ class ProductController extends Controller
             $query->where('type', $request->type);
         }
 
+        // Filter by origin country (produits importés : CN, TR, AE…)
+        if ($request->filled('origin_country')) {
+            $query->where('origin_country', strtoupper($request->origin_country));
+        }
+
         // Filter by price range
         if ($request->has('min_price') && $request->min_price) {
             $query->where('price', '>=', $request->min_price);
@@ -265,6 +270,7 @@ class ProductController extends Controller
             'category_id' => 'required|exists:categories,id',
             'subcategory_id' => 'nullable|exists:subcategories,id',
             'type' => 'required|in:article,service',
+            'origin_country' => 'nullable|string|size:2',
             'condition' => 'required|in:new,used,refurbished',
             'stock' => 'nullable|integer|min:0',
             'weight' => 'nullable|string|max:255',
@@ -331,6 +337,7 @@ class ProductController extends Controller
             'price' => $validated['price'],
             'category_id' => $validated['category_id'],
             'type' => $validated['type'],
+            'origin_country' => isset($validated['origin_country']) ? strtoupper($validated['origin_country']) : null,
             'condition' => $validated['condition'],
             'weight_category' => $validated['weight_category'] ?? 'X-small',
             'slug' => \Str::slug($validated['name']) . '-' . \Str::random(5),

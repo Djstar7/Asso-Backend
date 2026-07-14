@@ -34,6 +34,7 @@ class Product extends Model
         'max_price',
         'price_type',
         'type',
+        'origin_country',
         'stock',
         'weight_category',
         'status',
