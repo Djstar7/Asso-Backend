@@ -776,6 +776,12 @@ class WalletController extends Controller
                 ], 404);
             }
 
+            // Re-vérifier chez KPay tant que c'est en cours (finalisation à la demande).
+            if (in_array($withdrawal->status, ['pending', 'processing']) && $withdrawal->provider === 'kpay') {
+                \App\Jobs\Wallet\ProcessWithdrawalStatusJob::dispatchSync($withdrawal->id);
+                $withdrawal->refresh();
+            }
+
             return response()->json([
                 'success' => true,
                 'data' => [
@@ -1159,6 +1165,13 @@ class WalletController extends Controller
                     'success' => false,
                     'message' => 'Paiement non trouvé',
                 ], 404);
+            }
+
+            // Re-vérifier le statut directement chez KPay tant que c'est en attente
+            // (finalisation à la demande — fonctionne sans worker de queue).
+            if ($walletTransaction->status === 'pending' && $walletTransaction->provider === 'kpay') {
+                \App\Jobs\Wallet\ProcessDepositStatusJob::dispatchSync($walletTransaction->id);
+                $walletTransaction->refresh();
             }
 
             return response()->json([
