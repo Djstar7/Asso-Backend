@@ -77,6 +77,7 @@ class VendorProductController extends Controller
             'category_id' => 'sometimes|exists:categories,id',
             'subcategory_id' => 'sometimes|nullable|exists:subcategories,id',
             'type' => 'sometimes|in:article,service',
+            'origin_country' => 'sometimes|nullable|string|max:2',
             'condition' => 'sometimes|in:new,used,refurbished',
             'weight_category' => 'sometimes|in:' . implode(',', Product::WEIGHT_CATEGORIES),
             'stock' => 'sometimes|integer|min:0',
@@ -84,6 +85,12 @@ class VendorProductController extends Controller
             'images' => 'sometimes|array',
             'images.*' => 'file|image|mimes:jpeg,png,jpg,gif|max:5120',
         ]);
+
+        // Normaliser le pays d'origine : chaîne vide => null (produit local), sinon ISO2 majuscule
+        if (array_key_exists('origin_country', $validated)) {
+            $oc = trim((string) $validated['origin_country']);
+            $validated['origin_country'] = $oc === '' ? null : strtoupper($oc);
+        }
 
         try {
             // Check if new images are being added
