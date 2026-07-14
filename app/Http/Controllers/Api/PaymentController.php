@@ -156,6 +156,21 @@ class PaymentController extends Controller
             return response()->json(['message' => 'Withdrawal webhook processed']);
         }
 
+        // Réservation diaspo payée en direct KPay (externalId = DIASPO-{bookingId})
+        if (str_starts_with($externalId, 'DIASPO-')) {
+            $bookingId = (int) substr($externalId, strlen('DIASPO-'));
+            $booking = \App\Models\DiaspoBooking::find($bookingId);
+            if ($booking) {
+                if (in_array($status, ['COMPLETED', 'SUCCESS', 'SUCCESSFUL'])) {
+                    app(DiaspoController::class)->confirmBookingPayment($booking);
+                } elseif (in_array($status, ['FAILED', 'CANCELLED'])) {
+                    $booking->update(['payment_status' => 'failed', 'status' => 'cancelled', 'cancelled_at' => now()]);
+                    \App\Models\DiaspoOffer::whereKey($booking->diaspo_offer_id)->increment('remaining_kg', (float) $booking->kg_booked);
+                }
+            }
+            return response()->json(['message' => 'Diaspo booking webhook processed']);
+        }
+
         // Commande payée en direct KPay (externalId = order_number)
         $directOrder = Order::where('order_number', $externalId)
             ->where('payment_method', 'kpay_direct')

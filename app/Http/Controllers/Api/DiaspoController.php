@@ -3,277 +3,417 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\DiaspoBooking;
+use App\Models\DiaspoOffer;
+use App\Models\DiaspoVerification;
+use App\Models\User;
+use App\Services\KPayService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
- * Diaspo (kg-sharing for travellers) — FAKE/stub implementation for testing.
- * Reads return well-shaped fake data; writes echo a fabricated resource.
- * No persistence.
+ * Diaspo — partage de kg entre voyageurs.
+ * Réservation payée par KPay direct (PayIn) ; les fonds sont séquestrés par la
+ * plateforme puis libérés au voyageur à la confirmation de réception.
  */
 class DiaspoController extends Controller
 {
-    /** Fake offer matching DiaspoOffer.fromJson (all required fields present). */
-    private function fakeOffer(int $id): array
-    {
-        $routes = [
-            ['France', 'Paris', 'Bénin', 'Cotonou', 'EUR', 12.0],
-            ['Canada', 'Montréal', 'Bénin', 'Cotonou', 'CAD', 15.0],
-            ['France', 'Lyon', "Côte d'Ivoire", 'Abidjan', 'EUR', 10.0],
-            ['États-Unis', 'New York', 'Sénégal', 'Dakar', 'USD', 14.0],
-        ];
-        $r = $routes[$id % count($routes)];
-        $available = 20.0 + ($id % 5) * 5;
-        $remaining = $available - ($id % 4) * 2;
+    private const COMMISSION_RATE = 0.10; // 10 %
 
+    private function paginate($query, Request $request): array
+    {
+        $perPage = (int) $request->query('per_page', 20);
+        $p = $query->paginate($perPage);
         return [
-            'id' => $id,
-            'user_id' => 300 + $id,
-            'status' => 'active',
-            'verification_status' => 'verified',
-            'verified_at' => Carbon::now()->subDays(2)->toIso8601String(),
-            'verified_by' => 1,
-            'rejection_reason' => null,
-            'departure_country' => $r[0],
-            'departure_city' => $r[1],
-            'departure_datetime' => Carbon::now()->addDays($id + 1)->toIso8601String(),
-            'arrival_country' => $r[2],
-            'arrival_city' => $r[3],
-            'arrival_datetime' => Carbon::now()->addDays($id + 2)->toIso8601String(),
-            'price_per_kg' => $r[5],
-            'available_kg' => $available,
-            'remaining_kg' => $remaining,
-            'currency' => $r[4],
-            'views_count' => (13 * $id) % 100,
-            'bookings_count' => $id % 4,
-            'formatted_price' => number_format($r[5], 0) . ' ' . $r[4] . '/kg',
-            'is_available' => $remaining > 0,
-            'trip_duration_hours' => 8.0 + ($id % 5),
-            'user' => [
-                'id' => 300 + $id,
-                'first_name' => 'Voyageur',
-                'last_name' => '#' . $id,
-                'avatar' => null,
-                'phone' => null,
-            ],
-            'created_at' => Carbon::now()->subDays($id)->toIso8601String(),
-            'updated_at' => Carbon::now()->subDays($id)->toIso8601String(),
+            'current_page' => $p->currentPage(),
+            'data' => collect($p->items())->map(fn($m) => $m->toApi())->values(),
+            'per_page' => $p->perPage(),
+            'last_page' => $p->lastPage(),
+            'total' => $p->total(),
+            'next_page_url' => $p->nextPageUrl(),
+            'prev_page_url' => $p->previousPageUrl(),
         ];
     }
 
-    /** Fake booking matching DiaspoBooking.fromJson. */
-    private function fakeBooking(int $id, ?int $offerId = null): array
+    // ==================== VÉRIFICATION ====================
+
+    public function verificationStatus(Request $request)
     {
-        $offerId = $offerId ?? (1 + ($id % 4));
-        $offer = $this->fakeOffer($offerId);
-        $kg = 3.0;
-        $subtotal = $kg * $offer['price_per_kg'];
-        $commission = round($subtotal * 0.1, 2);
-        $total = $subtotal + $commission;
-
-        return [
-            'id' => $id,
-            'diaspo_offer_id' => $offerId,
-            'buyer_user_id' => 20,
-            'seller_user_id' => $offer['user_id'],
-            'kg_booked' => $kg,
-            'price_per_kg' => $offer['price_per_kg'],
-            'subtotal' => $subtotal,
-            'commission_amount' => $commission,
-            'total_price' => $total,
-            'status' => 'pending',
-            'confirmation_code' => str_pad((string) (($id * 7) % 1000000), 6, '0', STR_PAD_LEFT),
-            'confirmed_by_buyer_at' => null,
-            'payment_status' => 'pending',
-            'payment_reference' => null,
-            'paid_at' => null,
-            'refunded_at' => null,
-            'conversation_id' => null,
-            'notes' => null,
-            'cancel_reason' => null,
-            'cancelled_at' => null,
-            'formatted_total' => number_format($total, 0) . ' ' . $offer['currency'],
-            'is_completed' => false,
-            'diaspo_offer' => $offer,
-            'buyer' => ['id' => 20, 'first_name' => 'Client', 'last_name' => 'Test', 'avatar' => null, 'phone' => null],
-            'seller' => $offer['user'],
-            'created_at' => Carbon::now()->subDays($id)->toIso8601String(),
-            'updated_at' => Carbon::now()->subDays($id)->toIso8601String(),
-        ];
-    }
-
-    private function paginate(array $items, int $page, int $perPage): array
-    {
-        return [
-            'current_page' => $page,
-            'data' => $items,
-            'per_page' => $perPage,
-            'last_page' => 1,
-            'total' => count($items),
-            'next_page_url' => null,
-            'prev_page_url' => null,
-        ];
-    }
-
-    // ==================== VERIFICATION ====================
-
-    /** GET /v1/diaspo/verification-status */
-    public function verificationStatus()
-    {
+        $v = DiaspoVerification::where('user_id', $request->user()->id)->first();
+        $status = $v->status ?? 'unverified';
         return response()->json([
             'success' => true,
             'data' => [
-                'verification_status' => 'unverified', // unverified | pending | verified | rejected
-                'can_create_offers' => false,
-                'rejection_reason' => null,
+                'verification_status' => $status,
+                'can_create_offers' => $status === 'verified',
+                'rejection_reason' => $v->rejection_reason ?? null,
             ],
         ]);
     }
 
-    /** POST /v1/diaspo/upload-verification */
     public function uploadVerification(Request $request)
     {
+        $request->validate([
+            'document_type' => 'nullable|string|in:cni,passport',
+            'document_front' => 'nullable|file|image|max:5120',
+            'document_back' => 'nullable|file|image|max:5120',
+        ]);
+
+        $user = $request->user();
+        $data = ['status' => 'pending', 'document_type' => $request->input('document_type', 'cni')];
+
+        if ($request->hasFile('document_front')) {
+            $data['document_front'] = $request->file('document_front')->store('diaspo/verifications', 'public');
+        }
+        if ($request->hasFile('document_back')) {
+            $data['document_back'] = $request->file('document_back')->store('diaspo/verifications', 'public');
+        }
+
+        DiaspoVerification::updateOrCreate(['user_id' => $user->id], $data);
+
         return response()->json([
             'success' => true,
             'message' => 'Documents reçus. Votre vérification est en cours de traitement.',
-            'data' => [
-                'verification_status' => 'pending',
-                'can_create_offers' => false,
-            ],
+            'data' => ['verification_status' => 'pending', 'can_create_offers' => false],
         ]);
     }
 
-    // ==================== OFFERS ====================
+    // ==================== OFFRES ====================
 
-    /** GET /v1/diaspo/offers */
     public function offers(Request $request)
     {
-        $page = (int) $request->query('page', 1);
-        $perPage = (int) $request->query('per_page', 20);
-        $items = $page === 1 ? array_map(fn($i) => $this->fakeOffer($i), range(1, 4)) : [];
+        $q = DiaspoOffer::with('user')
+            ->where('status', 'active')
+            ->where('remaining_kg', '>', 0)
+            ->where('departure_datetime', '>', now());
 
-        return response()->json([
-            'success' => true,
-            'data' => $this->paginate($items, $page, $perPage),
-        ]);
+        foreach ([
+            'departure_country', 'arrival_country', 'departure_city', 'arrival_city',
+        ] as $f) {
+            if ($request->filled($f)) {
+                $q->where($f, 'ilike', '%' . $request->query($f) . '%');
+            }
+        }
+        if ($request->filled('max_price')) {
+            $q->where('price_per_kg', '<=', (float) $request->query('max_price'));
+        }
+        $q->orderBy('departure_datetime');
+
+        return response()->json(['success' => true, 'data' => $this->paginate($q, $request)]);
     }
 
-    /** GET /v1/diaspo/offers/my-offers */
     public function myOffers(Request $request)
     {
-        return response()->json([
-            'success' => true,
-            'data' => $this->paginate([], (int) $request->query('page', 1), (int) $request->query('per_page', 20)),
-        ]);
+        $q = DiaspoOffer::with('user')->where('user_id', $request->user()->id)->latest();
+        return response()->json(['success' => true, 'data' => $this->paginate($q, $request)]);
     }
 
-    /** GET /v1/diaspo/offers/{id} */
     public function showOffer($id)
     {
-        return response()->json(['success' => true, 'data' => $this->fakeOffer((int) $id)]);
+        $offer = DiaspoOffer::with('user')->findOrFail($id);
+        $offer->increment('views_count');
+        return response()->json(['success' => true, 'data' => $offer->toApi()]);
     }
 
-    /** POST /v1/diaspo/offers */
     public function storeOffer(Request $request)
     {
-        $offer = $this->fakeOffer(random_int(1000, 9999));
-        // Reflect submitted values when present.
-        foreach (['departure_country','departure_city','arrival_country','arrival_city','currency'] as $k) {
-            if ($request->filled($k)) $offer[$k] = $request->input($k);
+        $user = $request->user();
+        $verified = DiaspoVerification::where('user_id', $user->id)->where('status', 'verified')->exists();
+        if (!$verified) {
+            return response()->json(['success' => false, 'message' => 'Votre identité doit être vérifiée pour créer une offre.'], 403);
         }
-        if ($request->filled('price_per_kg')) $offer['price_per_kg'] = (float) $request->input('price_per_kg');
-        if ($request->filled('available_kg')) {
-            $offer['available_kg'] = (float) $request->input('available_kg');
-            $offer['remaining_kg'] = (float) $request->input('available_kg');
-        }
-        $offer['status'] = 'active';
 
-        return response()->json(['success' => true, 'message' => 'Offre créée', 'data' => $offer], 201);
+        $data = $request->validate([
+            'departure_country' => 'required|string',
+            'departure_city' => 'required|string',
+            'departure_datetime' => 'required|date|after:now',
+            'arrival_country' => 'required|string',
+            'arrival_city' => 'required|string',
+            'arrival_datetime' => 'required|date|after:departure_datetime',
+            'price_per_kg' => 'required|numeric|min:0',
+            'available_kg' => 'required|numeric|min:0.5',
+            'currency' => 'nullable|string|size:3',
+        ]);
+
+        $offer = DiaspoOffer::create(array_merge($data, [
+            'user_id' => $user->id,
+            'status' => 'active',
+            'verification_status' => 'verified',
+            'verified_at' => now(),
+            'remaining_kg' => $data['available_kg'],
+            'currency' => strtoupper($data['currency'] ?? 'XAF'),
+        ]));
+
+        return response()->json(['success' => true, 'message' => 'Offre créée', 'data' => $offer->load('user')->toApi()], 201);
     }
 
-    /** PUT /v1/diaspo/offers/{id} */
     public function updateOffer(Request $request, $id)
     {
-        $offer = $this->fakeOffer((int) $id);
-        foreach ($request->all() as $k => $v) {
-            if (array_key_exists($k, $offer)) $offer[$k] = $v;
+        $offer = DiaspoOffer::where('user_id', $request->user()->id)->findOrFail($id);
+        $data = $request->validate([
+            'price_per_kg' => 'sometimes|numeric|min:0',
+            'available_kg' => 'sometimes|numeric|min:0.5',
+            'status' => 'sometimes|in:active,closed,cancelled',
+        ]);
+        if (isset($data['available_kg'])) {
+            $booked = (float) $offer->available_kg - (float) $offer->remaining_kg;
+            $data['remaining_kg'] = max(0, $data['available_kg'] - $booked);
         }
-        return response()->json(['success' => true, 'message' => 'Offre mise à jour', 'data' => $offer]);
+        $offer->update($data);
+        return response()->json(['success' => true, 'message' => 'Offre mise à jour', 'data' => $offer->fresh()->load('user')->toApi()]);
     }
 
-    /** DELETE /v1/diaspo/offers/{id} */
-    public function destroyOffer($id)
+    public function destroyOffer(Request $request, $id)
     {
+        $offer = DiaspoOffer::where('user_id', $request->user()->id)->findOrFail($id);
+        if ($offer->bookings()->whereIn('status', ['confirmed', 'in_transit'])->exists()) {
+            return response()->json(['success' => false, 'message' => 'Impossible de supprimer : des réservations sont en cours.'], 422);
+        }
+        $offer->delete();
         return response()->json(['success' => true, 'message' => 'Offre supprimée']);
     }
 
-    /** POST /v1/diaspo/offers/{id}/book */
+    // ==================== RÉSERVATIONS ====================
+
+    /** POST /v1/diaspo/offers/{id}/book — crée une réservation + PayIn KPay direct. */
     public function bookOffer(Request $request, $id)
     {
-        $booking = $this->fakeBooking(random_int(1000, 9999), (int) $id);
-        if ($request->filled('kg_booked')) {
-            $kg = (float) $request->input('kg_booked');
-            $offer = $this->fakeOffer((int) $id);
-            $subtotal = $kg * $offer['price_per_kg'];
-            $commission = round($subtotal * 0.1, 2);
-            $booking['kg_booked'] = $kg;
-            $booking['subtotal'] = $subtotal;
-            $booking['commission_amount'] = $commission;
-            $booking['total_price'] = $subtotal + $commission;
-            $booking['formatted_total'] = number_format($subtotal + $commission, 0) . ' ' . $offer['currency'];
+        $data = $request->validate([
+            'kg_booked' => 'required|numeric|min:0.5',
+            'provider' => 'required|string',       // code opérateur KPay
+            'phone_number' => 'required|string',   // numéro Mobile Money
+            'notes' => 'nullable|string|max:500',
+        ]);
+
+        $buyer = $request->user();
+
+        return DB::transaction(function () use ($id, $data, $buyer) {
+            $offer = DiaspoOffer::lockForUpdate()->findOrFail($id);
+
+            if ($offer->user_id === $buyer->id) {
+                return response()->json(['success' => false, 'message' => 'Vous ne pouvez pas réserver votre propre offre.'], 422);
+            }
+            if ($offer->status !== 'active' || (float) $offer->remaining_kg < $data['kg_booked']) {
+                return response()->json(['success' => false, 'message' => 'Kg insuffisants sur cette offre.'], 422);
+            }
+
+            $subtotal = round($data['kg_booked'] * (float) $offer->price_per_kg, 2);
+            $commission = round($subtotal * self::COMMISSION_RATE, 2);
+            $total = $subtotal + $commission;
+
+            $booking = DiaspoBooking::create([
+                'diaspo_offer_id' => $offer->id,
+                'buyer_user_id' => $buyer->id,
+                'seller_user_id' => $offer->user_id,
+                'kg_booked' => $data['kg_booked'],
+                'price_per_kg' => $offer->price_per_kg,
+                'subtotal' => $subtotal,
+                'commission_amount' => $commission,
+                'total_price' => $total,
+                'currency' => $offer->currency,
+                'status' => 'pending',
+                'confirmation_code' => str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT),
+                'payment_status' => 'pending',
+                'notes' => $data['notes'] ?? null,
+            ]);
+
+            // Réserver les kg
+            $offer->decrement('remaining_kg', $data['kg_booked']);
+            $offer->increment('bookings_count');
+
+            // Initier le PayIn KPay (montant en devise de l'offre)
+            $result = (new KPayService())->initializePayment([
+                'amount' => (float) round($total),
+                'provider' => $data['provider'],
+                'phone_number' => $data['phone_number'],
+                'description' => "Réservation diaspo #{$booking->id}",
+                'external_reference' => "DIASPO-{$booking->id}",
+            ]);
+
+            if (empty($result['success'])) {
+                throw new \Exception($result['message'] ?? "Échec de l'initiation du paiement KPay.");
+            }
+
+            $booking->update(['payment_reference' => $result['id'] ?? null]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Réservation créée. Validez le paiement sur votre téléphone.',
+                'data' => $booking->load(['offer.user', 'buyer', 'seller'])->toApi(),
+                'payment_reference' => $booking->payment_reference,
+                'booking_id' => $booking->id,
+            ], 201);
+        });
+    }
+
+    /** GET /v1/diaspo/bookings/{id}/payment-status — re-vérifie KPay + confirme. */
+    public function bookingPaymentStatus(Request $request, $id)
+    {
+        $booking = DiaspoBooking::where('id', $id)
+            ->where('buyer_user_id', $request->user()->id)
+            ->firstOrFail();
+
+        if ($booking->payment_status === 'pending' && $booking->payment_reference) {
+            $result = (new KPayService())->checkPaymentStatus($booking->payment_reference);
+            $status = strtoupper($result['status'] ?? 'UNKNOWN');
+            if (in_array($status, ['SUCCESS', 'SUCCESSFUL', 'COMPLETED'])) {
+                $this->confirmBookingPayment($booking);
+                $booking->refresh();
+            } elseif (in_array($status, ['FAILED', 'FAILURE', 'ERROR', 'REJECTED', 'CANCELLED', 'CANCELED'])) {
+                $this->failBookingPayment($booking);
+                $booking->refresh();
+            }
         }
-        return response()->json(['success' => true, 'message' => 'Réservation créée', 'data' => $booking], 201);
-    }
 
-    /** POST /v1/diaspo/confirm-by-code */
-    public function confirmByCode(Request $request)
-    {
-        $booking = $this->fakeBooking(random_int(1000, 9999));
-        $booking['status'] = 'confirmed';
-        return response()->json(['success' => true, 'message' => 'Code confirmé', 'data' => $booking]);
-    }
-
-    // ==================== BOOKINGS ====================
-
-    /** GET /v1/diaspo/bookings */
-    public function bookings(Request $request)
-    {
         return response()->json([
             'success' => true,
-            'data' => $this->paginate([], (int) $request->query('page', 1), (int) $request->query('per_page', 20)),
+            'data' => ['booking_id' => $booking->id, 'payment_status' => $booking->payment_status, 'status' => $booking->status],
         ]);
     }
 
-    /** GET /v1/diaspo/bookings/{id} */
-    public function showBooking($id)
+    /** Confirme le paiement d'une réservation (idempotent) — fonds séquestrés. */
+    public function confirmBookingPayment(DiaspoBooking $booking): void
     {
-        return response()->json(['success' => true, 'data' => $this->fakeBooking((int) $id)]);
+        DB::transaction(function () use ($booking) {
+            $b = DiaspoBooking::whereKey($booking->id)->lockForUpdate()->first();
+            if (!$b || $b->payment_status === 'paid') return;
+            $b->update(['payment_status' => 'paid', 'status' => 'confirmed', 'paid_at' => now()]);
+        });
+        try {
+            $seller = User::find($booking->seller_user_id);
+            if ($seller) {
+                app(\App\Services\FirebaseMessagingService::class)->sendToUser(
+                    $seller, '📦 Nouvelle réservation payée',
+                    "Une réservation de {$booking->kg_booked} kg a été payée.",
+                    ['type' => 'diaspo_booking_paid', 'booking_id' => (string) $booking->id]
+                );
+            }
+        } catch (\Exception $e) {
+            Log::warning('[Diaspo] FCM booking_paid: ' . $e->getMessage());
+        }
     }
 
-    /** POST /v1/diaspo/bookings/{id}/cancel */
+    /** Échec de paiement : libère les kg réservés. */
+    private function failBookingPayment(DiaspoBooking $booking): void
+    {
+        DB::transaction(function () use ($booking) {
+            $b = DiaspoBooking::whereKey($booking->id)->lockForUpdate()->first();
+            if (!$b || $b->payment_status !== 'pending') return;
+            $b->update(['payment_status' => 'failed', 'status' => 'cancelled', 'cancelled_at' => now()]);
+            DiaspoOffer::whereKey($b->diaspo_offer_id)->increment('remaining_kg', (float) $b->kg_booked);
+        });
+    }
+
+    public function bookings(Request $request)
+    {
+        $uid = $request->user()->id;
+        $q = DiaspoBooking::with(['offer.user', 'buyer', 'seller'])
+            ->where(fn($x) => $x->where('buyer_user_id', $uid)->orWhere('seller_user_id', $uid))
+            ->latest();
+        return response()->json(['success' => true, 'data' => $this->paginate($q, $request)]);
+    }
+
+    public function showBooking(Request $request, $id)
+    {
+        $uid = $request->user()->id;
+        $booking = DiaspoBooking::with(['offer.user', 'buyer', 'seller'])
+            ->where('id', $id)
+            ->where(fn($x) => $x->where('buyer_user_id', $uid)->orWhere('seller_user_id', $uid))
+            ->firstOrFail();
+        return response()->json(['success' => true, 'data' => $booking->toApi()]);
+    }
+
+    /** POST /v1/diaspo/bookings/{id}/cancel — annule + rembourse (mini-wallet) + libère les kg. */
     public function cancelBooking(Request $request, $id)
     {
-        $booking = $this->fakeBooking((int) $id);
-        $booking['status'] = 'cancelled';
-        $booking['cancel_reason'] = $request->input('cancel_reason', 'Annulé par l\'utilisateur');
-        $booking['cancelled_at'] = Carbon::now()->toIso8601String();
-        return response()->json(['success' => true, 'message' => 'Réservation annulée', 'data' => $booking]);
+        $booking = DiaspoBooking::where('id', $id)
+            ->where('buyer_user_id', $request->user()->id)
+            ->firstOrFail();
+
+        if (in_array($booking->status, ['completed', 'cancelled'])) {
+            return response()->json(['success' => false, 'message' => 'Réservation déjà finalisée.'], 422);
+        }
+
+        DB::transaction(function () use ($booking, $request) {
+            $b = DiaspoBooking::whereKey($booking->id)->lockForUpdate()->first();
+
+            // Rembourser dans le mini-wallet acheteur si déjà payé
+            if ($b->payment_status === 'paid') {
+                $buyer = User::find($b->buyer_user_id);
+                $buyer->creditKpay($b->currency, (float) $b->total_price);
+                $b->refunded_at = now();
+                $b->payment_status = 'refunded';
+            }
+
+            $b->status = 'cancelled';
+            $b->cancel_reason = $request->input('cancel_reason', 'Annulé par l\'acheteur');
+            $b->cancelled_at = now();
+            $b->save();
+
+            // Libérer les kg réservés
+            DiaspoOffer::whereKey($b->diaspo_offer_id)->increment('remaining_kg', (float) $b->kg_booked);
+        });
+
+        return response()->json(['success' => true, 'message' => 'Réservation annulée', 'data' => $booking->fresh()->load(['offer.user', 'buyer', 'seller'])->toApi()]);
     }
 
-    /** POST /v1/diaspo/bookings/{id}/confirm-receipt */
-    public function confirmReceipt($id)
+    /** POST /v1/diaspo/bookings/{id}/confirm-receipt — l'acheteur confirme : fonds libérés au voyageur. */
+    public function confirmReceipt(Request $request, $id)
     {
-        $booking = $this->fakeBooking((int) $id);
-        $booking['status'] = 'completed';
-        $booking['is_completed'] = true;
-        return response()->json(['success' => true, 'message' => 'Réception confirmée', 'data' => $booking]);
+        $booking = DiaspoBooking::where('id', $id)
+            ->where('buyer_user_id', $request->user()->id)
+            ->firstOrFail();
+
+        if ($booking->payment_status !== 'paid' || $booking->status === 'completed') {
+            return response()->json(['success' => false, 'message' => 'Action impossible sur cette réservation.'], 422);
+        }
+
+        DB::transaction(function () use ($booking) {
+            $b = DiaspoBooking::whereKey($booking->id)->lockForUpdate()->first();
+            if ($b->status === 'completed') return;
+
+            // Libérer le sous-total au voyageur (la plateforme garde la commission)
+            User::where('id', $b->seller_user_id)->increment('pending_earnings', (float) $b->subtotal);
+
+            $b->update([
+                'status' => 'completed',
+                'confirmed_by_buyer_at' => now(),
+            ]);
+        });
+
+        return response()->json(['success' => true, 'message' => 'Réception confirmée. Le voyageur a été crédité.', 'data' => $booking->fresh()->load(['offer.user', 'buyer', 'seller'])->toApi()]);
     }
 
-    /** POST /v1/diaspo/bookings/{id}/seller-confirm-code */
+    /** POST /v1/diaspo/bookings/{id}/seller-confirm-code — le voyageur valide le code de l'acheteur. */
     public function sellerConfirmCode(Request $request, $id)
     {
-        $booking = $this->fakeBooking((int) $id);
-        $booking['status'] = 'confirmed';
-        return response()->json(['success' => true, 'message' => 'Code vendeur confirmé', 'data' => $booking]);
+        $request->validate(['confirmation_code' => 'required|string|size:6']);
+        $booking = DiaspoBooking::where('id', $id)
+            ->where('seller_user_id', $request->user()->id)
+            ->firstOrFail();
+
+        if ($booking->confirmation_code !== $request->input('confirmation_code')) {
+            return response()->json(['success' => false, 'message' => 'Code de confirmation incorrect.'], 422);
+        }
+        if ($booking->payment_status !== 'paid') {
+            return response()->json(['success' => false, 'message' => 'La réservation n\'est pas encore payée.'], 422);
+        }
+
+        $booking->update(['status' => 'in_transit']);
+        return response()->json(['success' => true, 'message' => 'Code validé.', 'data' => $booking->fresh()->load(['offer.user', 'buyer', 'seller'])->toApi()]);
+    }
+
+    /** POST /v1/diaspo/confirm-by-code — recherche une réservation par son code. */
+    public function confirmByCode(Request $request)
+    {
+        $request->validate(['confirmation_code' => 'required|string|size:6']);
+        $uid = $request->user()->id;
+        $booking = DiaspoBooking::with(['offer.user', 'buyer', 'seller'])
+            ->where('confirmation_code', $request->input('confirmation_code'))
+            ->where(fn($x) => $x->where('buyer_user_id', $uid)->orWhere('seller_user_id', $uid))
+            ->firstOrFail();
+
+        return response()->json(['success' => true, 'data' => $booking->toApi()]);
     }
 }

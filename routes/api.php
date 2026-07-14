@@ -175,6 +175,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/diaspo/offers/{id}/book', [DiaspoController::class, 'bookOffer']);
         Route::post('/diaspo/confirm-by-code', [DiaspoController::class, 'confirmByCode']);
         Route::get('/diaspo/bookings', [DiaspoController::class, 'bookings']);
+        Route::get('/diaspo/bookings/{id}/payment-status', [DiaspoController::class, 'bookingPaymentStatus']);
         Route::get('/diaspo/bookings/{id}', [DiaspoController::class, 'showBooking']);
         Route::post('/diaspo/bookings/{id}/cancel', [DiaspoController::class, 'cancelBooking']);
         Route::post('/diaspo/bookings/{id}/confirm-receipt', [DiaspoController::class, 'confirmReceipt']);
