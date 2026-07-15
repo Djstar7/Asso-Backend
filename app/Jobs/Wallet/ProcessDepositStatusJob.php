@@ -82,6 +82,19 @@ class ProcessDepositStatusJob implements ShouldQueue
 
             // Traiter selon le statut dans une transaction DB atomique
             DB::transaction(function () use ($deposit, $status, $reason, $statusResponse, $metadata, $fcmService) {
+                // Verrou de ligne + re-vérification du statut À L'INTÉRIEUR de la transaction.
+                // Empêche le double-crédit : ce job est déclenché en parallèle par le webhook,
+                // le polling app et le scheduler ; sans ce verrou, deux exécutions concurrentes
+                // pourraient toutes deux lire "pending" avant que l'une ne commit "completed".
+                $deposit = WalletTransaction::whereKey($deposit->id)->lockForUpdate()->first();
+                if (!$deposit || in_array($deposit->status, ['completed', 'failed'])) {
+                    Log::info('ℹ️ [PROCESS-DEPOSIT] Déjà traité par une exécution concurrente, on ignore', [
+                        'wallet_transaction_id' => $this->walletTransactionId,
+                        'status' => $deposit->status ?? 'introuvable',
+                    ]);
+                    return;
+                }
+
                 // Mettre à jour les metadata avec la dernière réponse
                 $metadata['last_status_check'] = now()->toISOString();
                 $metadata['kpay_status'] = $status;

@@ -33,9 +33,8 @@ class CleanupStaleTransactionsJob implements ShouldQueue
         $depositsUpdated = 0;
         $withdrawalsUpdated = 0;
 
-        DB::transaction(function () use (&$depositsUpdated, &$withdrawalsUpdated) {
-
-            // 1. Nettoyer les dépôts (type = credit) pending depuis plus de 24 heures
+        // 1. Nettoyer les dépôts (type = credit) pending depuis plus de 24 heures
+        DB::transaction(function () use (&$depositsUpdated) {
             $staleDeposits = WalletTransaction::where('type', 'credit')
                 ->where('status', 'pending')
                 ->where('provider', 'kpay')
@@ -55,36 +54,74 @@ class CleanupStaleTransactionsJob implements ShouldQueue
 
                 $depositsUpdated++;
             }
+        });
 
-            Log::info("🧹 [CLEANUP] Marked {$depositsUpdated} stale deposit(s) as failed");
+        Log::info("🧹 [CLEANUP] Marked {$depositsUpdated} stale deposit(s) as failed");
 
-            // 2. Nettoyer les retraits pending ou processing depuis plus de 48 heures
-            $staleWithdrawals = PlatformWithdrawal::whereIn('status', ['pending', 'processing'])
-                ->where('provider', 'kpay')
-                ->where('created_at', '<', now()->subHours(48))
-                ->get();
+        // 2. Nettoyer les retraits pending/processing depuis plus de 7 jours.
+        //    IMPORTANT : on ne marque JAMAIS "failed" à l'aveugle. On fait d'abord une
+        //    vérification finale autoritative auprès de KPay (ProcessWithdrawalStatusJob) :
+        //    si KPay a en réalité envoyé l'argent (SUCCESS), le retrait est complété — pas
+        //    de remboursement (sinon double paiement). Seulement si KPay reste injoignable
+        //    ou toujours pending on applique le timeout + remboursement (dernier recours).
+        $staleWithdrawals = PlatformWithdrawal::whereIn('status', ['pending', 'processing'])
+            ->where('provider', 'kpay')
+            ->where('created_at', '<', now()->subDays(7))
+            ->get();
 
-            foreach ($staleWithdrawals as $withdrawal) {
-                $kpayResponse = $withdrawal->kpay_response ?? [];
-                $kpayResponse['failed_reason'] = 'Timeout - No response after 48 hours';
+        foreach ($staleWithdrawals as $withdrawal) {
+            // Vérification finale synchrone (appel HTTP KPay + traitement atomique interne).
+            // Hors transaction pour ne pas tenir de verrou pendant l'appel réseau.
+            if ($withdrawal->kpay_reference) {
+                try {
+                    ProcessWithdrawalStatusJob::dispatchSync($withdrawal->id);
+                } catch (\Exception $e) {
+                    Log::warning('⚠️ [CLEANUP] Vérification finale KPay échouée', [
+                        'withdrawal_id' => $withdrawal->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+                $withdrawal->refresh();
+            }
+
+            // Résolu par la vérification finale (complété ou échoué+remboursé) → rien à faire.
+            if (in_array($withdrawal->status, ['completed', 'failed'])) {
+                continue;
+            }
+
+            // KPay toujours injoignable/pending après 7 jours → timeout + remboursement (dernier recours).
+            DB::transaction(function () use ($withdrawal, &$withdrawalsUpdated) {
+                $locked = PlatformWithdrawal::whereKey($withdrawal->id)->lockForUpdate()->first();
+                if (!$locked || in_array($locked->status, ['completed', 'failed'])) {
+                    return; // résolu entre-temps par une exécution concurrente
+                }
+
+                $kpayResponse = $locked->kpay_response ?? [];
+                $kpayResponse['failed_reason'] = 'Timeout - Aucune confirmation après 7 jours';
                 $kpayResponse['auto_failed_at'] = now()->toISOString();
                 $kpayResponse['auto_failed_by'] = 'CleanupJob';
 
-                $withdrawal->update([
+                $locked->update([
                     'status' => 'failed',
                     'failure_code' => 'TIMEOUT',
-                    'failure_reason' => 'Timeout - No response after 48 hours',
+                    'failure_reason' => 'Timeout - Aucune confirmation après 7 jours',
                     'kpay_response' => $kpayResponse,
                 ]);
 
-                // IMPORTANT: Rembourser l'utilisateur si le montant a déjà été débité
-                $this->refundTimedOutWithdrawal($withdrawal);
+                // Marquer le débit wallet correspondant comme échoué
+                WalletTransaction::where('reference_type', 'platform_withdrawal')
+                    ->where('reference_id', $locked->id)
+                    ->where('type', 'debit')
+                    ->update(['status' => 'failed']);
+
+                // Rembourser l'utilisateur (le wallet a été débité lors de la demande)
+                $this->refundTimedOutWithdrawal($locked);
 
                 $withdrawalsUpdated++;
-            }
+            });
+        }
 
-            Log::info("🧹 [CLEANUP] Marked {$withdrawalsUpdated} stale withdrawal(s) as failed");
-        });
+        Log::info("🧹 [CLEANUP] Marked {$withdrawalsUpdated} stale withdrawal(s) as failed (timeout)");
 
         Log::info('✅ [CLEANUP] Cleanup completed', [
             'deposits_cleaned' => $depositsUpdated,

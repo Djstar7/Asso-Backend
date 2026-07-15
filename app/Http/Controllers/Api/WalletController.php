@@ -445,7 +445,8 @@ class WalletController extends Controller
         $currency = \App\Services\KPayCatalog::currencyForProvider($provider);
         $amount = (float) round($baseAmount);
 
-        // Vérifier le solde KPay disponible dans cette devise
+        // Pré-contrôle rapide (non autoritatif) pour répondre vite en cas de solde manifestement insuffisant.
+        // La vérification AUTORITATIVE se fait sous verrou de ligne dans la transaction ci-dessous.
         $availableBalance = $user->kpayAvailableFor($currency);
 
         if ($amount > $availableBalance) {
@@ -464,8 +465,35 @@ class WalletController extends Controller
         try {
             DB::beginTransaction();
 
-            // Récupérer le solde actuel dans la devise
-            $currentBalance = $user->kpayBalanceFor($currency);
+            // Verrou de ligne sur le solde + re-vérification À L'INTÉRIEUR de la transaction.
+            // Empêche le double-retrait / solde négatif : deux requêtes concurrentes ne peuvent
+            // plus passer le contrôle avant que l'une ne débite.
+            $walletBalance = \App\Models\WalletBalance::where('user_id', $user->id)
+                ->where('currency', $currency)
+                ->lockForUpdate()
+                ->first();
+
+            $lockedAvailable = $walletBalance
+                ? ((float) $walletBalance->balance - (float) $walletBalance->locked_balance)
+                : 0.0;
+
+            if ($amount > $lockedAvailable) {
+                DB::rollBack();
+
+                Log::warning("[WalletController] ❌ Insufficient balance (locked re-check)", [
+                    'currency' => $currency,
+                    'available' => $lockedAvailable,
+                    'requested_amount' => $amount,
+                ]);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => "Solde $currency insuffisant. Disponible: " . number_format($lockedAvailable, 0, ',', ' ') . " $currency",
+                ], 400);
+            }
+
+            // Récupérer le solde actuel dans la devise (ligne verrouillée ci-dessus)
+            $currentBalance = $walletBalance ? (float) $walletBalance->balance : 0.0;
 
             // Créer la transaction wallet (débit immédiat pour bloquer les fonds)
             $walletTransaction = \App\Models\WalletTransaction::create([

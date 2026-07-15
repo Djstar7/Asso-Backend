@@ -26,12 +26,13 @@ class CheckPendingWithdrawalsJob implements ShouldQueue
 
         // Trouver les retraits pending ou processing:
         // - Créés il y a au moins 1 minute (laisser le temps au provider de traiter)
-        // - Créés il y a maximum 48 heures (après ça, le CleanupJob s'en occupe)
+        // - Créés il y a maximum 7 jours (on continue d'interroger KPay tant que ce n'est pas
+        //   résolu ; au-delà, le CleanupJob fait une dernière vérification puis rembourse)
         // - Provider = 'kpay' (Orange Money / MTN MoMo)
         // - Updated il y a plus de 30 secondes (éviter de spammer l'API)
         $pendingWithdrawals = PlatformWithdrawal::whereIn('status', ['pending', 'processing'])
             ->where('provider', 'kpay')
-            ->where('created_at', '>=', now()->subHours(48))
+            ->where('created_at', '>=', now()->subDays(7))
             ->where('created_at', '<=', now()->subMinute())
             // Éviter de vérifier trop souvent
             ->where('updated_at', '<=', now()->subSeconds(30))
