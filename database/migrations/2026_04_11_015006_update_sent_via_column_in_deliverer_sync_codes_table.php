@@ -13,6 +13,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (DB::getDriverName() !== 'pgsql') {
+            return; // Contraintes CHECK gérées uniquement sous PostgreSQL (prod)
+        }
+
         // Step 1: Convert enum column to TEXT temporarily
         DB::statement("
             ALTER TABLE deliverer_sync_codes
@@ -38,6 +42,10 @@ return new class extends Migration
      */
     public function down(): void
     {
+        if (DB::getDriverName() !== 'pgsql') {
+            return;
+        }
+
         // Step 1: Remove new constraint
         DB::statement("
             ALTER TABLE deliverer_sync_codes

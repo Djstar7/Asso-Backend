@@ -12,6 +12,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (DB::getDriverName() !== 'pgsql') {
+            return; // Contraintes CHECK gérées uniquement sous PostgreSQL (prod)
+        }
+
         // Drop old CHECK constraint
         DB::statement('ALTER TABLE deliverer_sync_codes DROP CONSTRAINT IF EXISTS deliverer_sync_codes_sent_via_check');
 
@@ -24,6 +28,10 @@ return new class extends Migration
      */
     public function down(): void
     {
+        if (DB::getDriverName() !== 'pgsql') {
+            return;
+        }
+
         // Drop new constraint
         DB::statement('ALTER TABLE deliverer_sync_codes DROP CONSTRAINT IF EXISTS deliverer_sync_codes_sent_via_check');
 

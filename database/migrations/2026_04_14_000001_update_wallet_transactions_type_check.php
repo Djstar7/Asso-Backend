@@ -7,12 +7,18 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (DB::getDriverName() !== 'pgsql') {
+            return; // Contrainte CHECK gérée uniquement sous PostgreSQL (prod)
+        }
         DB::statement('ALTER TABLE wallet_transactions DROP CONSTRAINT IF EXISTS wallet_transactions_type_check');
         DB::statement("ALTER TABLE wallet_transactions ADD CONSTRAINT wallet_transactions_type_check CHECK (type::text = ANY (ARRAY['credit','debit','refund','bonus','adjustment','lock','unlock','escrow_release']::text[]))");
     }
 
     public function down(): void
     {
+        if (DB::getDriverName() !== 'pgsql') {
+            return;
+        }
         DB::statement('ALTER TABLE wallet_transactions DROP CONSTRAINT IF EXISTS wallet_transactions_type_check');
         DB::statement("ALTER TABLE wallet_transactions ADD CONSTRAINT wallet_transactions_type_check CHECK (type::text = ANY (ARRAY['credit','debit','refund','bonus','adjustment']::text[]))");
     }

@@ -37,13 +37,18 @@ return new class extends Migration
         });
 
         // 3. Basculer les valeurs de provider persistées
+        $isPgsql = DB::getDriverName() === 'pgsql';
         if (Schema::hasTable('wallet_transactions')) {
             DB::table('wallet_transactions')->where('provider', 'freemopay')->update(['provider' => 'kpay']);
-            DB::statement("ALTER TABLE wallet_transactions ALTER COLUMN provider SET DEFAULT 'kpay'");
+            if ($isPgsql) {
+                DB::statement("ALTER TABLE wallet_transactions ALTER COLUMN provider SET DEFAULT 'kpay'");
+            }
         }
         if (Schema::hasTable('platform_withdrawals')) {
             DB::table('platform_withdrawals')->where('provider', 'freemopay')->update(['provider' => 'kpay']);
-            DB::statement("ALTER TABLE platform_withdrawals ALTER COLUMN provider SET DEFAULT 'kpay'");
+            if ($isPgsql) {
+                DB::statement("ALTER TABLE platform_withdrawals ALTER COLUMN provider SET DEFAULT 'kpay'");
+            }
         }
 
         // 4. Configuration de service : remplacer freemopay par kpay
@@ -91,13 +96,18 @@ return new class extends Migration
             }
         });
 
+        $isPgsql = DB::getDriverName() === 'pgsql';
         if (Schema::hasTable('wallet_transactions')) {
             DB::table('wallet_transactions')->where('provider', 'kpay')->update(['provider' => 'freemopay']);
-            DB::statement("ALTER TABLE wallet_transactions ALTER COLUMN provider SET DEFAULT 'freemopay'");
+            if ($isPgsql) {
+                DB::statement("ALTER TABLE wallet_transactions ALTER COLUMN provider SET DEFAULT 'freemopay'");
+            }
         }
         if (Schema::hasTable('platform_withdrawals')) {
             DB::table('platform_withdrawals')->where('provider', 'kpay')->update(['provider' => 'freemopay']);
-            DB::statement("ALTER TABLE platform_withdrawals ALTER COLUMN provider SET DEFAULT 'freemopay'");
+            if ($isPgsql) {
+                DB::statement("ALTER TABLE platform_withdrawals ALTER COLUMN provider SET DEFAULT 'freemopay'");
+            }
         }
 
         if (Schema::hasTable('service_configurations')) {
