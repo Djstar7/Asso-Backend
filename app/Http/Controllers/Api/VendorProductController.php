@@ -249,6 +249,7 @@ class VendorProductController extends Controller
             'price_type' => $product->price_type ?? 'fixed',
             'formatted_price' => $product->formatted_price,
             'type' => $product->type ?? 'article',
+            'origin_country' => $product->origin_country, // CN/TR/AE… (produits importés), null = local
             'weight_category' => $product->weight_category ?? 'X-small',
             'stock' => $product->stock,
             'weight' => $product->weight,
