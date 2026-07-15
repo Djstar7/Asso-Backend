@@ -160,6 +160,12 @@
                         Produits
                     </a>
 
+                    <a href="{{ route('admin.import-countries.index') }}"
+                       class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.import-countries.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
+                        <i class="fas fa-globe w-5 mr-3"></i>
+                        Pays importés
+                    </a>
+
                     <a href="{{ route('admin.settings.categories') }}"
                        class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.settings.categories*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <i class="fas fa-th-large w-5 mr-3"></i>

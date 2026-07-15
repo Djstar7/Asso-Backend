@@ -11,6 +11,7 @@ use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\MaintenanceController;
 use App\Http\Controllers\Admin\LegalPageController;
 use App\Http\Controllers\Admin\BannerController;
+use App\Http\Controllers\Admin\ImportCountryController;
 use App\Http\Controllers\Admin\AnnouncementController;
 use App\Http\Controllers\Admin\TransactionController;
 use App\Http\Controllers\Admin\ExchangeController;
@@ -130,6 +131,13 @@ Route::prefix('admin')->name('admin.')->group(function () {
         // Banners
         Route::resource('banners', BannerController::class);
         Route::patch('/banners/{banner}/toggle-status', [BannerController::class, 'toggleStatus'])->name('banners.toggle-status');
+
+        // Pays importés (Chine, Turquie, Dubaï…) — alimente la section "Produits importés" de l'app
+        Route::get('/import-countries', [ImportCountryController::class, 'index'])->name('import-countries.index');
+        Route::post('/import-countries', [ImportCountryController::class, 'store'])->name('import-countries.store');
+        Route::put('/import-countries/{importCountry}', [ImportCountryController::class, 'update'])->name('import-countries.update');
+        Route::patch('/import-countries/{importCountry}/toggle-status', [ImportCountryController::class, 'toggleStatus'])->name('import-countries.toggle-status');
+        Route::delete('/import-countries/{importCountry}', [ImportCountryController::class, 'destroy'])->name('import-countries.destroy');
 
         // Announcements
         Route::resource('announcements', AnnouncementController::class);
