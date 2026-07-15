@@ -6,6 +6,7 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\User;
+use App\Models\WalletTransaction;
 use App\Models\DelivererCompany;
 use App\Models\DeliveryZone;
 use App\Models\DeliveryPricelist;
@@ -354,6 +355,30 @@ class OrderService
             foreach ($sellerTotals as $sellerId => $amount) {
                 User::where('id', $sellerId)->increment('pending_earnings', $amount);
             }
+
+            // Enregistrer une trace dans l'historique des transactions du client.
+            // N.B. : le solde du wallet n'est PAS modifié — l'argent provient de Mobile
+            // Money (KPay PayIn direct), pas du solde. Cet enregistrement sert uniquement
+            // à rendre l'achat visible dans l'historique des paiements (GET /v1/wallet/transactions).
+            $buyerBalance = (float) (User::where('id', $order->user_id)->value('kpay_wallet_balance') ?? 0);
+            WalletTransaction::create([
+                'user_id' => $order->user_id,
+                'type' => 'debit',
+                'amount' => (float) $order->total,
+                'balance_before' => $buyerBalance,
+                'balance_after' => $buyerBalance,
+                'description' => "Achat - Commande #{$order->order_number}",
+                'reference_type' => 'order',
+                'reference_id' => $order->id,
+                'metadata' => [
+                    'payment_method' => 'kpay_direct',
+                    'payment_reference' => $order->payment_reference,
+                    'subtotal' => (float) $order->subtotal,
+                    'delivery_fee' => (float) $order->delivery_fee,
+                ],
+                'status' => 'completed',
+                'provider' => 'kpay',
+            ]);
 
             Log::info('[OrderService] Commande KPay confirmée (payée)', [
                 'order_id' => $order->id,
