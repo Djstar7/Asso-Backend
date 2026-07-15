@@ -22,6 +22,7 @@ class DatabaseSeeder extends Seeder
             UserSeeder::class,
             CategorySeeder::class,
             CurrencySeeder::class,
+            ImportCountrySeeder::class,
             SettingsSeeder::class,
             LegalPagesSeeder::class,
         ]);

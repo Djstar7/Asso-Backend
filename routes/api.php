@@ -97,6 +97,9 @@ Route::prefix('v1')->group(function () {
     Route::get('/currencies/convert', [CurrencyController::class, 'convert']);
     Route::get('/currencies', [CurrencyController::class, 'index']);
 
+    // Pays d'origine des produits importés (Chine, Turquie, Dubaï…) - gérés en base
+    Route::get('/import-countries', [\App\Http\Controllers\Api\ImportCountryController::class, 'index']);
+
     // App info (public)
     Route::get('/app/about', [AppController::class, 'about']);
     Route::get('/app/version', [AppController::class, 'version']);
