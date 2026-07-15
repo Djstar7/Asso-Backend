@@ -217,6 +217,24 @@
                         @error('weight_category')<p class="mt-1 text-sm text-red-400">{{ $message }}</p>@enderror
                     </div>
 
+                    <!-- Pays d'origine (produits importés) -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-white mb-2">
+                            <i class="fas fa-globe text-primary-500 mr-1"></i>
+                            Pays d'origine (produit importé)
+                        </label>
+                        <select name="origin_country" class="w-full px-4 py-2 bg-dark-50 border border-dark-300 rounded-lg focus:ring-2 focus:ring-primary-500 @error('origin_country') border-red-500 @enderror">
+                            <option value="">🏳️ Produit local (aucun)</option>
+                            @foreach($importCountries as $country)
+                                <option value="{{ $country->code }}" {{ old('origin_country') == $country->code ? 'selected' : '' }}>
+                                    {{ $country->flag }} {{ $country->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                        <p class="mt-1 text-xs text-gray-400">Sélectionnez un pays pour afficher le produit dans l'onglet « Import » de l'app (Chine, Turquie, Dubaï…).</p>
+                        @error('origin_country')<p class="mt-1 text-sm text-red-400">{{ $message }}</p>@enderror
+                    </div>
+
                     <!-- Stock -->
                     <div class="mb-4">
                         <label class="block text-sm font-medium text-white mb-2">

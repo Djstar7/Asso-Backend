@@ -8,6 +8,7 @@ use App\Models\ProductImage;
 use App\Models\Category;
 use App\Models\Subcategory;
 use App\Models\Shop;
+use App\Models\ImportCountry;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\File;
@@ -69,8 +70,9 @@ class ProductController extends Controller
         $shops = Shop::where('status', 'active')->orderBy('name')->get();
         $categories = Category::orderBy('name')->get();
         $subcategories = Subcategory::with('category')->orderBy('name')->get();
+        $importCountries = ImportCountry::activeOrdered()->get();
 
-        return view('admin.products.create', compact('shops', 'categories', 'subcategories'));
+        return view('admin.products.create', compact('shops', 'categories', 'subcategories', 'importCountries'));
     }
 
     /**
@@ -89,6 +91,7 @@ class ProductController extends Controller
             'min_price' => 'required_if:price_type,variable|nullable|numeric|min:0',
             'max_price' => 'required_if:price_type,variable|nullable|numeric|min:0',
             'type' => 'required|in:service,article',
+            'origin_country' => 'nullable|exists:import_countries,code',
             'weight_category' => 'sometimes|in:' . implode(',', Product::WEIGHT_CATEGORIES),
             'stock' => 'required|integer|min:0',
             'status' => 'required|in:active,inactive',
@@ -99,6 +102,11 @@ class ProductController extends Controller
         $shop = Shop::findOrFail($validated['shop_id']);
         $validated['user_id'] = $shop->user_id;
         $validated['weight_category'] = $validated['weight_category'] ?? 'X-small';
+
+        // Pays d'origine (produits importés). Vide = produit local.
+        $validated['origin_country'] = $request->filled('origin_country')
+            ? strtoupper($request->input('origin_country'))
+            : null;
 
         // Generate slug
         $validated['slug'] = Str::slug($validated['name']);
@@ -133,8 +141,9 @@ class ProductController extends Controller
         $shops = Shop::where('status', 'active')->orderBy('name')->get();
         $categories = Category::orderBy('name')->get();
         $subcategories = Subcategory::with('category')->orderBy('name')->get();
+        $importCountries = ImportCountry::activeOrdered()->get();
 
-        return view('admin.products.edit', compact('product', 'shops', 'categories', 'subcategories'));
+        return view('admin.products.edit', compact('product', 'shops', 'categories', 'subcategories', 'importCountries'));
     }
 
     /**
@@ -153,6 +162,7 @@ class ProductController extends Controller
             'min_price' => 'required_if:price_type,variable|nullable|numeric|min:0',
             'max_price' => 'required_if:price_type,variable|nullable|numeric|min:0',
             'type' => 'required|in:service,article',
+            'origin_country' => 'nullable|exists:import_countries,code',
             'weight_category' => 'sometimes|in:' . implode(',', Product::WEIGHT_CATEGORIES),
             'stock' => 'required|integer|min:0',
             'status' => 'required|in:active,inactive',
@@ -162,6 +172,11 @@ class ProductController extends Controller
         // Get shop owner
         $shop = Shop::findOrFail($validated['shop_id']);
         $validated['user_id'] = $shop->user_id;
+
+        // Pays d'origine (produits importés). Vide = produit local (repasse à null).
+        $validated['origin_country'] = $request->filled('origin_country')
+            ? strtoupper($request->input('origin_country'))
+            : null;
 
         // Update slug if name changed
         if ($product->name !== $validated['name']) {
