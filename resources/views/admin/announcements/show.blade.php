@@ -23,7 +23,7 @@
                         Modifier
                     </a>
                     <form action="{{ route('admin.announcements.send', $announcement) }}" method="POST"
-                          onsubmit="return confirm('Êtes-vous sûr de vouloir envoyer cette annonce ?');"
+                          data-confirm="Êtes-vous sûr de vouloir envoyer cette annonce ?"
                           class="inline">
                         @csrf
                         <button type="submit"
@@ -34,7 +34,7 @@
                     </form>
                 @endif
                 <form action="{{ route('admin.announcements.destroy', $announcement) }}" method="POST"
-                      onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer cette annonce ?');"
+                      data-confirm="Êtes-vous sûr de vouloir supprimer cette annonce ?"
                       class="inline">
                     @csrf
                     @method('DELETE')
@@ -286,7 +286,7 @@
                             <i class="fas fa-chevron-right text-xs"></i>
                         </a>
                         <form action="{{ route('admin.announcements.send', $announcement) }}" method="POST"
-                              onsubmit="return confirm('Êtes-vous sûr de vouloir envoyer cette annonce ?');">
+                              data-confirm="Êtes-vous sûr de vouloir envoyer cette annonce ?">
                             @csrf
                             <button type="submit"
                                     class="w-full flex items-center justify-between px-3 py-2 bg-dark-100/50 hover:bg-dark-100 rounded-lg transition-all text-sm text-gray-300 hover:text-white border border-dark-300">

@@ -22,7 +22,7 @@
                     Modifier
                 </a>
                 <form action="{{ route('admin.banners.destroy', $banner) }}" method="POST"
-                      onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer cette bannière ?');"
+                      data-confirm="Êtes-vous sûr de vouloir supprimer cette bannière ?"
                       class="inline">
                     @csrf
                     @method('DELETE')

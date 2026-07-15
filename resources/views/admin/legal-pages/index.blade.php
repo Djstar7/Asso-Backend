@@ -90,7 +90,7 @@
 
                                         <!-- Delete -->
                                         <form action="{{ route('admin.legal-pages.destroy', $page) }}" method="POST" class="inline"
-                                              onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer cette page ?')">
+                                              data-confirm="Êtes-vous sûr de vouloir supprimer cette page ?">
                                             @csrf
                                             @method('DELETE')
                                             <button type="submit"

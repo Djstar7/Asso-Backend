@@ -29,7 +29,7 @@
                     <i class="fas fa-edit mr-2"></i> Modifier
                 </a>
                 <form action="{{ route('admin.deliverers.destroy', $deliverer) }}" method="POST"
-                      onsubmit="return confirm('Supprimer cette entreprise de livraison ? Toutes les zones et tarifs associés seront également supprimés.');">
+                      data-confirm="Supprimer cette entreprise de livraison ? Toutes les zones et tarifs associés seront également supprimés.">
                     @csrf
                     @method('DELETE')
                     <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all">

@@ -165,7 +165,7 @@
                                 </form>
 
                                 <form action="{{ route('admin.fcm-tokens.token.destroy', $token) }}" method="POST"
-                                      onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer ce token ?')" class="inline">
+                                      data-confirm="Êtes-vous sûr de vouloir supprimer ce token ?" class="inline">
                                     @csrf
                                     @method('DELETE')
                                     <button type="submit"

@@ -132,7 +132,7 @@
                         <a href="{{ route('admin.products.edit', $product) }}" class="flex-1 px-3 py-2 bg-gradient-to-r from-primary-500 to-primary-600 text-white text-sm rounded-lg hover:shadow-lg text-center transition-all">
                             <i class="fas fa-edit"></i>
                         </a>
-                        <form action="{{ route('admin.products.destroy', $product) }}" method="POST" onsubmit="return confirm('Supprimer ce produit ?');" class="flex-1">
+                        <form action="{{ route('admin.products.destroy', $product) }}" method="POST" data-confirm="Supprimer ce produit ?" class="flex-1">
                             @csrf
                             @method('DELETE')
                             <button type="submit" class="w-full px-3 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors">
@@ -221,7 +221,7 @@
                                     <a href="{{ route('admin.products.edit', $product) }}" class="px-3 py-1.5 bg-gradient-to-r from-primary-500 to-primary-600 text-white text-sm rounded-lg hover:shadow-lg transition-all" title="Modifier">
                                         <i class="fas fa-edit"></i>
                                     </a>
-                                    <form action="{{ route('admin.products.destroy', $product) }}" method="POST" onsubmit="return confirm('Supprimer ce produit ?');" class="inline">
+                                    <form action="{{ route('admin.products.destroy', $product) }}" method="POST" data-confirm="Supprimer ce produit ?" class="inline">
                                         @csrf
                                         @method('DELETE')
                                         <button type="submit" class="px-3 py-1.5 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors" title="Supprimer">

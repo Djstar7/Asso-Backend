@@ -73,6 +73,30 @@
 
     <style>
         [x-cloak] { display: none !important; }
+
+        /* Couleur de texte de base claire pour tout le back-office (thème sombre).
+           Tout élément sans classe de couleur explicite hérite d'un texte lisible.
+           Les classes Tailwind text-* (text-gray-400, text-red-500, text-white…) restent prioritaires. */
+        body {
+            color: #e5e7eb; /* gray-200 */
+        }
+
+        /* Champs de formulaire : texte en blanc, lisible sur le thème sombre.
+           Sélecteurs d'éléments (faible spécificité) : les classes Tailwind text-* restent prioritaires. */
+        input:not([type="checkbox"]):not([type="radio"]),
+        select,
+        textarea {
+            color: #ffffff;
+        }
+        select option,
+        select optgroup {
+            background-color: #18181b; /* dark-50 */
+            color: #ffffff;
+        }
+        input::placeholder,
+        textarea::placeholder {
+            color: #9ca3af; /* gray-400 : visible mais distinct du texte saisi */
+        }
     </style>
 
     @stack('styles')
@@ -344,18 +368,41 @@
                     <div x-data="{ open: false }" class="relative">
                         <button @click="open = !open" class="relative text-gray-300 hover:text-primary-500 transition-colors">
                             <i class="fas fa-bell text-xl"></i>
-                            <span class="absolute -top-1 -right-1 w-5 h-5 bg-primary-500 text-white text-xs rounded-full flex items-center justify-center">3</span>
+                            @if(($adminNotificationsCount ?? 0) > 0)
+                                <span class="absolute -top-1 -right-1 min-w-[1.25rem] h-5 px-1 bg-primary-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
+                                    {{ $adminNotificationsCount > 99 ? '99+' : $adminNotificationsCount }}
+                                </span>
+                            @endif
                         </button>
 
                         <div x-show="open"
                              x-cloak
                              @click.away="open = false"
                              class="absolute right-0 mt-2 w-80 bg-dark-100 rounded-lg shadow-lg border border-dark-200 py-2 z-50">
-                            <div class="px-4 py-2 border-b border-dark-200">
+                            <div class="px-4 py-2 border-b border-dark-200 flex items-center justify-between">
                                 <h3 class="font-semibold text-white">Notifications</h3>
+                                @if(($adminNotificationsCount ?? 0) > 0)
+                                    <span class="text-xs text-primary-400 font-semibold">{{ $adminNotificationsCount }}</span>
+                                @endif
                             </div>
-                            <div class="max-h-64 overflow-y-auto">
-                                <p class="px-4 py-3 text-sm text-gray-400">Aucune nouvelle notification</p>
+                            <div class="max-h-72 overflow-y-auto">
+                                @forelse(($adminNotifications ?? []) as $notif)
+                                    <a href="{{ $notif['url'] }}"
+                                       class="flex items-start gap-3 px-4 py-3 hover:bg-dark-200 transition-colors border-b border-dark-200 last:border-0">
+                                        <div class="w-9 h-9 rounded-full bg-dark-50 flex items-center justify-center flex-shrink-0">
+                                            <i class="fas {{ $notif['icon'] }} {{ $notif['color'] }}"></i>
+                                        </div>
+                                        <div class="flex-1 min-w-0">
+                                            <p class="text-sm text-gray-200 leading-snug">{{ $notif['title'] }}</p>
+                                            <span class="text-xs text-primary-400 font-medium">Voir →</span>
+                                        </div>
+                                    </a>
+                                @empty
+                                    <div class="px-4 py-8 text-center">
+                                        <i class="fas fa-check-circle text-green-500/70 text-2xl mb-2"></i>
+                                        <p class="text-sm text-gray-400">Aucune nouvelle notification</p>
+                                    </div>
+                                @endforelse
                             </div>
                         </div>
                     </div>
@@ -400,6 +447,103 @@
             </footer>
         </div>
     </div>
+
+    <!-- ===== Modale de confirmation personnalisée (remplace window.confirm) ===== -->
+    <div id="confirmModal" class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div id="confirmModalBox" class="bg-dark-100 border border-dark-200 rounded-2xl shadow-2xl w-full max-w-md p-6 scale-95 opacity-0 transition-all duration-150">
+            <div class="flex items-start gap-4">
+                <div id="confirmModalIconWrap" class="w-12 h-12 rounded-full bg-red-500/15 text-red-400 flex items-center justify-center flex-shrink-0">
+                    <i id="confirmModalIcon" class="fas fa-triangle-exclamation text-xl"></i>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <h3 id="confirmModalTitle" class="text-lg font-bold text-white mb-1">Confirmer l'action</h3>
+                    <p id="confirmModalMessage" class="text-sm text-gray-300 leading-relaxed"></p>
+                </div>
+            </div>
+            <div class="flex justify-end gap-3 mt-6">
+                <button type="button" id="confirmModalCancel"
+                        class="px-4 py-2.5 rounded-lg bg-dark-200 text-gray-200 hover:bg-dark-300 transition-colors font-medium">
+                    Annuler
+                </button>
+                <button type="button" id="confirmModalOk"
+                        class="px-5 py-2.5 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors font-semibold">
+                    Confirmer
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    (function () {
+        const modal   = document.getElementById('confirmModal');
+        const box     = document.getElementById('confirmModalBox');
+        const msgEl   = document.getElementById('confirmModalMessage');
+        const okBtn   = document.getElementById('confirmModalOk');
+        const cancel  = document.getElementById('confirmModalCancel');
+        let onConfirm = null;
+
+        function openModal(message, cb) {
+            msgEl.textContent = message || 'Voulez-vous vraiment effectuer cette action ?';
+            onConfirm = cb;
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            requestAnimationFrame(() => { box.classList.remove('scale-95', 'opacity-0'); });
+            okBtn.focus();
+        }
+        function closeModal() {
+            box.classList.add('scale-95', 'opacity-0');
+            onConfirm = null;
+            setTimeout(() => { modal.classList.add('hidden'); modal.classList.remove('flex'); }, 150);
+        }
+
+        okBtn.addEventListener('click', function () {
+            const cb = onConfirm;
+            closeModal();
+            if (cb) cb();
+        });
+        cancel.addEventListener('click', closeModal);
+        modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && !modal.classList.contains('hidden')) closeModal();
+        });
+
+        // API publique : window.customConfirm(message, onOk)
+        window.customConfirm = openModal;
+
+        // 1) Formulaires avec data-confirm : intercepter la soumission
+        document.addEventListener('submit', function (e) {
+            const form = e.target;
+            if (form.matches && form.matches('form[data-confirm]') && form.dataset.confirmed !== '1') {
+                e.preventDefault();
+                openModal(form.getAttribute('data-confirm'), function () {
+                    form.dataset.confirmed = '1';
+                    if (typeof form.requestSubmit === 'function') form.requestSubmit();
+                    else form.submit();
+                });
+            }
+        }, true);
+
+        // 2) Liens et boutons avec data-confirm : intercepter le clic
+        document.addEventListener('click', function (e) {
+            const el = e.target.closest('[data-confirm]');
+            if (!el || el.tagName === 'FORM' || el.dataset.confirmed === '1') return;
+            e.preventDefault();
+            e.stopPropagation();
+            openModal(el.getAttribute('data-confirm'), function () {
+                el.dataset.confirmed = '1';
+                if (el.tagName === 'A' && el.href) {
+                    window.location.href = el.href;
+                } else if (el.tagName === 'BUTTON') {
+                    const f = el.closest('form');
+                    if (f) { (typeof f.requestSubmit === 'function') ? f.requestSubmit(el) : f.submit(); }
+                    else { el.click(); }
+                } else {
+                    el.click();
+                }
+            });
+        }, true);
+    })();
+    </script>
 
     @stack('scripts')
 </body>

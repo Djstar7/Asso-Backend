@@ -157,7 +157,7 @@
                                         <form action="{{ route('admin.deliverers.syncs.unban', $sync) }}" method="POST" class="inline">
                                             @csrf
                                             <button type="submit" class="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-xs"
-                                                    onclick="return confirm('Débannir cet utilisateur ?')">
+                                                    data-confirm="Débannir cet utilisateur ?">
                                                 <i class="fas fa-unlock mr-1"></i> Débannir
                                             </button>
                                         </form>
@@ -166,7 +166,7 @@
                                         <form action="{{ route('admin.deliverers.syncs.unsync', $sync) }}" method="POST" class="inline">
                                             @csrf
                                             <button type="submit" class="px-3 py-1 bg-yellow-600 text-white rounded hover:bg-yellow-700 transition-colors text-xs"
-                                                    onclick="return confirm('Désynchroniser cet utilisateur ?')">
+                                                    data-confirm="Désynchroniser cet utilisateur ?">
                                                 <i class="fas fa-unlink mr-1"></i> Désynchroniser
                                             </button>
                                         </form>
@@ -181,7 +181,7 @@
                                         <form action="{{ route('admin.deliverers.syncs.reactivate', $sync) }}" method="POST" class="inline">
                                             @csrf
                                             <button type="submit" class="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 transition-colors text-xs"
-                                                    onclick="return confirm('Réactiver cet utilisateur ?')">
+                                                    data-confirm="Réactiver cet utilisateur ?">
                                                 <i class="fas fa-sync mr-1"></i> Réactiver
                                             </button>
                                         </form>
@@ -192,7 +192,7 @@
                                         @csrf
                                         @method('DELETE')
                                         <button type="submit" class="px-3 py-1 bg-gray-700 text-white rounded hover:bg-gray-800 transition-colors text-xs"
-                                                onclick="return confirm('Supprimer définitivement cette synchronisation ?')">
+                                                data-confirm="Supprimer définitivement cette synchronisation ?">
                                             <i class="fas fa-trash mr-1"></i>
                                         </button>
                                     </form>

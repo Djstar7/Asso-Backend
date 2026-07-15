@@ -224,7 +224,7 @@
 
                     <!-- Supprimer -->
                     <form action="{{ route('admin.support.destroy', $ticket) }}" method="POST"
-                        onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer ce ticket ?');">
+                        data-confirm="Êtes-vous sûr de vouloir supprimer ce ticket ?">
                         @csrf
                         @method('DELETE')
                         <button type="submit"

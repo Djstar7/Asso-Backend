@@ -137,7 +137,7 @@
                             </button>
                             <form action="{{ route('admin.settings.categories.destroy', $category) }}"
                                   method="POST"
-                                  onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer cette catégorie et toutes ses sous-catégories ?');"
+                                  data-confirm="Êtes-vous sûr de vouloir supprimer cette catégorie et toutes ses sous-catégories ?"
                                   class="inline">
                                 @csrf
                                 @method('DELETE')
@@ -197,7 +197,7 @@
                                             </button>
                                             <form action="{{ route('admin.settings.subcategories.destroy', $subcategory) }}"
                                                   method="POST"
-                                                  onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer cette sous-catégorie ?');"
+                                                  data-confirm="Êtes-vous sûr de vouloir supprimer cette sous-catégorie ?"
                                                   class="inline">
                                                 @csrf
                                                 @method('DELETE')

@@ -145,7 +145,7 @@
                                             </a>
 
                                             <form action="{{ route('admin.announcements.send', $announcement) }}" method="POST"
-                                                  onsubmit="return confirm('Êtes-vous sûr de vouloir envoyer cette annonce ?');"
+                                                  data-confirm="Êtes-vous sûr de vouloir envoyer cette annonce ?"
                                                   class="inline">
                                                 @csrf
                                                 <button type="submit"
@@ -157,7 +157,7 @@
                                         @endif
 
                                         <form action="{{ route('admin.announcements.destroy', $announcement) }}" method="POST"
-                                              onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer cette annonce ?');"
+                                              data-confirm="Êtes-vous sûr de vouloir supprimer cette annonce ?"
                                               class="inline">
                                             @csrf
                                             @method('DELETE')

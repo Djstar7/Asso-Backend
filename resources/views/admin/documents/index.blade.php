@@ -141,7 +141,7 @@
                                 <i class="fas fa-edit"></i>
                             </a>
                             <form action="{{ route('admin.documents.destroy', $document) }}" method="POST" class="inline" 
-                                  onsubmit="return confirm('Supprimer ce document ?')">
+                                  data-confirm="Supprimer ce document ?">
                                 @csrf
                                 @method('DELETE')
                                 <button type="submit" class="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded text-sm transition-colors">

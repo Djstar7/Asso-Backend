@@ -23,7 +23,7 @@
                 </a>
                 <form action="{{ route('admin.shops.destroy', $shop) }}"
                       method="POST"
-                      onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer cette boutique ?');">
+                      data-confirm="Êtes-vous sûr de vouloir supprimer cette boutique ?">
                     @csrf
                     @method('DELETE')
                     <button type="submit"
@@ -186,7 +186,7 @@
                 <form action="{{ route('admin.shops.location-requests.approve', ['shop' => $shop, 'request' => $request]) }}"
                       method="POST"
                       class="flex-1"
-                      onsubmit="return confirm('Voulez-vous approuver ce changement de localisation? Le vendeur sera notifié.');">
+                      data-confirm="Voulez-vous approuver ce changement de localisation? Le vendeur sera notifié.">
                     @csrf
                     <button type="submit"
                             class="w-full px-4 py-3 bg-gradient-to-r from-green-500 to-green-600 hover:shadow-lg text-white rounded-lg transition-all flex items-center justify-center gap-2 font-semibold">
@@ -198,7 +198,7 @@
                 <form action="{{ route('admin.shops.location-requests.reject', ['shop' => $shop, 'request' => $request]) }}"
                       method="POST"
                       class="flex-1"
-                      onsubmit="return confirm('Voulez-vous rejeter ce changement de localisation? Le vendeur sera notifié.');">
+                      data-confirm="Voulez-vous rejeter ce changement de localisation? Le vendeur sera notifié.">
                     @csrf
                     <button type="submit"
                             class="w-full px-4 py-3 bg-gradient-to-r from-red-500 to-red-600 hover:shadow-lg text-white rounded-lg transition-all flex items-center justify-center gap-2 font-semibold">

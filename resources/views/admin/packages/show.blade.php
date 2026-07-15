@@ -187,7 +187,7 @@
                     </form>
 
                     <form action="{{ route('admin.packages.destroy', $package) }}" method="POST"
-                        onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer ce package ?');">
+                        data-confirm="Êtes-vous sûr de vouloir supprimer ce package ?">
                         @csrf
                         @method('DELETE')
                         <button type="submit" class="w-full px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors">

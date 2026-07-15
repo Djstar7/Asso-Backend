@@ -291,7 +291,7 @@
                                     <form action="{{ route('admin.users.destroy', $user) }}"
                                           method="POST"
                                           class="inline"
-                                          onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ?');">
+                                          data-confirm="Êtes-vous sûr de vouloir supprimer cet utilisateur ?">
                                         @csrf
                                         @method('DELETE')
                                         <button type="submit"

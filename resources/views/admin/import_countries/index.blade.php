@@ -41,7 +41,6 @@
                     <input type="text" name="code" maxlength="2" required placeholder="IN"
                            value="{{ old('code') }}"
                            class="w-full px-3 py-2 bg-dark-50 border border-dark-200 rounded-lg text-white uppercase focus:border-primary-500 focus:outline-none">
-                    <p class="text-xs text-gray-500 mt-1">Ex. CN, TR, AE, IN</p>
                 </div>
                 <div>
                     <label class="block text-sm text-gray-400 mb-1">Nom</label>
@@ -122,7 +121,7 @@
                                             <i class="fas fa-edit"></i>
                                         </a>
                                         <form action="{{ route('admin.import-countries.destroy', $country) }}" method="POST"
-                                              onsubmit="return confirm('Supprimer le pays {{ $country->name }} ? Les produits liés resteront mais ce pays ne sera plus proposé.');"
+                                              data-confirm="Supprimer le pays {{ $country->name }} ? Les produits liés resteront mais ce pays ne sera plus proposé."
                                               class="inline">
                                             @csrf
                                             @method('DELETE')

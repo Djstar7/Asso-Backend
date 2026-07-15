@@ -241,9 +241,9 @@
 
     // Gestion du bouton supprimer (formulaire séparé pour éviter le conflit avec le formulaire de mise à jour)
     document.getElementById('deletePackageBtn').addEventListener('click', function() {
-        if (confirm('Êtes-vous sûr de vouloir supprimer ce package ? Cette action est irréversible.')) {
+        window.customConfirm('Êtes-vous sûr de vouloir supprimer ce package ? Cette action est irréversible.', function () {
             document.getElementById('deletePackageForm').submit();
-        }
+        });
     });
 </script>
 @endpush

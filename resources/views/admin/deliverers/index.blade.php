@@ -227,7 +227,7 @@
                         <a href="{{ route('admin.deliverers.edit', $deliverer->id) }}" class="px-3 py-1.5 bg-blue-600/50 hover:bg-blue-600 text-white rounded-lg text-xs font-semibold transition-all">
                             <i class="fas fa-edit mr-1"></i> Éditer
                         </a>
-                        <form action="{{ route('admin.deliverers.destroy', $deliverer->id) }}" method="POST" class="inline" onsubmit="return confirm('Supprimer {{ $deliverer->name }} ? Toutes les zones et tarifs seront également supprimés.');">
+                        <form action="{{ route('admin.deliverers.destroy', $deliverer->id) }}" method="POST" class="inline" data-confirm="Supprimer {{ $deliverer->name }} ? Toutes les zones et tarifs seront également supprimés.">
                             @csrf
                             @method('DELETE')
                             <button type="submit" class="px-3 py-1.5 bg-red-600/50 hover:bg-red-600 text-white rounded-lg text-xs font-semibold transition-all">

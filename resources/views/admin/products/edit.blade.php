@@ -439,10 +439,7 @@
 
     // Delete image via AJAX
     window.deleteImage = function(productId, imageId) {
-        if (!confirm('Êtes-vous sûr de vouloir supprimer cette image ?')) {
-            return;
-        }
-
+        window.customConfirm('Êtes-vous sûr de vouloir supprimer cette image ?', function () {
         fetch(`/admin/products/${productId}/images/${imageId}`, {
             method: 'DELETE',
             headers: {
@@ -468,6 +465,7 @@
             console.error('Error:', error);
             alert('Erreur lors de la suppression de l\'image');
         });
+        }); // fin de la confirmation
     };
 
     // Set primary image via AJAX

@@ -236,7 +236,7 @@
                                     <!-- Switch Toggle -->
                                     <form action="{{ route('admin.shops.verify', $shop) }}"
                                           method="POST"
-                                          onsubmit="return confirm('Voulez-vous vérifier cette boutique ?');"
+                                          data-confirm="Voulez-vous vérifier cette boutique ?"
                                           class="inline">
                                         @csrf
                                         <button type="submit"
@@ -269,7 +269,7 @@
                         <form action="{{ route('admin.shops.destroy', $shop) }}"
                               method="POST"
                               class="flex-1"
-                              onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer cette boutique ?');">
+                              data-confirm="Êtes-vous sûr de vouloir supprimer cette boutique ?">
                             @csrf
                             @method('DELETE')
                             <button type="submit"
@@ -410,7 +410,7 @@
                                             <!-- Switch Toggle -->
                                             <form action="{{ route('admin.shops.verify', $shop) }}"
                                                   method="POST"
-                                                  onsubmit="return confirm('Voulez-vous vérifier cette boutique ?');"
+                                                  data-confirm="Voulez-vous vérifier cette boutique ?"
                                                   class="inline">
                                                 @csrf
                                                 <button type="submit"
@@ -442,7 +442,7 @@
                             </div>
                             <form action="{{ route('admin.shops.destroy', $shop) }}"
                                   method="POST"
-                                  onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer cette boutique ?');">
+                                  data-confirm="Êtes-vous sûr de vouloir supprimer cette boutique ?">
                                 @csrf
                                 @method('DELETE')
                                 <button type="submit"

@@ -35,7 +35,7 @@
                 @if($cred->url)<p class="text-gray-400 text-sm truncate"><i class="fas fa-link mr-2"></i>{{ $cred->url }}</p>@endif
                 <div class="flex items-center gap-2"><input type="password" value="••••••••" readonly id="pwd-{{ $cred->id }}" class="flex-1 px-3 py-2 bg-dark-50 border border-dark-300 rounded text-white text-sm"><button onclick="revealPassword({{ $cred->id }})" class="px-3 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded text-sm"><i class="fas fa-eye"></i></button></div>
             </div>
-            <div class="flex gap-2 pt-3 border-t border-dark-300"><a href="{{ route('admin.vault.edit', $cred) }}" class="flex-1 px-3 py-2 bg-dark-300 hover:bg-dark-400 text-white rounded text-sm text-center"><i class="fas fa-edit mr-1"></i>Modifier</a><form action="{{ route('admin.vault.destroy', $cred) }}" method="POST" onsubmit="return confirm('Supprimer ?')">@csrf @method('DELETE')<button class="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded text-sm"><i class="fas fa-trash"></i></button></form></div>
+            <div class="flex gap-2 pt-3 border-t border-dark-300"><a href="{{ route('admin.vault.edit', $cred) }}" class="flex-1 px-3 py-2 bg-dark-300 hover:bg-dark-400 text-white rounded text-sm text-center"><i class="fas fa-edit mr-1"></i>Modifier</a><form action="{{ route('admin.vault.destroy', $cred) }}" method="POST" data-confirm="Supprimer ?">@csrf @method('DELETE')<button class="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded text-sm"><i class="fas fa-trash"></i></button></form></div>
         </div>
         @endforeach
     </div>

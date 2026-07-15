@@ -197,7 +197,7 @@
                                         </button>
                                     </form>
                                     <form action="{{ route('admin.affiliate.reject-commission', $commission) }}" method="POST" class="inline"
-                                        onsubmit="return confirm('Rejeter cette commission ?')">
+                                        data-confirm="Rejeter cette commission ?">
                                         @csrf
                                         <button type="submit" class="text-red-500 hover:text-red-400" title="Rejeter">
                                             <i class="fas fa-times"></i>
