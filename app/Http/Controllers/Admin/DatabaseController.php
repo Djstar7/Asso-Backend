@@ -158,6 +158,20 @@ class DatabaseController extends Controller
                     'size' => 0, // SQLite ne supporte pas facilement la taille par table
                 ];
             }
+        } elseif ($driver === 'pgsql') {
+            // PostgreSQL
+            $results = DB::select("SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename");
+
+            foreach ($results as $result) {
+                $tableName = $result->tablename;
+                $rowCount = DB::table($tableName)->count();
+
+                $tables[] = [
+                    'name' => $tableName,
+                    'rows' => $rowCount,
+                    'size' => $this->getTableSize($tableName),
+                ];
+            }
         } else {
             // MySQL/MariaDB
             $databaseName = env('DB_DATABASE');
@@ -199,6 +213,24 @@ class DatabaseController extends Controller
                     'extra' => '',
                 ];
             }, $columns);
+        } elseif ($driver === 'pgsql') {
+            $columns = DB::select("
+                SELECT column_name, data_type, is_nullable, column_default
+                FROM information_schema.columns
+                WHERE table_schema = 'public' AND table_name = ?
+                ORDER BY ordinal_position
+            ", [$tableName]);
+
+            return array_map(function ($column) {
+                return [
+                    'name' => $column->column_name,
+                    'type' => $column->data_type,
+                    'null' => $column->is_nullable,
+                    'key' => '',
+                    'default' => $column->column_default,
+                    'extra' => '',
+                ];
+            }, $columns);
         } else {
             $columns = DB::select('SHOW COLUMNS FROM ' . $tableName);
 
@@ -220,6 +252,18 @@ class DatabaseController extends Controller
      */
     private function getTableSize($tableName)
     {
+        $driver = DB::getDriverName();
+
+        if ($driver === 'pgsql') {
+            $result = DB::select(
+                "SELECT ROUND(pg_total_relation_size(?::regclass) / 1024.0 / 1024.0, 2) AS size_mb",
+                [$tableName]
+            );
+
+            return $result[0]->size_mb ?? 0;
+        }
+
+        // MySQL/MariaDB
         $databaseName = env('DB_DATABASE');
 
         $result = DB::select("
@@ -245,6 +289,10 @@ class DatabaseController extends Controller
                 return round(filesize($dbPath) / 1024 / 1024, 2);
             }
             return 0;
+        } elseif ($driver === 'pgsql') {
+            $result = DB::select("SELECT ROUND(pg_database_size(current_database()) / 1024.0 / 1024.0, 2) AS size_mb");
+
+            return $result[0]->size_mb ?? 0;
         } else {
             $databaseName = env('DB_DATABASE');
 
