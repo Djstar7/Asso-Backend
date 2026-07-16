@@ -14,7 +14,7 @@ class Order extends Model
         'delivery_address', 'delivery_latitude', 'delivery_longitude',
         'tracking_number', 'confirmation_code',
         'delivery_person_id', 'delivery_company_id', 'delivery_zone_id',
-        'payment_method', 'payment_reference', 'payment_status',
+        'payment_method', 'payment_reference', 'payment_currency', 'payment_amount', 'payment_status',
         'notes', 'cancel_reason',
         'confirmed_at', 'shipped_at', 'delivered_at', 'cancelled_at',
         'confirmed_by_client_at', 'confirmed_by_deliverer_at', 'rated_at',

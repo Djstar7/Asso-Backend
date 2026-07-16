@@ -264,8 +264,30 @@ class OrderService
 
             // 4b. Mode kpay_direct : initier le PayIn KPay pour le total de la commande
             if ($isKpayDirect) {
+                // Convertir le total (XAF) dans la devise de l'opérateur Mobile Money choisi,
+                // JUSTE avant de lancer le PayIn (l'opérateur est déduit de l'indicatif du numéro).
+                // Même principe que le retrait : KPay débite le montant dans la devise de l'opérateur.
+                $payCurrency = \App\Services\KPayCatalog::currencyForProvider($kpayProvider);
+                $payAmount = (float) round($total);
+
+                if ($payCurrency !== 'XAF') {
+                    $conv = \App\Services\ExchangeRateService::convert('XAF', $payCurrency, $total);
+                    if (!empty($conv['success']) && $conv['amount'] !== null) {
+                        $payAmount = (float) round($conv['amount']);
+                    } else {
+                        // Taux indisponible : on n'ose pas débiter un montant XAF dans une autre devise.
+                        throw new \Exception("Conversion XAF → {$payCurrency} indisponible. Réessayez plus tard.");
+                    }
+                }
+
+                // Tracer la devise/montant réellement débités (peuvent différer du total XAF)
+                $order->update([
+                    'payment_currency' => $payCurrency,
+                    'payment_amount' => $payAmount,
+                ]);
+
                 $kpayResult = app(\App\Services\KPayService::class)->initializePayment([
-                    'amount' => (float) round($total),
+                    'amount' => $payAmount,
                     'provider' => $kpayProvider,
                     'phone_number' => $kpayPhone,
                     'description' => "Commande {$order->order_number}",
@@ -276,6 +298,14 @@ class OrderService
                     // Rollback : la commande ne doit pas exister si le paiement n'a pu être initié
                     throw new \Exception($kpayResult['message'] ?? "Échec de l'initiation du paiement KPay.");
                 }
+
+                Log::info('[OrderService] PayIn KPay initié', [
+                    'order_id' => $order->id,
+                    'total_xaf' => $total,
+                    'charged' => $payAmount,
+                    'currency' => $payCurrency,
+                    'provider' => $kpayProvider,
+                ]);
 
                 // payment_reference = id KPay (pay_xxx) pour le polling du statut
                 $order->update(['payment_reference' => $kpayResult['id'] ?? null]);
