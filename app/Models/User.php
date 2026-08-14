@@ -6,6 +6,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Laravel\Sanctum\HasApiTokens;
@@ -51,6 +52,10 @@ class User extends Authenticatable
         'is_profile_complete',
         'preferences',
         'fcm_token',
+        'diaspo_verification_status',
+        'diaspo_id_document_id',
+        'diaspo_verified_at',
+        'diaspo_rejection_reason',
     ];
 
     /**
@@ -80,6 +85,7 @@ class User extends Authenticatable
             'roles' => 'array',
             'is_profile_complete' => 'boolean',
             'otp_expires_at' => 'datetime',
+            'diaspo_verified_at' => 'datetime',
         ];
     }
 
@@ -180,6 +186,30 @@ class User extends Authenticatable
     }
 
     /**
+     * Get all posts created by this user
+     */
+    public function posts(): HasMany
+    {
+        return $this->hasMany(Post::class);
+    }
+
+    /**
+     * Get all comments created by this user
+     */
+    public function postComments(): HasMany
+    {
+        return $this->hasMany(PostComment::class);
+    }
+
+    /**
+     * Get all post likes/dislikes by this user
+     */
+    public function postLikes(): HasMany
+    {
+        return $this->hasMany(PostLike::class);
+    }
+
+    /**
      * Get the user who referred this user
      */
     public function referrer()
@@ -274,6 +304,54 @@ class User extends Authenticatable
                       ->orWhere('expires_at', '>', now());
             })
             ->latest();
+    }
+
+    /**
+     * Get all diaspo offers created by this user
+     */
+    public function diaspoOffers(): HasMany
+    {
+        return $this->hasMany(DiaspoOffer::class);
+    }
+
+    /**
+     * Get all diaspo bookings as buyer
+     */
+    public function diaspoBookingsAsBuyer(): HasMany
+    {
+        return $this->hasMany(DiaspoBooking::class, 'buyer_user_id');
+    }
+
+    /**
+     * Get all diaspo bookings as seller
+     */
+    public function diaspoBookingsAsSeller(): HasMany
+    {
+        return $this->hasMany(DiaspoBooking::class, 'seller_user_id');
+    }
+
+    /**
+     * Get the diaspo ID document
+     */
+    public function diaspoIdDocument(): BelongsTo
+    {
+        return $this->belongsTo(Document::class, 'diaspo_id_document_id');
+    }
+
+    /**
+     * Check if user is diaspo verified
+     */
+    public function isDiaspoVerified(): bool
+    {
+        return $this->diaspo_verification_status === 'verified';
+    }
+
+    /**
+     * Check if user can create diaspo offers
+     */
+    public function canCreateDiaspoOffers(): bool
+    {
+        return $this->isDiaspoVerified();
     }
 
     /**

@@ -96,14 +96,8 @@ class CurrencyController extends Controller
             ], 422);
         }
 
-        $result = \App\Services\ExchangeRateService::convert($from, $to, $amount);
-
-        if (!$result['success']) {
-            return response()->json([
-                'success' => false,
-                'message' => "Conversion $from → $to indisponible.",
-            ], 400);
-        }
+        // Taux lu depuis la table exchange_rates (persistée + rafraîchie par UpdateExchangeRatesJob).
+        $rate = $from === $to ? 1.0 : $this->resolveRate($from, $to);
 
         return response()->json([
             'success' => true,
@@ -111,8 +105,8 @@ class CurrencyController extends Controller
                 'from' => $from,
                 'to' => $to,
                 'amount' => $amount,
-                'rate' => $result['rate'],
-                'converted' => round($result['amount']),
+                'rate' => $rate,
+                'converted' => round($amount * $rate),
             ],
         ]);
     }
