@@ -26,6 +26,10 @@ use App\Http\Controllers\Admin\DatabaseController;
 use App\Http\Controllers\Admin\VaultController;
 use App\Http\Controllers\Admin\PreferenceController;
 use App\Http\Controllers\Admin\FcmTokenController;
+use App\Http\Controllers\Admin\OtpBypassController;
+use App\Http\Controllers\Admin\DiaspoVerificationController;
+use App\Http\Controllers\Admin\DiaspoOfferController;
+use App\Http\Controllers\Admin\PostController;
 
 // Redirect root to admin login
 Route::get('/', function () {
@@ -210,6 +214,43 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/fcm-tokens/{user}', [FcmTokenController::class, 'show'])->name('fcm-tokens.show');
         Route::delete('/fcm-tokens/token/{token}', [FcmTokenController::class, 'destroyToken'])->name('fcm-tokens.token.destroy');
         Route::post('/fcm-tokens/token/{token}/toggle', [FcmTokenController::class, 'toggleToken'])->name('fcm-tokens.token.toggle');
+
+        // OTP Bypass - Gestion des numéros autorisés à bypasser l'OTP
+        Route::prefix('otp-bypass')->name('otp-bypass.')->group(function () {
+            Route::get('/', [OtpBypassController::class, 'index'])->name('index');
+            Route::post('/', [OtpBypassController::class, 'store'])->name('store');
+            Route::put('/{id}', [OtpBypassController::class, 'update'])->name('update');
+            Route::patch('/{id}/toggle', [OtpBypassController::class, 'toggleStatus'])->name('toggle');
+            Route::delete('/{id}', [OtpBypassController::class, 'destroy'])->name('destroy');
+        });
+
+        // DIASPO - Vérification des documents d'identité
+        Route::prefix('diaspo')->name('diaspo.')->group(function () {
+            Route::prefix('verifications')->name('verifications.')->group(function () {
+                Route::get('/', [DiaspoVerificationController::class, 'indexWeb'])->name('index');
+                Route::get('/{userId}', [DiaspoVerificationController::class, 'showWeb'])->name('show');
+                Route::post('/{userId}/approve', [DiaspoVerificationController::class, 'approveWeb'])->name('approve');
+                Route::post('/{userId}/reject', [DiaspoVerificationController::class, 'rejectWeb'])->name('reject');
+            });
+
+            // Posts management
+            Route::prefix('posts')->name('posts.')->group(function () {
+                Route::get('/', [PostController::class, 'index'])->name('index');
+                Route::get('/{post}', [PostController::class, 'show'])->name('show');
+                Route::delete('/{post}', [PostController::class, 'destroy'])->name('destroy');
+                Route::delete('/{post}/comments/{comment}', [PostController::class, 'deleteComment'])->name('comments.destroy');
+            });
+
+            // Offers management
+            Route::prefix('offers')->name('offers.')->group(function () {
+                Route::get('/', [DiaspoOfferController::class, 'index'])->name('index');
+                Route::get('/{offer}', [DiaspoOfferController::class, 'show'])->name('show');
+                Route::post('/{offer}/approve', [DiaspoOfferController::class, 'approve'])->name('approve');
+                Route::post('/{offer}/reject', [DiaspoOfferController::class, 'reject'])->name('reject');
+                Route::delete('/{offer}', [DiaspoOfferController::class, 'destroy'])->name('destroy');
+                Route::post('/{offer}/bookings/{booking}/cancel', [DiaspoOfferController::class, 'cancelBooking'])->name('bookings.cancel');
+            });
+        });
 
     });
 });

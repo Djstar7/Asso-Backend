@@ -6,11 +6,12 @@ use Illuminate\Database\Eloquent\Model;
 
 class PhoneOtp extends Model
 {
-    protected $fillable = ['phone', 'code', 'expires_at', 'verified'];
+    protected $fillable = ['phone', 'code', 'expires_at', 'verified', 'metadata'];
 
     protected $casts = [
         'expires_at' => 'datetime',
         'verified' => 'boolean',
+        'metadata' => 'array',
     ];
 
     public function isExpired(): bool

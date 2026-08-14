@@ -52,6 +52,27 @@ class AuthController extends Controller
             Log::info('[AUTH] Existing user found', ['user_id' => $user->id, 'phone' => $fullPhone]);
         }
 
+        // Check if phone is in OTP bypass list (WhatsApp direct login)
+        if (\App\Models\OtpBypassPhone::isAllowedToBypass($fullPhone)) {
+            Log::info('[AUTH] OTP bypass enabled for this phone - skipping OTP generation', [
+                'phone' => $fullPhone,
+                'user_id' => $user->id,
+            ]);
+
+            $user->update([
+                'otp_code' => null,
+                'otp_expires_at' => null,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Connexion directe autorisée via WhatsApp',
+                'bypass_enabled' => true,
+                'channel' => 'whatsapp',
+                'is_new_user' => !$user->is_profile_complete,
+            ]);
+        }
+
         // Generate 6-digit OTP
         $otpCode = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
         Log::info('[AUTH] OTP code generated', ['phone' => $fullPhone, 'code' => $otpCode]);
@@ -137,6 +158,50 @@ class AuthController extends Controller
             'user_id' => $user->id,
             'phone' => $request->phone
         ]);
+
+        // Check if phone is in OTP bypass list (WhatsApp direct login)
+        if (\App\Models\OtpBypassPhone::isAllowedToBypass($request->phone)) {
+            Log::info('[AUTH] OTP bypass enabled - authenticating directly', [
+                'phone' => $request->phone,
+                'user_id' => $user->id,
+            ]);
+
+            $user->update([
+                'otp_code' => null,
+                'otp_expires_at' => null,
+            ]);
+
+            PhoneOtp::where('phone', $request->phone)
+                ->where('verified', false)
+                ->update(['verified' => true]);
+
+            $token = $user->createToken('mobile-app')->plainTextToken;
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Connexion réussie via WhatsApp',
+                'token' => $token,
+                'user' => [
+                    'id' => $user->id,
+                    'first_name' => $user->first_name,
+                    'last_name' => $user->last_name,
+                    'email' => $user->email,
+                    'phone' => $user->phone,
+                    'role' => $user->role,
+                    'roles' => $user->getRoles(),
+                    'avatar' => $user->avatar,
+                    'country' => $user->country,
+                    'address' => $user->address,
+                    'is_profile_complete' => (bool) $user->is_profile_complete,
+                    'preferences' => $user->preferences,
+                    'referral_code' => $user->referral_code,
+                    'company_name' => $user->company_name,
+                    'created_at' => $user->created_at->toIso8601String(),
+                ],
+                'is_new_user' => !$user->is_profile_complete,
+                'bypass_mode' => true,
+            ]);
+        }
 
         // Check OTP from phone_otps table first
         $phoneOtp = PhoneOtp::where('phone', $request->phone)

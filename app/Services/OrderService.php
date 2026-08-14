@@ -29,11 +29,36 @@ class OrderService
     /**
      * Récupère tous les partenaires de livraison avec le prix calculé pour un produit donné.
      * Le prix dépend du pricing_type de chaque zone (fixed, weight_category, volumetric_weight).
+     * Filtre par ville si fournie.
      */
-    public function getDeliveryPartnersWithPricing(int $productId, ?float $latitude = null, ?float $longitude = null): array
+    public function getDeliveryPartnersWithPricing(int $productId, ?float $latitude = null, ?float $longitude = null, ?string $city = null): array
     {
+        Log::info('');
+        Log::info('═══════════════════════════════════════════════════════════════');
+        Log::info('🚚 [OrderService] GET DELIVERY PARTNERS WITH PRICING');
+        Log::info('═══════════════════════════════════════════════════════════════');
+        Log::info('📦 Paramètres de recherche:', [
+            'product_id' => $productId,
+            'latitude' => $latitude,
+            'longitude' => $longitude,
+            'city' => $city ?? 'NON FOURNIE',
+        ]);
+
         $product = Product::findOrFail($productId);
 
+        // Compteur de zones avant filtrage
+        $totalZonesBeforeFilter = \App\Models\DeliveryZone::where('is_active', true)
+            ->whereNotNull('center_latitude')
+            ->whereNotNull('center_longitude')
+            ->count();
+
+        Log::info("📊 Total zones actives (avant filtrage ville): {$totalZonesBeforeFilter}");
+
+        // Normaliser la ville du client pour comparaison
+        $normalizedClientCity = $city ? $this->normalizeCity($city) : null;
+        Log::info("🔄 Ville client normalisée: " . ($normalizedClientCity ?? 'N/A'));
+
+        // Récupérer TOUTES les zones actives (sans filtrage SQL par ville)
         $companies = DelivererCompany::where('is_active', true)
             ->with(['deliveryZones' => function ($q) {
                 $q->where('is_active', true)
@@ -43,15 +68,62 @@ class OrderService
             }, 'user'])
             ->get();
 
+        $totalZonesFound = 0;
+        foreach ($companies as $company) {
+            $totalZonesFound += $company->deliveryZones->count();
+        }
+
+        Log::info("📊 Total zones actives trouvées: {$totalZonesFound}");
+        Log::info("📊 Entreprises actives: {$companies->count()}");
+
         $partners = [];
 
+        Log::info('');
+        Log::info('🏢 TRAITEMENT DES ENTREPRISES ET ZONES:');
+        Log::info('───────────────────────────────────────────────────────────────');
+
         foreach ($companies as $company) {
+            Log::info("📦 Entreprise: {$company->name} (ID: {$company->id})");
+            Log::info("   └─ Zones trouvées: {$company->deliveryZones->count()}");
+
             foreach ($company->deliveryZones as $zone) {
+                Log::info("   📍 Zone: {$zone->name} (ID: {$zone->id})");
+                Log::info("      └─ Ville BDD: " . ($zone->city ?? 'NON DÉFINIE'));
+                Log::info("      └─ Centre: ({$zone->center_latitude}, {$zone->center_longitude})");
+
+                // Geocoder les coordonnées de la zone pour obtenir la ville
+                $zoneCityFromGeocode = $this->getCityFromCoordinates(
+                    (float) $zone->center_latitude,
+                    (float) $zone->center_longitude
+                );
+                Log::info("      └─ Ville geocodée: " . ($zoneCityFromGeocode ?? 'NON TROUVÉE'));
+
+                // Filtrer par ville si le client a fourni une ville
+                if ($normalizedClientCity) {
+                    $normalizedZoneCity = $zoneCityFromGeocode ? $this->normalizeCity($zoneCityFromGeocode) : null;
+
+                    if (!$normalizedZoneCity || !$this->citiesMatch($normalizedClientCity, $normalizedZoneCity)) {
+                        Log::info("      └─ ❌ ZONE REJETÉE - Ville ne correspond pas");
+                        Log::info("         Client: '{$normalizedClientCity}' vs Zone: '{$normalizedZoneCity}'");
+                        continue;
+                    } else {
+                        Log::info("      └─ ✅ VILLE CORRESPOND: '{$normalizedClientCity}' ≈ '{$normalizedZoneCity}'");
+                    }
+                }
+
                 $pricelist = $zone->activePricelist;
-                if (!$pricelist) continue;
+                if (!$pricelist) {
+                    Log::warning("      └─ ⚠️ PAS DE PRICELIST ACTIF - Zone ignorée");
+                    continue;
+                }
 
                 // Calculer le prix selon le type de pricing de l'entreprise
-                $price = $this->calculateDeliveryPrice($pricelist, $product, $latitude, $longitude, $zone);
+                $basePrice = $this->calculateDeliveryPrice($pricelist, $product, $latitude, $longitude, $zone);
+                $assoCommission = (float) $pricelist->asso_commission;
+                $price = $basePrice + $assoCommission;
+                Log::info("      └─ Prix de base (livreur): {$basePrice} FCFA");
+                Log::info("      └─ Commission ASSO: {$assoCommission} FCFA");
+                Log::info("      └─ Prix total client: {$price} FCFA (Type: {$pricelist->pricing_type})");
 
                 // Calculer la distance si les coordonnées du client sont fournies
                 $distance = null;
@@ -60,6 +132,7 @@ class OrderService
                         $latitude, $longitude,
                         (float) $zone->center_latitude, (float) $zone->center_longitude
                     );
+                    Log::info("      └─ Distance: " . round($distance, 2) . " km");
                 }
 
                 $partners[] = [
@@ -71,6 +144,7 @@ class OrderService
                     'company_logo' => $company->logo ? asset('storage/' . $company->logo) : null,
                     'zone_id' => $zone->id,
                     'zone_name' => $zone->name,
+                    'city' => $zoneCityFromGeocode ?? $zone->city, // Utiliser la ville geocodée en priorité
                     'zone_latitude' => (float) $zone->center_latitude,
                     'zone_longitude' => (float) $zone->center_longitude,
                     'pricing_type' => $pricelist->pricing_type,
@@ -83,15 +157,37 @@ class OrderService
                         'phone' => $company->user->phone,
                     ] : null,
                 ];
+
+                Log::info("      └─ ✅ Zone ajoutée aux résultats");
+                Log::info('');
             }
         }
 
         // Trier par distance si disponible, sinon par prix
         if ($latitude && $longitude) {
             usort($partners, fn($a, $b) => ($a['distance_km'] ?? PHP_FLOAT_MAX) <=> ($b['distance_km'] ?? PHP_FLOAT_MAX));
+            Log::info("🔄 Tri des partenaires: Par DISTANCE");
         } else {
             usort($partners, fn($a, $b) => $a['delivery_price'] <=> $b['delivery_price']);
+            Log::info("🔄 Tri des partenaires: Par PRIX");
         }
+
+        Log::info('');
+        Log::info('✅ RÉSULTAT FINAL:');
+        Log::info("   Total partenaires retournés: " . count($partners));
+        if (!empty($partners)) {
+            Log::info("   Partenaires:");
+            foreach ($partners as $idx => $p) {
+                Log::info("   " . ($idx + 1) . ". {$p['company_name']} - {$p['zone_name']} ({$p['city']}) - {$p['delivery_price']} FCFA");
+            }
+        } else {
+            Log::warning("   ⚠️ Aucun partenaire ne correspond aux critères");
+            if ($city) {
+                Log::warning("   💡 Suggestion: Vérifier que des zones existent pour la ville '{$city}'");
+            }
+        }
+        Log::info('═══════════════════════════════════════════════════════════════');
+        Log::info('');
 
         return $partners;
     }
@@ -219,7 +315,15 @@ class OrderService
 
             // Utiliser le premier produit pour le calcul (ou le plus lourd)
             $firstProduct = Product::find($items[0]['product_id']);
-            $deliveryFee = $this->calculateDeliveryPrice($pricelist, $firstProduct, $deliveryLatitude, $deliveryLongitude, $zone);
+            $baseDeliveryPrice = $this->calculateDeliveryPrice($pricelist, $firstProduct, $deliveryLatitude, $deliveryLongitude, $zone);
+            $assoCommission = (float) $pricelist->asso_commission;
+            $deliveryFee = $baseDeliveryPrice + $assoCommission;
+
+            Log::info("[OrderService] Frais de livraison calculés", [
+                'base_delivery_price' => $baseDeliveryPrice,
+                'asso_commission' => $assoCommission,
+                'total_delivery_fee' => $deliveryFee,
+            ]);
 
             $total = $subtotal + $deliveryFee;
 
@@ -245,6 +349,8 @@ class OrderService
                 'status' => 'pending',
                 'subtotal' => $subtotal,
                 'delivery_fee' => $deliveryFee,
+                'base_delivery_price' => $baseDeliveryPrice,
+                'delivery_commission' => $assoCommission,
                 'total' => $total,
                 'delivery_address' => $deliveryAddress,
                 'delivery_latitude' => $deliveryLatitude,
@@ -271,9 +377,9 @@ class OrderService
                 $payAmount = (float) round($total);
 
                 if ($payCurrency !== 'XAF') {
-                    $conv = \App\Services\ExchangeRateService::convert('XAF', $payCurrency, $total);
-                    if (!empty($conv['success']) && $conv['amount'] !== null) {
-                        $payAmount = (float) round($conv['amount']);
+                    $converted = app(\App\Services\ExchangeRateService::class)->convert($total, 'XAF', $payCurrency);
+                    if ($converted !== null) {
+                        $payAmount = (float) round($converted);
                     } else {
                         // Taux indisponible : on n'ose pas débiter un montant XAF dans une autre devise.
                         throw new \Exception("Conversion XAF → {$payCurrency} indisponible. Réessayez plus tard.");
@@ -445,5 +551,105 @@ class OrderService
         $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
 
         return $earthRadius * $c;
+    }
+
+    /**
+     * Récupère le nom de la ville depuis les coordonnées GPS via reverse geocoding (Nominatim).
+     */
+    private function getCityFromCoordinates(float $lat, float $lon): ?string
+    {
+        try {
+            $response = \Illuminate\Support\Facades\Http::timeout(10)
+                ->withHeaders([
+                    'User-Agent' => 'AssoApp/1.0'
+                ])
+                ->get('https://nominatim.openstreetmap.org/reverse', [
+                    'lat' => $lat,
+                    'lon' => $lon,
+                    'format' => 'json',
+                    'addressdetails' => 1,
+                    'zoom' => 10,
+                ]);
+
+            if ($response->successful()) {
+                $data = $response->json();
+                $address = $data['address'] ?? [];
+
+                // Essayer différents champs pour extraire la ville
+                $cityFields = [
+                    'city',
+                    'town',
+                    'municipality',
+                    'village',
+                    'state_district',
+                    'state',
+                    'county'
+                ];
+
+                foreach ($cityFields as $field) {
+                    if (!empty($address[$field])) {
+                        return $address[$field];
+                    }
+                }
+
+                // Fallback: utiliser le display_name et extraire la première partie
+                if (!empty($data['display_name'])) {
+                    $parts = explode(',', $data['display_name']);
+                    return trim($parts[0]);
+                }
+            }
+
+            return null;
+
+        } catch (\Exception $e) {
+            Log::error("❌ Erreur reverse geocoding: " . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Normalise un nom de ville pour comparaison (enlève accents, casse, espaces).
+     */
+    private function normalizeCity(?string $city): ?string
+    {
+        if (!$city) {
+            return null;
+        }
+
+        // Enlever les accents
+        $city = iconv('UTF-8', 'ASCII//TRANSLIT', $city);
+
+        // Minuscules
+        $city = strtolower($city);
+
+        // Enlever les espaces et caractères spéciaux
+        $city = preg_replace('/[^a-z0-9]/', '', $city);
+
+        return $city;
+    }
+
+    /**
+     * Compare deux villes de manière intelligente (tolère accents, variantes, etc.).
+     */
+    private function citiesMatch(string $city1, string $city2): bool
+    {
+        // Si égalité stricte
+        if ($city1 === $city2) {
+            return true;
+        }
+
+        // Si l'une contient l'autre (ex: "Yaounde" dans "Communaute urbaine de Yaounde")
+        if (str_contains($city1, $city2) || str_contains($city2, $city1)) {
+            return true;
+        }
+
+        // Si les 5 premiers caractères matchent (pour gérer "Yaounde" vs "Yaoundé")
+        if (strlen($city1) >= 5 && strlen($city2) >= 5) {
+            if (substr($city1, 0, 5) === substr($city2, 0, 5)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

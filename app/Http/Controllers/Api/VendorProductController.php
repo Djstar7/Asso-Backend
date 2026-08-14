@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Models\ProductImage;
+use App\Models\Inventory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use App\Models\DeliveryPricelist;
@@ -79,11 +80,19 @@ class VendorProductController extends Controller
             'type' => 'sometimes|in:article,service',
             'origin_country' => 'sometimes|nullable|string|max:2',
             'condition' => 'sometimes|in:new,used,refurbished',
-            'weight_category' => 'sometimes|in:' . implode(',', Product::WEIGHT_CATEGORIES),
+            'weight_category' => 'sometimes|nullable|in:' . implode(',', Product::WEIGHT_CATEGORIES),
             'stock' => 'sometimes|integer|min:0',
             'weight' => 'sometimes|nullable|string|max:255',
             'images' => 'sometimes|array',
             'images.*' => 'file|image|mimes:jpeg,png,jpg,gif|max:5120',
+            'deleted_image_ids' => 'sometimes|array',
+            'deleted_image_ids.*' => 'integer|exists:product_images,id',
+        ]);
+
+        \Log::info('[VENDOR_PRODUCT_UPDATE] Received data:', [
+            'product_id' => $id,
+            'request_all' => $request->all(),
+            'validated' => $validated,
         ]);
 
         // Normaliser le pays d'origine : chaîne vide => null (produit local), sinon ISO2 majuscule
@@ -93,8 +102,11 @@ class VendorProductController extends Controller
         }
 
         try {
-            // Check if new images are being added
+            // Initialize variables
             $totalNewImageSizeMb = 0;
+            $deletedStorageMb = 0;
+
+            // Check if new images are being added
             if ($request->hasFile('images')) {
                 $vendorPackage = $user->activeVendorPackage;
                 if (!$vendorPackage) {
@@ -122,10 +134,102 @@ class VendorProductController extends Controller
                 }
             }
 
-            // Update product fields
-            $product->update(array_filter($validated, function ($key) {
-                return $key !== 'images';
-            }, ARRAY_FILTER_USE_KEY));
+            // Update product fields (exclude images from update)
+            $updateData = $validated;
+            unset($updateData['images']);
+
+            // Convert empty strings to null for weight fields
+            if (isset($updateData['weight']) && $updateData['weight'] === '') {
+                $updateData['weight'] = null;
+            }
+            // Don't update weight_category if it's an empty string - keep existing value
+            if (isset($updateData['weight_category']) && $updateData['weight_category'] === '') {
+                unset($updateData['weight_category']);
+            }
+
+            \Log::info('[VENDOR_PRODUCT_UPDATE] Updating product:', [
+                'product_id' => $product->id,
+                'update_data' => $updateData,
+                'before' => [
+                    'name' => $product->name,
+                    'weight' => $product->weight,
+                    'weight_category' => $product->weight_category,
+                    'stock' => $product->stock,
+                ],
+            ]);
+
+            $product->update($updateData);
+
+            \Log::info('[VENDOR_PRODUCT_UPDATE] Product updated:', [
+                'product_id' => $product->id,
+                'after' => [
+                    'name' => $product->name,
+                    'weight' => $product->weight,
+                    'weight_category' => $product->weight_category,
+                    'stock' => $product->stock,
+                ],
+            ]);
+
+            // Delete specified images if provided
+            if ($request->has('deleted_image_ids') && is_array($request->deleted_image_ids)) {
+                \Log::info('[VENDOR_PRODUCT_UPDATE] Deleting images:', [
+                    'image_ids' => $request->deleted_image_ids,
+                ]);
+
+                foreach ($request->deleted_image_ids as $imageId) {
+                    $image = ProductImage::where('id', $imageId)
+                        ->where('product_id', $product->id)
+                        ->first();
+
+                    if ($image) {
+                        $imagePath = $image->image_path;
+
+                        // Clean the path
+                        $cleanPath = str_starts_with($imagePath, 'storage/')
+                            ? substr($imagePath, 8)
+                            : $imagePath;
+
+                        // Get file size if exists
+                        if (Storage::disk('public')->exists($cleanPath)) {
+                            $deletedStorageMb += Storage::disk('public')->size($cleanPath) / 1048576;
+
+                            // Delete the physical file
+                            Storage::disk('public')->delete($cleanPath);
+                        }
+
+                        // Delete the database record
+                        $image->delete();
+
+                        \Log::info('[VENDOR_PRODUCT_UPDATE] Image deleted:', [
+                            'image_id' => $imageId,
+                            'path' => $cleanPath,
+                        ]);
+                    }
+                }
+
+                // Restore storage to vendor package
+                if ($deletedStorageMb > 0) {
+                    $vendorPackage = $user->activeVendorPackage;
+                    if ($vendorPackage) {
+                        $vendorPackage->addStorage($deletedStorageMb);
+                        \Log::info('[VENDOR_PRODUCT_UPDATE] Storage restored:', [
+                            'restored_mb' => round($deletedStorageMb, 2),
+                        ]);
+                    }
+                }
+
+                // Ensure at least one primary image exists after deletions
+                $hasPrimary = $product->images()->where('is_primary', true)->exists();
+                if (!$hasPrimary) {
+                    $firstImage = $product->images()->first();
+                    if ($firstImage) {
+                        $firstImage->update(['is_primary' => true]);
+                        \Log::info('[VENDOR_PRODUCT_UPDATE] Set first remaining image as primary:', [
+                            'image_id' => $firstImage->id,
+                        ]);
+                    }
+                }
+            }
 
             // Add new images if provided
             if ($request->hasFile('images')) {
@@ -149,11 +253,26 @@ class VendorProductController extends Controller
             // Load relations for response
             $product->load(['images', 'primaryImage', 'category', 'subcategory', 'shop']);
 
-            return response()->json([
+            $responseData = [
                 'success' => true,
                 'message' => 'Produit mis à jour avec succès',
                 'product' => $this->formatProduct($product),
-            ]);
+            ];
+
+            // Add storage info if images were deleted or added
+            if ($deletedStorageMb > 0 || $totalNewImageSizeMb > 0) {
+                $vendorPackage = $user->activeVendorPackage;
+                if ($vendorPackage) {
+                    $responseData['storage_info'] = [
+                        'deleted_mb' => round($deletedStorageMb, 2),
+                        'added_mb' => round($totalNewImageSizeMb, 2),
+                        'used_mb' => round($vendorPackage->storage_used_mb, 2),
+                        'remaining_mb' => round($vendorPackage->storage_remaining_mb, 2),
+                    ];
+                }
+            }
+
+            return response()->json($responseData);
         } catch (\Exception $e) {
             \Log::error('[VENDOR_PRODUCT_UPDATE] Error:', [
                 'error' => $e->getMessage(),
@@ -254,6 +373,8 @@ class VendorProductController extends Controller
             'stock' => $product->stock,
             'weight' => $product->weight,
             'status' => $product->status,
+            'latitude' => $product->latitude ? (float) $product->latitude : null,
+            'longitude' => $product->longitude ? (float) $product->longitude : null,
             'primary_image' => $product->primaryImage ? $this->getImageUrl($product->primaryImage->image_path) : null,
             'images' => $product->images->map(fn($img) => [
                 'id' => $img->id,
@@ -274,6 +395,10 @@ class VendorProductController extends Controller
                 'name' => $product->shop->name,
                 'slug' => $product->shop->slug,
                 'logo' => $product->shop->logo,
+                'is_certified' => (bool) $product->shop->is_certified,
+                'latitude' => $product->shop->latitude ? (float) $product->shop->latitude : null,
+                'longitude' => $product->shop->longitude ? (float) $product->shop->longitude : null,
+                'address' => $product->shop->address,
             ] : null,
             'created_at' => $product->created_at->toIso8601String(),
             'updated_at' => $product->updated_at->toIso8601String(),
@@ -297,25 +422,269 @@ class VendorProductController extends Controller
     }
 
     /**
-     * Stock movement history for the authenticated vendor.
-     * GET /v1/vendor/inventory
-     *
-     * FAKE/stub: no stock-movement table yet, returns an empty (but well-shaped)
-     * paginated result so the store-management screen loads without error.
+     * Get inventory for the authenticated vendor
      */
-    public function inventory(Request $request)
+    public function getInventory(Request $request)
     {
-        $page = (int) $request->query('page', 1);
-        $perPage = (int) $request->query('per_page', 20);
+        $user = $request->user();
+
+        $query = Inventory::with(['product'])
+            ->forUser($user->id)
+            ->orderBy('created_at', 'desc');
+
+        // Filter by type if provided
+        if ($request->has('type') && $request->type) {
+            $query->where('type', $request->type);
+        }
+
+        // Filter by product if provided
+        if ($request->has('product_id') && $request->product_id) {
+            $query->forProduct($request->product_id);
+        }
+
+        $perPage = $request->get('per_page', 50);
+        $inventory = $query->paginate($perPage);
+
+        $inventoryData = $inventory->getCollection()->map(function ($entry) {
+            return [
+                'id' => $entry->id,
+                'product_id' => $entry->product_id,
+                'product_name' => $entry->product->name ?? 'Produit supprimé',
+                'type' => $entry->type,
+                'quantity' => $entry->quantity,
+                'stock_after' => $entry->stock_after,
+                'order_id' => $entry->order_id,
+                'notes' => $entry->notes,
+                'date' => $entry->created_at->toIso8601String(),
+                'created_at' => $entry->created_at->toIso8601String(),
+            ];
+        });
 
         return response()->json([
             'success' => true,
-            'data' => [],
+            'inventory' => $inventoryData,
+            'pagination' => [
+                'current_page' => $inventory->currentPage(),
+                'last_page' => $inventory->lastPage(),
+                'per_page' => $inventory->perPage(),
+                'total' => $inventory->total(),
+                'has_more' => $inventory->hasMorePages(),
+            ],
+        ]);
+    }
+
+    /**
+     * Add an inventory entry
+     */
+    public function addInventoryEntry(Request $request)
+    {
+        $user = $request->user();
+
+        $validated = $request->validate([
+            'product_id' => 'required|exists:products,id',
+            'type' => 'required|in:entry,exit',
+            'quantity' => 'required|integer|min:1',
+            'notes' => 'nullable|string',
+        ]);
+
+        // Verify product belongs to user
+        $product = Product::findOrFail($validated['product_id']);
+        if ($product->user_id !== $user->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous n\'êtes pas autorisé à gérer ce produit',
+            ], 403);
+        }
+
+        DB::beginTransaction();
+        try {
+            // Calculate new stock
+            $currentStock = $product->stock;
+            $quantity = $validated['quantity'];
+
+            if ($validated['type'] === 'entry') {
+                $newStock = $currentStock + $quantity;
+            } else {
+                if ($currentStock < $quantity) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Stock insuffisant',
+                    ], 400);
+                }
+                $newStock = $currentStock - $quantity;
+            }
+
+            // Update product stock
+            $product->stock = $newStock;
+            $product->save();
+
+            // Create inventory entry
+            $inventory = Inventory::create([
+                'product_id' => $validated['product_id'],
+                'user_id' => $user->id,
+                'type' => $validated['type'],
+                'quantity' => $quantity,
+                'stock_after' => $newStock,
+                'notes' => $validated['notes'] ?? null,
+            ]);
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Entrée d\'inventaire ajoutée avec succès',
+                'inventory' => [
+                    'id' => $inventory->id,
+                    'product_id' => $inventory->product_id,
+                    'product_name' => $product->name,
+                    'type' => $inventory->type,
+                    'quantity' => $inventory->quantity,
+                    'stock_after' => $inventory->stock_after,
+                    'notes' => $inventory->notes,
+                    'date' => $inventory->created_at->toIso8601String(),
+                ],
+                'product' => [
+                    'id' => $product->id,
+                    'stock' => $product->stock,
+                ],
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('[INVENTORY] Error adding entry:', [
+                'error' => $e->getMessage(),
+                'user_id' => $user->id,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'ajout de l\'entrée d\'inventaire',
+            ], 500);
+        }
+    }
+
+    /**
+     * Update product stock directly
+     */
+    public function updateStock(Request $request, $id)
+    {
+        $user = $request->user();
+        $product = Product::findOrFail($id);
+
+        // Verify product belongs to user
+        if ($product->user_id !== $user->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous n\'êtes pas autorisé à modifier ce produit',
+            ], 403);
+        }
+
+        $validated = $request->validate([
+            'stock' => 'required|integer|min:0',
+            'notes' => 'nullable|string',
+        ]);
+
+        DB::beginTransaction();
+        try {
+            $oldStock = $product->stock;
+            $newStock = $validated['stock'];
+            $difference = $newStock - $oldStock;
+
+            if ($difference !== 0) {
+                // Create inventory entry
+                $type = $difference > 0 ? 'entry' : 'exit';
+                $quantity = abs($difference);
+
+                Inventory::create([
+                    'product_id' => $product->id,
+                    'user_id' => $user->id,
+                    'type' => $type,
+                    'quantity' => $quantity,
+                    'stock_after' => $newStock,
+                    'notes' => $validated['notes'] ?? 'Mise à jour manuelle du stock',
+                ]);
+            }
+
+            // Update product stock
+            $product->stock = $newStock;
+            $product->save();
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Stock mis à jour avec succès',
+                'product' => [
+                    'id' => $product->id,
+                    'name' => $product->name,
+                    'stock' => $product->stock,
+                ],
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('[INVENTORY] Error updating stock:', [
+                'error' => $e->getMessage(),
+                'product_id' => $id,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la mise à jour du stock',
+            ], 500);
+        }
+    }
+
+    /**
+     * Get inventory history for the authenticated vendor
+     */
+    public function getInventoryHistory(Request $request)
+    {
+        $user = $request->user();
+
+        $query = Inventory::with(['product'])
+            ->where('user_id', $user->id)
+            ->orderBy('created_at', 'desc');
+
+        // Filter by type if provided (entry, exit, adjustment)
+        if ($request->has('type') && $request->type) {
+            $query->where('type', $request->type);
+        }
+
+        // Filter by product if provided
+        if ($request->has('product_id') && $request->product_id) {
+            $query->where('product_id', $request->product_id);
+        }
+
+        $perPage = $request->get('per_page', 50);
+        $inventoryEntries = $query->paginate($perPage);
+
+        $data = $inventoryEntries->getCollection()->map(function ($entry) {
+            return [
+                'id' => (string) $entry->id,
+                'product_id' => (string) $entry->product_id,
+                'product_name' => $entry->product ? $entry->product->name : 'Produit supprimé',
+                'type' => $entry->type,
+                'quantity' => $entry->quantity,
+                'stock_after' => $entry->stock_after,
+                'order_id' => $entry->order_id ? (string) $entry->order_id : null,
+                'notes' => $entry->notes,
+                'date' => $entry->created_at->toIso8601String(),
+            ];
+        });
+
+        \Log::info('[VENDOR_INVENTORY] Inventory fetched:', [
+            'user_id' => $user->id,
+            'total' => $inventoryEntries->total(),
+            'current_page' => $inventoryEntries->currentPage(),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'data' => $data,
             'meta' => [
-                'total' => 0,
-                'current_page' => $page,
-                'per_page' => $perPage,
-                'last_page' => 1,
+                'current_page' => $inventoryEntries->currentPage(),
+                'last_page' => $inventoryEntries->lastPage(),
+                'per_page' => $inventoryEntries->perPage(),
+                'total' => $inventoryEntries->total(),
             ],
         ]);
     }
