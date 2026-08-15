@@ -13,15 +13,27 @@ avec l'ancien schéma et **renomment** les anciennes tables en
 `diaspo_offers_legacy_preunify` / `diaspo_bookings_legacy_preunify` avant de créer les
 nouvelles (aucune donnée n'est supprimée). Sur une base fraîche, c'est un no-op.
 
-**À décider par l'équipe APRÈS `php artisan migrate`** :
-- Si les tables `*_legacy_preunify` **contiennent des données Diaspo réelles** à conserver :
-  écrire un script de reprise (mapping des `status` : `active`→`approved`, etc. ; devise
-  `XAF`→cible ; précisions décimales). Les nouveaux enums :
+**À trancher par l'équipe APRÈS `php artisan migrate`**, via la commande dédiée :
+
+```bash
+php artisan diaspo:reconcile-legacy            # rapport (lecture seule) : lignes + répartition par statut
+php artisan diaspo:reconcile-legacy --migrate  # reprend les données (mapping enums + remap FK offre)
+php artisan diaspo:reconcile-legacy --drop      # supprime les tables legacy (contenu vide / de test)
+```
+
+- Si les tables `*_legacy_preunify` **contiennent des données Diaspo réelles** à conserver →
+  `--migrate`. La commande applique le mapping (`active/full`→`approved`, `closed`→`completed`,
+  `cancelled`→`rejected` ; `in_transit`→`confirmed` ; `paid`→`completed`, `failed`→`pending`),
+  remappe les FK d'offre vers les nouveaux IDs auto-incrément, ignore la colonne `currency`
+  (absente du schéma unifié) et archive ensuite les tables en `*_legacy_migrated` (idempotent).
+  Nouveaux enums cibles :
   - offer.status ∈ `pending|approved|rejected|expired|completed`
   - booking.status ∈ `pending|paid|confirmed|cancelled|completed`
   - booking.payment_status ∈ `pending|completed|refunded`
-- Si elles sont **vides / de test** : les supprimer (`DROP TABLE diaspo_offers_legacy_preunify`,
-  idem bookings).
+- Si elles sont **vides / de test** → `--drop`.
+
+⚠️ Les mappings `active/full`→`approved` sont un choix par défaut documenté ; vérifier le
+rapport (`--migrate` demande confirmation) avant de valider si les données réelles sont sensibles.
 
 ## 2. Commandes payées KPay direct « héritées »
 
@@ -50,7 +62,11 @@ par le mobile pour le polling de paiement).
 - **Corrigé** : le chemin de paiement vivant (polling + webhook) écrit désormais des
   valeurs d'enum valides sous le schéma unifié (`payment_status` `completed`, plus de
   `paid`/`failed`).
-- **À valider fonctionnellement** : le cycle de vie complet d'une réservation Diaspo
+- **Couvert par test automatisé** (`DiaspoBookingLifecycleTest`) : le cycle complet via les
+  routes HTTP — `book` (PayIn KPay) → `payment-status` (confirmation) → `seller-confirm-code`
+  → `confirm-receipt` — plus l'échec de paiement (annulation + libération des kg). Il reste
+  à faire une passe manuelle en **sandbox KPay réel** (le test mocke KPay via `Http::fake`).
+- **À valider fonctionnellement en sandbox** : le cycle de vie complet d'une réservation Diaspo
   (création upstream → paiement KPay → confirmation → livraison), car les autres méthodes
   d'origin (`confirmReceipt`/`sellerConfirmCode` avec statut `in_transit` absent du nouvel
   enum, `cancelBooking`) sont **shadowées/mortes** (routes upstream prioritaires). À terme,
