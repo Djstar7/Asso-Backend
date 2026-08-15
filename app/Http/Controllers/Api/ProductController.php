@@ -55,18 +55,23 @@ class ProductController extends Controller
             $query->where('origin_country', strtoupper($request->origin_country));
         }
 
-        // Filter by price range
+        // Filter by price range — sur price_xaf (canonique XAF), car les prix peuvent
+        // désormais être fixés dans différentes devises. Fallback sur price si price_xaf null.
         if ($request->has('min_price') && $request->min_price) {
-            $query->where('price', '>=', $request->min_price);
+            $query->whereRaw('COALESCE(price_xaf, price) >= ?', [$request->min_price]);
         }
         if ($request->has('max_price') && $request->max_price) {
-            $query->where('price', '<=', $request->max_price);
+            $query->whereRaw('COALESCE(price_xaf, price) <= ?', [$request->max_price]);
         }
 
-        // Sort
+        // Sort — trier par prix se fait sur la valeur canonique XAF (price_xaf)
         $sortBy = $request->get('sort_by', 'created_at');
         $sortOrder = $request->get('sort_order', 'desc');
-        $query->orderBy($sortBy, $sortOrder);
+        if ($sortBy === 'price') {
+            $query->orderByRaw('COALESCE(price_xaf, price) ' . ($sortOrder === 'asc' ? 'asc' : 'desc'));
+        } else {
+            $query->orderBy($sortBy, $sortOrder);
+        }
 
         // Paginate
         $perPage = $request->get('per_page', 20);
@@ -267,6 +272,8 @@ class ProductController extends Controller
             'name' => 'required|string|max:255',
             'description' => 'required|string',
             'price' => 'required|numeric|min:0',
+            // Devise dans laquelle le vendeur fixe le prix (défaut XAF). Doit être active.
+            'currency' => 'nullable|string|size:3|exists:currencies,code',
             'category_id' => 'required|exists:categories,id',
             'subcategory_id' => 'nullable|exists:subcategories,id',
             'type' => 'required|in:article,service',
@@ -335,6 +342,7 @@ class ProductController extends Controller
             'name' => $validated['name'],
             'description' => $validated['description'],
             'price' => $validated['price'],
+            'currency' => strtoupper($validated['currency'] ?? 'XAF'), // price_xaf calculé auto (Product::saving)
             'category_id' => $validated['category_id'],
             'type' => $validated['type'],
             'origin_country' => isset($validated['origin_country']) ? strtoupper($validated['origin_country']) : null,
@@ -415,6 +423,8 @@ class ProductController extends Controller
             'name' => $product->name,
             'slug' => $product->slug,
             'price' => (float) $product->price,
+            'currency' => $product->currency ?? 'XAF',
+            'price_xaf' => $product->price_xaf !== null ? (float) $product->price_xaf : (float) $product->price,
             'min_price' => $product->min_price ? (float) $product->min_price : null,
             'max_price' => $product->max_price ? (float) $product->max_price : null,
             'price_type' => $product->price_type ?? 'fixed',
