@@ -198,15 +198,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/posts/{postId}/comments/{commentId}/react', [PostController::class, 'reactComment']);
         Route::delete('/posts/{postId}/comments/{commentId}/react', [PostController::class, 'unreactComment']);
 
-        // Diaspo (kg-sharing) — FAKE data for testing
-        Route::get('/diaspo/verification-status', [DiaspoController::class, 'verificationStatus']);
-        Route::post('/diaspo/upload-verification', [DiaspoController::class, 'uploadVerification']);
-        Route::get('/diaspo/offers/my-offers', [DiaspoController::class, 'myOffers']);
-        Route::get('/diaspo/offers', [DiaspoController::class, 'offers']);
-        Route::post('/diaspo/offers', [DiaspoController::class, 'storeOffer']);
-        Route::get('/diaspo/offers/{id}', [DiaspoController::class, 'showOffer']);
-        Route::put('/diaspo/offers/{id}', [DiaspoController::class, 'updateOffer']);
-        Route::delete('/diaspo/offers/{id}', [DiaspoController::class, 'destroyOffer']);
+        // Diaspo — RÉSERVATIONS (flux de paiement KPay direct, DiaspoController).
+        // Les OFFRES et la VÉRIFICATION sont servies par DiaspoOfferController (schéma
+        // unifié upstream), plus bas dans le groupe prefix('v1/diaspo'). Chaque chemin
+        // n'est défini qu'une seule fois (pas de collision de routes).
         Route::post('/diaspo/offers/{id}/book', [DiaspoController::class, 'bookOffer']);
         Route::post('/diaspo/confirm-by-code', [DiaspoController::class, 'confirmByCode']);
         Route::get('/diaspo/bookings', [DiaspoController::class, 'bookings']);
@@ -413,7 +408,6 @@ Route::middleware('auth:sanctum')->prefix('v1/posts')->group(function () {
 // ============================================
 
 use App\Http\Controllers\Api\DiaspoOfferController;
-use App\Http\Controllers\Api\DiaspoBookingController;
 
 Route::middleware('auth:sanctum')->prefix('v1/diaspo')->group(function () {
     // Verification
@@ -428,14 +422,10 @@ Route::middleware('auth:sanctum')->prefix('v1/diaspo')->group(function () {
     Route::put('/offers/{id}', [DiaspoOfferController::class, 'update']);
     Route::delete('/offers/{id}', [DiaspoOfferController::class, 'destroy']);
 
-    // Bookings
-    Route::get('/bookings', [DiaspoBookingController::class, 'index']);
-    Route::get('/bookings/{id}', [DiaspoBookingController::class, 'show']);
-    Route::post('/offers/{offerId}/book', [DiaspoBookingController::class, 'store']);
-    Route::post('/bookings/{id}/confirm-receipt', [DiaspoBookingController::class, 'confirmReceipt']); // Deprecated
-    Route::post('/bookings/{id}/seller-confirm-code', [DiaspoBookingController::class, 'sellerConfirmDelivery']);
-    Route::post('/confirm-by-code', [DiaspoBookingController::class, 'confirmByCodeOnly']); // Quick unlock from wallet
-    Route::post('/bookings/{id}/cancel', [DiaspoBookingController::class, 'cancel']);
+    // Réservations : servies par DiaspoController (flux de paiement KPay direct),
+    // déclarées dans le groupe /v1 plus haut. L'ancien flux wallet de
+    // DiaspoBookingController (basé sur la colonne morte freemopay_wallet_balance) est
+    // retiré au profit du paiement KPay pour lequel le mobile est construit.
 });
 
 // ============================================

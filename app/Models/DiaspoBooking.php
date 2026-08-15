@@ -173,4 +173,64 @@ class DiaspoBooking extends Model
             'cancelled_at' => now(),
         ]);
     }
+
+    /**
+     * Alias de la relation offre (le flux réservations KPay charge `offer`).
+     */
+    public function offer(): BelongsTo
+    {
+        return $this->belongsTo(DiaspoOffer::class, 'diaspo_offer_id');
+    }
+
+    private function userPayload(?User $u): ?array
+    {
+        return $u ? [
+            'id' => $u->id,
+            'first_name' => $u->first_name,
+            'last_name' => $u->last_name,
+            'avatar' => $u->avatar,
+            'phone' => $u->phone,
+        ] : null;
+    }
+
+    /**
+     * Sérialisation API (contrat mobile) — flux réservations (DiaspoController, KPay direct).
+     * NB : le schéma unifié n'a pas de colonne `currency` sur les réservations ; la devise
+     * est dérivée de l'offre.
+     */
+    public function toApi(): array
+    {
+        $currency = $this->offer?->currency ?? '';
+
+        return [
+            'id' => $this->id,
+            'diaspo_offer_id' => $this->diaspo_offer_id,
+            'buyer_user_id' => $this->buyer_user_id,
+            'seller_user_id' => $this->seller_user_id,
+            'kg_booked' => (float) $this->kg_booked,
+            'price_per_kg' => (float) $this->price_per_kg,
+            'subtotal' => (float) $this->subtotal,
+            'commission_amount' => (float) $this->commission_amount,
+            'total_price' => (float) $this->total_price,
+            'currency' => $currency,
+            'status' => $this->status,
+            'confirmation_code' => $this->confirmation_code,
+            'confirmed_by_buyer_at' => $this->confirmed_by_buyer_at?->toIso8601String(),
+            'payment_status' => $this->payment_status,
+            'payment_reference' => $this->payment_reference,
+            'paid_at' => $this->paid_at?->toIso8601String(),
+            'refunded_at' => $this->refunded_at?->toIso8601String(),
+            'conversation_id' => $this->conversation_id,
+            'notes' => $this->notes,
+            'cancel_reason' => $this->cancel_reason,
+            'cancelled_at' => $this->cancelled_at?->toIso8601String(),
+            'formatted_total' => number_format((float) $this->total_price, 0) . ' ' . $currency,
+            'is_completed' => $this->is_completed,
+            'diaspo_offer' => $this->relationLoaded('offer') && $this->offer ? $this->offer->toApi() : null,
+            'buyer' => $this->relationLoaded('buyer') ? $this->userPayload($this->buyer) : null,
+            'seller' => $this->relationLoaded('seller') ? $this->userPayload($this->seller) : null,
+            'created_at' => $this->created_at?->toIso8601String(),
+            'updated_at' => $this->updated_at?->toIso8601String(),
+        ];
+    }
 }
