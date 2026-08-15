@@ -27,6 +27,8 @@ use App\Http\Controllers\Api\DeviceTokenController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\DelivererSyncController;
 use App\Http\Controllers\Api\ShopController;
+use App\Http\Controllers\Api\SearchController;
+use App\Http\Controllers\Api\AnalyzeProductController;
 use Illuminate\Support\Facades\Broadcast;
 
 /*
@@ -50,6 +52,7 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 
 // Auth
 Route::prefix('v1/auth')->group(function () {
+    // Phone-based authentication
     Route::post('/send-otp', [AuthController::class, 'sendOtp']);
     Route::post('/verify-otp', [AuthController::class, 'verifyOtp']);
     Route::post('/login', [AuthController::class, 'login']);
@@ -75,6 +78,12 @@ Route::prefix('settings')->group(function () {
     Route::get('/', [SettingController::class, 'index'])->name('api.settings.index');
     Route::get('/group/{group}', [SettingController::class, 'getByGroup'])->name('api.settings.group');
     Route::get('/{key}', [SettingController::class, 'show'])->name('api.settings.show');
+});
+
+// App information (public)
+Route::prefix('v1/app')->group(function () {
+    Route::get('/about', [AppController::class, 'about']);
+    Route::get('/version', [AppController::class, 'version']);
 });
 
 // Public products & categories
@@ -104,6 +113,16 @@ Route::prefix('v1')->group(function () {
     Route::get('/app/about', [AppController::class, 'about']);
     Route::get('/app/version', [AppController::class, 'version']);
 
+    // AI Product Analysis (Gemini Vision) — collab upstream
+    Route::post('/products/analyze', [AnalyzeProductController::class, 'analyze']);
+    Route::get('/products/categories', [AnalyzeProductController::class, 'categories']);
+    Route::get('/products/analyze/health', [AnalyzeProductController::class, 'health']);
+
+    // Intelligent Search (Public) — collab upstream
+    Route::get('/search', [SearchController::class, 'search']);
+    Route::get('/search/suggestions', [SearchController::class, 'suggestions']);
+    Route::get('/search/popular', [SearchController::class, 'popularSearches']);
+
     // Public shop routes
     Route::get('/shops/{shopId}', [ShopController::class, 'showPublic']);
 
@@ -120,6 +139,16 @@ Route::post('/v1/payments/webhook/kpay', [PaymentController::class, 'webhookKpay
 Route::post('/webhooks/kpay', [PaymentController::class, 'webhookKpay']);
 
 // ============================================
+// CURRENCY & EXCHANGE RATES (Public)
+// ============================================
+Route::prefix('v1/currencies')->group(function () {
+    Route::get('/', [\App\Http\Controllers\Api\V1\CurrencyController::class, 'index']); // Get all currencies
+    Route::get('/all-with-countries', [\App\Http\Controllers\Api\V1\CurrencyController::class, 'getAllWithCountries']); // Get all currencies with countries for country selection
+    Route::get('/by-country', [\App\Http\Controllers\Api\V1\CurrencyController::class, 'getByCountry']); // Get currency by country name
+    Route::get('/exchange-rate', [\App\Http\Controllers\Api\V1\CurrencyController::class, 'getExchangeRate']); // Get specific exchange rate
+});
+
+// ============================================
 // PROTECTED ROUTES (auth:sanctum)
 // ============================================
 
@@ -134,6 +163,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/profile', [AuthController::class, 'updateProfile']);
         Route::get('/preferences', [AuthController::class, 'getPreferences']);
         Route::put('/preferences', [AuthController::class, 'updatePreferences']);
+        Route::post('/request-phone-change', [AuthController::class, 'requestPhoneChange']);
+        Route::post('/confirm-phone-change', [AuthController::class, 'confirmPhoneChange']);
+        Route::post('/delete-account', [AuthController::class, 'deleteAccount']);
         Route::post('/logout', [AuthController::class, 'logout']);
         Route::post('/request-phone-change', [AuthController::class, 'requestPhoneChange']);
         Route::post('/confirm-phone-change', [AuthController::class, 'confirmPhoneChange']);
@@ -184,9 +216,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/diaspo/bookings/{id}/confirm-receipt', [DiaspoController::class, 'confirmReceipt']);
         Route::post('/diaspo/bookings/{id}/seller-confirm-code', [DiaspoController::class, 'sellerConfirmCode']);
 
-        // Vendor stock movements — FAKE (empty) data for testing
-        Route::get('/vendor/inventory', [VendorProductController::class, 'inventory']);
-
         // Orders
         Route::get('/orders', [OrderController::class, 'index']);
         Route::post('/orders', [OrderController::class, 'store']);
@@ -208,6 +237,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Invoices
         Route::prefix('invoices')->group(function () {
+            Route::get('/', [InvoiceController::class, 'index']);
             Route::get('/package/{token}', [InvoiceController::class, 'showPackageInvoice']);
             Route::get('/download/{vendorPackageId}', [InvoiceController::class, 'download'])->name('api.invoices.download');
             Route::get('/pdf/{vendorPackageId}', [InvoiceController::class, 'downloadPdf'])->name('api.invoices.pdf');
@@ -281,7 +311,17 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::prefix('vendor/products')->group(function () {
             Route::get('/', [VendorProductController::class, 'index']);
             Route::put('/{id}', [VendorProductController::class, 'update']);
+            Route::post('/{id}', [VendorProductController::class, 'update']); // Support POST avec _method=PUT pour multipart
             Route::delete('/{id}', [VendorProductController::class, 'destroy']);
+
+            // Stock management
+            Route::post('/{id}/stock', [VendorProductController::class, 'updateStock']);
+        });
+
+        // Inventory management
+        Route::prefix('vendor/inventory')->group(function () {
+            Route::get('/', [VendorProductController::class, 'getInventoryHistory']);
+            Route::post('/entry', [VendorProductController::class, 'addInventoryEntry']);
         });
 
         // Conversations & Messages
@@ -291,6 +331,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/{id}/messages', [ConversationController::class, 'messages']);
             Route::post('/{id}/messages', [ConversationController::class, 'sendMessage']);
             Route::post('/{id}/typing', [ConversationController::class, 'typing']);
+            Route::post('/{id}/hide', [ConversationController::class, 'hide']);
         });
 
         // User online status
@@ -337,24 +378,65 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 });
 
-// Confession Routes (Protected by auth:sanctum)
-// TODO: Uncomment when ConfessionController is created
-/*
-Route::middleware('auth:sanctum')->prefix('v1/confessions')->group(function () {
-    Route::get('/', [ConfessionController::class, 'index']);
-    Route::get('/favorites', [ConfessionController::class, 'favorites']);
-    Route::post('/', [ConfessionController::class, 'store']);
-    Route::get('/{id}', [ConfessionController::class, 'show']);
-    Route::put('/{id}', [ConfessionController::class, 'update']);
-    Route::delete('/{id}', [ConfessionController::class, 'destroy']);
+// ============================================
+// MY VOICE / POSTS ROUTES (auth:sanctum)
+// ============================================
 
-    // Actions
-    Route::post('/{id}/favorite', [ConfessionController::class, 'toggleFavorite']);
-    Route::post('/{id}/reveal-identity', [ConfessionController::class, 'revealIdentity']);
-    Route::post('/{id}/like', [ConfessionController::class, 'like']);
-    Route::delete('/{id}/like', [ConfessionController::class, 'unlike']);
+use App\Http\Controllers\Api\PostCommentController;
+
+Route::middleware('auth:sanctum')->prefix('v1/posts')->group(function () {
+    // Posts CRUD
+    Route::get('/', [PostController::class, 'index']);
+    Route::get('/my-posts', [PostController::class, 'myPosts']);
+    Route::post('/', [PostController::class, 'store']);
+    Route::get('/{id}', [PostController::class, 'show']);
+    Route::put('/{id}', [PostController::class, 'update']);
+    Route::delete('/{id}', [PostController::class, 'destroy']);
+
+    // Post Reactions (like/dislike)
+    Route::post('/{id}/react', [PostController::class, 'react']);
+    Route::delete('/{id}/react', [PostController::class, 'unreact']);
+
+    // Comments
+    Route::get('/{postId}/comments', [PostCommentController::class, 'index']);
+    Route::post('/{postId}/comments', [PostCommentController::class, 'store']);
+    Route::put('/{postId}/comments/{commentId}', [PostCommentController::class, 'update']);
+    Route::delete('/{postId}/comments/{commentId}', [PostCommentController::class, 'destroy']);
+
+    // Comment Reactions (like only)
+    Route::post('/{postId}/comments/{commentId}/react', [PostCommentController::class, 'react']);
+    Route::delete('/{postId}/comments/{commentId}/react', [PostCommentController::class, 'unreact']);
 });
-*/
+
+// ============================================
+// DIASPO EXCHANGE ROUTES (auth:sanctum)
+// ============================================
+
+use App\Http\Controllers\Api\DiaspoOfferController;
+use App\Http\Controllers\Api\DiaspoBookingController;
+
+Route::middleware('auth:sanctum')->prefix('v1/diaspo')->group(function () {
+    // Verification
+    Route::post('/upload-verification', [DiaspoOfferController::class, 'uploadVerificationDocument']);
+    Route::get('/verification-status', [DiaspoOfferController::class, 'getVerificationStatus']);
+
+    // Offers
+    Route::get('/offers', [DiaspoOfferController::class, 'index']);
+    Route::get('/offers/my-offers', [DiaspoOfferController::class, 'myOffers']);
+    Route::post('/offers', [DiaspoOfferController::class, 'store']);
+    Route::get('/offers/{id}', [DiaspoOfferController::class, 'show']);
+    Route::put('/offers/{id}', [DiaspoOfferController::class, 'update']);
+    Route::delete('/offers/{id}', [DiaspoOfferController::class, 'destroy']);
+
+    // Bookings
+    Route::get('/bookings', [DiaspoBookingController::class, 'index']);
+    Route::get('/bookings/{id}', [DiaspoBookingController::class, 'show']);
+    Route::post('/offers/{offerId}/book', [DiaspoBookingController::class, 'store']);
+    Route::post('/bookings/{id}/confirm-receipt', [DiaspoBookingController::class, 'confirmReceipt']); // Deprecated
+    Route::post('/bookings/{id}/seller-confirm-code', [DiaspoBookingController::class, 'sellerConfirmDelivery']);
+    Route::post('/confirm-by-code', [DiaspoBookingController::class, 'confirmByCodeOnly']); // Quick unlock from wallet
+    Route::post('/bookings/{id}/cancel', [DiaspoBookingController::class, 'cancel']);
+});
 
 // ============================================
 // ADMIN ROUTES (auth:sanctum + admin role)
@@ -367,6 +449,14 @@ Route::middleware('auth:sanctum')->prefix('v1/admin')->group(function () {
         Route::get('/{locationRequest}', [App\Http\Controllers\Admin\ShopLocationRequestController::class, 'show']);
         Route::post('/{locationRequest}/approve', [App\Http\Controllers\Admin\ShopLocationRequestController::class, 'approve']);
         Route::post('/{locationRequest}/reject', [App\Http\Controllers\Admin\ShopLocationRequestController::class, 'reject']);
+    });
+
+    // DIASPO verification management
+    Route::prefix('diaspo')->group(function () {
+        Route::get('/verifications', [App\Http\Controllers\Admin\DiaspoVerificationController::class, 'index']);
+        Route::get('/verifications/{userId}', [App\Http\Controllers\Admin\DiaspoVerificationController::class, 'show']);
+        Route::post('/verifications/{userId}/approve', [App\Http\Controllers\Admin\DiaspoVerificationController::class, 'approve']);
+        Route::post('/verifications/{userId}/reject', [App\Http\Controllers\Admin\DiaspoVerificationController::class, 'reject']);
     });
 });
 

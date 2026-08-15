@@ -227,6 +227,36 @@
                     </a>
                 </div>
 
+                <!-- Section DIASPO -->
+                <div class="mt-8 pt-6 border-t border-dark-200">
+                    <p class="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">DIASPO Exchange</p>
+
+                    <a href="{{ route('admin.diaspo.verifications.index') }}"
+                       class="flex items-center justify-between px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.diaspo.verifications.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
+                        <span class="flex items-center">
+                            <i class="fas fa-id-card w-5 mr-3"></i>
+                            Vérifications
+                        </span>
+                        @if(isset($pendingDiaspoVerifications) && $pendingDiaspoVerifications > 0)
+                            <span class="flex items-center justify-center min-w-[1.5rem] h-6 px-2 bg-yellow-500 text-dark-100 text-xs font-bold rounded-full animate-pulse">
+                                {{ $pendingDiaspoVerifications }}
+                            </span>
+                        @endif
+                    </a>
+
+                    <a href="{{ route('admin.diaspo.posts.index') }}"
+                       class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.diaspo.posts.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
+                        <i class="fas fa-comments w-5 mr-3"></i>
+                        Posts
+                    </a>
+
+                    <a href="{{ route('admin.diaspo.offers.index') }}"
+                       class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.diaspo.offers.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
+                        <i class="fas fa-plane-departure w-5 mr-3"></i>
+                        Offres (Kilos)
+                    </a>
+                </div>
+
                 <!-- Section Affiliation -->
                 <div class="mt-8 pt-6 border-t border-dark-200">
                     <p class="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Affiliation</p>
@@ -322,6 +352,12 @@
                        class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.settings.services*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <i class="fas fa-plug w-5 mr-3"></i>
                         Services
+                    </a>
+
+                    <a href="{{ route('admin.otp-bypass.index') }}"
+                       class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.otp-bypass.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
+                        <i class="fas fa-mobile-alt w-5 mr-3"></i>
+                        Bypass OTP
                     </a>
 
                     <a href="{{ route('admin.legal-pages.index') }}"

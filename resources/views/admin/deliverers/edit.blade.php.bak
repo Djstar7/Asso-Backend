@@ -128,7 +128,7 @@
             <div class="flex items-center mb-4">
                 <h3 class="text-lg font-semibold text-white flex items-center">
                     <i class="fas fa-dollar-sign text-primary-500 mr-2"></i>
-                    Tarification par zone
+                    Tarification
                 </h3>
             </div>
 

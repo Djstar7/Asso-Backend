@@ -84,12 +84,14 @@ class DelivererController extends Controller
                 // Delivery zones (JSON array)
                 'delivery_zones' => 'required|array|min:1',
                 'delivery_zones.*.name' => 'required|string|max:255',
+                'delivery_zones.*.city' => 'required|string|max:255',
                 'delivery_zones.*.center_latitude' => 'required|numeric|between:-90,90',
                 'delivery_zones.*.center_longitude' => 'required|numeric|between:-180,180',
 
                 // Pricelists for each zone
                 'delivery_zones.*.pricing_type' => 'required|in:fixed,weight_category,volumetric_weight',
                 'delivery_zones.*.pricing_data' => 'required|array',
+                'delivery_zones.*.asso_commission' => 'required|numeric|min:0',
 
                 // Notification preferences (only email is supported)
                 'send_code_via' => 'required|in:email',
@@ -140,6 +142,7 @@ class DelivererController extends Controller
                 $zone = DeliveryZone::create([
                     'deliverer_company_id' => $company->id,
                     'name' => $zoneData['name'],
+                    'city' => $zoneData['city'],
                     'zone_data' => null, // We only use center coordinates now
                     'center_latitude' => $zoneData['center_latitude'],
                     'center_longitude' => $zoneData['center_longitude'],
@@ -150,6 +153,7 @@ class DelivererController extends Controller
                     'delivery_zone_id' => $zone->id,
                     'pricing_type' => $zoneData['pricing_type'],
                     'pricing_data' => $zoneData['pricing_data'],
+                    'asso_commission' => $zoneData['asso_commission'],
                 ]);
                 Log::info("[DELIVERER_STORE] Pricelist créée", ['pricelist_id' => $pricelist->id]);
             }
@@ -334,12 +338,14 @@ class DelivererController extends Controller
             'delivery_zones' => 'required|array|min:1',
             'delivery_zones.*.id' => 'nullable|exists:delivery_zones,id',
             'delivery_zones.*.name' => 'required|string|max:255',
+            'delivery_zones.*.city' => 'required|string|max:255',
             'delivery_zones.*.center_latitude' => 'required|numeric|between:-90,90',
             'delivery_zones.*.center_longitude' => 'required|numeric|between:-180,180',
 
             // Pricelists for each zone
             'delivery_zones.*.pricing_type' => 'required|in:fixed,weight_category,volumetric_weight',
             'delivery_zones.*.pricing_data' => 'required|array',
+            'delivery_zones.*.asso_commission' => 'required|numeric|min:0',
         ]);
 
         try {
@@ -375,6 +381,7 @@ class DelivererController extends Controller
                     $zone = DeliveryZone::find($zoneData['id']);
                     $zone->update([
                         'name' => $zoneData['name'],
+                        'city' => $zoneData['city'],
                         'center_latitude' => $zoneData['center_latitude'],
                         'center_longitude' => $zoneData['center_longitude'],
                     ]);
@@ -384,12 +391,14 @@ class DelivererController extends Controller
                         $zone->pricelist->update([
                             'pricing_type' => $zoneData['pricing_type'],
                             'pricing_data' => $zoneData['pricing_data'],
+                            'asso_commission' => $zoneData['asso_commission'],
                         ]);
                     } else {
                         DeliveryPricelist::create([
                             'delivery_zone_id' => $zone->id,
                             'pricing_type' => $zoneData['pricing_type'],
                             'pricing_data' => $zoneData['pricing_data'],
+                            'asso_commission' => $zoneData['asso_commission'],
                         ]);
                     }
 
@@ -399,6 +408,7 @@ class DelivererController extends Controller
                     $zone = DeliveryZone::create([
                         'deliverer_company_id' => $deliverer->id,
                         'name' => $zoneData['name'],
+                        'city' => $zoneData['city'],
                         'zone_data' => null,
                         'center_latitude' => $zoneData['center_latitude'],
                         'center_longitude' => $zoneData['center_longitude'],
@@ -408,6 +418,7 @@ class DelivererController extends Controller
                         'delivery_zone_id' => $zone->id,
                         'pricing_type' => $zoneData['pricing_type'],
                         'pricing_data' => $zoneData['pricing_data'],
+                        'asso_commission' => $zoneData['asso_commission'],
                     ]);
 
                     $updatedZoneIds[] = $zone->id;
