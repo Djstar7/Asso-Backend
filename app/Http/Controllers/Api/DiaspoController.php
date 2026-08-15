@@ -277,8 +277,9 @@ class DiaspoController extends Controller
     {
         DB::transaction(function () use ($booking) {
             $b = DiaspoBooking::whereKey($booking->id)->lockForUpdate()->first();
-            if (!$b || $b->payment_status === 'paid') return;
-            $b->update(['payment_status' => 'paid', 'status' => 'confirmed', 'paid_at' => now()]);
+            // Schéma unifié (upstream) : payment_status ∈ pending|completed|refunded ('paid' n'existe plus).
+            if (!$b || $b->payment_status === 'completed') return;
+            $b->update(['payment_status' => 'completed', 'status' => 'confirmed', 'paid_at' => now()]);
         });
         try {
             $seller = User::find($booking->seller_user_id);
@@ -294,13 +295,21 @@ class DiaspoController extends Controller
         }
     }
 
-    /** Échec de paiement : libère les kg réservés. */
-    private function failBookingPayment(DiaspoBooking $booking): void
+    /**
+     * Échec de paiement : annule la réservation et libère les kg réservés (idempotent).
+     * Appelé par le polling (bookingPaymentStatus) ET le webhook KPay (PaymentController).
+     *
+     * Le schéma unifié ne modélise pas d'état de paiement « échoué » (payment_status ∈
+     * pending|completed|refunded). On laisse donc payment_status à 'pending' et on marque
+     * la réservation 'cancelled' ; l'idempotence de la libération des kg s'appuie sur ce
+     * statut (pas de double crédit de remaining_kg).
+     */
+    public function failBookingPayment(DiaspoBooking $booking): void
     {
         DB::transaction(function () use ($booking) {
             $b = DiaspoBooking::whereKey($booking->id)->lockForUpdate()->first();
-            if (!$b || $b->payment_status !== 'pending') return;
-            $b->update(['payment_status' => 'failed', 'status' => 'cancelled', 'cancelled_at' => now()]);
+            if (!$b || $b->payment_status !== 'pending' || $b->status === 'cancelled') return;
+            $b->update(['status' => 'cancelled', 'cancelled_at' => now()]);
             DiaspoOffer::whereKey($b->diaspo_offer_id)->increment('remaining_kg', (float) $b->kg_booked);
         });
     }
