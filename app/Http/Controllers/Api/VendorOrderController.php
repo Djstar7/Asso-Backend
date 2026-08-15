@@ -76,6 +76,14 @@ class VendorOrderController extends Controller
             return response()->json(['success' => false, 'message' => 'Cette commande ne peut plus être validée'], 422);
         }
 
+        // Le paiement doit être acquis avant toute validation. En mode wallet les fonds
+        // sont bloqués dès la création (payment_status = 'paid') ; en kpay_direct la
+        // commande reste 'pending'/'pending' tant que le PayIn Mobile Money n'a pas abouti.
+        // Sans ce garde-fou, le vendeur crédite un escrow sur de l'argent jamais encaissé.
+        if ($order->payment_status !== 'paid') {
+            return response()->json(['success' => false, 'message' => "Le paiement de cette commande n'est pas encore confirmé."], 422);
+        }
+
         try {
             DB::transaction(function () use ($vendor, $order) {
                 // 1. Confirmer la commande
@@ -216,20 +224,38 @@ class VendorOrderController extends Controller
                     'cancelled_at' => now(),
                 ]);
 
-                // 2. Débloquer les fonds du client
-                $walletProvider = str_replace('wallet_', '', $order->payment_method);
-                if (in_array($walletProvider, ['kpay', 'paypal'])) {
-                    $client = $order->user;
-                    if ($client) {
-                        $this->walletService->unlockFunds(
-                            $client,
-                            (float) $order->total,
-                            "Remboursement commande #{$order->order_number} — refusée par vendeur",
-                            'order',
-                            $order->id,
-                            ['cancel_reason' => $cancelReason],
-                            $walletProvider
-                        );
+                // 2. Rembourser le client
+                $client = $order->user;
+                if ($client) {
+                    if ($order->payment_method === 'kpay_direct') {
+                        // kpay_direct : le client a payé en Mobile Money direct (aucun fonds
+                        // bloqué dans son wallet). L'argent est sur le compte marchand
+                        // plateforme → on rembourse en créditant son solde wallet KPay.
+                        if ($order->payment_status === 'paid') {
+                            $this->walletService->credit(
+                                $client,
+                                (float) $order->total,
+                                null,
+                                "Remboursement commande #{$order->order_number} — refusée par vendeur",
+                                ['order_id' => $order->id, 'refund' => true, 'cancel_reason' => $cancelReason],
+                                'kpay'
+                            );
+                        }
+                        // Si non payée (paiement jamais abouti), rien à rembourser.
+                    } else {
+                        // Mode wallet : débloquer les fonds escrow du client.
+                        $walletProvider = str_replace('wallet_', '', $order->payment_method);
+                        if (in_array($walletProvider, ['kpay', 'paypal'])) {
+                            $this->walletService->unlockFunds(
+                                $client,
+                                (float) $order->total,
+                                "Remboursement commande #{$order->order_number} — refusée par vendeur",
+                                'order',
+                                $order->id,
+                                ['cancel_reason' => $cancelReason],
+                                $walletProvider
+                            );
+                        }
                     }
                 }
 
@@ -246,7 +272,7 @@ class VendorOrderController extends Controller
                     $this->fcmService->sendToUser(
                         $client,
                         'Commande refusée',
-                        "Votre commande #{$order->order_number} a été refusée. Vos fonds ont été débloqués.",
+                        "Votre commande #{$order->order_number} a été refusée. Vous avez été remboursé.",
                         [
                             'type' => 'order_rejected',
                             'order_id' => (string) $order->id,

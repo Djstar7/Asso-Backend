@@ -194,16 +194,22 @@ class DeliveryController extends Controller
                     'confirmation_code' => null, // Supprimer le code après validation
                 ]);
 
-                // 2. Libérer l'escrow du client (les fonds bloqués sont maintenant définitivement débités)
-                $this->walletService->releaseEscrow(
-                    $order->user,
-                    (float) $order->total,
-                    "Paiement commande #{$order->order_number} — livraison confirmée",
-                    'order',
-                    $order->id,
-                    [],
-                    $walletProvider
-                );
+                // 2. Libérer l'escrow du client (les fonds bloqués sont définitivement débités).
+                // En mode kpay_direct, le client a réglé en Mobile Money direct : aucun fonds
+                // n'a été bloqué dans son wallet, il n'y a donc rien à libérer (l'argent est
+                // déjà sur le compte marchand plateforme). On saute cette étape pour éviter
+                // une exception « montant bloqué insuffisant » qui bloquerait la livraison.
+                if ($order->payment_method !== 'kpay_direct') {
+                    $this->walletService->releaseEscrow(
+                        $order->user,
+                        (float) $order->total,
+                        "Paiement commande #{$order->order_number} — livraison confirmée",
+                        'order',
+                        $order->id,
+                        [],
+                        $walletProvider
+                    );
+                }
 
                 // 3. Débloquer les fonds du vendeur (il peut maintenant retirer)
                 $sellers = $order->items->pluck('seller_id')->unique();
