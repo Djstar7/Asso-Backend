@@ -164,8 +164,8 @@ class PaymentController extends Controller
                 if (in_array($status, ['COMPLETED', 'SUCCESS', 'SUCCESSFUL'])) {
                     app(DiaspoController::class)->confirmBookingPayment($booking);
                 } elseif (in_array($status, ['FAILED', 'CANCELLED'])) {
-                    $booking->update(['payment_status' => 'failed', 'status' => 'cancelled', 'cancelled_at' => now()]);
-                    \App\Models\DiaspoOffer::whereKey($booking->diaspo_offer_id)->increment('remaining_kg', (float) $booking->kg_booked);
+                    // Idempotent + valeurs d'enum valides (payment_status n'a pas de 'failed').
+                    app(DiaspoController::class)->failBookingPayment($booking);
                 }
             }
             return response()->json(['message' => 'Diaspo booking webhook processed']);
