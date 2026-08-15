@@ -61,9 +61,10 @@ class VendorOrderController extends Controller
     /**
      * Validate (confirm) an order
      *
-     * Flow :
+     * Flow (ENCAISSEMENT DIRECT — sans escrow) :
      * 1. Passe la commande en "confirmed"
-     * 2. Crédite le wallet vendeur avec fonds BLOQUÉS (escrow) — il ne peut pas retirer
+     * 2. Prélève définitivement le client (mode wallet) et crédite IMMÉDIATEMENT le
+     *    vendeur, le livreur et ASSO — fonds disponibles tout de suite (plus de blocage)
      * 3. Envoie FCM au client ("Commande validée, en cours de livraison")
      * 4. Envoie FCM au livreur ("Nouvelle livraison à effectuer")
      */
@@ -98,31 +99,34 @@ class VendorOrderController extends Controller
                     $walletProvider = 'kpay';
                 }
 
-                // 3. Créditer le vendeur avec fonds BLOQUÉS (escrow)
-                // Le vendeur reçoit le subtotal (hors frais de livraison), mais bloqué
-                $vendorAmount = (float) $order->subtotal;
+                // 3. ENCAISSEMENT DIRECT — l'argent est distribué immédiatement, sans escrow.
+                //    a) Mode wallet : on prélève DÉFINITIVEMENT les fonds du client (jusqu'ici
+                //       bloqués depuis la création). En kpay_direct le client a déjà réglé via
+                //       Mobile Money (fonds sur le compte marchand plateforme) → rien à prélever.
+                if ($order->payment_method !== 'kpay_direct') {
+                    $this->walletService->releaseEscrow(
+                        $order->user,
+                        (float) $order->total,
+                        "Paiement commande #{$order->order_number} — validée par le vendeur",
+                        'order',
+                        $order->id,
+                        [],
+                        $walletProvider
+                    );
+                }
 
-                // Créditer puis bloquer immédiatement
+                //    b) Créditer le vendeur (subtotal) — fonds IMMÉDIATEMENT disponibles.
+                $vendorAmount = (float) $order->subtotal;
                 $this->walletService->credit(
                     $vendor,
                     $vendorAmount,
                     null,
-                    "Vente commande #{$order->order_number} (en attente livraison)",
-                    ['order_id' => $order->id, 'escrow' => true],
+                    "Vente commande #{$order->order_number}",
+                    ['order_id' => $order->id, 'direct_settlement' => true],
                     $walletProvider
                 );
 
-                $this->walletService->lockFunds(
-                    $vendor,
-                    $vendorAmount,
-                    "Escrow vente #{$order->order_number} — fonds bloqués jusqu'à livraison",
-                    'order',
-                    $order->id,
-                    [],
-                    $walletProvider
-                );
-
-                // 3b. Créditer l'entreprise de livraison avec fonds BLOQUÉS (base_delivery_price)
+                //    c) Créditer l'entreprise de livraison (base_delivery_price) — disponible.
                 $baseDeliveryPrice = (float) $order->base_delivery_price;
                 if ($baseDeliveryPrice > 0 && $order->delivery_company_id) {
                     $deliveryCompany = \App\Models\DelivererCompany::find($order->delivery_company_id);
@@ -133,25 +137,15 @@ class VendorOrderController extends Controller
                                 $companyUser,
                                 $baseDeliveryPrice,
                                 null,
-                                "Commission livraison #{$order->order_number} (en attente livraison)",
-                                ['order_id' => $order->id, 'escrow' => true],
-                                $walletProvider
-                            );
-
-                            $this->walletService->lockFunds(
-                                $companyUser,
-                                $baseDeliveryPrice,
-                                "Escrow livraison #{$order->order_number} — bloqué jusqu'à livraison",
-                                'order',
-                                $order->id,
-                                [],
+                                "Commission livraison #{$order->order_number}",
+                                ['order_id' => $order->id, 'direct_settlement' => true],
                                 $walletProvider
                             );
                         }
                     }
                 }
 
-                // 3c. Créditer ASSO avec fonds BLOQUÉS (delivery_commission)
+                //    d) Créditer ASSO (delivery_commission) — disponible.
                 $assoCommission = (float) $order->delivery_commission;
                 if ($assoCommission > 0) {
                     // Récupérer le user admin ASSO (par convention, user_id = 1 ou email = admin@asso.com)
@@ -166,22 +160,12 @@ class VendorOrderController extends Controller
                             $assoAdmin,
                             $assoCommission,
                             null,
-                            "Commission ASSO — Commande #{$order->order_number} (en attente livraison)",
-                            ['order_id' => $order->id, 'escrow' => true],
+                            "Commission ASSO — Commande #{$order->order_number}",
+                            ['order_id' => $order->id, 'direct_settlement' => true],
                             $walletProvider
                         );
 
-                        $this->walletService->lockFunds(
-                            $assoAdmin,
-                            $assoCommission,
-                            "Escrow commission ASSO #{$order->order_number} — bloqué jusqu'à livraison",
-                            'order',
-                            $order->id,
-                            [],
-                            $walletProvider
-                        );
-
-                        \Log::info("[VendorOrderController] Commission ASSO bloquée", [
+                        \Log::info("[VendorOrderController] Commission ASSO créditée (direct)", [
                             'order_id' => $order->id,
                             'asso_admin_id' => $assoAdmin->id,
                             'commission' => $assoCommission,
@@ -221,7 +205,7 @@ class VendorOrderController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Commande validée. Fonds crédités et bloqués en attente de livraison.',
+                'message' => 'Commande validée. Fonds crédités et disponibles immédiatement.',
                 'order' => $this->formatVendorOrder(
                     $order->fresh(['items.product.primaryImage', 'user', 'deliveryPerson', 'deliveryCompany']),
                     $vendor->id
