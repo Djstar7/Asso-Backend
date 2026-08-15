@@ -24,11 +24,14 @@ return new class extends Migration
 
             // Type de transaction
             $table->enum('type', [
-                'credit',      // Recharge wallet (ajout d'argent)
-                'debit',       // Paiement avec wallet (retrait d'argent)
-                'refund',      // Remboursement
-                'bonus',       // Bonus offert (promo, parrainage)
-                'adjustment'   // Ajustement admin
+                'credit',         // Recharge wallet (ajout d'argent)
+                'debit',          // Paiement avec wallet (retrait d'argent)
+                'refund',         // Remboursement
+                'bonus',          // Bonus offert (promo, parrainage)
+                'adjustment',     // Ajustement admin
+                'lock',           // Blocage escrow (fonds bloqués)
+                'unlock',         // Déblocage escrow (remise à disposition)
+                'escrow_release', // Libération escrow (débloque + débite)
             ]);
 
             // Montant (positif pour credit, négatif pour debit)
