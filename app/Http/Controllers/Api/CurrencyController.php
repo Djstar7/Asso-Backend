@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Currency;
-use App\Models\ExchangeRate;
 use Illuminate\Http\Request;
 
 class CurrencyController extends Controller
@@ -140,39 +139,20 @@ class CurrencyController extends Controller
             ]);
         }
 
-        $rate = $this->resolveRate($from, $to);
+        // Source unique : API live prioritaire, taux DB en secours (voir ExchangeRateService).
+        $rate = \App\Services\ExchangeRateService::rate($from, $to);
+
+        if ($rate === null) {
+            return response()->json([
+                'success' => false,
+                'message' => "Taux de change $from → $to indisponible.",
+            ], 400);
+        }
 
         return response()->json([
             'success' => true,
             'data' => ['from' => $from, 'to' => $to, 'rate' => $rate],
         ]);
-    }
-
-    /**
-     * Look up a stored rate, falling back to the inverse of the reverse pair,
-     * then to 1.0 when nothing is configured.
-     */
-    private function resolveRate(string $from, string $to): float
-    {
-        $direct = ExchangeRate::where('is_active', true)
-            ->where('from_currency', $from)
-            ->where('to_currency', $to)
-            ->first();
-
-        if ($direct) {
-            return (float) $direct->rate;
-        }
-
-        $inverse = ExchangeRate::where('is_active', true)
-            ->where('from_currency', $to)
-            ->where('to_currency', $from)
-            ->first();
-
-        if ($inverse && (float) $inverse->rate != 0.0) {
-            return round(1 / (float) $inverse->rate, 8);
-        }
-
-        return 1.0;
     }
 
     /**

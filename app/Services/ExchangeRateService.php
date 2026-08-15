@@ -24,6 +24,12 @@ class ExchangeRateService
 
     /**
      * Taux de conversion $from → $to. Retourne null si indisponible.
+     *
+     * Source de vérité : l'API live (exchangerate-api.com) en priorité ; si elle
+     * est indisponible (pas de clé, réseau, quota), on retombe sur les taux
+     * configurés en base par l'admin (`exchange_rates`). Aucun fallback à 1.0 :
+     * si aucune source n'a de taux, on renvoie null (l'appelant refuse alors de
+     * convertir un montant plutôt que de le fausser).
      */
     public static function rate(string $from, string $to): ?float
     {
@@ -33,6 +39,27 @@ class ExchangeRateService
             return 1.0;
         }
 
+        // 1) API live (mise en cache 1h) — source de vérité.
+        $live = self::liveRate($from, $to);
+        if ($live !== null) {
+            return $live;
+        }
+
+        // 2) Secours : taux configurés en base par l'admin.
+        $stored = self::storedRate($from, $to);
+        if ($stored !== null) {
+            Log::info('[ExchangeRateService] Taux live indisponible, fallback DB utilisé', [
+                'from' => $from, 'to' => $to, 'rate' => $stored,
+            ]);
+        }
+        return $stored;
+    }
+
+    /**
+     * Taux via l'API live exchangerate-api.com (caché 1h). null si indisponible.
+     */
+    private static function liveRate(string $from, string $to): ?float
+    {
         $cacheKey = "exrate_{$from}_{$to}";
         return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($from, $to) {
             $key = self::apiKey();
@@ -54,6 +81,31 @@ class ExchangeRateService
                 return null;
             }
         });
+    }
+
+    /**
+     * Taux stocké en base par l'admin (`exchange_rates` actifs). Tente la paire
+     * directe, puis l'inverse de la paire opposée. null si rien de configuré.
+     */
+    private static function storedRate(string $from, string $to): ?float
+    {
+        $direct = \App\Models\ExchangeRate::where('is_active', true)
+            ->where('from_currency', $from)
+            ->where('to_currency', $to)
+            ->first();
+        if ($direct) {
+            return (float) $direct->rate;
+        }
+
+        $inverse = \App\Models\ExchangeRate::where('is_active', true)
+            ->where('from_currency', $to)
+            ->where('to_currency', $from)
+            ->first();
+        if ($inverse && (float) $inverse->rate != 0.0) {
+            return round(1 / (float) $inverse->rate, 8);
+        }
+
+        return null;
     }
 
     /**
