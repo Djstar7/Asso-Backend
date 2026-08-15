@@ -181,17 +181,32 @@ class OrderService
                     throw new \Exception("Stock insuffisant pour '{$product->name}'. Disponible: {$product->stock}");
                 }
 
-                $price = (float) $product->price;
+                // Prix du produit converti en XAF (devise pivot) au taux du MOMENT de la
+                // commande. Le vendeur peut fixer son prix dans une autre devise ; toute la
+                // chaîne aval (escrow, wallet, livraison, payin) reste en XAF. Erreur stricte
+                // si aucun taux fiable : on ne devine jamais un montant à débiter.
+                $sourceCurrency = strtoupper($product->currency ?? 'XAF');
+                $sourceUnitPrice = (float) $product->price;
+                if ($sourceCurrency === 'XAF') {
+                    $unitPrice = $sourceUnitPrice;
+                } else {
+                    $conv = \App\Services\ExchangeRateService::convert($sourceCurrency, 'XAF', $sourceUnitPrice);
+                    if (empty($conv['success']) || $conv['amount'] === null) {
+                        throw new \Exception("Conversion {$sourceCurrency} → XAF indisponible pour '{$product->name}'. Réessayez plus tard.");
+                    }
+                    $unitPrice = round((float) $conv['amount'], 2);
+                }
+
                 $quantity = $item['quantity'];
-                $totalPrice = $price * $quantity;
+                $totalPrice = $unitPrice * $quantity;
                 $subtotal += $totalPrice;
 
                 $orderItems[] = [
                     'product_id' => $product->id,
                     'seller_id' => $product->user_id,
                     'quantity' => $quantity,
-                    'unit_price' => $price,
-                    'total_price' => $totalPrice,
+                    'unit_price' => $unitPrice,      // XAF (pivot)
+                    'total_price' => $totalPrice,    // XAF (pivot)
                 ];
 
                 // Collecter les vendeurs pour notification

@@ -74,6 +74,7 @@ class VendorProductController extends Controller
             'name' => 'sometimes|string|max:255',
             'description' => 'sometimes|string',
             'price' => 'sometimes|numeric|min:0',
+            'currency' => 'sometimes|string|size:3|exists:currencies,code', // price_xaf recalculé auto
             'category_id' => 'sometimes|exists:categories,id',
             'subcategory_id' => 'sometimes|nullable|exists:subcategories,id',
             'type' => 'sometimes|in:article,service',
@@ -244,6 +245,8 @@ class VendorProductController extends Controller
             'slug' => $product->slug,
             'description' => $product->description,
             'price' => (float) $product->price,
+            'currency' => $product->currency ?? 'XAF',
+            'price_xaf' => $product->price_xaf !== null ? (float) $product->price_xaf : (float) $product->price,
             'min_price' => $product->min_price ? (float) $product->min_price : null,
             'max_price' => $product->max_price ? (float) $product->max_price : null,
             'price_type' => $product->price_type ?? 'fixed',
