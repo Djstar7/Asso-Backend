@@ -138,15 +138,10 @@ Route::post('/v1/payments/webhook/kpay', [PaymentController::class, 'webhookKpay
 // Alias court (certaines configs KPay utilisent cette forme)
 Route::post('/webhooks/kpay', [PaymentController::class, 'webhookKpay']);
 
-// ============================================
-// CURRENCY & EXCHANGE RATES (Public)
-// ============================================
-Route::prefix('v1/currencies')->group(function () {
-    Route::get('/', [\App\Http\Controllers\Api\V1\CurrencyController::class, 'index']); // Get all currencies
-    Route::get('/all-with-countries', [\App\Http\Controllers\Api\V1\CurrencyController::class, 'getAllWithCountries']); // Get all currencies with countries for country selection
-    Route::get('/by-country', [\App\Http\Controllers\Api\V1\CurrencyController::class, 'getByCountry']); // Get currency by country name
-    Route::get('/exchange-rate', [\App\Http\Controllers\Api\V1\CurrencyController::class, 'getExchangeRate']); // Get specific exchange rate
-});
+// NOTE: Les routes /v1/currencies/* sont définies plus haut dans le groupe prefix('v1')
+// et servies par App\Http\Controllers\Api\CurrencyController (contrat mobile unifié +
+// endpoint /convert). Ne pas réintroduire un bloc v1/currencies dédié ici : il masquerait
+// ces routes (collision d'URI) et ferait diverger le shape de réponse.
 
 // ============================================
 // PROTECTED ROUTES (auth:sanctum)
