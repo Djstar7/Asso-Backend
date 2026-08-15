@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 class Order extends Model
 {
     protected $fillable = [
-        'order_number', 'user_id', 'status', 'subtotal', 'delivery_fee', 'total',
+        'order_number', 'user_id', 'status', 'subtotal', 'delivery_fee', 'base_delivery_price', 'delivery_commission', 'total',
         'delivery_address', 'delivery_latitude', 'delivery_longitude',
         'tracking_number', 'confirmation_code',
         'delivery_person_id', 'delivery_company_id', 'delivery_zone_id',
@@ -23,6 +23,8 @@ class Order extends Model
     protected $casts = [
         'subtotal' => 'decimal:2',
         'delivery_fee' => 'decimal:2',
+        'base_delivery_price' => 'decimal:2',
+        'delivery_commission' => 'decimal:2',
         'total' => 'decimal:2',
         'confirmed_at' => 'datetime',
         'shipped_at' => 'datetime',

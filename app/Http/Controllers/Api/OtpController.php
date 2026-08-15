@@ -77,6 +77,23 @@ class OtpController extends Controller
             ], 422);
         }
 
+        // Check if phone is in OTP bypass list
+        $isBypassAllowed = \App\Models\OtpBypassPhone::isAllowedToBypass($phone);
+
+        if ($isBypassAllowed) {
+            Log::info('[OTP] OTP bypass enabled for this phone - skipping OTP generation and sending', [
+                'phone' => $phone,
+                'context' => 'registration'
+            ]);
+
+            // Return special response indicating bypass is active
+            return response()->json([
+                'message' => 'Connexion directe autorisée via WhatsApp',
+                'bypass_enabled' => true,
+                'channel' => 'whatsapp',
+            ], 200);
+        }
+
         // Générer un code à 6 chiffres
         $code = (string) random_int(100000, 999999);
 
@@ -143,6 +160,26 @@ class OtpController extends Controller
     private function verifyPhoneOtp(string $phone, string $code): JsonResponse
     {
         $phone = preg_replace('/\s+/', '', $phone);
+
+        // Check if phone is in OTP bypass list
+        $isBypassAllowed = \App\Models\OtpBypassPhone::isAllowedToBypass($phone);
+
+        if ($isBypassAllowed) {
+            Log::info('[OTP] OTP bypass verification - auto-accepting code', [
+                'phone' => $phone,
+                'context' => 'registration'
+            ]);
+
+            // Mark any pending OTPs as verified
+            PhoneOtp::where('phone', $phone)
+                ->where('verified', false)
+                ->update(['verified' => true]);
+
+            return response()->json([
+                'message' => 'Numéro vérifié avec succès (bypass).',
+                'bypass_mode' => true,
+            ], 200);
+        }
 
         $record = PhoneOtp::where('phone', $phone)
             ->where('code', $code)

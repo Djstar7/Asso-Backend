@@ -11,6 +11,7 @@ class DeliveryZone extends Model
     protected $fillable = [
         'deliverer_company_id',
         'name',
+        'city',
         'zone_data',
         'center_latitude',
         'center_longitude',

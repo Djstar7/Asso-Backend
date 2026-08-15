@@ -175,4 +175,105 @@ class InvoiceController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Get user's invoice history
+     */
+    public function index(Request $request)
+    {
+        $user = $request->user();
+        $type = $request->query('type', 'all');
+        $perPage = min($request->query('per_page', 20), 100);
+
+        Log::info('[INVOICE] ========== GET INVOICE HISTORY ==========', [
+            'user_id' => $user->id,
+            'type' => $type,
+            'per_page' => $perPage,
+        ]);
+
+        $invoices = collect();
+
+        // Vendor packages invoices
+        if (in_array($type, ['all', 'package'])) {
+            $packages = $user->vendorPackages()
+                ->where('status', 'active')
+                ->whereNotNull('payment_reference')
+                ->with('package')
+                ->get()
+                ->map(function ($vp) {
+                    return [
+                        'id' => $vp->id,
+                        'type' => 'vendor_package',
+                        'invoice_number' => 'INV-PKG-' . $vp->payment_reference,
+                        'date' => $vp->purchased_at->toIso8601String(),
+                        'amount' => $vp->package ? (float) $vp->package->price : 0,
+                        'status' => 'paid',
+                        'description' => $vp->package ? $vp->package->name : ($vp->custom_name ?? 'Package Vendeur'),
+                        'payment_method' => 'wallet',
+                        'download_url' => url("/api/v1/invoices/download/{$vp->id}"),
+                        'pdf_url' => url("/api/v1/invoices/pdf/{$vp->id}"),
+                    ];
+                });
+
+            $invoices = $invoices->merge($packages);
+            Log::info('[INVOICE] Vendor packages found', ['count' => $packages->count()]);
+        }
+
+        // Wallet transactions (recharges)
+        if (in_array($type, ['all', 'wallet'])) {
+            $walletTxs = $user->walletTransactions()
+                ->where('type', 'credit')
+                ->where('status', 'completed')
+                ->whereNotNull('payment_id')
+                ->with('payment')
+                ->get()
+                ->map(function ($tx) {
+                    return [
+                        'id' => $tx->id,
+                        'type' => 'wallet_recharge',
+                        'invoice_number' => 'INV-WALLET-' . $tx->id,
+                        'date' => $tx->created_at->toIso8601String(),
+                        'amount' => (float) $tx->amount,
+                        'status' => 'paid',
+                        'description' => 'Recharge Wallet ' . ucfirst($tx->provider),
+                        'payment_method' => $tx->provider,
+                    ];
+                });
+
+            $invoices = $invoices->merge($walletTxs);
+            Log::info('[INVOICE] Wallet recharges found', ['count' => $walletTxs->count()]);
+        }
+
+        // Sort by date (most recent first)
+        $invoices = $invoices->sortByDesc('date')->values();
+
+        // Manual pagination
+        $page = max(1, (int) $request->query('page', 1));
+        $total = $invoices->count();
+        $lastPage = $total > 0 ? (int) ceil($total / $perPage) : 1;
+        $offset = ($page - 1) * $perPage;
+
+        $paginatedInvoices = $invoices->slice($offset, $perPage)->values();
+
+        Log::info('[INVOICE] Invoice history retrieved', [
+            'user_id' => $user->id,
+            'total' => $total,
+            'page' => $page,
+            'per_page' => $perPage,
+            'returned' => $paginatedInvoices->count(),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'invoices' => [
+                'current_page' => $page,
+                'data' => $paginatedInvoices,
+                'total' => $total,
+                'per_page' => $perPage,
+                'last_page' => $lastPage,
+                'from' => $total > 0 ? $offset + 1 : 0,
+                'to' => $total > 0 ? min($offset + $perPage, $total) : 0,
+            ],
+        ]);
+    }
 }
