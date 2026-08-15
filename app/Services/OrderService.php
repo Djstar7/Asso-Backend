@@ -326,22 +326,28 @@ class OrderService
                 ]
             );
 
-            // Notification vendeur(s)
-            foreach ($sellers as $sellerId) {
-                $seller = User::find($sellerId);
-                if ($seller) {
-                    $this->fcmService->sendToUser(
-                        $seller,
-                        'Nouvelle commande reçue',
-                        "Vous avez reçu une nouvelle commande #{$order->order_number} de {$client->first_name} ({$order->formatted_total}).",
-                        [
-                            'type' => 'new_order_vendor',
-                            'order_id' => (string) $order->id,
-                            'order_number' => $order->order_number,
-                            'total' => (string) $total,
-                            'client_name' => $client->first_name . ' ' . $client->last_name,
-                        ]
-                    );
+            // Notification vendeur(s).
+            // En mode kpay_direct, la commande n'est pas encore payée (PayIn Mobile Money
+            // en attente) : on ne prévient les vendeurs qu'à la confirmation du paiement
+            // (voir confirmKpayOrderPayment) pour ne pas les solliciter sur une commande
+            // qui pourrait ne jamais être réglée.
+            if (!$isKpayDirect) {
+                foreach ($sellers as $sellerId) {
+                    $seller = User::find($sellerId);
+                    if ($seller) {
+                        $this->fcmService->sendToUser(
+                            $seller,
+                            'Nouvelle commande reçue',
+                            "Vous avez reçu une nouvelle commande #{$order->order_number} de {$client->first_name} ({$order->formatted_total}).",
+                            [
+                                'type' => 'new_order_vendor',
+                                'order_id' => (string) $order->id,
+                                'order_number' => $order->order_number,
+                                'total' => (string) $total,
+                                'client_name' => $client->first_name . ' ' . $client->last_name,
+                            ]
+                        );
+                    }
                 }
             }
 
@@ -360,31 +366,32 @@ class OrderService
 
     /**
      * Confirme le paiement KPay direct d'une commande (idempotent).
-     * Marque la commande payée/confirmée et crédite les gains (pending) des
-     * vendeurs — les fonds sont séquestrés par la plateforme (compte KPay).
+     *
+     * Marque UNIQUEMENT la commande comme payée (payment_status = 'paid') : elle
+     * reste au statut 'pending' afin de suivre le MÊME cycle que le mode wallet,
+     * c.-à-d. attendre la validation du vendeur (VendorOrderController::validate),
+     * qui crédite/bloque les fonds du vendeur et du livreur (escrow). L'argent est
+     * séquestré par la plateforme (compte marchand KPay) et sera libéré vers le
+     * vendeur/livreur à la confirmation de livraison (DeliveryController::complete).
      */
     public function confirmKpayOrderPayment(Order $order): void
     {
-        DB::transaction(function () use ($order) {
+        $sellers = [];
+
+        DB::transaction(function () use ($order, &$sellers) {
             $order = Order::whereKey($order->id)->lockForUpdate()->with('items')->first();
             if (!$order || $order->payment_status === 'paid') {
                 return; // déjà traité
             }
 
+            // Payé, mais on NE confirme PAS la commande : le vendeur doit encore la
+            // valider (comme en mode wallet). Le crédit escrow vendeur/livreur se fait
+            // dans validate(), et non plus via pending_earnings (modèle unifié).
             $order->update([
                 'payment_status' => 'paid',
-                'status' => 'confirmed',
-                'confirmed_at' => now(),
             ]);
 
-            // Créditer les gains en attente de chaque vendeur (séquestre plateforme)
-            $sellerTotals = [];
-            foreach ($order->items as $item) {
-                $sellerTotals[$item->seller_id] = ($sellerTotals[$item->seller_id] ?? 0) + (float) $item->total_price;
-            }
-            foreach ($sellerTotals as $sellerId => $amount) {
-                User::where('id', $sellerId)->increment('pending_earnings', $amount);
-            }
+            $sellers = $order->items->pluck('seller_id')->unique()->values()->all();
 
             // Enregistrer une trace dans l'historique des transactions du client.
             // N.B. : le solde du wallet n'est PAS modifié — l'argent provient de Mobile
@@ -421,11 +428,92 @@ class OrderService
             $this->fcmService->sendToUser(
                 $order->user,
                 '✅ Paiement confirmé',
-                "Votre paiement pour la commande #{$order->order_number} a été confirmé.",
+                "Votre paiement pour la commande #{$order->order_number} a été confirmé. En attente de validation du vendeur.",
                 ['type' => 'order_paid', 'order_id' => (string) $order->id, 'order_number' => $order->order_number]
             );
         } catch (\Exception $e) {
             Log::warning('[OrderService] FCM order_paid échec: ' . $e->getMessage());
+        }
+
+        // Prévenir le(s) vendeur(s) : la commande est désormais payée et actionnable.
+        // (En mode kpay_direct la notif « Nouvelle commande » n'est PAS envoyée à la
+        // création — voir createOrder — mais seulement ici, une fois le paiement acquis.)
+        $client = $order->user;
+        foreach ($sellers as $sellerId) {
+            $seller = User::find($sellerId);
+            if (!$seller) {
+                continue;
+            }
+            try {
+                $this->fcmService->sendToUser(
+                    $seller,
+                    'Nouvelle commande reçue',
+                    "Vous avez reçu une nouvelle commande #{$order->order_number}"
+                        . ($client ? " de {$client->first_name}" : '')
+                        . " ({$order->formatted_total}).",
+                    [
+                        'type' => 'new_order_vendor',
+                        'order_id' => (string) $order->id,
+                        'order_number' => $order->order_number,
+                        'total' => (string) $order->total,
+                        'client_name' => $client ? trim($client->first_name . ' ' . $client->last_name) : '',
+                    ]
+                );
+            } catch (\Exception $e) {
+                Log::warning('[OrderService] FCM new_order_vendor échec: ' . $e->getMessage());
+            }
+        }
+    }
+
+    /**
+     * Échec/annulation du paiement KPay direct d'une commande (idempotent).
+     *
+     * Le PayIn n'a pas abouti : on restaure le stock décrémenté à la création et on
+     * annule la commande, afin de ne pas laisser une commande fantôme en 'pending'
+     * avec du stock verrouillé indéfiniment.
+     */
+    public function failKpayOrderPayment(Order $order): void
+    {
+        DB::transaction(function () use ($order) {
+            $order = Order::whereKey($order->id)->lockForUpdate()->with('items.product')->first();
+
+            // Idempotence : ne rien faire si déjà payé (course polling/webhook) ou déjà annulé.
+            if (!$order
+                || $order->payment_method !== 'kpay_direct'
+                || $order->payment_status === 'paid'
+                || $order->status === 'cancelled') {
+                return;
+            }
+
+            // Restaurer le stock décrémenté lors de la création
+            foreach ($order->items as $item) {
+                if ($item->product && $item->product->stock !== null) {
+                    $item->product->increment('stock', $item->quantity);
+                }
+            }
+
+            $order->update([
+                'payment_status' => 'failed',
+                'status' => 'cancelled',
+                'cancel_reason' => 'Paiement Mobile Money non abouti',
+                'cancelled_at' => now(),
+            ]);
+
+            Log::info('[OrderService] Commande KPay échouée — stock restauré, commande annulée', [
+                'order_id' => $order->id,
+                'order_number' => $order->order_number,
+            ]);
+        });
+
+        try {
+            $this->fcmService->sendToUser(
+                $order->user,
+                '❌ Paiement échoué',
+                "Le paiement de la commande #{$order->order_number} n'a pas abouti. La commande a été annulée.",
+                ['type' => 'order_payment_failed', 'order_id' => (string) $order->id, 'order_number' => $order->order_number]
+            );
+        } catch (\Exception $e) {
+            Log::warning('[OrderService] FCM order_payment_failed échec: ' . $e->getMessage());
         }
     }
 

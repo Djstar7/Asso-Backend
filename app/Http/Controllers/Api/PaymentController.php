@@ -179,7 +179,7 @@ class PaymentController extends Controller
             if (in_array($status, ['COMPLETED', 'SUCCESS', 'SUCCESSFUL'])) {
                 app(\App\Services\OrderService::class)->confirmKpayOrderPayment($directOrder);
             } elseif (in_array($status, ['FAILED', 'CANCELLED'])) {
-                $directOrder->update(['payment_status' => 'failed']);
+                app(\App\Services\OrderService::class)->failKpayOrderPayment($directOrder);
             }
             return response()->json(['message' => 'Order payment webhook processed']);
         }
