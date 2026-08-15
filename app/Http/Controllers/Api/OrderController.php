@@ -146,7 +146,8 @@ class OrderController extends Controller
                 $this->orderService->confirmKpayOrderPayment($order);
                 $order->refresh();
             } elseif (in_array($status, ['FAILED', 'FAILURE', 'ERROR', 'REJECTED', 'CANCELLED', 'CANCELED'])) {
-                $order->update(['payment_status' => 'failed']);
+                $this->orderService->failKpayOrderPayment($order);
+                $order->refresh();
             }
         }
 
@@ -170,24 +171,50 @@ class OrderController extends Controller
             'reason' => 'nullable|string|max:500',
         ]);
 
-        $order = Order::where('user_id', $request->user()->id)
+        $order = Order::with('items.product')
+            ->where('user_id', $request->user()->id)
             ->whereIn('status', ['pending'])
             ->findOrFail($id);
 
         try {
             DB::transaction(function () use ($request, $order) {
-                // Débloquer les fonds du client
-                $walletProvider = str_replace('wallet_', '', $order->payment_method);
-                if (in_array($walletProvider, ['kpay', 'paypal'])) {
-                    app(\App\Services\WalletService::class)->unlockFunds(
-                        $request->user(),
-                        (float) $order->total,
-                        "Annulation commande #{$order->order_number}",
-                        'order',
-                        $order->id,
-                        ['cancel_reason' => $request->reason],
-                        $walletProvider
-                    );
+                $wallet = app(\App\Services\WalletService::class);
+
+                // Rembourser le client selon le mode de paiement
+                if ($order->payment_method === 'kpay_direct') {
+                    // Paiement Mobile Money direct : rien de bloqué dans le wallet.
+                    // Si déjà payé, rembourser en créditant le solde ; sinon rien à faire.
+                    if ($order->payment_status === 'paid') {
+                        $wallet->credit(
+                            $request->user(),
+                            (float) $order->total,
+                            null,
+                            "Remboursement commande #{$order->order_number} — annulée",
+                            ['order_id' => $order->id, 'refund' => true, 'cancel_reason' => $request->reason],
+                            'kpay'
+                        );
+                    }
+                } else {
+                    // Mode wallet : débloquer les fonds escrow.
+                    $walletProvider = str_replace('wallet_', '', $order->payment_method);
+                    if (in_array($walletProvider, ['kpay', 'paypal'])) {
+                        $wallet->unlockFunds(
+                            $request->user(),
+                            (float) $order->total,
+                            "Annulation commande #{$order->order_number}",
+                            'order',
+                            $order->id,
+                            ['cancel_reason' => $request->reason],
+                            $walletProvider
+                        );
+                    }
+                }
+
+                // Restaurer le stock décrémenté à la création
+                foreach ($order->items as $item) {
+                    if ($item->product && $item->product->stock !== null) {
+                        $item->product->increment('stock', $item->quantity);
+                    }
                 }
 
                 $order->update([
