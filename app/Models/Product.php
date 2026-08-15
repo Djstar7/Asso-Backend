@@ -30,6 +30,8 @@ class Product extends Model
         'slug',
         'description',
         'price',
+        'currency',
+        'price_xaf',
         'min_price',
         'max_price',
         'price_type',
@@ -42,6 +44,7 @@ class Product extends Model
 
     protected $casts = [
         'price' => 'decimal:2',
+        'price_xaf' => 'decimal:2',
         'min_price' => 'decimal:2',
         'max_price' => 'decimal:2',
     ];
@@ -63,6 +66,37 @@ class Product extends Model
             if ($product->isDirty('name') && !$product->isDirty('slug')) {
                 $product->slug = Str::slug($product->name);
             }
+        });
+
+        // Maintenir price_xaf (cache canonique XAF pour tri/filtre) à chaque écriture
+        // du prix ou de la devise. Best-effort : si aucun taux fiable n'est disponible,
+        // on laisse price_xaf inchangé/null — le montant réellement débité est de toute
+        // façon reconverti au taux du moment lors de la commande (OrderService).
+        static::saving(function ($product) {
+            if (empty($product->currency)) {
+                $product->currency = 'XAF';
+            }
+            $product->currency = strtoupper($product->currency);
+
+            $needsRecompute = $product->isDirty('price')
+                || $product->isDirty('currency')
+                || $product->price_xaf === null;
+
+            if (!$needsRecompute) {
+                return;
+            }
+
+            $price = (float) $product->price;
+            if ($product->currency === 'XAF') {
+                $product->price_xaf = $price;
+                return;
+            }
+
+            $conv = \App\Services\ExchangeRateService::convert($product->currency, 'XAF', $price);
+            if (!empty($conv['success']) && $conv['amount'] !== null) {
+                $product->price_xaf = round((float) $conv['amount'], 2);
+            }
+            // sinon : on ne devine pas — price_xaf reste tel quel (éventuellement null).
         });
     }
 
@@ -139,14 +173,29 @@ class Product extends Model
     }
 
     /**
-     * Get formatted price based on price type
+     * Symbole de la devise du produit (fallback = code devise, puis 'FCFA' pour XAF).
+     */
+    public function getCurrencySymbolAttribute(): string
+    {
+        $code = strtoupper($this->currency ?? 'XAF');
+        if ($code === 'XAF' || $code === 'XOF') {
+            return 'FCFA';
+        }
+        $symbol = Currency::where('code', $code)->value('symbol');
+        return $symbol ?: $code;
+    }
+
+    /**
+     * Get formatted price based on price type — dans la devise SOURCE du produit.
      */
     public function getFormattedPriceAttribute(): string
     {
+        $symbol = $this->currency_symbol;
+
         if ($this->price_type === 'variable') {
-            return number_format($this->min_price, 0, ',', ' ') . ' - ' . number_format($this->max_price, 0, ',', ' ') . ' FCFA';
+            return number_format((float) $this->min_price, 0, ',', ' ') . ' - ' . number_format((float) $this->max_price, 0, ',', ' ') . ' ' . $symbol;
         }
 
-        return number_format($this->price, 0, ',', ' ') . ' FCFA';
+        return number_format((float) $this->price, 0, ',', ' ') . ' ' . $symbol;
     }
 }
