@@ -138,7 +138,7 @@ class DiaspoController extends Controller
 
         $offer = DiaspoOffer::create(array_merge($data, [
             'user_id' => $user->id,
-            'status' => 'active',
+            'status' => 'approved',
             'verification_status' => 'verified',
             'verified_at' => now(),
             'remaining_kg' => $data['available_kg'],
@@ -167,7 +167,7 @@ class DiaspoController extends Controller
     public function destroyOffer(Request $request, $id)
     {
         $offer = DiaspoOffer::where('user_id', $request->user()->id)->findOrFail($id);
-        if ($offer->bookings()->whereIn('status', ['confirmed', 'in_transit'])->exists()) {
+        if ($offer->bookings()->whereIn('status', ['paid', 'confirmed'])->exists()) {
             return response()->json(['success' => false, 'message' => 'Impossible de supprimer : des réservations sont en cours.'], 422);
         }
         $offer->delete();
@@ -194,8 +194,9 @@ class DiaspoController extends Controller
             if ($offer->user_id === $buyer->id) {
                 return response()->json(['success' => false, 'message' => 'Vous ne pouvez pas réserver votre propre offre.'], 422);
             }
-            if ($offer->status !== 'active' || (float) $offer->remaining_kg < $data['kg_booked']) {
-                return response()->json(['success' => false, 'message' => 'Kg insuffisants sur cette offre.'], 422);
+            // Offre réservable = vérifiée et publiée (schéma unifié : statut 'approved').
+            if ($offer->status !== 'approved' || (float) $offer->remaining_kg < $data['kg_booked']) {
+                return response()->json(['success' => false, 'message' => 'Offre non disponible ou kg insuffisants.'], 422);
             }
 
             $subtotal = round($data['kg_booked'] * (float) $offer->price_per_kg, 2);
@@ -277,9 +278,11 @@ class DiaspoController extends Controller
     {
         DB::transaction(function () use ($booking) {
             $b = DiaspoBooking::whereKey($booking->id)->lockForUpdate()->first();
-            // Schéma unifié (upstream) : payment_status ∈ pending|completed|refunded ('paid' n'existe plus).
+            // Schéma unifié (upstream) : payment_status ∈ pending|completed|refunded, status ∈
+            // pending|paid|confirmed|cancelled|completed. Cycle : pending → paid (payé) →
+            // confirmed (voyageur valide le code) → completed (réception).
             if (!$b || $b->payment_status === 'completed') return;
-            $b->update(['payment_status' => 'completed', 'status' => 'confirmed', 'paid_at' => now()]);
+            $b->update(['payment_status' => 'completed', 'status' => 'paid', 'paid_at' => now()]);
         });
         try {
             $seller = User::find($booking->seller_user_id);
@@ -348,7 +351,7 @@ class DiaspoController extends Controller
             $b = DiaspoBooking::whereKey($booking->id)->lockForUpdate()->first();
 
             // Rembourser dans le mini-wallet acheteur si déjà payé
-            if ($b->payment_status === 'paid') {
+            if ($b->payment_status === 'completed') {
                 $buyer = User::find($b->buyer_user_id);
                 $buyer->creditKpay($b->currency, (float) $b->total_price);
                 $b->refunded_at = now();
@@ -374,7 +377,7 @@ class DiaspoController extends Controller
             ->where('buyer_user_id', $request->user()->id)
             ->firstOrFail();
 
-        if ($booking->payment_status !== 'paid' || $booking->status === 'completed') {
+        if ($booking->payment_status !== 'completed' || $booking->status === 'completed') {
             return response()->json(['success' => false, 'message' => 'Action impossible sur cette réservation.'], 422);
         }
 
@@ -405,11 +408,12 @@ class DiaspoController extends Controller
         if ($booking->confirmation_code !== $request->input('confirmation_code')) {
             return response()->json(['success' => false, 'message' => 'Code de confirmation incorrect.'], 422);
         }
-        if ($booking->payment_status !== 'paid') {
+        if ($booking->payment_status !== 'completed') {
             return response()->json(['success' => false, 'message' => 'La réservation n\'est pas encore payée.'], 422);
         }
 
-        $booking->update(['status' => 'in_transit']);
+        // Voyageur a validé le code de l'acheteur → réservation confirmée (en transit).
+        $booking->update(['status' => 'confirmed']);
         return response()->json(['success' => true, 'message' => 'Code validé.', 'data' => $booking->fresh()->load(['offer.user', 'buyer', 'seller'])->toApi()]);
     }
 
