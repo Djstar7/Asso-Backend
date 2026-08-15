@@ -38,7 +38,10 @@ class Product extends Model
         'type',
         'origin_country',
         'stock',
+        'weight',
         'weight_category',
+        'latitude',
+        'longitude',
         'status',
     ];
 
@@ -47,6 +50,8 @@ class Product extends Model
         'price_xaf' => 'decimal:2',
         'min_price' => 'decimal:2',
         'max_price' => 'decimal:2',
+        'latitude' => 'decimal:8',
+        'longitude' => 'decimal:8',
     ];
 
     /**

@@ -14,13 +14,17 @@ class Message extends Model
         'conversation_id',
         'sender_id',
         'message',
+        'image_path',
+        'is_system',
         'product_id',
+        'diaspo_offer_id',
         'is_read',
         'read_at',
     ];
 
     protected $casts = [
         'is_read' => 'boolean',
+        'is_system' => 'boolean',
         'read_at' => 'datetime',
     ];
 
@@ -46,6 +50,14 @@ class Message extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    /**
+     * Offre Diaspo taguée dans le message (optionnel)
+     */
+    public function diaspoOffer(): BelongsTo
+    {
+        return $this->belongsTo(DiaspoOffer::class);
     }
 
     /**

@@ -95,9 +95,11 @@ class CurrencyController extends Controller
             ], 422);
         }
 
+        // Source unique : API live prioritaire, taux DB en secours (voir ExchangeRateService).
+        // Cohérent avec le montant réellement débité côté OrderService/WalletController.
         $result = \App\Services\ExchangeRateService::convert($from, $to, $amount);
 
-        if (!$result['success']) {
+        if (empty($result['success'])) {
             return response()->json([
                 'success' => false,
                 'message' => "Conversion $from → $to indisponible.",
