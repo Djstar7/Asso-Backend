@@ -180,11 +180,6 @@ class DeliveryController extends Controller
 
         try {
             DB::transaction(function () use ($user, $order) {
-                $walletProvider = str_replace('wallet_', '', $order->payment_method);
-                if (!in_array($walletProvider, ['kpay', 'paypal'])) {
-                    $walletProvider = 'kpay';
-                }
-
                 // 1. Marquer la commande comme livrée + supprimer le code
                 $order->update([
                     'status' => 'delivered',
@@ -194,68 +189,26 @@ class DeliveryController extends Controller
                     'confirmation_code' => null, // Supprimer le code après validation
                 ]);
 
-                // 2. Libérer l'escrow du client (les fonds bloqués sont définitivement débités).
-                // En mode kpay_direct, le client a réglé en Mobile Money direct : aucun fonds
-                // n'a été bloqué dans son wallet, il n'y a donc rien à libérer (l'argent est
-                // déjà sur le compte marchand plateforme). On saute cette étape pour éviter
-                // une exception « montant bloqué insuffisant » qui bloquerait la livraison.
-                if ($order->payment_method !== 'kpay_direct') {
-                    $this->walletService->releaseEscrow(
-                        $order->user,
-                        (float) $order->total,
-                        "Paiement commande #{$order->order_number} — livraison confirmée",
-                        'order',
-                        $order->id,
-                        [],
-                        $walletProvider
-                    );
-                }
-
-                // 3. Débloquer les fonds du vendeur (il peut maintenant retirer)
+                // 2. ENCAISSEMENT DIRECT : plus AUCUN mouvement de fonds ici.
+                //    Le client a été prélevé et le vendeur / livreur / ASSO ont été crédités
+                //    (fonds disponibles immédiatement) dès la VALIDATION de la commande par le
+                //    vendeur (VendorOrderController::validate). La livraison ne fait donc que
+                //    clôturer la commande, décrémenter le stock et notifier.
                 $sellers = $order->items->pluck('seller_id')->unique();
-                foreach ($sellers as $sellerId) {
-                    $seller = User::find($sellerId);
-                    if ($seller) {
-                        $sellerAmount = (float) $order->items
-                            ->where('seller_id', $sellerId)
-                            ->sum('total_price');
 
-                        $this->walletService->unlockFunds(
-                            $seller,
-                            $sellerAmount,
-                            "Vente confirmée #{$order->order_number} — fonds disponibles",
-                            'order',
-                            $order->id,
-                            [],
-                            $walletProvider
-                        );
-                    }
-                }
-
-                // 4. Débloquer les fonds de l'entreprise de livraison (prix de base)
+                // Notifier l'entreprise de livraison que la course est terminée.
                 $baseDeliveryPrice = (float) $order->base_delivery_price;
                 if ($baseDeliveryPrice > 0 && $order->delivery_company_id) {
                     $deliveryCompany = \App\Models\DelivererCompany::find($order->delivery_company_id);
                     if ($deliveryCompany && $deliveryCompany->user_id) {
                         $companyUser = User::find($deliveryCompany->user_id);
                         if ($companyUser) {
-                            $this->walletService->unlockFunds(
-                                $companyUser,
-                                $baseDeliveryPrice,
-                                "Livraison confirmée #{$order->order_number} — commission disponible",
-                                'order',
-                                $order->id,
-                                [],
-                                $walletProvider
-                            );
-
-                            // FCM à l'entreprise de livraison
                             $this->fcmService->sendToUser(
                                 $companyUser,
-                                'Commission débloquée !',
-                                "Livraison #{$order->order_number} confirmée. " . number_format($baseDeliveryPrice, 0, ',', ' ') . " FCFA disponibles.",
+                                'Livraison confirmée',
+                                "Livraison #{$order->order_number} confirmée.",
                                 [
-                                    'type' => 'delivery_commission_released',
+                                    'type' => 'delivery_completed',
                                     'order_id' => (string) $order->id,
                                     'amount' => (string) $baseDeliveryPrice,
                                 ]
@@ -264,35 +217,7 @@ class DeliveryController extends Controller
                     }
                 }
 
-                // 5. Débloquer la commission ASSO (plateforme)
                 $assoCommission = (float) $order->delivery_commission;
-                if ($assoCommission > 0) {
-                    // Récupérer le user admin ASSO (par convention, user_id = 1 ou email = admin@asso.com)
-                    $assoAdmin = User::where('email', 'admin@asso.com')->first();
-
-                    if ($assoAdmin) {
-                        $this->walletService->unlockFunds(
-                            $assoAdmin,
-                            $assoCommission,
-                            "Commission ASSO — Commande #{$order->order_number}",
-                            'order',
-                            $order->id,
-                            [],
-                            $walletProvider
-                        );
-
-                        Log::info("[DeliveryController] Commission ASSO débloquée", [
-                            'order_id' => $order->id,
-                            'asso_admin_id' => $assoAdmin->id,
-                            'commission' => $assoCommission,
-                        ]);
-                    } else {
-                        Log::warning("[DeliveryController] User admin ASSO non trouvé pour débloquer commission", [
-                            'order_id' => $order->id,
-                            'commission' => $assoCommission,
-                        ]);
-                    }
-                }
 
                 // 6. Décrémenter le stock des produits et créer les entrées d'inventaire
                 foreach ($order->items as $item) {
@@ -345,8 +270,8 @@ class DeliveryController extends Controller
                     if ($seller) {
                         $this->fcmService->sendToUser(
                             $seller,
-                            'Livraison confirmée — fonds disponibles',
-                            "La commande #{$order->order_number} a été livrée. Vos fonds sont maintenant retirables.",
+                            'Livraison confirmée',
+                            "La commande #{$order->order_number} a été livrée avec succès.",
                             [
                                 'type' => 'order_delivered_vendor',
                                 'order_id' => (string) $order->id,
@@ -356,7 +281,7 @@ class DeliveryController extends Controller
                     }
                 }
 
-                Log::info("[DeliveryController] Delivery completed — escrow released", [
+                Log::info("[DeliveryController] Delivery completed (encaissement direct — fonds déjà réglés à la validation)", [
                     'order_id' => $order->id,
                     'deliverer_id' => $user->id,
                     'total_delivery_fee' => (float) $order->delivery_fee,
@@ -367,7 +292,7 @@ class DeliveryController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Livraison confirmée ! Fonds libérés.',
+                'message' => 'Livraison confirmée !',
             ]);
 
         } catch (\Exception $e) {

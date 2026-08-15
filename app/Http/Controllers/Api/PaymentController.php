@@ -208,6 +208,22 @@ class PaymentController extends Controller
             if ($orderId) {
                 $order = Order::with('items')->find($orderId);
                 if ($order) {
+                    // ⚠️ CHEMIN LEGACY DÉPRÉCIÉ (ancien flux Transaction/Freemopay).
+                    // Injoignable pour les commandes actuelles : le neuf passe par 'wallet'
+                    // (débit direct, sans webhook) ou 'kpay_direct' (traité plus haut). Ce
+                    // chemin est INCOHÉRENT avec l'encaissement direct — il force 'confirmed'
+                    // en sautant la validation vendeur (VendorOrderController::validate, qui
+                    // seule crédite désormais vendeur/livreur/ASSO) et alimente le solde
+                    // legacy `pending_earnings` qui n'a AUCUN mécanisme de libération dans le
+                    // modèle unifié. On log une alerte pour repérer et traiter à la main toute
+                    // occurrence en prod plutôt que de créditer un solde bloqué à jamais.
+                    Log::warning('[PaymentController] Webhook KPay via chemin LEGACY (Transaction+pending_earnings) — incompatible encaissement direct, à traiter manuellement', [
+                        'transaction_id' => $transaction->id,
+                        'order_id' => $order->id,
+                        'order_number' => $order->order_number,
+                        'external_reference' => $externalId,
+                    ]);
+
                     $order->update([
                         'payment_status' => 'paid',
                         'status' => 'confirmed',
