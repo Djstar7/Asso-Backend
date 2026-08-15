@@ -11,6 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // Bascule prod : préserver l'ancienne table Diaspo (schéma 14/04) en la renommant
+        // avant de créer le schéma unifié. Sur base fraîche, no-op. Données legacy dans
+        // diaspo_bookings_legacy_preunify.
+        if (Schema::hasTable('diaspo_bookings')) {
+            Schema::rename('diaspo_bookings', 'diaspo_bookings_legacy_preunify');
+        }
+
         Schema::create('diaspo_bookings', function (Blueprint $table) {
             $table->id();
             $table->foreignId('diaspo_offer_id')->constrained()->onDelete('cascade');
