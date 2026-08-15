@@ -223,6 +223,14 @@
                                     </span>
                                 </p>
 
+                                <p class="text-sm text-gray-400 mb-2">
+                                    <i class="fas fa-coins text-primary-500 mr-1"></i>
+                                    Commission ASSO:
+                                    <span class="text-white font-medium">
+                                        {{ number_format($zone->pricelist->asso_commission, 0, ',', ' ') }} FCFA
+                                    </span>
+                                </p>
+
                                 <div class="text-xs">
                                     <p class="text-gray-500 mb-1">Données de tarification:</p>
                                     <div class="bg-dark-50 p-2 rounded font-mono text-gray-300 overflow-x-auto">

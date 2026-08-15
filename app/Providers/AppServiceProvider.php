@@ -2,12 +2,17 @@
 
 namespace App\Providers;
 
-use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\View;
 use App\Models\Shop;
 use App\Models\SupportTicket;
+use App\Models\User;
 use App\Models\DeviceToken;
+use App\Models\DiaspoOffer;
+use App\Models\Conversation;
 use App\Observers\DeviceTokenObserver;
+use App\Observers\DiaspoOfferObserver;
+use App\Observers\ConversationObserver;
+use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -27,9 +32,16 @@ class AppServiceProvider extends ServiceProvider
         // Register DeviceToken observer for automatic topic subscription
         DeviceToken::observe(DeviceTokenObserver::class);
 
+        // Register DiaspoOffer observer for automatic approval
+        DiaspoOffer::observe(DiaspoOfferObserver::class);
+
+        // Register Conversation observer for automatic security message
+        Conversation::observe(ConversationObserver::class);
+
         // Partage avec le layout admin : compteur boutiques + notifications réelles
         View::composer('admin.layouts.app', function ($view) {
             $pendingShopsCount = Shop::pending()->count();
+            $pendingDiaspoVerifications = User::where('diaspo_verification_status', 'pending')->count();
 
             // Tickets de support ouverts (garde-fou si la table n'existe pas encore)
             try {
@@ -58,6 +70,7 @@ class AppServiceProvider extends ServiceProvider
             }
 
             $view->with('pendingShopsCount', $pendingShopsCount);
+            $view->with('pendingDiaspoVerifications', $pendingDiaspoVerifications);
             $view->with('adminNotifications', $notifications);
             $view->with('adminNotificationsCount', $pendingShopsCount + $openTicketsCount);
         });
