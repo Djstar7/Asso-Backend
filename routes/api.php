@@ -424,6 +424,15 @@ Route::middleware('auth:sanctum')->prefix('v1/diaspo')->group(function () {
 });
 
 // ============================================
+// STRIPE CONNECT — onboarding vendeur (auth:sanctum)
+// ============================================
+
+Route::middleware('auth:sanctum')->prefix('v1/stripe/connect')->group(function () {
+    Route::get('/status', [App\Http\Controllers\Api\StripeConnectController::class, 'status']);
+    Route::post('/submit', [App\Http\Controllers\Api\StripeConnectController::class, 'submit']);
+});
+
+// ============================================
 // ADMIN ROUTES (auth:sanctum + admin role)
 // ============================================
 
@@ -442,6 +451,14 @@ Route::middleware('auth:sanctum')->prefix('v1/admin')->group(function () {
         Route::get('/verifications/{userId}', [App\Http\Controllers\Admin\DiaspoVerificationController::class, 'show']);
         Route::post('/verifications/{userId}/approve', [App\Http\Controllers\Admin\DiaspoVerificationController::class, 'approve']);
         Route::post('/verifications/{userId}/reject', [App\Http\Controllers\Admin\DiaspoVerificationController::class, 'reject']);
+    });
+
+    // Stripe Connect — validation des comptes vendeurs (IBAN)
+    Route::prefix('stripe')->group(function () {
+        Route::get('/accounts', [App\Http\Controllers\Admin\StripeConnectController::class, 'index']);
+        Route::get('/accounts/{userId}', [App\Http\Controllers\Admin\StripeConnectController::class, 'show']);
+        Route::post('/accounts/{userId}/approve', [App\Http\Controllers\Admin\StripeConnectController::class, 'approve']);
+        Route::post('/accounts/{userId}/reject', [App\Http\Controllers\Admin\StripeConnectController::class, 'reject']);
     });
 });
 

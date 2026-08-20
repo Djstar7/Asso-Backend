@@ -56,6 +56,14 @@ class User extends Authenticatable
         'diaspo_id_document_id',
         'diaspo_verified_at',
         'diaspo_rejection_reason',
+        'stripe_account_id',
+        'stripe_account_status',
+        'stripe_rejection_reason',
+        'stripe_submitted_at',
+        'stripe_verified_at',
+        'stripe_external_last4',
+        'stripe_bank_country',
+        'stripe_account_holder_name',
     ];
 
     /**
@@ -86,6 +94,8 @@ class User extends Authenticatable
             'is_profile_complete' => 'boolean',
             'otp_expires_at' => 'datetime',
             'diaspo_verified_at' => 'datetime',
+            'stripe_submitted_at' => 'datetime',
+            'stripe_verified_at' => 'datetime',
         ];
     }
 
