@@ -138,6 +138,10 @@ Route::post('/v1/payments/webhook/kpay', [PaymentController::class, 'webhookKpay
 // Alias court (certaines configs KPay utilisent cette forme)
 Route::post('/webhooks/kpay', [PaymentController::class, 'webhookKpay']);
 
+// Webhook Stripe (no auth — protégé par vérification de signature Stripe).
+// Finalise les virements IBAN : payout.paid → completed ; payout.failed → refund.
+Route::post('/v1/stripe/webhook', [App\Http\Controllers\Api\StripeWebhookController::class, 'handle']);
+
 // NOTE: Les routes /v1/currencies/* sont définies plus haut dans le groupe prefix('v1')
 // et servies par App\Http\Controllers\Api\CurrencyController (contrat mobile unifié +
 // endpoint /convert). Ne pas réintroduire un bloc v1/currencies dédié ici : il masquerait
@@ -290,6 +294,8 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/withdrawal-balances', [WalletController::class, 'getWithdrawalBalances']);
             Route::post('/withdraw/kpay', [WalletController::class, 'initiateKpayWithdrawal']);
             Route::post('/withdraw/paypal', [WalletController::class, 'initiatePayPalWithdrawal']);
+            // Virement bancaire (Stripe Connect) vers l'IBAN validé du vendeur.
+            Route::post('/withdraw/stripe', [WalletController::class, 'initiateStripeWithdrawal']);
             Route::get('/withdrawals', [WalletController::class, 'getWithdrawalHistory']);
             Route::get('/withdrawal-status/{withdrawalId}', [WalletController::class, 'checkWithdrawalStatus']);
         });
