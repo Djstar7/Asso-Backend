@@ -381,6 +381,13 @@ class WalletController extends Controller
             $paypalBalance = $user->paypal_wallet_balance ?? 0;
             $xafAvailable = $user->kpayAvailableFor('XAF');
 
+            // Éligibilité au virement bancaire (Stripe Connect) : compte IBAN validé
+            // + solde disponible dans la devise du payout (ex. EUR).
+            $stripeReady = $user->stripe_account_status === 'approved'
+                && !empty($user->stripe_account_id);
+            $stripeCurrency = $this->stripePayoutCurrency($user->stripe_bank_country);
+            $stripeAvailable = $stripeReady ? $user->kpayAvailableFor($stripeCurrency) : 0.0;
+
             return response()->json([
                 'success' => true,
                 'data' => [
@@ -390,6 +397,14 @@ class WalletController extends Controller
                     'kpay_wallet_balance' => max(0, $xafAvailable),
                     'paypal_balance' => max(0, $paypalBalance),
                     'total_balance' => max(0, $xafAvailable + $paypalBalance),
+                    // Virement bancaire (IBAN via Stripe Connect)
+                    'stripe' => [
+                        'eligible' => $stripeReady,
+                        'status' => $user->stripe_account_status, // null|pending|approved|rejected
+                        'currency' => $stripeCurrency,
+                        'available' => max(0, $stripeAvailable),
+                        'iban_last4' => $user->stripe_external_last4,
+                    ],
                 ],
             ]);
         } catch (\Exception $e) {
@@ -643,6 +658,238 @@ class WalletController extends Controller
                 'message' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Initie un retrait par virement bancaire (Stripe Connect) vers l'IBAN validé
+     * du vendeur. Débite le solde wallet dans la devise du payout (ex. EUR), puis
+     * transfère les fonds au compte Connect du vendeur et déclenche le versement IBAN.
+     *
+     * Pré-requis : le vendeur a un compte Stripe Connect au statut `approved`.
+     * Miroir de initiateKpayWithdrawal (verrou de ligne, débit atomique, rollback).
+     *
+     * POST /api/v1/wallet/withdraw/stripe
+     */
+    public function initiateStripeWithdrawal(Request $request)
+    {
+        Log::info("[WalletController] ╔════════════════════════════════════════════════════════════════════╗");
+        Log::info("[WalletController] ║ [Stripe Withdrawal] DEMANDE DE RETRAIT (IBAN)                       ║");
+        Log::info("[WalletController] ╚════════════════════════════════════════════════════════════════════╝");
+
+        $user = $request->user();
+        $stripe = app(\App\Services\StripeService::class);
+
+        // 1) Stripe doit être configuré.
+        if (!$stripe->isConfigured()) {
+            return response()->json([
+                'success' => false,
+                'message' => "Le paiement par virement (Stripe) n'est pas encore disponible.",
+            ], 503);
+        }
+
+        // 2) Le vendeur doit avoir un compte de virement VALIDÉ.
+        if ($user->stripe_account_status !== 'approved' || empty($user->stripe_account_id)) {
+            return response()->json([
+                'success' => false,
+                'message' => "Votre compte de virement (IBAN) n'est pas encore validé. Enregistrez et faites valider votre IBAN avant de retirer.",
+            ], 422);
+        }
+
+        // Devise du payout, déduite du pays de la banque du vendeur (ex. FR → EUR).
+        $currency = $this->stripePayoutCurrency($user->stripe_bank_country);
+
+        $minWithdrawalAmount = (float) Setting::get('min_stripe_withdrawal_amount', 5);
+
+        $validator = Validator::make($request->all(), [
+            'amount' => 'required|numeric|min:' . $minWithdrawalAmount,
+            'notes' => 'nullable|string|max:500',
+        ]);
+
+        if ($validator->fails()) {
+            Log::warning("[WalletController] ❌ Validation failed", $validator->errors()->toArray());
+            return response()->json([
+                'success' => false,
+                'message' => 'Données invalides',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        // Montant dans la devise du payout (2 décimales, ex. euros).
+        $amount = round((float) $request->input('amount'), 2);
+        $notes = $request->input('notes');
+
+        // Pré-contrôle rapide non autoritatif (la vérif autoritative est sous verrou).
+        $availableBalance = $user->kpayAvailableFor($currency);
+        if ($amount > $availableBalance) {
+            Log::warning("[WalletController] ❌ Insufficient balance for Stripe withdrawal", [
+                'currency' => $currency,
+                'available' => $availableBalance,
+                'requested_amount' => $amount,
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => "Solde $currency insuffisant. Disponible: " . number_format($availableBalance, 2, ',', ' ') . " $currency",
+            ], 400);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            // Verrou de ligne + re-vérification À L'INTÉRIEUR de la transaction (anti double-retrait).
+            $walletBalance = \App\Models\WalletBalance::where('user_id', $user->id)
+                ->where('currency', $currency)
+                ->lockForUpdate()
+                ->first();
+
+            $lockedAvailable = $walletBalance
+                ? ((float) $walletBalance->balance - (float) $walletBalance->locked_balance)
+                : 0.0;
+
+            if ($amount > $lockedAvailable) {
+                DB::rollBack();
+                Log::warning("[WalletController] ❌ Insufficient balance (locked re-check)", [
+                    'currency' => $currency,
+                    'available' => $lockedAvailable,
+                    'requested_amount' => $amount,
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => "Solde $currency insuffisant. Disponible: " . number_format($lockedAvailable, 2, ',', ' ') . " $currency",
+                ], 400);
+            }
+
+            $currentBalance = $walletBalance ? (float) $walletBalance->balance : 0.0;
+            $ibanLast4 = $user->stripe_external_last4 ?? '****';
+            $holder = $user->stripe_account_holder_name ?? $user->name;
+
+            // Transaction wallet (débit immédiat pour bloquer les fonds).
+            $walletTransaction = \App\Models\WalletTransaction::create([
+                'user_id' => $user->id,
+                'type' => 'debit',
+                'amount' => $amount,
+                'balance_before' => $currentBalance,
+                'balance_after' => $currentBalance - $amount,
+                'description' => "Virement IBAN ****{$ibanLast4}",
+                'status' => 'pending',
+                'provider' => 'stripe',
+                'reference_type' => 'platform_withdrawal',
+                'reference_id' => null,
+                'metadata' => [
+                    'iban_last4' => $ibanLast4,
+                    'currency' => $currency,
+                    'stripe_account_id' => $user->stripe_account_id,
+                    'initiated_at' => now()->toIso8601String(),
+                ],
+            ]);
+
+            // Débit immédiat (fonds bloqués).
+            $user->debitKpay($currency, $amount);
+
+            // Enregistrement de retrait.
+            $withdrawal = PlatformWithdrawal::create([
+                'user_id' => $user->id,
+                'admin_id' => null,
+                'amount_requested' => $amount,
+                'commission_rate' => 0,
+                'commission_amount' => 0,
+                'amount_sent' => $amount,
+                'currency' => $currency,
+                'provider' => 'stripe',
+                'payment_method' => 'stripe_connect',
+                'payment_account' => "IBAN ****{$ibanLast4}",
+                'payment_account_name' => $holder,
+                'status' => 'pending',
+                'transaction_reference' => $this->generateTransactionReference(),
+                'admin_notes' => $notes,
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+            ]);
+
+            $walletTransaction->reference_id = $withdrawal->id;
+            $walletTransaction->save();
+
+            Log::info("[WalletController] ✅ Stripe withdrawal record created", [
+                'withdrawal_id' => $withdrawal->id,
+                'user_id' => $user->id,
+                'amount' => $amount,
+                'currency' => $currency,
+            ]);
+
+            // Appel Stripe : transfer (autoritatif) + payout IBAN (best-effort).
+            $result = $stripe->payoutToVendor($user->stripe_account_id, $amount, $currency);
+
+            $withdrawal->stripe_transfer_id = $result['transfer_id'] ?? null;
+            $withdrawal->stripe_payout_id = $result['payout_id'] ?? null;
+            $withdrawal->stripe_response = $result;
+            $withdrawal->markAsProcessing();
+            $withdrawal->save();
+
+            DB::commit();
+            $user->refresh();
+
+            Log::info("[WalletController] ✅ Stripe payout initiated", [
+                'withdrawal_id' => $withdrawal->id,
+                'transfer_id' => $result['transfer_id'] ?? null,
+                'payout_id' => $result['payout_id'] ?? null,
+            ]);
+
+            // Notification FCM.
+            try {
+                $this->fcmService->sendToUser(
+                    $user,
+                    '🏦 Virement en cours',
+                    "Votre demande de virement de {$amount} {$currency} vers votre IBAN ****{$ibanLast4} est en cours de traitement.",
+                    [
+                        'type' => 'wallet_withdrawal_processing',
+                        'provider' => 'stripe',
+                        'currency' => $currency,
+                        'amount' => $amount,
+                        'withdrawal_id' => $withdrawal->id,
+                        'transaction_reference' => $withdrawal->transaction_reference,
+                        'new_balance' => $user->kpayBalanceFor($currency),
+                    ]
+                );
+            } catch (\Exception $e) {
+                Log::error("[WalletController] ❌ Failed to send FCM notification: " . $e->getMessage());
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Virement en cours de traitement. Les fonds arriveront sur votre compte sous 1 à 3 jours ouvrés.',
+                'data' => [
+                    'withdrawal_id' => $withdrawal->id,
+                    'wallet_transaction_id' => $walletTransaction->id,
+                    'transaction_reference' => $withdrawal->transaction_reference,
+                    'amount' => $withdrawal->amount_requested,
+                    'currency' => $currency,
+                    'status' => 'processing',
+                    'iban_last4' => $ibanLast4,
+                    'new_balance' => $user->kpayBalanceFor($currency),
+                    'balance_before' => $currentBalance,
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            Log::error("[WalletController] ❌ Stripe withdrawal error: " . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => "Le virement n'a pas pu être initié : " . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /** Devise de payout Stripe selon le pays de la banque du vendeur (défaut EUR). */
+    private function stripePayoutCurrency(?string $bankCountry): string
+    {
+        $country = strtoupper((string) $bankCountry);
+        $eur = ['FR', 'DE', 'ES', 'IT', 'BE', 'NL', 'PT', 'IE', 'FI', 'AT', 'LU', 'GR'];
+        return match (true) {
+            in_array($country, $eur, true) => 'EUR',
+            $country === 'GB' => 'GBP',
+            $country === 'US' => 'USD',
+            default => 'EUR',
+        };
     }
 
     /**

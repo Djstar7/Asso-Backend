@@ -26,6 +26,9 @@ class PlatformWithdrawal extends Model
         'paypal_batch_id',
         'paypal_payout_item_id',
         'paypal_response',
+        'stripe_transfer_id',
+        'stripe_payout_id',
+        'stripe_response',
         'failure_code',
         'failure_reason',
         'admin_notes',
@@ -41,6 +44,7 @@ class PlatformWithdrawal extends Model
         'amount_sent' => 'decimal:2',
         'kpay_response' => 'array',
         'paypal_response' => 'array',
+        'stripe_response' => 'array',
         'completed_at' => 'datetime',
     ];
 
@@ -114,12 +118,23 @@ class PlatformWithdrawal extends Model
         if ($this->provider === 'paypal') {
             $updateData['paypal_batch_id'] = $reference;
             $updateData['paypal_response'] = $response;
+        } elseif ($this->provider === 'stripe') {
+            $updateData['stripe_payout_id'] = $reference;
+            $updateData['stripe_response'] = $response;
         } else {
             $updateData['kpay_reference'] = $reference;
             $updateData['kpay_response'] = $response;
         }
 
         $this->update($updateData);
+    }
+
+    /**
+     * Check if withdrawal is using Stripe Connect (virement IBAN)
+     */
+    public function isStripe(): bool
+    {
+        return $this->provider === 'stripe';
     }
 
     /**

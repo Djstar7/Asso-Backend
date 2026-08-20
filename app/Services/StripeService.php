@@ -199,6 +199,83 @@ class StripeService
         return $this->client()->accounts->retrieve($accountId);
     }
 
+    /**
+     * Vérifie la signature d'un webhook Stripe et retourne l'événement typé.
+     * Lève une exception si la signature est invalide ou le secret manquant.
+     */
+    public function constructWebhookEvent(string $payload, string $sigHeader): \Stripe\Event
+    {
+        if (empty($this->webhookSecret)) {
+            throw new \RuntimeException('Webhook secret Stripe non configuré.');
+        }
+
+        return \Stripe\Webhook::constructEvent($payload, $sigHeader, $this->webhookSecret);
+    }
+
+    /**
+     * Verse un montant au vendeur sur son IBAN (compte Connect déjà validé).
+     *
+     * Deux étapes :
+     *  1) **Transfer** plateforme → compte Connect du vendeur. C'est le mouvement
+     *     d'argent AUTORITATIF : s'il échoue (ex. solde plateforme Stripe insuffisant),
+     *     on lève une exception et le retrait est annulé (le wallet est recrédité par
+     *     le rollback côté contrôleur).
+     *  2) **Payout** compte Connect → IBAN. Best-effort : si le compte est configuré
+     *     en versement automatique (ou si les fonds ne sont pas encore « available »),
+     *     Stripe versera de lui-même vers l'IBAN ; on n'échoue donc PAS le retrait,
+     *     on renvoie simplement `payout_id = null`.
+     *
+     * ⚠️ Le montant est exprimé dans l'unité principale de la devise (ex. euros) et
+     * converti ici en plus petite unité (centimes). Valable pour EUR/GBP/USD (2
+     * décimales) — les seules devises de payout supportées ici.
+     *
+     * @return array { id, transfer_id, payout_id, amount_minor, currency }
+     */
+    public function payoutToVendor(string $accountId, float $amount, string $currency): array
+    {
+        $currency = strtolower($currency);
+        $minor = (int) round($amount * 100);
+
+        if ($minor <= 0) {
+            throw new \InvalidArgumentException('Montant de payout invalide.');
+        }
+
+        // 1) Transfer plateforme → compte Connect (autoritatif).
+        $transfer = $this->client()->transfers->create([
+            'amount' => $minor,
+            'currency' => $currency,
+            'destination' => $accountId,
+            'metadata' => ['asso_kind' => 'vendor_withdrawal'],
+        ]);
+
+        // 2) Payout compte Connect → IBAN (best-effort).
+        $payoutId = null;
+        try {
+            $payout = $this->client()->payouts->create([
+                'amount' => $minor,
+                'currency' => $currency,
+                'metadata' => [
+                    'asso_kind' => 'vendor_withdrawal',
+                    'transfer_id' => $transfer->id,
+                ],
+            ], ['stripe_account' => $accountId]);
+            $payoutId = $payout->id;
+        } catch (\Throwable $e) {
+            Log::warning('[StripeService] Payout manuel non créé (versement automatique probable)', [
+                'account' => $accountId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return [
+            'id' => $payoutId ?? $transfer->id,
+            'transfer_id' => $transfer->id,
+            'payout_id' => $payoutId,
+            'amount_minor' => $minor,
+            'currency' => $currency,
+        ];
+    }
+
     /** Devise de payout par défaut selon le pays du compte bancaire. */
     private function defaultCurrencyForCountry(string $country): string
     {
