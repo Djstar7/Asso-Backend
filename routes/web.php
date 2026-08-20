@@ -224,6 +224,13 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::delete('/{id}', [OtpBypassController::class, 'destroy'])->name('destroy');
         });
 
+        // Stripe Connect - Validation des comptes de virement (IBAN) vendeurs
+        Route::prefix('stripe/accounts')->name('stripe.accounts.')->group(function () {
+            Route::get('/', [App\Http\Controllers\Admin\StripeConnectController::class, 'indexWeb'])->name('index');
+            Route::post('/{userId}/approve', [App\Http\Controllers\Admin\StripeConnectController::class, 'approveWeb'])->name('approve');
+            Route::post('/{userId}/reject', [App\Http\Controllers\Admin\StripeConnectController::class, 'rejectWeb'])->name('reject');
+        });
+
         // DIASPO - Vérification des documents d'identité
         Route::prefix('diaspo')->name('diaspo.')->group(function () {
             Route::prefix('verifications')->name('verifications.')->group(function () {

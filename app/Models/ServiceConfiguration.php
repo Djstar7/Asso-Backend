@@ -54,6 +54,7 @@ class ServiceConfiguration extends Model
     const SERVICE_FEDAPAY = 'fedapay';
     const SERVICE_PAYPAL = 'paypal';
     const SERVICE_KPAY = 'kpay';
+    const SERVICE_STRIPE = 'stripe';
 
     /**
      * Get configuration for a specific service type (new method matching Estuaire Emploi)
@@ -166,6 +167,16 @@ class ServiceConfiguration extends Model
     public static function getKpayConfig(): ?array
     {
         return self::getConfig(self::SERVICE_KPAY);
+    }
+
+    /**
+     * Récupérer la configuration Stripe (Connect + paiements carte).
+     *
+     * @return array|null
+     */
+    public static function getStripeConfig(): ?array
+    {
+        return self::getConfig(self::SERVICE_STRIPE);
     }
 
     /**
