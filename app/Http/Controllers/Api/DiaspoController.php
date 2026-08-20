@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\DiaspoBooking;
 use App\Models\DiaspoOffer;
 use App\Models\DiaspoVerification;
+use App\Models\Setting;
 use App\Models\User;
 use App\Services\KPayService;
 use Illuminate\Http\Request;
@@ -19,7 +20,15 @@ use Illuminate\Support\Facades\Log;
  */
 class DiaspoController extends Controller
 {
-    private const COMMISSION_RATE = 0.10; // 10 %
+    // Taux de commission Diaspo par défaut : 5 % (aligné sur l'affichage mobile).
+    // Configurable via le Setting `diaspo_commission_rate` (en pourcentage).
+    private const DEFAULT_COMMISSION_RATE = 5.0;
+
+    /** Taux de commission Diaspo sous forme de fraction (ex. 0.05 pour 5 %). */
+    private function commissionRate(): float
+    {
+        return ((float) Setting::get('diaspo_commission_rate', self::DEFAULT_COMMISSION_RATE)) / 100;
+    }
 
     private function paginate($query, Request $request): array
     {
@@ -200,7 +209,7 @@ class DiaspoController extends Controller
             }
 
             $subtotal = round($data['kg_booked'] * (float) $offer->price_per_kg, 2);
-            $commission = round($subtotal * self::COMMISSION_RATE, 2);
+            $commission = round($subtotal * $this->commissionRate(), 2);
             $total = $subtotal + $commission;
 
             $booking = DiaspoBooking::create([
