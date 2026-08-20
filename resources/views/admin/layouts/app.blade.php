@@ -348,6 +348,19 @@
                         Paiements
                     </a>
 
+                    <a href="{{ route('admin.stripe.accounts.index') }}"
+                       class="flex items-center justify-between px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.stripe.accounts.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
+                        <span class="flex items-center">
+                            <i class="fas fa-university w-5 mr-3"></i>
+                            Comptes de virement
+                        </span>
+                        @if(isset($pendingStripeAccounts) && $pendingStripeAccounts > 0)
+                            <span class="flex items-center justify-center min-w-[1.5rem] h-6 px-2 bg-yellow-500 text-dark-100 text-xs font-bold rounded-full animate-pulse">
+                                {{ $pendingStripeAccounts }}
+                            </span>
+                        @endif
+                    </a>
+
                     <a href="{{ route('admin.settings.services') }}"
                        class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.settings.services*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <i class="fas fa-plug w-5 mr-3"></i>
