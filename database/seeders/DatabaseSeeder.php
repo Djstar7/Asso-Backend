@@ -24,6 +24,7 @@ class DatabaseSeeder extends Seeder
             CurrencySeeder::class,
             ImportCountrySeeder::class,
             SettingsSeeder::class,
+            PaymentSettingsSeeder::class,
             LegalPagesSeeder::class,
         ]);
 

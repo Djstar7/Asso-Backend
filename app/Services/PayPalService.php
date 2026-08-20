@@ -35,6 +35,12 @@ class PayPalService
         ]);
     }
 
+    /** Credentials PayPal présents (client id + secret). */
+    public function isConfigured(): bool
+    {
+        return !empty($this->clientId) && !empty($this->clientSecret);
+    }
+
     /**
      * Generate OAuth 2.0 access token
      */
@@ -104,12 +110,28 @@ class PayPalService
         }
 
         try {
-            $amountXaf = $params['amount'];
-            $exchangeRate = 655; // 1 USD = 655 XAF (approximatif)
-            $amountUsd = round($amountXaf / $exchangeRate, 2);
+            // Montant source (dans sa devise d'origine) → USD (devise d'encaissement
+            // PayPal). Conversion via les taux de change stockés/live ; le fallback
+            // heuristique (655 XAF/USD) ne sert que si aucun taux n'est disponible.
+            $amountSource = (float) $params['amount'];
+            $sourceCurrency = strtoupper($params['currency'] ?? 'XAF');
+
+            if (isset($params['amount_usd'])) {
+                $amountUsd = round((float) $params['amount_usd'], 2);
+            } elseif ($sourceCurrency === 'USD') {
+                $amountUsd = round($amountSource, 2);
+            } else {
+                $converted = \App\Services\ExchangeRateService::convertAmount($sourceCurrency, 'USD', $amountSource);
+                $amountUsd = $converted !== null
+                    ? round($converted, 2)
+                    : round($amountSource / 655, 2);
+            }
+
+            $description = $params['description'] ?? "Recharge wallet - {$amountSource} {$sourceCurrency}";
 
             Log::info('[PayPalService] Creating PayPal order...', [
-                'amount_xaf' => $amountXaf,
+                'amount_source' => $amountSource,
+                'source_currency' => $sourceCurrency,
                 'amount_usd' => $amountUsd,
                 'user_id' => $params['user_id'] ?? null,
             ]);
@@ -124,7 +146,7 @@ class PayPalService
                                 'currency_code' => 'USD',
                                 'value' => (string) $amountUsd,
                             ],
-                            'description' => "Recharge wallet - {$amountXaf} FCFA",
+                            'description' => $description,
                         ],
                     ],
                     'application_context' => [
@@ -165,14 +187,16 @@ class PayPalService
                 'order_id' => $orderId,
                 'approval_url' => $approvalUrl,
                 'amount_usd' => $amountUsd,
-                'amount_xaf' => $amountXaf,
+                'amount_source' => $amountSource,
+                'source_currency' => $sourceCurrency,
             ]);
 
             return [
                 'success' => true,
                 'order_id' => $orderId,
                 'approval_url' => $approvalUrl,
-                'amount' => $amountXaf,
+                'amount' => $amountSource,
+                'currency' => $sourceCurrency,
                 'amount_usd' => $amountUsd,
                 'client_id' => $this->clientId,
                 'data' => $data,

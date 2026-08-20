@@ -66,6 +66,20 @@ class StripeWebhookController extends Controller
                     $this->handlePayoutFailed($event->data->object);
                     break;
 
+                case 'checkout.session.completed':
+                    // Session Checkout terminée : le paiement carte est encaissé.
+                    $this->handlePaymentIntentSucceeded($event->data->object);
+                    break;
+
+                case 'payment_intent.succeeded':
+                    $this->handlePaymentIntentSucceeded($event->data->object);
+                    break;
+
+                case 'payment_intent.payment_failed':
+                case 'payment_intent.canceled':
+                    $this->handlePaymentIntentFailed($event->data->object);
+                    break;
+
                 default:
                     // Événement non géré : on accuse simplement réception.
                     break;
@@ -197,6 +211,49 @@ class StripeWebhookController extends Controller
                 'wallet_withdrawal_failed',
             );
         });
+    }
+
+    /**
+     * payment_intent.succeeded → confirme l'encaissement carte (source d'autorité
+     * robuste, même si l'app est fermée). Route selon `metadata.asso_kind`.
+     * Idempotent : confirmBookingPayment ne re-crédite pas une réservation déjà payée.
+     */
+    private function handlePaymentIntentSucceeded(object $pi): void
+    {
+        $kind = $pi->metadata->asso_kind ?? null;
+
+        if ($kind === 'diaspo_booking') {
+            $bookingId = (int) ($pi->metadata->booking_id ?? 0);
+            $booking = \App\Models\DiaspoBooking::find($bookingId);
+            if ($booking) {
+                app(DiaspoController::class)->confirmBookingPayment($booking);
+                Log::info('[StripeWebhook] ✅ Réservation diaspo payée (carte)', [
+                    'booking_id' => $bookingId,
+                    'payment_intent' => $pi->id ?? null,
+                ]);
+            }
+        }
+    }
+
+    /**
+     * payment_intent.payment_failed | canceled → échec de l'encaissement carte.
+     * Route selon `metadata.asso_kind` ; libère les kg réservés (idempotent).
+     */
+    private function handlePaymentIntentFailed(object $pi): void
+    {
+        $kind = $pi->metadata->asso_kind ?? null;
+
+        if ($kind === 'diaspo_booking') {
+            $bookingId = (int) ($pi->metadata->booking_id ?? 0);
+            $booking = \App\Models\DiaspoBooking::find($bookingId);
+            if ($booking) {
+                app(DiaspoController::class)->failBookingPayment($booking);
+                Log::warning('[StripeWebhook] ❌ Paiement carte réservation diaspo échoué', [
+                    'booking_id' => $bookingId,
+                    'payment_intent' => $pi->id ?? null,
+                ]);
+            }
+        }
     }
 
     /**
