@@ -413,20 +413,26 @@ class DeliveryController extends Controller
                 $isWithinRadius = $distance <= 10;
                 \Log::info("  ├─ Within 10km radius: " . ($isWithinRadius ? 'YES ✅' : 'NO ❌'));
 
-                if ($isWithinRadius && $hasSyncedDeliverer) {
-                    \Log::info("  └─ ✅ ZONE QUALIFIES (within radius AND has synced deliverer)");
+                // A zone qualifies for vendor onboarding based on GEOGRAPHIC COVERAGE only
+                // (active zone within radius). Whether a specific deliverer has already
+                // linked their app account (synced) is an operational, order-time concern
+                // handled by CheckDeliveryAcceptanceJob — it must NOT block a vendor from
+                // setting up shop, otherwise a new market with no synced deliverer yet can
+                // never onboard any vendor (chicken-and-egg deadlock).
+                if ($isWithinRadius) {
+                    \Log::info("  └─ ✅ ZONE QUALIFIES (within radius)"
+                        . ($hasSyncedDeliverer ? " — deliverer synced" : " — no synced deliverer yet (order-time concern)"));
                     $nearbyZones[] = [
                         'id' => $zone->id,
                         'name' => $zone->name,
                         'distance' => round($distance, 2),
+                        'has_synced_deliverer' => $hasSyncedDeliverer,
                         'company' => [
                             'id' => $zone->delivererCompany->id,
                             'name' => $zone->delivererCompany->name,
                             'user_id' => $zone->delivererCompany->user_id,
                         ],
                     ];
-                } elseif ($isWithinRadius && !$hasSyncedDeliverer) {
-                    \Log::info("  └─ ⚠️ ZONE EXCLUDED (within radius but NO synced deliverer)");
                 } else {
                     \Log::info("  └─ ❌ ZONE EXCLUDED (outside 10km radius)");
                 }
@@ -443,12 +449,12 @@ class DeliveryController extends Controller
         \Log::info("  ├─ Total Zones Analyzed: {$deliveryZones->count()}");
         \Log::info("  ├─ Zones with Synced Deliverers: {$zonesWithSyncedDeliverers}");
         \Log::info("  ├─ Zones without Synced Deliverers: {$zonesWithoutSyncedDeliverers}");
-        \Log::info("  └─ Qualifying Zones (nearby + synced): " . count($nearbyZones));
+        \Log::info("  └─ Qualifying Zones (within radius): " . count($nearbyZones));
         \Log::info('========================================');
 
         if (empty($nearbyZones)) {
             \Log::warning('❌ RESULT: No qualifying delivery zones found');
-            \Log::warning('Reason: Either no zones within radius OR no zones have synced deliverers');
+            \Log::warning('Reason: No active delivery zone within radius of this position');
             \Log::info('========================================');
 
             return response()->json([
