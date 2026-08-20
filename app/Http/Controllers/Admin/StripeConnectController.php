@@ -216,6 +216,105 @@ class StripeConnectController extends Controller
         }
     }
 
+    // ============================================
+    // WEB METHODS (panneau admin Blade)
+    // ============================================
+
+    /**
+     * Liste web des comptes Stripe Connect vendeurs.
+     * GET admin/stripe/accounts
+     */
+    public function indexWeb(Request $request)
+    {
+        $status = $request->get('status', 'pending');
+
+        $query = User::whereNotNull('stripe_account_id');
+        if ($status !== 'all') {
+            $query->where('stripe_account_status', $status);
+        }
+
+        $accounts = $query->latest('stripe_submitted_at')->paginate(20)->withQueryString();
+
+        $counts = [
+            'pending' => User::where('stripe_account_status', 'pending')->count(),
+            'approved' => User::where('stripe_account_status', 'approved')->count(),
+            'rejected' => User::where('stripe_account_status', 'rejected')->count(),
+        ];
+
+        return view('admin.stripe.accounts.index', compact('accounts', 'counts', 'status'));
+    }
+
+    /**
+     * Approuve un compte (web).
+     * POST admin/stripe/accounts/{userId}/approve
+     */
+    public function approveWeb(Request $request, $userId)
+    {
+        $user = User::findOrFail($userId);
+
+        if ($user->stripe_account_status !== 'pending') {
+            return redirect()->back()->with('error', 'Ce compte a déjà été traité.');
+        }
+
+        $user->update([
+            'stripe_account_status' => 'approved',
+            'stripe_verified_at' => now(),
+            'stripe_rejection_reason' => null,
+        ]);
+
+        Log::info('[ADMIN-STRIPE-CONNECT] Account approved (web)', [
+            'user_id' => $user->id,
+            'admin_id' => auth()->id(),
+        ]);
+
+        $this->notify(
+            $user,
+            'Compte de virement validé !',
+            'Votre compte bancaire a été validé. Vous pourrez désormais être payé par virement (IBAN).',
+            ['type' => 'stripe_account_approved', 'action' => 'open_wallet']
+        );
+
+        return redirect()->route('admin.stripe.accounts.index')
+            ->with('success', 'Compte de virement approuvé pour ' . $user->first_name . ' ' . $user->last_name . '.');
+    }
+
+    /**
+     * Rejette un compte avec motif (web).
+     * POST admin/stripe/accounts/{userId}/reject
+     */
+    public function rejectWeb(Request $request, $userId)
+    {
+        $request->validate(['reason' => 'required|string|max:500']);
+
+        $user = User::findOrFail($userId);
+
+        if ($user->stripe_account_status !== 'pending') {
+            return redirect()->back()->with('error', 'Ce compte a déjà été traité.');
+        }
+
+        $user->update([
+            'stripe_account_status' => 'rejected',
+            'stripe_verified_at' => null,
+            'stripe_rejection_reason' => $request->reason,
+        ]);
+
+        Log::info('[ADMIN-STRIPE-CONNECT] Account rejected (web)', [
+            'user_id' => $user->id,
+            'admin_id' => auth()->id(),
+            'reason' => $request->reason,
+        ]);
+
+        $this->notify(
+            $user,
+            'Compte de virement non validé',
+            "Votre compte bancaire n'a pas été validé. Raison : " . $request->reason,
+            ['type' => 'stripe_account_rejected', 'action' => 'open_wallet', 'reason' => $request->reason]
+        );
+
+        return redirect()->route('admin.stripe.accounts.index')
+            ->with('success', 'Compte de virement rejeté pour ' . $user->first_name . ' ' . $user->last_name . '.');
+    }
+
     /** Notifie le vendeur (push + in-app), sans jamais faire échouer la requête. */
     private function notify(User $user, string $title, string $body, array $data): void
     {
