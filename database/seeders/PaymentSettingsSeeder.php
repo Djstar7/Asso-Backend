@@ -134,6 +134,50 @@ class PaymentSettingsSeeder extends Seeder
                 'type' => 'string',
                 'description' => 'Devise utilisée pour tous les paiements PayPal',
             ],
+
+            // ============================================
+            // Stripe Settings (carte bancaire — encaissement inbound)
+            // ============================================
+            [
+                'key' => 'stripe_enabled',
+                'value' => '0',
+                'group' => 'payment',
+                'type' => 'boolean',
+                'description' => 'Activer le paiement par carte bancaire (Stripe)',
+            ],
+            [
+                'key' => 'stripe_currency',
+                'value' => 'USD',
+                'group' => 'payment',
+                'type' => 'string',
+                'description' => 'Devise d\'encaissement des paiements carte Stripe',
+            ],
+
+            // ============================================
+            // Minimums d'encaissement par moyen (devise pivot XAF)
+            // Sert au grisage des moyens côté mobile et au garde-fou serveur.
+            // ============================================
+            [
+                'key' => 'pay_min_kpay',
+                'value' => '100',
+                'group' => 'payment',
+                'type' => 'string',
+                'description' => 'Montant minimum (XAF) pour payer via Mobile Money',
+            ],
+            [
+                'key' => 'pay_min_paypal',
+                'value' => '600',
+                'group' => 'payment',
+                'type' => 'string',
+                'description' => 'Montant minimum (XAF) pour payer via PayPal',
+            ],
+            [
+                'key' => 'pay_min_stripe',
+                'value' => '300',
+                'group' => 'payment',
+                'type' => 'string',
+                'description' => 'Montant minimum (XAF) pour payer par carte bancaire',
+            ],
         ];
 
         foreach ($settings as $setting) {

@@ -6,11 +6,43 @@ use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\Transaction;
 use App\Services\KPayService;
+use App\Services\PaymentMethodService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
 class PaymentController extends Controller
 {
+    /**
+     * Liste des moyens de paiement entrants disponibles pour un montant donné.
+     *
+     * GET /v1/payments/methods?amount=1234&currency=XAF
+     *
+     * Renvoie TOUS les rails (jamais masqués selon le pays) avec, pour chacun :
+     * disponibilité (`available` = activé ET montant ≥ minimum), minimum affiché
+     * dans la devise du montant, et montant converti dans la devise du rail
+     * (via les taux de change stockés). Le mobile grise les moyens `available=false`
+     * et affiche `converted_amount` à la sélection. Aucun solde wallet ici.
+     */
+    public function methods(Request $request)
+    {
+        $validated = $request->validate([
+            'amount' => 'required|numeric|min:0',
+            'currency' => 'nullable|string|size:3',
+        ]);
+
+        $currency = strtoupper($validated['currency'] ?? 'XAF');
+        $methods = PaymentMethodService::forAmount((float) $validated['amount'], $currency);
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'amount' => (float) $validated['amount'],
+                'currency' => $currency,
+                'methods' => $methods,
+            ],
+        ]);
+    }
+
     /**
      * Initialize payment for an order
      */
