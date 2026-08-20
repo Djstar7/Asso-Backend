@@ -198,6 +198,13 @@ class SettingsController extends Controller
                 'kpay_secret_key' => 'nullable|string',
                 'kpay_webhook_secret' => 'nullable|string',
                 'kpay_base_currency' => 'nullable|string|size:3',
+                // Stripe (carte bancaire — encaissement inbound)
+                'stripe_enabled' => 'nullable|boolean',
+                'stripe_currency' => 'nullable|string|size:3',
+                // Minimums d'encaissement par moyen (devise pivot XAF) — grisage mobile
+                'pay_min_kpay' => 'nullable|numeric|min:0',
+                'pay_min_paypal' => 'nullable|numeric|min:0',
+                'pay_min_stripe' => 'nullable|numeric|min:0',
                 // Conversion de devises (exchangerate-api.com)
                 'exchange_rate_api_key' => 'nullable|string',
             ]);

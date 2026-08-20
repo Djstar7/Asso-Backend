@@ -36,6 +36,17 @@ Route::get('/', function () {
     return redirect()->route('admin.login');
 });
 
+// Pages de retour des paiements par redirection (PayPal, Stripe Checkout).
+// La WebView mobile intercepte ces URLs pour clôturer le parcours ; la confirmation
+// réelle du paiement se fait côté serveur (webhook + polling), pas sur ces pages.
+Route::get('/payment/success', function () {
+    return response('<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Paiement effectué</title></head><body style="font-family:sans-serif;text-align:center;padding:40px"><h2>Paiement effectué</h2><p>Vous pouvez fermer cette page et revenir à l\'application.</p></body></html>');
+})->name('payment.success');
+
+Route::get('/payment/cancel', function () {
+    return response('<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Paiement annulé</title></head><body style="font-family:sans-serif;text-align:center;padding:40px"><h2>Paiement annulé</h2><p>Vous pouvez fermer cette page et revenir à l\'application.</p></body></html>');
+})->name('payment.cancel');
+
 // Default login route (for Laravel authentication redirects)
 Route::get('/login', function () {
     return redirect()->route('admin.login');
