@@ -276,6 +276,130 @@ class StripeService
         ];
     }
 
+    /**
+     * Crée un PaymentIntent pour ENCAISSER un paiement carte (réservation / achat).
+     *
+     * Montant exprimé dans l'unité principale de la devise (ex. dollars) et converti
+     * ici en plus petite unité (centimes) — valable pour USD/EUR/GBP (2 décimales).
+     * `automatic_payment_methods` est activé : la carte est confirmée côté client avec
+     * le `client_secret` (SDK Stripe mobile). La confirmation du paiement côté serveur
+     * se fait ensuite via retrievePaymentIntent() (polling) et/ou le webhook Stripe
+     * (payment_intent.succeeded).
+     *
+     * @return array { id, client_secret, amount_minor, currency, publishable_key }
+     */
+    public function createPaymentIntent(float $amount, string $currency, array $metadata = []): array
+    {
+        $currency = strtolower($currency);
+        $minor = (int) round($amount * 100);
+
+        if ($minor <= 0) {
+            throw new \InvalidArgumentException('Montant de paiement invalide.');
+        }
+
+        $intent = $this->client()->paymentIntents->create([
+            'amount' => $minor,
+            'currency' => $currency,
+            'metadata' => $metadata,
+            'automatic_payment_methods' => ['enabled' => true],
+        ]);
+
+        return [
+            'id' => $intent->id,
+            'client_secret' => $intent->client_secret,
+            'amount_minor' => $minor,
+            'currency' => $currency,
+            'publishable_key' => $this->publishableKey,
+        ];
+    }
+
+    /**
+     * Statut d'un PaymentIntent : requires_payment_method | requires_confirmation |
+     * processing | succeeded | canceled | requires_action.
+     *
+     * @return array { id, status, amount_minor, currency }
+     */
+    public function retrievePaymentIntent(string $id): array
+    {
+        $intent = $this->client()->paymentIntents->retrieve($id, []);
+
+        return [
+            'id' => $intent->id,
+            'status' => $intent->status,
+            'amount_minor' => $intent->amount,
+            'currency' => $intent->currency,
+        ];
+    }
+
+    /**
+     * Crée une Checkout Session hébergée pour ENCAISSER un paiement carte.
+     *
+     * Adapté au mobile SANS SDK carte : renvoie une URL (`url`) à ouvrir en WebView.
+     * Le client paie sur la page Stripe, puis est redirigé vers success/cancel_url.
+     * La confirmation d'autorité se fait via le webhook `checkout.session.completed`
+     * (et le polling retrieveCheckoutSession). Les metadata sont posées sur la session
+     * ET sur le PaymentIntent sous-jacent (pour le routage webhook).
+     *
+     * @return array { id, url, amount_minor, currency }
+     */
+    public function createCheckoutSession(
+        float $amount,
+        string $currency,
+        array $metadata,
+        string $successUrl,
+        string $cancelUrl,
+        string $description = 'Paiement'
+    ): array {
+        $currency = strtolower($currency);
+        $minor = (int) round($amount * 100);
+
+        if ($minor <= 0) {
+            throw new \InvalidArgumentException('Montant de paiement invalide.');
+        }
+
+        $session = $this->client()->checkout->sessions->create([
+            'mode' => 'payment',
+            'line_items' => [[
+                'quantity' => 1,
+                'price_data' => [
+                    'currency' => $currency,
+                    'unit_amount' => $minor,
+                    'product_data' => ['name' => $description],
+                ],
+            ]],
+            'metadata' => $metadata,
+            'payment_intent_data' => ['metadata' => $metadata],
+            'success_url' => $successUrl,
+            'cancel_url' => $cancelUrl,
+        ]);
+
+        return [
+            'id' => $session->id,
+            'url' => $session->url,
+            'amount_minor' => $minor,
+            'currency' => $currency,
+        ];
+    }
+
+    /**
+     * Statut d'une Checkout Session.
+     *   status         : open | complete | expired
+     *   payment_status : paid | unpaid | no_payment_required
+     *
+     * @return array { id, status, payment_status, payment_intent }
+     */
+    public function retrieveCheckoutSession(string $id): array
+    {
+        $s = $this->client()->checkout->sessions->retrieve($id, []);
+
+        return [
+            'id' => $s->id,
+            'status' => $s->status,
+            'payment_status' => $s->payment_status,
+            'payment_intent' => $s->payment_intent,
+        ];
+    }
+
     /** Devise de payout par défaut selon le pays du compte bancaire. */
     private function defaultCurrencyForCountry(string $country): string
     {

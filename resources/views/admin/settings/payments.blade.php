@@ -19,6 +19,11 @@
                         class="py-4 px-1 border-b-2 font-medium text-sm transition-colors">
                     <i class="fas fa-mobile-alt mr-2"></i> KPay
                 </button>
+                <button @click="activePayment = 'direct'"
+                        :class="activePayment === 'direct' ? 'border-emerald-500 text-emerald-500' : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-300'"
+                        class="py-4 px-1 border-b-2 font-medium text-sm transition-colors">
+                    <i class="fas fa-credit-card mr-2"></i> Encaissement direct
+                </button>
             </nav>
         </div>
     </div>
@@ -479,6 +484,93 @@
                 </a>
                 <button type="submit"
                         class="px-8 py-3 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg hover:from-purple-600 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl">
+                    <i class="fas fa-save mr-2"></i> Enregistrer la configuration
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Encaissement direct Tab (Stripe carte + minimums par moyen) -->
+    <div x-show="activePayment === 'direct'" x-cloak>
+        <form action="{{ route('admin.settings.payments.update') }}" method="POST">
+            @csrf
+            @method('PUT')
+
+            <!-- Stripe (carte bancaire) -->
+            <div class="bg-dark-100 rounded-lg shadow-lg border border-dark-200 p-6 mb-6">
+                <div class="flex items-center justify-between mb-6">
+                    <div class="flex items-center">
+                        <div class="w-12 h-12 rounded-lg bg-emerald-500/10 flex items-center justify-center mr-4">
+                            <i class="fas fa-credit-card text-emerald-400 text-xl"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-2xl font-bold text-white">Carte bancaire (Stripe)</h3>
+                            <p class="text-gray-400 mt-1">Encaissement direct par carte via Stripe</p>
+                        </div>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="hidden" name="stripe_enabled" value="0">
+                        <input type="checkbox" name="stripe_enabled" value="1"
+                               {{ old('stripe_enabled', $paymentSettings['stripe_enabled']->value ?? '0') == '1' ? 'checked' : '' }}
+                               class="sr-only peer">
+                        <div class="w-14 h-7 bg-gray-600 peer-focus:ring-2 peer-focus:ring-emerald-500 rounded-full peer peer-checked:after:translate-x-7 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-emerald-500"></div>
+                    </label>
+                </div>
+
+                <div class="max-w-md">
+                    <label for="stripe_currency" class="block text-sm font-medium text-gray-300 mb-2">
+                        Devise d'encaissement
+                    </label>
+                    <select name="stripe_currency" id="stripe_currency"
+                            class="w-full px-4 py-3 bg-dark-200 border border-dark-300 rounded-lg text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
+                        @php $stripeCur = old('stripe_currency', $paymentSettings['stripe_currency']->value ?? 'USD'); @endphp
+                        <option value="USD" {{ $stripeCur == 'USD' ? 'selected' : '' }}>USD - Dollar américain</option>
+                        <option value="EUR" {{ $stripeCur == 'EUR' ? 'selected' : '' }}>EUR - Euro</option>
+                        <option value="GBP" {{ $stripeCur == 'GBP' ? 'selected' : '' }}>GBP - Livre Sterling</option>
+                    </select>
+                    <p class="mt-1 text-xs text-gray-500">Les clés API Stripe se configurent via l'intégration Stripe Connect.</p>
+                </div>
+            </div>
+
+            <!-- Minimums par moyen -->
+            <div class="bg-dark-100 rounded-lg shadow-lg border border-dark-200 p-6 mb-6">
+                <h3 class="text-lg font-semibold text-white mb-1">Montants minimums par moyen</h3>
+                <p class="text-gray-400 text-sm mb-6">
+                    Exprimés en <strong>XAF</strong> (devise pivot). En dessous de ce seuil, le moyen
+                    apparaît grisé (indisponible) côté application, sans jamais être masqué selon le pays.
+                </p>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div>
+                        <label for="pay_min_kpay" class="block text-sm font-medium text-gray-300 mb-2">
+                            <i class="fas fa-mobile-alt text-purple-400 mr-1"></i> Mobile Money
+                        </label>
+                        <input type="number" step="1" min="0" name="pay_min_kpay" id="pay_min_kpay"
+                               value="{{ old('pay_min_kpay', $paymentSettings['pay_min_kpay']->value ?? '100') }}"
+                               class="w-full px-4 py-3 bg-dark-200 border border-dark-300 rounded-lg text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
+                    </div>
+                    <div>
+                        <label for="pay_min_paypal" class="block text-sm font-medium text-gray-300 mb-2">
+                            <i class="fab fa-paypal text-blue-400 mr-1"></i> PayPal
+                        </label>
+                        <input type="number" step="1" min="0" name="pay_min_paypal" id="pay_min_paypal"
+                               value="{{ old('pay_min_paypal', $paymentSettings['pay_min_paypal']->value ?? '600') }}"
+                               class="w-full px-4 py-3 bg-dark-200 border border-dark-300 rounded-lg text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
+                    </div>
+                    <div>
+                        <label for="pay_min_stripe" class="block text-sm font-medium text-gray-300 mb-2">
+                            <i class="fas fa-credit-card text-emerald-400 mr-1"></i> Carte bancaire
+                        </label>
+                        <input type="number" step="1" min="0" name="pay_min_stripe" id="pay_min_stripe"
+                               value="{{ old('pay_min_stripe', $paymentSettings['pay_min_stripe']->value ?? '300') }}"
+                               class="w-full px-4 py-3 bg-dark-200 border border-dark-300 rounded-lg text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex justify-end">
+                <button type="submit"
+                        class="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg transition-colors">
                     <i class="fas fa-save mr-2"></i> Enregistrer la configuration
                 </button>
             </div>

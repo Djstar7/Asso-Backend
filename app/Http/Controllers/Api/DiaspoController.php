@@ -8,7 +8,11 @@ use App\Models\DiaspoOffer;
 use App\Models\DiaspoVerification;
 use App\Models\Setting;
 use App\Models\User;
+use App\Services\ExchangeRateService;
 use App\Services\KPayService;
+use App\Services\PaymentMethodService;
+use App\Services\PayPalService;
+use App\Services\StripeService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -185,19 +189,35 @@ class DiaspoController extends Controller
 
     // ==================== RÉSERVATIONS ====================
 
-    /** POST /v1/diaspo/offers/{id}/book — crée une réservation + PayIn KPay direct. */
+    /**
+     * POST /v1/diaspo/offers/{id}/book — crée une réservation + initie l'encaissement.
+     *
+     * Multi-rail : `payment_method` ∈ kpay | paypal | stripe. Chaque rail renvoie un
+     * bloc `payment` décrivant le sous-parcours mobile à dérouler :
+     *   - kpay     : { flow: 'phone' }    → validation Mobile Money (provider + numéro)
+     *   - paypal   : { flow: 'redirect' } → approbation via approval_url (WebView)
+     *   - stripe   : { flow: 'card' }     → confirmation carte avec client_secret (SDK)
+     * Le suivi du paiement se fait ensuite via bookingPaymentStatus (polling) qui
+     * re-vérifie le statut auprès du bon rail.
+     */
     public function bookOffer(Request $request, $id)
     {
         $data = $request->validate([
             'kg_booked' => 'required|numeric|min:0.5',
-            'provider' => 'required|string',       // code opérateur KPay
-            'phone_number' => 'required|string',   // numéro Mobile Money
+            'payment_method' => 'required|in:kpay,paypal,stripe',
+            'provider' => 'required_if:payment_method,kpay|string',       // code opérateur KPay
+            'phone_number' => 'required_if:payment_method,kpay|string',   // numéro Mobile Money
             'notes' => 'nullable|string|max:500',
         ]);
 
         $buyer = $request->user();
+        $method = $data['payment_method'];
 
-        return DB::transaction(function () use ($id, $data, $buyer) {
+        if (!PaymentMethodService::isEnabled($method)) {
+            return response()->json(['success' => false, 'message' => 'Ce moyen de paiement est actuellement indisponible.'], 422);
+        }
+
+        return DB::transaction(function () use ($id, $data, $buyer, $method) {
             $offer = DiaspoOffer::lockForUpdate()->findOrFail($id);
 
             if ($offer->user_id === $buyer->id) {
@@ -212,6 +232,15 @@ class DiaspoController extends Controller
             $commission = round($subtotal * $this->commissionRate(), 2);
             $total = $subtotal + $commission;
 
+            // Garde-fou serveur : le montant doit atteindre le minimum du moyen choisi
+            // (comparaison dans la devise pivot XAF, via les taux stockés).
+            $totalPivot = strtoupper($offer->currency) === PaymentMethodService::PIVOT
+                ? $total
+                : (ExchangeRateService::convertAmount($offer->currency, PaymentMethodService::PIVOT, $total) ?? $total);
+            if ($totalPivot < PaymentMethodService::minPivotFor($method)) {
+                return response()->json(['success' => false, 'message' => 'Le montant est trop faible pour ce moyen de paiement.'], 422);
+            }
+
             $booking = DiaspoBooking::create([
                 'diaspo_offer_id' => $offer->id,
                 'buyer_user_id' => $buyer->id,
@@ -225,6 +254,7 @@ class DiaspoController extends Controller
                 'status' => 'pending',
                 'confirmation_code' => str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT),
                 'payment_status' => 'pending',
+                'payment_method' => $method,
                 'notes' => $data['notes'] ?? null,
             ]);
 
@@ -232,29 +262,115 @@ class DiaspoController extends Controller
             $offer->decrement('remaining_kg', $data['kg_booked']);
             $offer->increment('bookings_count');
 
-            // Initier le PayIn KPay (montant en devise de l'offre)
-            $result = (new KPayService())->initializePayment([
-                'amount' => (float) round($total),
-                'provider' => $data['provider'],
-                'phone_number' => $data['phone_number'],
-                'description' => "Réservation diaspo #{$booking->id}",
-                'external_reference' => "DIASPO-{$booking->id}",
-            ]);
-
-            if (empty($result['success'])) {
-                throw new \Exception($result['message'] ?? "Échec de l'initiation du paiement KPay.");
-            }
-
-            $booking->update(['payment_reference' => $result['id'] ?? null]);
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Réservation créée. Validez le paiement sur votre téléphone.',
-                'data' => $booking->load(['offer.user', 'buyer', 'seller'])->toApi(),
-                'payment_reference' => $booking->payment_reference,
-                'booking_id' => $booking->id,
-            ], 201);
+            return match ($method) {
+                'kpay' => $this->initKpayBooking($booking, $data, $total),
+                'paypal' => $this->initPaypalBooking($booking, $offer, $total),
+                'stripe' => $this->initStripeBooking($booking, $offer, $total),
+            };
         });
+    }
+
+    /** Initie l'encaissement KPay (Mobile Money) et renvoie la réponse de réservation. */
+    private function initKpayBooking(DiaspoBooking $booking, array $data, float $total)
+    {
+        $result = (new KPayService())->initializePayment([
+            'amount' => (float) round($total),
+            'provider' => $data['provider'],
+            'phone_number' => $data['phone_number'],
+            'description' => "Réservation diaspo #{$booking->id}",
+            'external_reference' => "DIASPO-{$booking->id}",
+        ]);
+
+        if (empty($result['success'])) {
+            throw new \Exception($result['message'] ?? "Échec de l'initiation du paiement KPay.");
+        }
+
+        $booking->update(['payment_reference' => $result['id'] ?? null]);
+
+        return $this->bookingCreatedResponse($booking, 'Réservation créée. Validez le paiement sur votre téléphone.', [
+            'flow' => 'phone',
+            'method' => 'kpay',
+            'reference' => $booking->payment_reference,
+        ]);
+    }
+
+    /** Initie l'encaissement PayPal (approbation WebView) — devise USD via taux stockés. */
+    private function initPaypalBooking(DiaspoBooking $booking, DiaspoOffer $offer, float $total)
+    {
+        $res = (new PayPalService())->createOrder([
+            'amount' => $total,
+            'currency' => $offer->currency,
+            'user_id' => $booking->buyer_user_id,
+            'description' => "Réservation diaspo #{$booking->id}",
+            'return_url' => route('payment.success'),
+            'cancel_url' => route('payment.cancel'),
+        ]);
+
+        if (empty($res['success']) || empty($res['order_id'])) {
+            throw new \Exception($res['message'] ?? "Échec de l'initiation du paiement PayPal.");
+        }
+
+        $booking->update(['payment_reference' => $res['order_id']]);
+
+        return $this->bookingCreatedResponse($booking, 'Réservation créée. Finalisez le paiement PayPal.', [
+            'flow' => 'redirect',
+            'method' => 'paypal',
+            'reference' => $res['order_id'],
+            'approval_url' => $res['approval_url'] ?? null,
+            'amount' => $res['amount_usd'] ?? null,
+            'currency' => 'USD',
+        ]);
+    }
+
+    /** Initie l'encaissement carte Stripe (PaymentIntent) — devise via config, taux stockés. */
+    private function initStripeBooking(DiaspoBooking $booking, DiaspoOffer $offer, float $total)
+    {
+        $stripe = new StripeService();
+        if (!$stripe->isConfigured()) {
+            throw new \Exception('Le paiement par carte est momentanément indisponible.');
+        }
+
+        $currency = PaymentMethodService::currencyFor('stripe') ?? 'USD';
+        $amount = strtoupper($offer->currency) === strtoupper($currency)
+            ? $total
+            : ExchangeRateService::convertAmount($offer->currency, $currency, $total);
+        if ($amount === null) {
+            throw new \Exception('Conversion de devise indisponible pour le paiement carte.');
+        }
+
+        // Checkout Session hébergée (ouverte en WebView mobile — pas de SDK carte requis).
+        $session = $stripe->createCheckoutSession(
+            (float) $amount,
+            $currency,
+            ['asso_kind' => 'diaspo_booking', 'booking_id' => (string) $booking->id],
+            route('payment.success'),
+            route('payment.cancel'),
+            "Réservation diaspo #{$booking->id}"
+        );
+
+        $booking->update(['payment_reference' => $session['id']]);
+
+        return $this->bookingCreatedResponse($booking, 'Réservation créée. Finalisez le paiement par carte.', [
+            'flow' => 'redirect',
+            'method' => 'stripe',
+            'reference' => $session['id'],
+            'approval_url' => $session['url'],
+            'amount' => round((float) $amount, 2),
+            'currency' => strtoupper($currency),
+        ]);
+    }
+
+    /** Réponse HTTP standard de création de réservation (tous rails). */
+    private function bookingCreatedResponse(DiaspoBooking $booking, string $message, array $payment)
+    {
+        return response()->json([
+            'success' => true,
+            'message' => $message,
+            'data' => $booking->load(['offer.user', 'buyer', 'seller'])->toApi(),
+            'payment' => $payment,
+            'payment_reference' => $booking->payment_reference,
+            'booking_id' => $booking->id,
+        ], 201);
     }
 
     /** GET /v1/diaspo/bookings/{id}/payment-status — re-vérifie KPay + confirme. */
@@ -265,15 +381,22 @@ class DiaspoController extends Controller
             ->firstOrFail();
 
         if ($booking->payment_status === 'pending' && $booking->payment_reference) {
-            $result = (new KPayService())->checkPaymentStatus($booking->payment_reference);
-            $status = strtoupper($result['status'] ?? 'UNKNOWN');
-            if (in_array($status, ['SUCCESS', 'SUCCESSFUL', 'COMPLETED'])) {
-                $this->confirmBookingPayment($booking);
-                $booking->refresh();
-            } elseif (in_array($status, ['FAILED', 'FAILURE', 'ERROR', 'REJECTED', 'CANCELLED', 'CANCELED'])) {
-                $this->failBookingPayment($booking);
-                $booking->refresh();
+            $method = $booking->payment_method ?: 'kpay';
+
+            if ($method === 'paypal') {
+                $this->syncPaypalBooking($booking);
+            } elseif ($method === 'stripe') {
+                $this->syncStripeBooking($booking);
+            } else {
+                $result = (new KPayService())->checkPaymentStatus($booking->payment_reference);
+                $status = strtoupper($result['status'] ?? 'UNKNOWN');
+                if (in_array($status, ['SUCCESS', 'SUCCESSFUL', 'COMPLETED'])) {
+                    $this->confirmBookingPayment($booking);
+                } elseif (in_array($status, ['FAILED', 'FAILURE', 'ERROR', 'REJECTED', 'CANCELLED', 'CANCELED'])) {
+                    $this->failBookingPayment($booking);
+                }
             }
+            $booking->refresh();
         }
 
         return response()->json([
@@ -324,6 +447,53 @@ class DiaspoController extends Controller
             $b->update(['status' => 'cancelled', 'cancelled_at' => now()]);
             DiaspoOffer::whereKey($b->diaspo_offer_id)->increment('remaining_kg', (float) $b->kg_booked);
         });
+    }
+
+    /**
+     * Re-vérifie et finalise un paiement PayPal en attente.
+     * Cycle PayPal : CREATED → APPROVED (après approbation acheteur) → COMPLETED (capture).
+     * On capture ici dès l'état APPROVED, puis on confirme la réservation.
+     */
+    private function syncPaypalBooking(DiaspoBooking $booking): void
+    {
+        $paypal = new PayPalService();
+        $details = $paypal->getOrderDetails($booking->payment_reference);
+        if (empty($details['success'])) {
+            return; // indisponible : on retentera au prochain polling
+        }
+
+        $status = strtoupper($details['data']['status'] ?? 'UNKNOWN');
+
+        if ($status === 'COMPLETED') {
+            $this->confirmBookingPayment($booking);
+        } elseif ($status === 'APPROVED') {
+            $capture = $paypal->captureOrder($booking->payment_reference);
+            if (!empty($capture['success']) && strtoupper($capture['status'] ?? '') === 'COMPLETED') {
+                $this->confirmBookingPayment($booking);
+            }
+        } elseif (in_array($status, ['VOIDED', 'EXPIRED', 'CANCELLED', 'CANCELED'])) {
+            $this->failBookingPayment($booking);
+        }
+    }
+
+    /**
+     * Re-vérifie et finalise un paiement carte Stripe en attente (Checkout Session).
+     * `payment_status = paid` → confirmé ; `status = expired` → échec (libère les kg).
+     */
+    private function syncStripeBooking(DiaspoBooking $booking): void
+    {
+        try {
+            $session = (new StripeService())->retrieveCheckoutSession($booking->payment_reference);
+        } catch (\Throwable $e) {
+            Log::warning('[Diaspo] Stripe retrieve session: ' . $e->getMessage());
+            return;
+        }
+
+        if (($session['payment_status'] ?? '') === 'paid') {
+            $this->confirmBookingPayment($booking);
+        } elseif (($session['status'] ?? '') === 'expired') {
+            $this->failBookingPayment($booking);
+        }
     }
 
     public function bookings(Request $request)
