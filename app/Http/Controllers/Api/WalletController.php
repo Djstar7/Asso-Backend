@@ -921,17 +921,6 @@ class WalletController extends Controller
             ], 503);
         }
 
-        // Le compte PayPal du vendeur doit avoir été VALIDÉ par l'admin (une seule
-        // fois). Une fois validé, les retraits PayPal sont instantanés — même logique
-        // que l'IBAN (stripe_account_status === 'approved'). Tant que non validé, on
-        // bloque (la colonne renvoie null si absente → bloqué par défaut).
-        if (($user->paypal_payout_status ?? null) !== 'approved') {
-            return response()->json([
-                'success' => false,
-                'message' => "Votre compte PayPal n'est pas encore validé par notre équipe. Il sera activé après vérification de vos informations.",
-            ], 422);
-        }
-
         // Le montant est saisi ET traité dans la devise de l'utilisateur (FCFA/XAF),
         // comme le solde affiché. Plus de conversion USD codée en dur (×600) sur le
         // montant demandé, qui provoquait l'erreur « Solde insuffisant » sur un solde
@@ -1160,6 +1149,10 @@ class WalletController extends Controller
                     // PayPal : réconcilier l'état réel du batch de payout.
                     $this->reconcilePayPalWithdrawal($withdrawal);
                     $withdrawal->refresh();
+                } elseif ($withdrawal->provider === 'stripe' && !empty($withdrawal->stripe_payout_id)) {
+                    // Stripe : réconcilier l'état réel du payout vers l'IBAN.
+                    $this->reconcileStripeWithdrawal($withdrawal);
+                    $withdrawal->refresh();
                 }
             }
 
@@ -1242,6 +1235,67 @@ class WalletController extends Controller
             ]);
         }
         // Sinon (PENDING/PROCESSING/UNCLAIMED) : on laisse en 'processing'.
+    }
+
+    /**
+     * Réconcilie un retrait Stripe (virement IBAN) avec l'état réel du payout.
+     * 'completed' uniquement si Stripe confirme 'paid'. En échec terminal
+     * (failed/canceled), recrédite le solde dans la devise du payout.
+     */
+    private function reconcileStripeWithdrawal(PlatformWithdrawal $withdrawal): void
+    {
+        $user = $withdrawal->user;
+        if (!$user || empty($user->stripe_account_id)) {
+            return;
+        }
+
+        $stripe = app(\App\Services\StripeService::class);
+        $result = $stripe->getPayoutStatus($user->stripe_account_id, $withdrawal->stripe_payout_id);
+        if (!($result['success'] ?? false)) {
+            return; // Indisponible : on retentera au prochain poll.
+        }
+
+        $status = strtolower((string) ($result['status'] ?? ''));
+
+        $debitTx = \App\Models\WalletTransaction::where('reference_type', 'platform_withdrawal')
+            ->where('reference_id', $withdrawal->id)
+            ->where('provider', 'stripe')
+            ->where('type', 'debit')
+            ->first();
+
+        if ($status === 'paid') {
+            $withdrawal->markAsCompleted($withdrawal->stripe_payout_id, $result['data'] ?? []);
+            $debitTx?->update(['status' => 'completed']);
+            Log::info('[WalletController] ✅ Virement IBAN réglé (paid)', [
+                'withdrawal_id' => $withdrawal->id,
+            ]);
+            return;
+        }
+
+        if (in_array($status, ['failed', 'canceled'])) {
+            if ($debitTx && $debitTx->status !== 'failed') {
+                // Recréditer dans la devise du payout (wallet_balances).
+                $user->creditKpay((string) $withdrawal->currency, (float) $withdrawal->amount_requested);
+                \App\Models\WalletTransaction::create([
+                    'user_id' => $user->id,
+                    'type' => 'credit',
+                    'amount' => (float) $withdrawal->amount_requested,
+                    'description' => "Remboursement — virement IBAN non abouti (réf. {$withdrawal->transaction_reference})",
+                    'status' => 'completed',
+                    'provider' => 'stripe',
+                    'reference_type' => 'platform_withdrawal',
+                    'reference_id' => $withdrawal->id,
+                    'metadata' => ['refund' => true, 'currency' => $withdrawal->currency],
+                ]);
+                $debitTx->update(['status' => 'failed']);
+            }
+            $withdrawal->markAsFailed('stripe_payout_' . $status, "Virement IBAN non abouti ({$status}).");
+            Log::warning('[WalletController] ❌ Virement IBAN échoué, solde recrédité', [
+                'withdrawal_id' => $withdrawal->id,
+                'status' => $status,
+            ]);
+        }
+        // Sinon (pending / in_transit) : on laisse en 'processing'.
     }
 
     /**

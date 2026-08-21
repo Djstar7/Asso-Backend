@@ -221,6 +221,36 @@ class StripeService
     }
 
     /**
+     * Statut d'un payout sur le compte connecté (réconciliation du virement IBAN).
+     *
+     * @return array { success: bool, status?: string, data?: array, message?: string }
+     *   status Stripe : paid | pending | in_transit | canceled | failed
+     */
+    public function getPayoutStatus(string $accountId, string $payoutId): array
+    {
+        try {
+            $payout = $this->withoutStripeNotices(fn () => $this->client()->payouts->retrieve(
+                $payoutId,
+                [],
+                ['stripe_account' => $accountId]
+            ));
+
+            return [
+                'success' => true,
+                'status' => $payout->status ?? null,
+                'data' => $payout->toArray(),
+            ];
+        } catch (\Throwable $e) {
+            Log::warning('[StripeService] getPayoutStatus échoué', [
+                'account_id' => $accountId,
+                'payout_id' => $payoutId,
+                'error' => $e->getMessage(),
+            ]);
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
      * Vérifie la signature d'un webhook Stripe et retourne l'événement typé.
      * Lève une exception si la signature est invalide ou le secret manquant.
      */
