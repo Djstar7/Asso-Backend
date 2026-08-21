@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\PlatformWithdrawal;
 use App\Models\Setting;
 use App\Services\WalletService;
+use App\Services\ExchangeRateService;
 use App\Services\FirebaseMessagingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -378,7 +379,8 @@ class WalletController extends Controller
                 ])
                 ->values();
 
-            $paypalBalance = $user->paypal_wallet_balance ?? 0;
+            // Solde PayPal DISPONIBLE (solde - bloqué), même base que le contrôle du retrait.
+            $paypalBalance = ($user->paypal_wallet_balance ?? 0) - ($user->locked_paypal_balance ?? 0);
             $xafAvailable = $user->kpayAvailableFor('XAF');
 
             // Éligibilité au virement bancaire (Stripe Connect) : compte IBAN validé
@@ -905,13 +907,14 @@ class WalletController extends Controller
 
         $user = $request->user();
 
-        // Calculer le montant minimum en USD basé sur le minimum FCFA
-        $minWithdrawalAmountFcfa = Setting::get('min_withdrawal_amount', 100);
-        $exchangeRate = 600; // 1 USD = 600 XAF
-        $minWithdrawalAmountUsd = round($minWithdrawalAmountFcfa / $exchangeRate, 2);
+        // Le montant est saisi ET traité dans la devise de l'utilisateur (FCFA/XAF),
+        // comme le solde affiché. Plus de conversion USD codée en dur (×600) sur le
+        // montant demandé, qui provoquait l'erreur « Solde insuffisant » sur un solde
+        // pourtant suffisant.
+        $minWithdrawalAmount = (float) Setting::get('min_withdrawal_amount', 100);
 
         $validator = Validator::make($request->all(), [
-            'amount' => 'required|numeric|min:' . $minWithdrawalAmountUsd,
+            'amount' => 'required|numeric|min:' . $minWithdrawalAmount,
             'paypal_email' => 'required|email',
             'notes' => 'nullable|string|max:500',
         ]);
@@ -925,22 +928,17 @@ class WalletController extends Controller
             ], 422);
         }
 
-        $amountUsd = $request->input('amount');
+        $amountXaf = (float) $request->input('amount');
         $paypalEmail = $request->input('paypal_email');
         $notes = $request->input('notes');
 
-        // Convertir le montant USD en XAF (taux approximatif)
-        $exchangeRate = 600; // 1 USD = 600 XAF
-        $amountXaf = $amountUsd * $exchangeRate;
-
-        // Vérifier le solde PayPal wallet disponible
-        $availableBalance = $user->paypal_wallet_balance ?? 0;
+        // Solde PayPal disponible (FCFA) = solde - bloqué. Même unité que le montant saisi.
+        $availableBalance = ($user->paypal_wallet_balance ?? 0) - ($user->locked_paypal_balance ?? 0);
 
         if ($amountXaf > $availableBalance) {
             Log::warning("[WalletController] ❌ Insufficient PayPal wallet balance", [
                 'available_xaf' => $availableBalance,
                 'requested_xaf' => $amountXaf,
-                'requested_usd' => $amountUsd,
             ]);
 
             return response()->json([
@@ -949,8 +947,30 @@ class WalletController extends Controller
             ], 400);
         }
 
+        // Équivalent USD (PayPal verse en USD) via les taux stockés en base, jamais
+        // un taux fixe. Sert au versement réel et à l'affichage informatif.
+        $amountUsd = ExchangeRateService::convertAmount('XAF', 'USD', $amountXaf);
+        if ($amountUsd === null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Conversion de devise momentanément indisponible. Réessayez plus tard.',
+            ], 422);
+        }
+
         try {
             DB::beginTransaction();
+
+            // Débiter le wallet PayPal (atomique, revérifie le disponible sous verrou).
+            // Sans ce débit, le retrait était un stub qui ne diminuait jamais le solde.
+            $this->walletService->debit(
+                $user,
+                $amountXaf,
+                "Retrait PayPal vers {$paypalEmail}",
+                'withdrawal',
+                null,
+                ['paypal_email' => $paypalEmail, 'amount_usd' => $amountUsd],
+                'paypal'
+            );
 
             // Créer l'enregistrement de retrait
             $withdrawal = PlatformWithdrawal::create([
@@ -991,7 +1011,7 @@ class WalletController extends Controller
                 $this->fcmService->sendToUser(
                     $user,
                     '💸 Retrait PayPal en cours',
-                    "Votre demande de retrait de \${$amountUsd} USD ({$amountXaf} FCFA) vers {$paypalEmail} est en cours de traitement.",
+                    "Votre demande de retrait de " . number_format($amountXaf, 0, ',', ' ') . " FCFA (~\${$amountUsd} USD) vers {$paypalEmail} est en cours de traitement.",
                     [
                         'type' => 'wallet_withdrawal_processing',
                         'provider' => 'paypal',

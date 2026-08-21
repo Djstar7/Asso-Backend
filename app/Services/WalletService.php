@@ -5,12 +5,40 @@ namespace App\Services;
 use App\Models\User;
 use App\Models\Order;
 use App\Models\WalletTransaction;
+use App\Models\WalletBalance;
 use App\Models\Transaction;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class WalletService
 {
+    /**
+     * Devise de base du wallet KPay.
+     *
+     * Source de vérité UNIQUE du solde KPay = table `wallet_balances` (multi-devise),
+     * et non plus les colonnes legacy `users.kpay_wallet_balance` / `locked_kpay_balance`
+     * (qui n'étaient plus lues par l'affichage ni les retraits → « split-brain »).
+     * Les commandes étant libellées en XAF, on opère sur la ligne XAF.
+     */
+    private const KPAY_CURRENCY = 'XAF';
+
+    /**
+     * Récupère (ou crée) la ligne `wallet_balances` KPay de l'utilisateur, verrouillée
+     * en base pour la durée de la transaction courante (anti double-écriture / course).
+     */
+    private function lockedKpayBalance(User $user): WalletBalance
+    {
+        WalletBalance::firstOrCreate(
+            ['user_id' => $user->id, 'currency' => self::KPAY_CURRENCY],
+            ['balance' => 0, 'locked_balance' => 0]
+        );
+
+        return WalletBalance::where('user_id', $user->id)
+            ->where('currency', self::KPAY_CURRENCY)
+            ->lockForUpdate()
+            ->first();
+    }
+
     /**
      * Recharge le wallet d'un utilisateur
      *
@@ -31,15 +59,19 @@ class WalletService
         string $provider = 'kpay'
     ): WalletTransaction {
         return DB::transaction(function () use ($user, $amount, $transaction, $description, $metadata, $provider) {
-            // D�terminer quel wallet mettre � jour
-            $walletField = $provider === 'paypal' ? 'paypal_wallet_balance' : 'kpay_wallet_balance';
-
-            $balanceBefore = $user->{$walletField} ?? 0;
-            $balanceAfter = $balanceBefore + $amount;
-
-            // Mettre � jour le solde du wallet sp�cifique
-            $user->{$walletField} = $balanceAfter;
-            $user->save();
+            // KPay → wallet_balances (source de vérité) ; PayPal → colonne users legacy.
+            if ($provider === 'paypal') {
+                $balanceBefore = $user->paypal_wallet_balance ?? 0;
+                $balanceAfter = $balanceBefore + $amount;
+                $user->paypal_wallet_balance = $balanceAfter;
+                $user->save();
+            } else {
+                $row = $this->lockedKpayBalance($user);
+                $balanceBefore = (float) $row->balance;
+                $balanceAfter = $balanceBefore + $amount;
+                $row->balance = $balanceAfter;
+                $row->save();
+            }
 
             // Cr�er la transaction
             $walletTransaction = WalletTransaction::create([
@@ -95,12 +127,15 @@ class WalletService
                 throw new \Exception("Provider invalide. Doit �tre 'kpay' ou 'paypal'.");
             }
 
-            // D�terminer quel wallet d�biter
-            $walletField = $provider === 'paypal' ? 'paypal_wallet_balance' : 'kpay_wallet_balance';
-            $lockedField = $provider === 'paypal' ? 'locked_paypal_balance' : 'locked_kpay_balance';
-
-            $balanceBefore = $user->{$walletField} ?? 0;
-            $locked = $user->{$lockedField} ?? 0;
+            // KPay → wallet_balances (source de vérité) ; PayPal → colonne users legacy.
+            if ($provider === 'paypal') {
+                $balanceBefore = $user->paypal_wallet_balance ?? 0;
+                $locked = $user->locked_paypal_balance ?? 0;
+            } else {
+                $row = $this->lockedKpayBalance($user);
+                $balanceBefore = (float) $row->balance;
+                $locked = (float) $row->locked_balance;
+            }
             $available = $balanceBefore - $locked;
 
             // V�rifier le solde disponible (non bloqué)
@@ -112,8 +147,13 @@ class WalletService
             $balanceAfter = $balanceBefore - $amount;
 
             // Mettre � jour le solde du wallet sp�cifique
-            $user->{$walletField} = $balanceAfter;
-            $user->save();
+            if ($provider === 'paypal') {
+                $user->paypal_wallet_balance = $balanceAfter;
+                $user->save();
+            } else {
+                $row->balance = $balanceAfter;
+                $row->save();
+            }
 
             // Cr�er la transaction
             $walletTransaction = WalletTransaction::create([
@@ -197,13 +237,18 @@ class WalletService
         string $provider = 'kpay'
     ): WalletTransaction {
         return DB::transaction(function () use ($user, $amount, $description, $metadata, $provider) {
-            $walletField = $provider === 'paypal' ? 'paypal_wallet_balance' : 'kpay_wallet_balance';
-
-            $balanceBefore = $user->{$walletField} ?? 0;
-            $balanceAfter = $balanceBefore + $amount;
-
-            $user->{$walletField} = $balanceAfter;
-            $user->save();
+            if ($provider === 'paypal') {
+                $balanceBefore = $user->paypal_wallet_balance ?? 0;
+                $balanceAfter = $balanceBefore + $amount;
+                $user->paypal_wallet_balance = $balanceAfter;
+                $user->save();
+            } else {
+                $row = $this->lockedKpayBalance($user);
+                $balanceBefore = (float) $row->balance;
+                $balanceAfter = $balanceBefore + $amount;
+                $row->balance = $balanceAfter;
+                $row->save();
+            }
 
             $walletTransaction = WalletTransaction::create([
                 'user_id' => $user->id,
@@ -246,9 +291,12 @@ class WalletService
         string $provider = 'kpay'
     ): WalletTransaction {
         return DB::transaction(function () use ($user, $amount, $admin, $reason, $provider) {
-            $walletField = $provider === 'paypal' ? 'paypal_wallet_balance' : 'kpay_wallet_balance';
-
-            $balanceBefore = $user->{$walletField} ?? 0;
+            if ($provider === 'paypal') {
+                $balanceBefore = $user->paypal_wallet_balance ?? 0;
+            } else {
+                $row = $this->lockedKpayBalance($user);
+                $balanceBefore = (float) $row->balance;
+            }
             $balanceAfter = $balanceBefore + $amount;
 
             // Ne pas permettre de balance n�gative
@@ -256,8 +304,13 @@ class WalletService
                 throw new \Exception("L'ajustement rendrait le solde n�gatif");
             }
 
-            $user->{$walletField} = $balanceAfter;
-            $user->save();
+            if ($provider === 'paypal') {
+                $user->paypal_wallet_balance = $balanceAfter;
+                $user->save();
+            } else {
+                $row->balance = $balanceAfter;
+                $row->save();
+            }
 
             $walletTransaction = WalletTransaction::create([
                 'user_id' => $user->id,
@@ -400,39 +453,50 @@ class WalletService
         string $provider = 'kpay'
     ): WalletTransaction {
         return DB::transaction(function () use ($user, $amount, $description, $referenceType, $referenceId, $metadata, $provider) {
-            $user->lockForUpdate();
-            $user->refresh();
-
             if (!in_array($provider, ['kpay', 'paypal'])) {
                 throw new \Exception("Provider invalide. Doit être 'kpay' ou 'paypal'.");
             }
 
-            $walletField = $provider === 'paypal' ? 'paypal_wallet_balance' : 'kpay_wallet_balance';
-            $lockedField = $provider === 'paypal' ? 'locked_paypal_balance' : 'locked_kpay_balance';
+            // KPay → wallet_balances (verrou de ligne) ; PayPal → colonne users legacy.
+            if ($provider === 'paypal') {
+                $user->lockForUpdate();
+                $user->refresh();
+                $balance = $user->paypal_wallet_balance ?? 0;
+                $lockedBefore = $user->locked_paypal_balance ?? 0;
+            } else {
+                $row = $this->lockedKpayBalance($user);
+                $balance = (float) $row->balance;
+                $lockedBefore = (float) $row->locked_balance;
+            }
 
-            $available = ($user->{$walletField} ?? 0) - ($user->{$lockedField} ?? 0);
+            $available = $balance - $lockedBefore;
 
             if ($available < $amount) {
                 $providerName = $provider === 'paypal' ? 'PayPal' : 'KPay';
                 throw new \Exception("Solde {$providerName} disponible insuffisant. Disponible: {$available} FCFA, Requis: {$amount} FCFA");
             }
 
-            $lockedBefore = $user->{$lockedField} ?? 0;
-            $user->{$lockedField} = $lockedBefore + $amount;
-            $user->save();
+            $lockedAfter = $lockedBefore + $amount;
+            if ($provider === 'paypal') {
+                $user->locked_paypal_balance = $lockedAfter;
+                $user->save();
+            } else {
+                $row->locked_balance = $lockedAfter;
+                $row->save();
+            }
 
             $walletTransaction = WalletTransaction::create([
                 'user_id' => $user->id,
                 'type' => 'lock',
                 'amount' => $amount,
-                'balance_before' => $user->{$walletField},
-                'balance_after' => $user->{$walletField},
+                'balance_before' => $balance,
+                'balance_after' => $balance,
                 'description' => $description,
                 'reference_type' => $referenceType,
                 'reference_id' => $referenceId,
                 'metadata' => array_merge($metadata, [
                     'locked_amount' => $amount,
-                    'locked_balance_after' => $user->{$lockedField},
+                    'locked_balance_after' => $lockedAfter,
                 ]),
                 'status' => 'completed',
                 'provider' => $provider,
@@ -442,7 +506,7 @@ class WalletService
                 'user_id' => $user->id,
                 'provider' => $provider,
                 'amount' => $amount,
-                'locked_total' => $user->{$lockedField},
+                'locked_total' => $lockedAfter,
                 'transaction_id' => $walletTransaction->id,
                 'reference' => "{$referenceType}:{$referenceId}",
             ]);
@@ -464,33 +528,43 @@ class WalletService
         string $provider = 'kpay'
     ): WalletTransaction {
         return DB::transaction(function () use ($user, $amount, $description, $referenceType, $referenceId, $metadata, $provider) {
-            $user->lockForUpdate();
-            $user->refresh();
-
-            $lockedField = $provider === 'paypal' ? 'locked_paypal_balance' : 'locked_kpay_balance';
-            $walletField = $provider === 'paypal' ? 'paypal_wallet_balance' : 'kpay_wallet_balance';
-
-            $lockedBefore = $user->{$lockedField} ?? 0;
+            // KPay → wallet_balances (verrou de ligne) ; PayPal → colonne users legacy.
+            if ($provider === 'paypal') {
+                $user->lockForUpdate();
+                $user->refresh();
+                $balance = $user->paypal_wallet_balance ?? 0;
+                $lockedBefore = $user->locked_paypal_balance ?? 0;
+            } else {
+                $row = $this->lockedKpayBalance($user);
+                $balance = (float) $row->balance;
+                $lockedBefore = (float) $row->locked_balance;
+            }
 
             if ($lockedBefore < $amount) {
                 throw new \Exception("Impossible de débloquer {$amount} FCFA. Seulement {$lockedBefore} FCFA bloqué.");
             }
 
-            $user->{$lockedField} = $lockedBefore - $amount;
-            $user->save();
+            $lockedAfter = $lockedBefore - $amount;
+            if ($provider === 'paypal') {
+                $user->locked_paypal_balance = $lockedAfter;
+                $user->save();
+            } else {
+                $row->locked_balance = $lockedAfter;
+                $row->save();
+            }
 
             $walletTransaction = WalletTransaction::create([
                 'user_id' => $user->id,
                 'type' => 'unlock',
                 'amount' => $amount,
-                'balance_before' => $user->{$walletField},
-                'balance_after' => $user->{$walletField},
+                'balance_before' => $balance,
+                'balance_after' => $balance,
                 'description' => $description,
                 'reference_type' => $referenceType,
                 'reference_id' => $referenceId,
                 'metadata' => array_merge($metadata, [
                     'unlocked_amount' => $amount,
-                    'locked_balance_after' => $user->{$lockedField},
+                    'locked_balance_after' => $lockedAfter,
                 ]),
                 'status' => 'completed',
                 'provider' => $provider,
@@ -500,7 +574,7 @@ class WalletService
                 'user_id' => $user->id,
                 'provider' => $provider,
                 'amount' => $amount,
-                'locked_remaining' => $user->{$lockedField},
+                'locked_remaining' => $lockedAfter,
                 'transaction_id' => $walletTransaction->id,
             ]);
 
@@ -522,36 +596,47 @@ class WalletService
         string $provider = 'kpay'
     ): WalletTransaction {
         return DB::transaction(function () use ($user, $amount, $description, $referenceType, $referenceId, $metadata, $provider) {
-            $user->lockForUpdate();
-            $user->refresh();
-
-            $walletField = $provider === 'paypal' ? 'paypal_wallet_balance' : 'kpay_wallet_balance';
-            $lockedField = $provider === 'paypal' ? 'locked_paypal_balance' : 'locked_kpay_balance';
-
-            $lockedBefore = $user->{$lockedField} ?? 0;
-            $balanceBefore = $user->{$walletField} ?? 0;
+            // KPay → wallet_balances (verrou de ligne) ; PayPal → colonne users legacy.
+            if ($provider === 'paypal') {
+                $user->lockForUpdate();
+                $user->refresh();
+                $balanceBefore = $user->paypal_wallet_balance ?? 0;
+                $lockedBefore = $user->locked_paypal_balance ?? 0;
+            } else {
+                $row = $this->lockedKpayBalance($user);
+                $balanceBefore = (float) $row->balance;
+                $lockedBefore = (float) $row->locked_balance;
+            }
 
             if ($lockedBefore < $amount) {
                 throw new \Exception("Montant bloqué insuffisant pour libération. Bloqué: {$lockedBefore} FCFA, Requis: {$amount} FCFA");
             }
 
             // Débloquer + débiter en même temps
-            $user->{$lockedField} = $lockedBefore - $amount;
-            $user->{$walletField} = $balanceBefore - $amount;
-            $user->save();
+            $lockedAfter = $lockedBefore - $amount;
+            $balanceAfter = $balanceBefore - $amount;
+            if ($provider === 'paypal') {
+                $user->locked_paypal_balance = $lockedAfter;
+                $user->paypal_wallet_balance = $balanceAfter;
+                $user->save();
+            } else {
+                $row->locked_balance = $lockedAfter;
+                $row->balance = $balanceAfter;
+                $row->save();
+            }
 
             $walletTransaction = WalletTransaction::create([
                 'user_id' => $user->id,
                 'type' => 'escrow_release',
                 'amount' => $amount,
                 'balance_before' => $balanceBefore,
-                'balance_after' => $user->{$walletField},
+                'balance_after' => $balanceAfter,
                 'description' => $description,
                 'reference_type' => $referenceType,
                 'reference_id' => $referenceId,
                 'metadata' => array_merge($metadata, [
                     'released_amount' => $amount,
-                    'locked_balance_after' => $user->{$lockedField},
+                    'locked_balance_after' => $lockedAfter,
                 ]),
                 'status' => 'completed',
                 'provider' => $provider,
@@ -561,8 +646,8 @@ class WalletService
                 'user_id' => $user->id,
                 'provider' => $provider,
                 'amount' => $amount,
-                'balance_after' => $user->{$walletField},
-                'locked_remaining' => $user->{$lockedField},
+                'balance_after' => $balanceAfter,
+                'locked_remaining' => $lockedAfter,
                 'transaction_id' => $walletTransaction->id,
             ]);
 
@@ -581,10 +666,14 @@ class WalletService
     public function canPayWithWallet(User $user, float $amount, ?string $provider = null): array
     {
         if ($provider) {
-            $walletField = $provider === 'paypal' ? 'paypal_wallet_balance' : 'kpay_wallet_balance';
-            $lockedField = $provider === 'paypal' ? 'locked_paypal_balance' : 'locked_kpay_balance';
-            $totalBalance = $user->{$walletField} ?? 0;
-            $locked = $user->{$lockedField} ?? 0;
+            // KPay → wallet_balances (source de vérité) ; PayPal → colonne users legacy.
+            if ($provider === 'paypal') {
+                $totalBalance = $user->paypal_wallet_balance ?? 0;
+                $locked = $user->locked_paypal_balance ?? 0;
+            } else {
+                $totalBalance = $user->kpayBalanceFor(self::KPAY_CURRENCY);
+                $locked = $totalBalance - $user->kpayAvailableFor(self::KPAY_CURRENCY);
+            }
             $available = $totalBalance - $locked;
             $providerName = $provider === 'paypal' ? 'PayPal' : 'KPay';
 
@@ -603,16 +692,22 @@ class WalletService
                     : "Solde {$providerName} disponible insuffisant. Il vous manque " . number_format($amount - $available, 0, ',', ' ') . " FCFA",
             ];
         } else {
-            $available = $user->available_total_balance;
-            $totalBalance = ($user->kpay_wallet_balance ?? 0) + ($user->paypal_wallet_balance ?? 0);
-            $totalLocked = $user->total_locked_balance;
+            // KPay depuis wallet_balances (XAF), PayPal depuis la colonne users.
+            $kpayBalance = $user->kpayBalanceFor(self::KPAY_CURRENCY);
+            $kpayAvailable = $user->kpayAvailableFor(self::KPAY_CURRENCY);
+            $paypalBalance = $user->paypal_wallet_balance ?? 0;
+            $paypalLocked = $user->locked_paypal_balance ?? 0;
+
+            $totalBalance = $kpayBalance + $paypalBalance;
+            $totalLocked = ($kpayBalance - $kpayAvailable) + $paypalLocked;
+            $available = $kpayAvailable + ($paypalBalance - $paypalLocked);
 
             $canPay = $available >= $amount;
 
             return [
                 'can_pay' => $canPay,
-                'kpay_wallet_balance' => $user->kpay_wallet_balance ?? 0,
-                'paypal_balance' => $user->paypal_wallet_balance ?? 0,
+                'kpay_wallet_balance' => $kpayBalance,
+                'paypal_balance' => $paypalBalance,
                 'total_balance' => $totalBalance,
                 'locked_balance' => $totalLocked,
                 'available_balance' => $available,
