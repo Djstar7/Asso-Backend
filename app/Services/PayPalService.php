@@ -329,4 +329,147 @@ class PayPalService
             ];
         }
     }
+
+    /**
+     * Verse un paiement (payout) vers une adresse e-mail PayPal via la Payouts API.
+     *
+     * Utilisé pour les retraits vendeur : PayPal débite le compte marchand ASSO et
+     * crédite l'e-mail du bénéficiaire. Retour synchrone du batch (PENDING/PROCESSING/
+     * SUCCESS) ; le statut final peut évoluer ensuite (webhook / polling).
+     *
+     * @param string $email       E-mail PayPal du bénéficiaire
+     * @param float  $amount       Montant à verser (dans $currency)
+     * @param string $currency     Devise ISO (ex. USD)
+     * @param string $senderItemId Référence interne unique (idempotence / suivi)
+     * @param string|null $note    Note affichée au bénéficiaire
+     * @return array {
+     *   success: bool, payout_batch_id?: string, batch_status?: string,
+     *   data?: array, message?: string
+     * }
+     */
+    public function payout(
+        string $email,
+        float $amount,
+        string $currency,
+        string $senderItemId,
+        ?string $note = null
+    ): array {
+        if (!$this->isConfigured()) {
+            return ['success' => false, 'message' => "PayPal n'est pas configuré."];
+        }
+
+        $token = $this->generateAccessToken();
+        if (!$token) {
+            return ['success' => false, 'message' => "Authentification PayPal impossible."];
+        }
+
+        try {
+            $response = Http::withToken($token)
+                ->post("{$this->baseUrl}/v1/payments/payouts", [
+                    'sender_batch_header' => [
+                        'sender_batch_id' => $senderItemId,
+                        'email_subject' => 'Vous avez reçu un paiement ASSO',
+                        'email_message' => $note ?? 'Votre retrait ASSO a été envoyé sur votre compte PayPal.',
+                    ],
+                    'items' => [[
+                        'recipient_type' => 'EMAIL',
+                        'amount' => [
+                            'value' => number_format($amount, 2, '.', ''),
+                            'currency' => strtoupper($currency),
+                        ],
+                        'receiver' => $email,
+                        'note' => $note ?? 'Retrait ASSO',
+                        'sender_item_id' => $senderItemId,
+                    ]],
+                ]);
+
+            $data = $response->json() ?? [];
+
+            if (!$response->successful()) {
+                Log::error('[PayPalService] Payout échoué', [
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                ]);
+
+                $message = $data['message']
+                    ?? ($data['details'][0]['description'] ?? null)
+                    ?? 'Versement PayPal refusé.';
+
+                return ['success' => false, 'message' => $message, 'data' => $data];
+            }
+
+            $batch = $data['batch_header'] ?? [];
+
+            Log::info('[PayPalService] ✅ Payout créé', [
+                'payout_batch_id' => $batch['payout_batch_id'] ?? null,
+                'batch_status' => $batch['batch_status'] ?? null,
+                'sender_item_id' => $senderItemId,
+            ]);
+
+            return [
+                'success' => true,
+                'payout_batch_id' => $batch['payout_batch_id'] ?? null,
+                'batch_status' => $batch['batch_status'] ?? null,
+                'data' => $data,
+            ];
+        } catch (\Exception $e) {
+            Log::error('[PayPalService] Exception payout', [
+                'error' => $e->getMessage(),
+                'sender_item_id' => $senderItemId,
+            ]);
+
+            return ['success' => false, 'message' => "Erreur lors du versement PayPal."];
+        }
+    }
+
+    /**
+     * Statut d'un batch de payout (réconciliation du règlement final).
+     * GET /v1/payments/payouts/{payout_batch_id}
+     *
+     * @return array {
+     *   success: bool, batch_status?: string, item_status?: string,
+     *   data?: array, message?: string
+     * }
+     *   batch_status : PENDING | PROCESSING | SUCCESS | DENIED | CANCELED
+     *   item_status  : SUCCESS | FAILED | UNCLAIMED | RETURNED | BLOCKED | REFUNDED | ...
+     */
+    public function getPayoutStatus(string $payoutBatchId): array
+    {
+        if (!$this->isConfigured()) {
+            return ['success' => false, 'message' => "PayPal n'est pas configuré."];
+        }
+
+        $token = $this->generateAccessToken();
+        if (!$token) {
+            return ['success' => false, 'message' => "Authentification PayPal impossible."];
+        }
+
+        try {
+            $response = Http::withToken($token)
+                ->get("{$this->baseUrl}/v1/payments/payouts/{$payoutBatchId}");
+
+            $data = $response->json() ?? [];
+
+            if (!$response->successful()) {
+                Log::warning('[PayPalService] getPayoutStatus échoué', [
+                    'batch_id' => $payoutBatchId,
+                    'status' => $response->status(),
+                ]);
+                return ['success' => false, 'message' => 'Statut PayPal indisponible.', 'data' => $data];
+            }
+
+            return [
+                'success' => true,
+                'batch_status' => $data['batch_header']['batch_status'] ?? null,
+                'item_status' => $data['items'][0]['transaction_status'] ?? null,
+                'data' => $data,
+            ];
+        } catch (\Exception $e) {
+            Log::error('[PayPalService] Exception getPayoutStatus', [
+                'batch_id' => $payoutBatchId,
+                'error' => $e->getMessage(),
+            ]);
+            return ['success' => false, 'message' => "Erreur lors de la vérification du versement PayPal."];
+        }
+    }
 }
