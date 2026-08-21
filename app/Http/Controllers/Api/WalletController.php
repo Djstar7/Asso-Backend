@@ -880,9 +880,10 @@ class WalletController extends Controller
             DB::rollBack();
             Log::error("[WalletController] ❌ Stripe withdrawal error: " . $e->getMessage());
 
+            // Ne pas exposer le détail technique Stripe (reste tracé ci-dessus).
             return response()->json([
                 'success' => false,
-                'message' => "Le virement n'a pas pu être initié : " . $e->getMessage(),
+                'message' => "Le virement n'a pas pu être initié pour le moment. Votre solde n'a pas été débité. Réessayez plus tard.",
             ], 500);
         }
     }
@@ -1273,8 +1274,29 @@ class WalletController extends Controller
         }
 
         if (in_array($status, ['failed', 'canceled'])) {
+            $failureCode = strtolower((string) ($result['failure_code'] ?? ''));
+
             if ($debitTx && $debitTx->status !== 'failed') {
-                // Recréditer dans la devise du payout (wallet_balances).
+                // Le Transfer (autoritatif) avait déplacé les fonds vers le solde Connect
+                // du vendeur ; on le CONTRE-PASSE d'abord (retour côté plateforme) pour ne
+                // pas créditer deux fois, PUIS on recrédite le wallet.
+                if (!empty($withdrawal->stripe_transfer_id)) {
+                    $reversal = $stripe->reverseTransfer(
+                        $withdrawal->stripe_transfer_id,
+                        (int) round(((float) $withdrawal->amount_requested) * 100)
+                    );
+                    if (!($reversal['success'] ?? false)) {
+                        // Reversal impossible (ex. fonds Connect déjà repartis) : on NE
+                        // recrédite pas à l'aveugle pour éviter un double-crédit. On
+                        // laisse en 'processing' pour retenter / traitement manuel.
+                        Log::error('[WalletController] Reversal transfer Stripe échoué — pas de remboursement auto', [
+                            'withdrawal_id' => $withdrawal->id,
+                            'transfer_id' => $withdrawal->stripe_transfer_id,
+                        ]);
+                        return;
+                    }
+                }
+
                 $user->creditKpay((string) $withdrawal->currency, (float) $withdrawal->amount_requested);
                 \App\Models\WalletTransaction::create([
                     'user_id' => $user->id,
@@ -1285,17 +1307,42 @@ class WalletController extends Controller
                     'provider' => 'stripe',
                     'reference_type' => 'platform_withdrawal',
                     'reference_id' => $withdrawal->id,
-                    'metadata' => ['refund' => true, 'currency' => $withdrawal->currency],
+                    'metadata' => ['refund' => true, 'currency' => $withdrawal->currency, 'failure_code' => $failureCode],
                 ]);
                 $debitTx->update(['status' => 'failed']);
             }
-            $withdrawal->markAsFailed('stripe_payout_' . $status, "Virement IBAN non abouti ({$status}).");
+
+            $withdrawal->markAsFailed(
+                'stripe_payout_' . ($failureCode ?: $status),
+                $this->stripePayoutFailureMessage($failureCode, $status)
+            );
             Log::warning('[WalletController] ❌ Virement IBAN échoué, solde recrédité', [
                 'withdrawal_id' => $withdrawal->id,
                 'status' => $status,
+                'failure_code' => $failureCode,
             ]);
         }
         // Sinon (pending / in_transit) : on laisse en 'processing'.
+    }
+
+    /**
+     * Message clair pour l'utilisateur selon le failure_code d'un payout Stripe
+     * (cf. codes de la doc Connect : no_account, account_closed, insufficient_funds,
+     * debit_not_authorized, invalid_currency, could_not_process...).
+     */
+    private function stripePayoutFailureMessage(string $failureCode, string $status): string
+    {
+        return match ($failureCode) {
+            'no_account' => "Le virement a échoué : compte bancaire (IBAN) introuvable. Vérifiez votre IBAN.",
+            'account_closed' => "Le virement a échoué : le compte bancaire est clôturé. Enregistrez un autre IBAN.",
+            'insufficient_funds' => "Le virement n'a pas pu être traité pour le moment. Votre solde a été recrédité, réessayez plus tard.",
+            'debit_not_authorized' => "Le virement a été refusé par la banque (débit non autorisé).",
+            'invalid_currency' => "Le virement a échoué : la devise n'est pas prise en charge par ce compte bancaire.",
+            'could_not_process' => "Le virement n'a pas pu être traité. Votre solde a été recrédité.",
+            default => $status === 'canceled'
+                ? "Le virement a été annulé. Votre solde a été recrédité."
+                : "Le virement vers votre IBAN n'a pas abouti. Votre solde a été recrédité.",
+        };
     }
 
     /**

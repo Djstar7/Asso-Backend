@@ -223,8 +223,10 @@ class StripeService
     /**
      * Statut d'un payout sur le compte connecté (réconciliation du virement IBAN).
      *
-     * @return array { success: bool, status?: string, data?: array, message?: string }
+     * @return array { success: bool, status?: string, failure_code?: string, data?: array, message?: string }
      *   status Stripe : paid | pending | in_transit | canceled | failed
+     *   failure_code (si failed) : no_account | account_closed | insufficient_funds |
+     *                              debit_not_authorized | invalid_currency | could_not_process | ...
      */
     public function getPayoutStatus(string $accountId, string $payoutId): array
     {
@@ -238,12 +240,45 @@ class StripeService
             return [
                 'success' => true,
                 'status' => $payout->status ?? null,
+                'failure_code' => $payout->failure_code ?? null,
                 'data' => $payout->toArray(),
             ];
         } catch (\Throwable $e) {
             Log::warning('[StripeService] getPayoutStatus échoué', [
                 'account_id' => $accountId,
                 'payout_id' => $payoutId,
+                'error' => $e->getMessage(),
+            ]);
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Contre-passe (annule) un Transfer plateforme → compte Connect.
+     *
+     * Utilisé quand le Payout vers l'IBAN échoue : le Transfer (autoritatif) avait
+     * déjà déplacé les fonds vers le solde Connect du vendeur ; sans reversal, recréditer
+     * le wallet créditerait le vendeur deux fois. Le reversal ramène les fonds côté
+     * plateforme. Nécessite un solde Connect suffisant (les fonds d'un payout échoué y
+     * sont retournés).
+     *
+     * @param int|null $amountMinor Montant à contre-passer (plus petite unité) ; null = total.
+     * @return array { success: bool, reversal_id?: string, message?: string }
+     */
+    public function reverseTransfer(string $transferId, ?int $amountMinor = null): array
+    {
+        try {
+            $params = [];
+            if ($amountMinor !== null && $amountMinor > 0) {
+                $params['amount'] = $amountMinor;
+            }
+            $reversal = $this->withoutStripeNotices(
+                fn () => $this->client()->transfers->createReversal($transferId, $params)
+            );
+            return ['success' => true, 'reversal_id' => $reversal->id];
+        } catch (\Throwable $e) {
+            Log::error('[StripeService] Reversal du transfer échoué', [
+                'transfer_id' => $transferId,
                 'error' => $e->getMessage(),
             ]);
             return ['success' => false, 'message' => $e->getMessage()];
