@@ -7,6 +7,7 @@ use App\Models\PlatformWithdrawal;
 use App\Models\Setting;
 use App\Services\WalletService;
 use App\Services\ExchangeRateService;
+use App\Services\PayPalService;
 use App\Services\FirebaseMessagingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -17,11 +18,16 @@ class WalletController extends Controller
 {
     protected WalletService $walletService;
     protected FirebaseMessagingService $fcmService;
+    protected PayPalService $paypalService;
 
-    public function __construct(WalletService $walletService, FirebaseMessagingService $fcmService)
-    {
+    public function __construct(
+        WalletService $walletService,
+        FirebaseMessagingService $fcmService,
+        PayPalService $paypalService
+    ) {
         $this->walletService = $walletService;
         $this->fcmService = $fcmService;
+        $this->paypalService = $paypalService;
     }
 
     /**
@@ -907,6 +913,25 @@ class WalletController extends Controller
 
         $user = $request->user();
 
+        // PayPal doit être configuré (client id/secret) avant tout débit du solde.
+        if (!$this->paypalService->isConfigured()) {
+            return response()->json([
+                'success' => false,
+                'message' => "Le retrait par PayPal n'est pas encore disponible.",
+            ], 503);
+        }
+
+        // Le compte PayPal du vendeur doit avoir été VALIDÉ par l'admin (une seule
+        // fois). Une fois validé, les retraits PayPal sont instantanés — même logique
+        // que l'IBAN (stripe_account_status === 'approved'). Tant que non validé, on
+        // bloque (la colonne renvoie null si absente → bloqué par défaut).
+        if (($user->paypal_payout_status ?? null) !== 'approved') {
+            return response()->json([
+                'success' => false,
+                'message' => "Votre compte PayPal n'est pas encore validé par notre équipe. Il sera activé après vérification de vos informations.",
+            ], 422);
+        }
+
         // Le montant est saisi ET traité dans la devise de l'utilisateur (FCFA/XAF),
         // comme le solde affiché. Plus de conversion USD codée en dur (×600) sur le
         // montant demandé, qui provoquait l'erreur « Solde insuffisant » sur un solde
@@ -960,16 +985,19 @@ class WalletController extends Controller
         try {
             DB::beginTransaction();
 
-            // Débiter le wallet PayPal (atomique, revérifie le disponible sous verrou).
-            // Sans ce débit, le retrait était un stub qui ne diminuait jamais le solde.
-            $this->walletService->debit(
+            // Débiter le wallet PayPal. Le débit est réel (fonds bloqués immédiatement)
+            // mais la transaction visible reste 'pending' : elle ne passera 'completed'
+            // que lorsque PayPal aura CONFIRMÉ le versement (réconciliation). Sans ce
+            // débit, le retrait était un stub qui ne diminuait jamais le solde.
+            $debitTx = $this->walletService->debit(
                 $user,
                 $amountXaf,
                 "Retrait PayPal vers {$paypalEmail}",
-                'withdrawal',
+                'platform_withdrawal',
                 null,
                 ['paypal_email' => $paypalEmail, 'amount_usd' => $amountUsd],
-                'paypal'
+                'paypal',
+                'pending'
             );
 
             // Créer l'enregistrement de retrait
@@ -992,6 +1020,10 @@ class WalletController extends Controller
                 'user_agent' => $request->userAgent(),
             ]);
 
+            // Relier la transaction visible au retrait (pour la réconciliation).
+            $debitTx->reference_id = $withdrawal->id;
+            $debitTx->save();
+
             Log::info("[WalletController] ✅ PayPal withdrawal record created", [
                 'withdrawal_id' => $withdrawal->id,
                 'user_id' => $user->id,
@@ -999,12 +1031,59 @@ class WalletController extends Controller
                 'amount_xaf' => $amountXaf,
             ]);
 
-            // TODO: Intégrer avec PayPal Payout API
-            // Pour l'instant, on marque comme en cours
-
-            $withdrawal->markAsProcessing();
-
+            // Persister le débit + l'enregistrement AVANT l'appel réseau PayPal (on ne
+            // garde jamais une transaction DB ouverte pendant un appel HTTP externe).
             DB::commit();
+
+            // Versement PayPal RÉEL (Payouts API), hors transaction DB.
+            $payout = $this->paypalService->payout(
+                $paypalEmail,
+                (float) $amountUsd,
+                'USD',
+                $withdrawal->transaction_reference,
+                "Retrait ASSO #{$withdrawal->id}"
+            );
+
+            if (!($payout['success'] ?? false)) {
+                // Échec du versement → recréditer le solde et marquer l'échec. Aucune
+                // transaction ne reste faussement 'completed'.
+                $this->walletService->credit(
+                    $user,
+                    $amountXaf,
+                    null,
+                    "Remboursement — retrait PayPal échoué (réf. {$withdrawal->transaction_reference})",
+                    ['withdrawal_id' => $withdrawal->id, 'refund' => true],
+                    'paypal'
+                );
+                $debitTx->update([
+                    'status' => 'failed',
+                    'metadata' => array_merge($debitTx->metadata ?? [], [
+                        'failure_reason' => $payout['message'] ?? 'Versement PayPal refusé.',
+                    ]),
+                ]);
+                $withdrawal->markAsFailed('paypal_payout_failed', $payout['message'] ?? 'Versement PayPal refusé.');
+
+                Log::warning("[WalletController] ❌ PayPal payout échoué, solde recrédité", [
+                    'withdrawal_id' => $withdrawal->id,
+                    'message' => $payout['message'] ?? null,
+                ]);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => $payout['message'] ?? "Le versement PayPal a échoué. Votre solde a été recrédité.",
+                ], 422);
+            }
+
+            // Versement ACCEPTÉ par PayPal. Le règlement final est asynchrone : on reste
+            // en 'processing' et on stocke le batch pour la réconciliation ultérieure
+            // (checkWithdrawalStatus). La transaction ne passera 'completed' qu'une fois
+            // le batch confirmé SUCCESS par PayPal.
+            $withdrawal->update([
+                'status' => 'processing',
+                'paypal_batch_id' => $payout['payout_batch_id'] ?? null,
+                'paypal_payout_item_id' => $payout['data']['items'][0]['payout_item_id'] ?? null,
+                'paypal_response' => $payout['data'] ?? null,
+            ]);
 
             // Envoyer notification FCM
             try {
@@ -1071,10 +1150,17 @@ class WalletController extends Controller
                 ], 404);
             }
 
-            // Re-vérifier chez KPay tant que c'est en cours (finalisation à la demande).
-            if (in_array($withdrawal->status, ['pending', 'processing']) && $withdrawal->provider === 'kpay') {
-                \App\Jobs\Wallet\ProcessWithdrawalStatusJob::dispatchSync($withdrawal->id);
-                $withdrawal->refresh();
+            // Finalisation à la demande tant que c'est en cours.
+            if (in_array($withdrawal->status, ['pending', 'processing'])) {
+                if ($withdrawal->provider === 'kpay') {
+                    // KPay : re-vérification autoritative via le job dédié.
+                    \App\Jobs\Wallet\ProcessWithdrawalStatusJob::dispatchSync($withdrawal->id);
+                    $withdrawal->refresh();
+                } elseif ($withdrawal->provider === 'paypal' && !empty($withdrawal->paypal_batch_id)) {
+                    // PayPal : réconcilier l'état réel du batch de payout.
+                    $this->reconcilePayPalWithdrawal($withdrawal);
+                    $withdrawal->refresh();
+                }
             }
 
             return response()->json([
@@ -1099,6 +1185,63 @@ class WalletController extends Controller
                 'message' => 'Erreur lors de la vérification du statut',
             ], 500);
         }
+    }
+
+    /**
+     * Réconcilie un retrait PayPal avec l'état réel du batch de payout.
+     * Ne marque 'completed' QUE si PayPal confirme le règlement (SUCCESS). En cas
+     * d'échec terminal, recrédite le solde et marque l'échec.
+     */
+    private function reconcilePayPalWithdrawal(PlatformWithdrawal $withdrawal): void
+    {
+        $status = $this->paypalService->getPayoutStatus($withdrawal->paypal_batch_id);
+        if (!($status['success'] ?? false)) {
+            return; // Indisponible : on retentera au prochain poll.
+        }
+
+        $itemStatus = strtoupper((string) ($status['item_status'] ?? ''));
+        $batchStatus = strtoupper((string) ($status['batch_status'] ?? ''));
+
+        // Transaction wallet visible liée à ce retrait (pour refléter l'état réel).
+        $debitTx = \App\Models\WalletTransaction::where('reference_type', 'platform_withdrawal')
+            ->where('reference_id', $withdrawal->id)
+            ->where('provider', 'paypal')
+            ->where('type', 'debit')
+            ->first();
+
+        // Règlement confirmé.
+        if ($itemStatus === 'SUCCESS' || $batchStatus === 'SUCCESS') {
+            $withdrawal->markAsCompleted($withdrawal->paypal_batch_id, $status['data'] ?? []);
+            $debitTx?->update(['status' => 'completed']);
+            Log::info('[WalletController] ✅ Retrait PayPal réglé (SUCCESS)', [
+                'withdrawal_id' => $withdrawal->id,
+            ]);
+            return;
+        }
+
+        // Échec terminal → recréditer le solde.
+        $terminalFailures = ['DENIED', 'FAILED', 'RETURNED', 'BLOCKED', 'REFUNDED', 'CANCELED'];
+        if (in_array($itemStatus, $terminalFailures) || in_array($batchStatus, ['DENIED', 'CANCELED'])) {
+            $user = $withdrawal->user;
+            if ($user && $debitTx && $debitTx->status !== 'failed') {
+                $this->walletService->credit(
+                    $user,
+                    (float) $withdrawal->amount_requested,
+                    null,
+                    "Remboursement — versement PayPal non abouti (réf. {$withdrawal->transaction_reference})",
+                    ['withdrawal_id' => $withdrawal->id, 'refund' => true],
+                    'paypal'
+                );
+                $debitTx->update(['status' => 'failed']);
+            }
+            $withdrawal->markAsFailed('paypal_payout_' . strtolower($itemStatus ?: $batchStatus), "Versement PayPal non abouti ({$itemStatus}{$batchStatus}).");
+            Log::warning('[WalletController] ❌ Retrait PayPal échoué, solde recrédité', [
+                'withdrawal_id' => $withdrawal->id,
+                'item_status' => $itemStatus,
+                'batch_status' => $batchStatus,
+            ]);
+        }
+        // Sinon (PENDING/PROCESSING/UNCLAIMED) : on laisse en 'processing'.
     }
 
     /**

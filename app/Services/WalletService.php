@@ -119,9 +119,10 @@ class WalletService
         ?string $referenceType = null,
         ?int $referenceId = null,
         array $metadata = [],
-        string $provider
+        string $provider,
+        string $status = 'completed'
     ): WalletTransaction {
-        return DB::transaction(function () use ($user, $amount, $description, $referenceType, $referenceId, $metadata, $provider) {
+        return DB::transaction(function () use ($user, $amount, $description, $referenceType, $referenceId, $metadata, $provider, $status) {
             // Valider le provider
             if (!in_array($provider, ['kpay', 'paypal'])) {
                 throw new \Exception("Provider invalide. Doit �tre 'kpay' ou 'paypal'.");
@@ -166,7 +167,7 @@ class WalletService
                 'reference_type' => $referenceType,
                 'reference_id' => $referenceId,
                 'metadata' => $metadata,
-                'status' => 'completed',
+                'status' => $status,
                 'provider' => $provider,
             ]);
 
