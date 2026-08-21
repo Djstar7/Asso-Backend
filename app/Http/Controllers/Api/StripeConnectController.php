@@ -121,9 +121,51 @@ class StripeConnectController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => "Impossible d'enregistrer vos informations bancaires : " . $e->getMessage(),
+                'message' => $this->friendlyErrorMessage($e),
             ], 422);
         }
+    }
+
+    /**
+     * Traduit une exception (souvent brute de Stripe) en message clair pour le
+     * vendeur, sans jamais exposer le détail technique interne (URL d'API, code
+     * errno réseau, etc.) qui reste tracé côté serveur via Log::error.
+     */
+    private function friendlyErrorMessage(\Throwable $e): string
+    {
+        // Problème de connexion entre notre serveur et Stripe (DNS, réseau, timeout).
+        if ($e instanceof \Stripe\Exception\ApiConnectionException) {
+            return "Le service de virement bancaire est momentanément indisponible. "
+                . "Veuillez réessayer dans quelques instants.";
+        }
+
+        // Paramètres refusés par Stripe : le plus souvent un IBAN ou un pays invalide.
+        if ($e instanceof \Stripe\Exception\InvalidRequestException) {
+            $raw = strtolower($e->getMessage());
+            if (str_contains($raw, 'iban') || str_contains($raw, 'bank') || str_contains($raw, 'account_number')) {
+                return "L'IBAN saisi semble invalide. Vérifiez-le puis réessayez.";
+            }
+            if (str_contains($raw, 'country')) {
+                return "Le pays du compte bancaire n'est pas pris en charge pour les virements.";
+            }
+            return "Certaines informations bancaires sont invalides. Vérifiez vos données puis réessayez.";
+        }
+
+        // Clés API absentes / invalides côté plateforme : ce n'est pas la faute du vendeur.
+        if ($e instanceof \Stripe\Exception\AuthenticationException
+            || $e instanceof \RuntimeException) {
+            return "Le paiement par virement (Stripe) n'est pas encore disponible. "
+                . "Veuillez réessayer plus tard.";
+        }
+
+        // Toute autre erreur Stripe : message générique, sans détail technique.
+        if ($e instanceof \Stripe\Exception\ApiErrorException) {
+            return "Impossible d'enregistrer vos informations bancaires pour le moment. "
+                . "Veuillez réessayer plus tard.";
+        }
+
+        return "Une erreur est survenue lors de l'enregistrement de vos informations bancaires. "
+            . "Veuillez réessayer.";
     }
 
     /** Représentation publique du statut d'onboarding (jamais l'IBAN complet). */
