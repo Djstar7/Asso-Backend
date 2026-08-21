@@ -396,6 +396,13 @@ class WalletController extends Controller
             $stripeCurrency = $this->stripePayoutCurrency($user->stripe_bank_country);
             $stripeAvailable = $stripeReady ? $user->kpayAvailableFor($stripeCurrency) : 0.0;
 
+            // État de CONFIGURATION de chaque rail (clés API présentes côté plateforme).
+            // Permet au mobile de GRISER un moyen non configuré au lieu de laisser
+            // l'utilisateur tenter un retrait qui échouerait par une erreur.
+            $kpayConfigured = app(\App\Services\KPayService::class)->isConfigured();
+            $paypalConfigured = $this->paypalService->isConfigured();
+            $stripeConfigured = app(\App\Services\StripeService::class)->isConfigured();
+
             return response()->json([
                 'success' => true,
                 'data' => [
@@ -408,10 +415,32 @@ class WalletController extends Controller
                     // Virement bancaire (IBAN via Stripe Connect)
                     'stripe' => [
                         'eligible' => $stripeReady,
+                        'configured' => $stripeConfigured,
                         'status' => $user->stripe_account_status, // null|pending|approved|rejected
                         'currency' => $stripeCurrency,
                         'available' => max(0, $stripeAvailable),
                         'iban_last4' => $user->stripe_external_last4,
+                    ],
+                    // Vue unifiée par méthode (configuration + solde retirable).
+                    'methods' => [
+                        'kpay' => [
+                            'configured' => $kpayConfigured,
+                            'available' => max(0, $xafAvailable),
+                            'currency' => 'XAF',
+                        ],
+                        'paypal' => [
+                            'configured' => $paypalConfigured,
+                            'available' => max(0, $paypalBalance),
+                            'currency' => 'XAF',
+                        ],
+                        'stripe' => [
+                            'configured' => $stripeConfigured,
+                            'eligible' => $stripeReady,
+                            'status' => $user->stripe_account_status,
+                            'available' => max(0, $stripeAvailable),
+                            'currency' => $stripeCurrency,
+                            'iban_last4' => $user->stripe_external_last4,
+                        ],
                     ],
                 ],
             ]);
