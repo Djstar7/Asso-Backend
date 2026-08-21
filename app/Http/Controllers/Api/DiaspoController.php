@@ -34,13 +34,15 @@ class DiaspoController extends Controller
         return ((float) Setting::get('diaspo_commission_rate', self::DEFAULT_COMMISSION_RATE)) / 100;
     }
 
-    private function paginate($query, Request $request): array
+    private function paginate($query, Request $request, ?int $viewerId = null): array
     {
         $perPage = (int) $request->query('per_page', 20);
         $p = $query->paginate($perPage);
         return [
             'current_page' => $p->currentPage(),
-            'data' => collect($p->items())->map(fn($m) => $m->toApi())->values(),
+            // $viewerId transmis à toApi : nécessaire pour masquer le code secret des
+            // bookings aux non-acheteurs (ignoré par les modèles sans ce paramètre).
+            'data' => collect($p->items())->map(fn($m) => $m->toApi($viewerId))->values(),
             'per_page' => $p->perPage(),
             'last_page' => $p->lastPage(),
             'total' => $p->total(),
@@ -366,7 +368,8 @@ class DiaspoController extends Controller
         return response()->json([
             'success' => true,
             'message' => $message,
-            'data' => $booking->load(['offer.user', 'buyer', 'seller'])->toApi(),
+            // Réponse à l'acheteur (créateur de la réservation) → code visible pour lui.
+            'data' => $booking->load(['offer.user', 'buyer', 'seller'])->toApi($booking->buyer_user_id),
             'payment' => $payment,
             'payment_reference' => $booking->payment_reference,
             'booking_id' => $booking->id,
@@ -499,10 +502,28 @@ class DiaspoController extends Controller
     public function bookings(Request $request)
     {
         $uid = $request->user()->id;
-        $q = DiaspoBooking::with(['offer.user', 'buyer', 'seller'])
-            ->where(fn($x) => $x->where('buyer_user_id', $uid)->orWhere('seller_user_id', $uid))
-            ->latest();
-        return response()->json(['success' => true, 'data' => $this->paginate($q, $request)]);
+        $role = $request->query('role'); // 'buyer' (Mes Achats) | 'seller' (Mes Ventes) | null (tous)
+
+        $q = DiaspoBooking::with(['offer.user', 'buyer', 'seller']);
+
+        // Masquer les réservations dont le paiement n'a PAS abouti : une réservation
+        // n'apparaît (acheteur comme vendeur) qu'une fois le paiement confirmé.
+        $q->where('payment_status', '!=', 'pending');
+
+        if ($role === 'buyer') {
+            // Mes Achats : uniquement les réservations où je suis l'acheteur
+            // (→ le code secret m'est visible, car buyer_user_id === viewer).
+            $q->where('buyer_user_id', $uid);
+        } elseif ($role === 'seller') {
+            // Mes Ventes : uniquement les réservations où je suis le vendeur/voyageur
+            // (→ code secret masqué).
+            $q->where('seller_user_id', $uid);
+        } else {
+            $q->where(fn($x) => $x->where('buyer_user_id', $uid)->orWhere('seller_user_id', $uid));
+        }
+        $q->latest();
+
+        return response()->json(['success' => true, 'data' => $this->paginate($q, $request, $uid)]);
     }
 
     public function showBooking(Request $request, $id)
@@ -512,7 +533,7 @@ class DiaspoController extends Controller
             ->where('id', $id)
             ->where(fn($x) => $x->where('buyer_user_id', $uid)->orWhere('seller_user_id', $uid))
             ->firstOrFail();
-        return response()->json(['success' => true, 'data' => $booking->toApi()]);
+        return response()->json(['success' => true, 'data' => $booking->toApi($uid)]);
     }
 
     /** POST /v1/diaspo/bookings/{id}/cancel — annule + rembourse (mini-wallet) + libère les kg. */
@@ -546,7 +567,7 @@ class DiaspoController extends Controller
             DiaspoOffer::whereKey($b->diaspo_offer_id)->increment('remaining_kg', (float) $b->kg_booked);
         });
 
-        return response()->json(['success' => true, 'message' => 'Réservation annulée', 'data' => $booking->fresh()->load(['offer.user', 'buyer', 'seller'])->toApi()]);
+        return response()->json(['success' => true, 'message' => 'Réservation annulée', 'data' => $booking->fresh()->load(['offer.user', 'buyer', 'seller'])->toApi($request->user()->id)]);
     }
 
     /** POST /v1/diaspo/bookings/{id}/confirm-receipt — l'acheteur confirme : fonds libérés au voyageur. */
@@ -573,7 +594,7 @@ class DiaspoController extends Controller
             ]);
         });
 
-        return response()->json(['success' => true, 'message' => 'Réception confirmée. Le voyageur a été crédité.', 'data' => $booking->fresh()->load(['offer.user', 'buyer', 'seller'])->toApi()]);
+        return response()->json(['success' => true, 'message' => 'Réception confirmée. Le voyageur a été crédité.', 'data' => $booking->fresh()->load(['offer.user', 'buyer', 'seller'])->toApi($request->user()->id)]);
     }
 
     /** POST /v1/diaspo/bookings/{id}/seller-confirm-code — le voyageur valide le code de l'acheteur. */
@@ -593,7 +614,7 @@ class DiaspoController extends Controller
 
         // Voyageur a validé le code de l'acheteur → réservation confirmée (en transit).
         $booking->update(['status' => 'confirmed']);
-        return response()->json(['success' => true, 'message' => 'Code validé.', 'data' => $booking->fresh()->load(['offer.user', 'buyer', 'seller'])->toApi()]);
+        return response()->json(['success' => true, 'message' => 'Code validé.', 'data' => $booking->fresh()->load(['offer.user', 'buyer', 'seller'])->toApi($request->user()->id)]);
     }
 
     /** POST /v1/diaspo/confirm-by-code — recherche une réservation par son code. */
@@ -606,6 +627,6 @@ class DiaspoController extends Controller
             ->where(fn($x) => $x->where('buyer_user_id', $uid)->orWhere('seller_user_id', $uid))
             ->firstOrFail();
 
-        return response()->json(['success' => true, 'data' => $booking->toApi()]);
+        return response()->json(['success' => true, 'data' => $booking->toApi($uid)]);
     }
 }

@@ -181,7 +181,10 @@ class PaymentSettingsSeeder extends Seeder
         ];
 
         foreach ($settings as $setting) {
-            Setting::updateOrCreate(
+            // firstOrCreate (et non updateOrCreate) : ne crée le réglage QUE s'il est absent.
+            // Un re-seed ne doit JAMAIS écraser la config de paiement définie par l'admin
+            // (clés API, activation Stripe/PayPal, minimums, etc.).
+            Setting::firstOrCreate(
                 ['key' => $setting['key']],
                 $setting
             );

@@ -91,7 +91,7 @@
                 </div>
                 <div class="p-4">
                     <h3 class="font-semibold text-white mb-1 truncate">{{ $product->name }}</h3>
-                    <p class="text-xs text-gray-400 mb-2">{{ $product->shop->name }}</p>
+                    <p class="text-xs text-gray-400 mb-2">{{ $product->shop?->name ?? '—' }}</p>
 
                     <!-- Rating Stars -->
                     <div class="flex items-center gap-2 mb-3">
@@ -171,7 +171,7 @@
                         <div class="flex items-start justify-between gap-4">
                             <div class="flex-1">
                                 <h3 class="font-semibold text-white text-lg mb-1">{{ $product->name }}</h3>
-                                <p class="text-sm text-gray-400 mb-2">{{ $product->shop->name }}</p>
+                                <p class="text-sm text-gray-400 mb-2">{{ $product->shop?->name ?? '—' }}</p>
 
                                 <!-- Rating Stars -->
                                 <div class="flex items-center gap-2 mb-2">

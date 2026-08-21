@@ -38,7 +38,7 @@ class PaymentMethodService
      */
     private const RAILS = [
         'kpay' => [
-            'label' => 'Mobile Money',
+            'label' => 'KPay',
             'subtitle' => 'Orange Money, MTN MoMo, Airtel…',
             'flow' => 'phone',
             'setting_min' => 'pay_min_kpay',
@@ -54,7 +54,7 @@ class PaymentMethodService
         'stripe' => [
             'label' => 'Carte bancaire',
             'subtitle' => 'Visa, Mastercard, Amex',
-            'flow' => 'card',
+            'flow' => 'redirect',
             'setting_min' => 'pay_min_stripe',
             'default_min' => 300.0, // ≈ 0.50 USD
         ],

@@ -151,7 +151,11 @@ class SettingsController extends Controller
         $exchangeRateConfig = ServiceConfiguration::where('service_name', 'exchange_rate')->first();
         $exchangeRateApiKey = $exchangeRateConfig->configuration['api_key'] ?? '';
 
-        return view('admin.settings.payments', compact('paymentSettings', 'kpayConfig', 'kpayEnabled', 'exchangeRateApiKey'));
+        // Stripe : clés lues par StripeService (service_configurations, service 'stripe')
+        $stripeService = ServiceConfiguration::where('service_name', ServiceConfiguration::SERVICE_STRIPE)->first();
+        $stripeConfig = $stripeService->configuration ?? [];
+
+        return view('admin.settings.payments', compact('paymentSettings', 'kpayConfig', 'kpayEnabled', 'exchangeRateApiKey', 'stripeConfig'));
     }
 
     /**
@@ -201,6 +205,10 @@ class SettingsController extends Controller
                 // Stripe (carte bancaire — encaissement inbound)
                 'stripe_enabled' => 'nullable|boolean',
                 'stripe_currency' => 'nullable|string|size:3',
+                'stripe_mode' => 'nullable|in:test,live',
+                'stripe_publishable_key' => 'nullable|string',
+                'stripe_secret_key' => 'nullable|string',
+                'stripe_webhook_secret' => 'nullable|string',
                 // Minimums d'encaissement par moyen (devise pivot XAF) — grisage mobile
                 'pay_min_kpay' => 'nullable|numeric|min:0',
                 'pay_min_paypal' => 'nullable|numeric|min:0',
@@ -210,9 +218,11 @@ class SettingsController extends Controller
             ]);
 
             foreach ($validated as $key => $value) {
-                // KPay et exchange-rate sont stockés dans service_configurations
-                // (source de vérité), pas dans la table settings.
-                if (str_starts_with($key, 'kpay_') || str_starts_with($key, 'exchange_rate_')) {
+                // KPay, exchange-rate et les CLÉS Stripe sont stockés dans
+                // service_configurations (source de vérité), pas dans la table settings.
+                // (stripe_enabled / stripe_currency / pay_min_stripe restent en settings.)
+                if (str_starts_with($key, 'kpay_') || str_starts_with($key, 'exchange_rate_')
+                    || in_array($key, ['stripe_mode', 'stripe_publishable_key', 'stripe_secret_key', 'stripe_webhook_secret'])) {
                     continue;
                 }
 
@@ -421,5 +431,35 @@ class SettingsController extends Controller
                 'Conversion de devises (exchangerate-api.com)'
             );
         }
+
+        // Stripe : clés lues par StripeService (secret_key, publishable_key, webhook_secret, mode).
+        // Secrets laissés vides = conservés (on ne remplace jamais par une valeur vide).
+        $stripeExisting = ServiceConfiguration::getConfig(ServiceConfiguration::SERVICE_STRIPE) ?? [];
+        $stripeConfig = array_merge([
+            'mode' => 'test',
+            'publishable_key' => '',
+            'secret_key' => '',
+            'webhook_secret' => '',
+        ], $stripeExisting);
+
+        if (!empty($validated['stripe_mode'])) {
+            $stripeConfig['mode'] = $validated['stripe_mode'];
+        }
+        if (!empty($validated['stripe_publishable_key'])) {
+            $stripeConfig['publishable_key'] = $validated['stripe_publishable_key'];
+        }
+        if (!empty($validated['stripe_secret_key'])) {
+            $stripeConfig['secret_key'] = $validated['stripe_secret_key'];
+        }
+        if (!empty($validated['stripe_webhook_secret'])) {
+            $stripeConfig['webhook_secret'] = $validated['stripe_webhook_secret'];
+        }
+
+        ServiceConfiguration::setConfig(
+            ServiceConfiguration::SERVICE_STRIPE,
+            $stripeConfig,
+            isset($validated['stripe_enabled']) && $validated['stripe_enabled'],
+            'Stripe - Encaissement carte + payout IBAN (Connect)'
+        );
     }
 }

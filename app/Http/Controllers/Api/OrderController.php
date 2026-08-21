@@ -27,6 +27,14 @@ class OrderController extends Controller
         $query = Order::with(['items.product.primaryImage', 'items.product.images', 'deliveryPerson', 'deliveryCompany', 'rating'])
             ->where('user_id', $request->user()->id);
 
+        // Masquer les commandes payées par un rail DIRECT (KPay/PayPal/carte) dont le
+        // paiement n'a PAS encore abouti : elles ne doivent apparaître qu'une fois payées.
+        // (Les commandes wallet sont 'paid' d'emblée ; les directes le deviennent au succès.)
+        $query->where(function ($q) {
+            $q->where('payment_status', '!=', 'pending')
+              ->orWhereNotIn('payment_method', ['kpay_direct', 'paypal_direct', 'stripe_direct']);
+        });
+
         // Filter by status
         if ($request->has('status') && $request->status) {
             $query->where('status', $request->status);
@@ -78,8 +86,9 @@ class OrderController extends Controller
             'items.*.quantity' => 'required|integer|min:1',
             'delivery_company_id' => 'required|exists:deliverer_companies,id',
             'delivery_zone_id' => 'required|exists:delivery_zones,id',
-            // Mode de paiement : 'wallet' (escrow depuis solde) ou 'kpay_direct' (PayIn KPay)
-            'payment_mode' => 'nullable|in:wallet,kpay_direct',
+            // Mode de paiement : 'wallet' (escrow solde) | 'kpay_direct' (PayIn KPay)
+            //                  | 'paypal_direct' (checkout PayPal) | 'stripe_direct' (carte)
+            'payment_mode' => 'nullable|in:wallet,kpay_direct,paypal_direct,stripe_direct',
             'wallet_provider' => 'required_if:payment_mode,wallet|in:kpay,paypal',
             // Requis en mode kpay_direct
             'provider' => 'required_if:payment_mode,kpay_direct|string',
@@ -92,6 +101,21 @@ class OrderController extends Controller
 
         try {
             $paymentMode = $request->input('payment_mode', 'wallet');
+
+            // Garde-fou : un paiement par redirection (PayPal / carte Stripe) n'est proposé
+            // que s'il est réellement fonctionnel (clés configurées + activé). Sinon la
+            // commande est BLOQUÉE immédiatement, sans rien créer ni décrémenter de stock.
+            $railGuard = [
+                'paypal_direct' => ['paypal', 'PayPal'],
+                'stripe_direct' => ['stripe', 'par carte bancaire (Stripe)'],
+            ];
+            if (isset($railGuard[$paymentMode])
+                && !\App\Services\PaymentMethodService::isEnabled($railGuard[$paymentMode][0])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Le paiement {$railGuard[$paymentMode][1]} n'est pas disponible pour le moment. Veuillez choisir un autre moyen de paiement.",
+                ], 422);
+            }
 
             $order = $this->orderService->createOrder(
                 client: $request->user(),
@@ -110,13 +134,19 @@ class OrderController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => $paymentMode === 'kpay_direct'
-                    ? 'Commande créée. Validez le paiement sur votre téléphone (USSD).'
-                    : 'Commande créée avec succès. Fonds bloqués en attente de validation.',
+                'message' => match ($paymentMode) {
+                    'kpay_direct' => 'Commande créée. Validez le paiement sur votre téléphone (USSD).',
+                    'paypal_direct' => 'Commande créée. Finalisez le paiement PayPal.',
+                    'stripe_direct' => 'Commande créée. Finalisez le paiement par carte.',
+                    default => 'Commande créée avec succès. Fonds bloqués en attente de validation.',
+                },
                 'order' => $this->formatOrder($order),
-                // Pour le polling du statut de paiement en mode kpay_direct
+                // Pour le polling du statut de paiement (modes directs)
                 'payment_reference' => $order->payment_reference,
                 'order_id' => $order->id,
+                // Modes redirect (PayPal / carte Stripe) : URL de checkout à ouvrir en WebView
+                'approval_url' => in_array($paymentMode, ['paypal_direct', 'stripe_direct'])
+                    ? ($order->approval_url ?? null) : null,
             ], 201);
 
         } catch (\Exception $e) {
@@ -149,6 +179,18 @@ class OrderController extends Controller
                 $this->orderService->failKpayOrderPayment($order);
                 $order->refresh();
             }
+        } elseif ($order->payment_status === 'pending'
+            && $order->payment_method === 'paypal_direct'
+            && $order->payment_reference) {
+            // Capture PayPal côté serveur (idempotent) sur la base de l'état de l'ordre PayPal.
+            $this->orderService->syncPaypalOrder($order);
+            $order->refresh();
+        } elseif ($order->payment_status === 'pending'
+            && $order->payment_method === 'stripe_direct'
+            && $order->payment_reference) {
+            // Confirmation carte Stripe côté serveur (idempotent) via la Checkout Session.
+            $this->orderService->syncStripeOrder($order);
+            $order->refresh();
         }
 
         return response()->json([

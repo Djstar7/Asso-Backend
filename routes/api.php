@@ -109,6 +109,11 @@ Route::prefix('v1')->group(function () {
     // Pays d'origine des produits importés (Chine, Turquie, Dubaï…) - gérés en base
     Route::get('/import-countries', [\App\Http\Controllers\Api\ImportCountryController::class, 'index']);
 
+    // Module GROS (ASSO CHINA / DUBAÏ / TURQUIE) — catalogue par pays (public)
+    Route::get('/import/products/{id}', [\App\Http\Controllers\Api\ImportController::class, 'show']);
+    Route::get('/import/{code}/products', [\App\Http\Controllers\Api\ImportController::class, 'products']);
+    Route::get('/import/{code}/shipping', [\App\Http\Controllers\Api\ImportController::class, 'shipping']);
+
     // App info (public)
     Route::get('/app/about', [AppController::class, 'about']);
     Route::get('/app/version', [AppController::class, 'version']);
@@ -213,6 +218,9 @@ Route::middleware('auth:sanctum')->group(function () {
         // Orders
         Route::get('/orders', [OrderController::class, 'index']);
         Route::post('/orders', [OrderController::class, 'store']);
+
+        // Commande EN GROS (module ASSO CHINA / DUBAÏ / TURQUIE)
+        Route::post('/import/orders', [\App\Http\Controllers\Api\ImportController::class, 'store']);
         Route::get('/orders/{id}/payment-status', [OrderController::class, 'paymentStatus']);
         Route::get('/orders/{id}', [OrderController::class, 'show']);
         Route::post('/orders/{id}/cancel', [OrderController::class, 'cancel']);

@@ -11,6 +11,7 @@ class Order extends Model
 {
     protected $fillable = [
         'order_number', 'user_id', 'status', 'subtotal', 'delivery_fee', 'base_delivery_price', 'delivery_commission', 'total',
+        'is_wholesale', 'import_country_code', 'shipping_mode', 'shipping_option_id',
         'delivery_address', 'delivery_latitude', 'delivery_longitude',
         'tracking_number', 'confirmation_code',
         'delivery_person_id', 'delivery_company_id', 'delivery_zone_id',

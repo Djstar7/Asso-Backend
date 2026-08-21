@@ -37,6 +37,8 @@ class Product extends Model
         'price_type',
         'type',
         'origin_country',
+        'is_wholesale',
+        'min_order_quantity',
         'stock',
         'weight',
         'weight_category',
@@ -52,6 +54,8 @@ class Product extends Model
         'max_price' => 'decimal:2',
         'latitude' => 'decimal:8',
         'longitude' => 'decimal:8',
+        'is_wholesale' => 'boolean',
+        'min_order_quantity' => 'integer',
     ];
 
     /**
@@ -143,6 +147,17 @@ class Product extends Model
     public function images(): HasMany
     {
         return $this->hasMany(ProductImage::class)->orderBy('order');
+    }
+
+    /**
+     * Paliers de prix « gros » (conditionnements + cota) du produit importé.
+     */
+    public function priceTiers(): HasMany
+    {
+        return $this->hasMany(ProductPriceTier::class)
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->orderBy('min_quantity');
     }
 
     /**

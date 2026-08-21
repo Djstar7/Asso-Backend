@@ -206,6 +206,9 @@ class DiaspoOffer extends Model
             'currency' => $this->currency,
             'views_count' => $this->views_count,
             'bookings_count' => $this->bookings_count,
+            // Suppression interdite dès qu'une réservation est payée/confirmée
+            // (même règle que DiaspoController::destroyOffer) → masque le bouton côté app.
+            'can_delete' => !$this->bookings()->whereIn('status', ['paid', 'confirmed'])->exists(),
             'formatted_price' => number_format((float) $this->price_per_kg, 0) . ' ' . $this->currency . '/kg',
             'is_available' => $this->is_available,
             'trip_duration_hours' => $this->trip_duration_hours,

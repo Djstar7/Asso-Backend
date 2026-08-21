@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
+use App\Models\ProductPriceTier;
+use App\Models\ImportShippingOption;
 use App\Models\User;
 use App\Models\WalletTransaction;
 use App\Models\DelivererCompany;
@@ -56,6 +58,15 @@ class OrderService
 
         // Normaliser la ville du client pour comparaison
         $normalizedClientCity = $city ? $this->normalizeCity($city) : null;
+
+        // Si la "ville" fournie n'est pas un vrai nom (ex: l'app envoie l'adresse
+        // brute sous forme de coordonnées "5.4821, 10.4169" faute de géocodage),
+        // on ignore le filtre ville et on se fie uniquement à la distance.
+        if ($normalizedClientCity && !preg_match('/[a-z]/', $normalizedClientCity)) {
+            Log::info("⚠️ Ville client non exploitable ('{$city}') → filtre ville désactivé, tri par distance");
+            $normalizedClientCity = null;
+        }
+
         Log::info("🔄 Ville client normalisée: " . ($normalizedClientCity ?? 'N/A'));
 
         // Récupérer TOUTES les zones actives (sans filtrage SQL par ville)
@@ -91,12 +102,28 @@ class OrderService
                 Log::info("      └─ Ville BDD: " . ($zone->city ?? 'NON DÉFINIE'));
                 Log::info("      └─ Centre: ({$zone->center_latitude}, {$zone->center_longitude})");
 
-                // Geocoder les coordonnées de la zone pour obtenir la ville
-                $zoneCityFromGeocode = $this->getCityFromCoordinates(
+                // Pré-filtre distance : si le client a une position, ignorer les zones
+                // trop éloignées (> 50 km) AVANT tout géocodage réseau. On évite ainsi
+                // des appels Nominatim inutiles et on ne propose que la livraison locale.
+                if ($latitude && $longitude && $zone->center_latitude && $zone->center_longitude) {
+                    $preDistance = $this->calculateDistance(
+                        $latitude, $longitude,
+                        (float) $zone->center_latitude, (float) $zone->center_longitude
+                    );
+                    if ($preDistance > 50) {
+                        Log::info("      └─ ⏭️ Zone ignorée (trop loin: " . round($preDistance, 1) . " km)");
+                        continue;
+                    }
+                }
+
+                // Ville de la zone : priorité à la valeur en base (rapide et fiable).
+                // Le reverse-geocoding Nominatim (réseau, lent) n'est utilisé qu'en
+                // dernier recours, uniquement si la zone n'a pas de ville en base.
+                $zoneCityFromGeocode = $zone->city ?: $this->getCityFromCoordinates(
                     (float) $zone->center_latitude,
                     (float) $zone->center_longitude
                 );
-                Log::info("      └─ Ville geocodée: " . ($zoneCityFromGeocode ?? 'NON TROUVÉE'));
+                Log::info("      └─ Ville zone (BDD/geocode): " . ($zoneCityFromGeocode ?? 'NON TROUVÉE'));
 
                 // Filtrer par ville si le client a fourni une ville
                 if ($normalizedClientCity) {
@@ -150,7 +177,7 @@ class OrderService
                     'pricing_type' => $pricelist->pricing_type,
                     'delivery_price' => $price,
                     'formatted_delivery_price' => number_format($price, 0, ',', ' ') . ' FCFA',
-                    'distance_km' => $distance ? round($distance, 2) : null,
+                    'distance_km' => $distance !== null ? round($distance, 2) : null,
                     'deliverer' => $company->user ? [
                         'id' => $company->user->id,
                         'name' => $company->user->first_name . ' ' . $company->user->last_name,
@@ -343,10 +370,17 @@ class OrderService
             $total = $subtotal + $deliveryFee;
 
             $isKpayDirect = $paymentMode === 'kpay_direct';
+            $isPaypalDirect = $paymentMode === 'paypal_direct';
+            $isStripeDirect = $paymentMode === 'stripe_direct';
+            // Paiements « directs » (Mobile Money KPay, PayPal, ou carte Stripe) : l'argent
+            // est encaissé en dehors du solde wallet, la commande reste 'pending' de paiement.
+            $isDirect = $isKpayDirect || $isPaypalDirect || $isStripeDirect;
+            $approvalUrl = null; // URL de checkout (PayPal / Stripe) à ouvrir en WebView
 
             // 3. Mode wallet : verrouiller les fonds du client (escrow depuis le solde).
-            //    Mode kpay_direct : pas de verrou — le client paie via KPay (PayIn) ci-dessous.
-            if (!$isKpayDirect) {
+            //    Modes directs (kpay_direct / paypal_direct) : pas de verrou — le client
+            //    paie via KPay (PayIn) ou PayPal (checkout) ci-dessous.
+            if (!$isDirect) {
                 $this->walletService->lockFunds(
                     $client,
                     $total,
@@ -372,9 +406,15 @@ class OrderService
                 'delivery_longitude' => $deliveryLongitude,
                 'delivery_company_id' => $deliveryCompanyId,
                 'delivery_zone_id' => $deliveryZoneId,
-                'payment_method' => $isKpayDirect ? 'kpay_direct' : ('wallet_' . $walletProvider),
-                // kpay_direct : en attente du paiement Mobile Money ; wallet : déjà payé (fonds bloqués)
-                'payment_status' => $isKpayDirect ? 'pending' : 'paid',
+                'payment_method' => match (true) {
+                    $isKpayDirect => 'kpay_direct',
+                    $isPaypalDirect => 'paypal_direct',
+                    $isStripeDirect => 'stripe_direct',
+                    default => 'wallet_' . $walletProvider,
+                },
+                // Modes directs : en attente du paiement (Mobile Money / PayPal) ;
+                // wallet : déjà payé (fonds bloqués en escrow).
+                'payment_status' => $isDirect ? 'pending' : 'paid',
                 'notes' => $notes,
             ]);
 
@@ -383,54 +423,10 @@ class OrderService
                 $order->items()->create($itemData);
             }
 
-            // 4b. Mode kpay_direct : initier le PayIn KPay pour le total de la commande
-            if ($isKpayDirect) {
-                // Convertir le total (XAF) dans la devise de l'opérateur Mobile Money choisi,
-                // JUSTE avant de lancer le PayIn (l'opérateur est déduit de l'indicatif du numéro).
-                // Même principe que le retrait : KPay débite le montant dans la devise de l'opérateur.
-                $payCurrency = \App\Services\KPayCatalog::currencyForProvider($kpayProvider);
-                $payAmount = (float) round($total);
-
-                if ($payCurrency !== 'XAF') {
-                    $converted = \App\Services\ExchangeRateService::convertAmount('XAF', $payCurrency, $total);
-                    if ($converted !== null) {
-                        $payAmount = (float) round($converted);
-                    } else {
-                        // Taux indisponible : on n'ose pas débiter un montant XAF dans une autre devise.
-                        throw new \Exception("Conversion XAF → {$payCurrency} indisponible. Réessayez plus tard.");
-                    }
-                }
-
-                // Tracer la devise/montant réellement débités (peuvent différer du total XAF)
-                $order->update([
-                    'payment_currency' => $payCurrency,
-                    'payment_amount' => $payAmount,
-                ]);
-
-                $kpayResult = app(\App\Services\KPayService::class)->initializePayment([
-                    'amount' => $payAmount,
-                    'provider' => $kpayProvider,
-                    'phone_number' => $kpayPhone,
-                    'description' => "Commande {$order->order_number}",
-                    'external_reference' => $order->order_number,
-                ]);
-
-                if (empty($kpayResult['success'])) {
-                    // Rollback : la commande ne doit pas exister si le paiement n'a pu être initié
-                    throw new \Exception($kpayResult['message'] ?? "Échec de l'initiation du paiement KPay.");
-                }
-
-                Log::info('[OrderService] PayIn KPay initié', [
-                    'order_id' => $order->id,
-                    'total_xaf' => $total,
-                    'charged' => $payAmount,
-                    'currency' => $payCurrency,
-                    'provider' => $kpayProvider,
-                ]);
-
-                // payment_reference = id KPay (pay_xxx) pour le polling du statut
-                $order->update(['payment_reference' => $kpayResult['id'] ?? null]);
-            }
+            // 4b. Initier le paiement direct (KPay / PayPal / Stripe). Retourne l'URL de
+            //     checkout (PayPal/Stripe, à ouvrir en WebView) ou null (KPay/wallet).
+            //     Logique partagée avec la commande EN GROS — voir initiateDirectPayment().
+            $approvalUrl = $this->initiateDirectPayment($order, $total, $paymentMode, $kpayProvider, $kpayPhone);
 
             // 5. Envoyer les notifications FCM
 
@@ -448,11 +444,11 @@ class OrderService
             );
 
             // Notification vendeur(s).
-            // En mode kpay_direct, la commande n'est pas encore payée (PayIn Mobile Money
-            // en attente) : on ne prévient les vendeurs qu'à la confirmation du paiement
-            // (voir confirmKpayOrderPayment) pour ne pas les solliciter sur une commande
-            // qui pourrait ne jamais être réglée.
-            if (!$isKpayDirect) {
+            // En modes directs (kpay_direct / paypal_direct), la commande n'est pas encore
+            // payée (PayIn Mobile Money / checkout PayPal en attente) : on ne prévient les
+            // vendeurs qu'à la confirmation du paiement (voir confirm*OrderPayment) pour ne
+            // pas les solliciter sur une commande qui pourrait ne jamais être réglée.
+            if (!$isDirect) {
                 foreach ($sellers as $sellerId) {
                     $seller = User::find($sellerId);
                     if ($seller) {
@@ -478,7 +474,151 @@ class OrderService
                 'order_id' => $order->id,
                 'order_number' => $order->order_number,
                 'total' => $total,
-                'escrow_locked' => true,
+                'payment_mode' => $paymentMode,
+            ]);
+
+            // Attribut transitoire (non persisté) : l'URL de checkout (PayPal / Stripe) à
+            // ouvrir dans la WebView côté mobile. Défini en dernier, après toute écriture DB,
+            // pour ne jamais être persisté sur une colonne inexistante.
+            if ($isPaypalDirect || $isStripeDirect) {
+                $order->approval_url = $approvalUrl;
+            }
+
+            return $order;
+        });
+    }
+
+    /**
+     * Crée une commande EN GROS (module ASSO CHINA / DUBAÏ / TURQUIE).
+     *
+     * Diffère de createOrder : pas de livraison locale (zone/partenaire) mais une
+     * EXPÉDITION internationale ; le prix vient des PALIERS (product_price_tiers) et
+     * chaque ligne doit respecter la quantité minimale (« cota ») du palier choisi.
+     * Le paiement réutilise initiateDirectPayment (KPay / PayPal / Stripe / wallet).
+     *
+     * @param array $items  [ ['product_id'=>int,'price_tier_id'=>int,'quantity'=>int], ... ]
+     */
+    public function createWholesaleOrder(
+        User $client,
+        array $items,
+        int $shippingOptionId,
+        float $shippingWeightKg = 0,
+        float $shippingCbm = 0,
+        ?string $deliveryAddress = null,
+        string $paymentMode = 'kpay_direct',
+        ?string $kpayProvider = null,
+        ?string $kpayPhone = null,
+        ?string $notes = null
+    ): Order {
+        return DB::transaction(function () use (
+            $client, $items, $shippingOptionId, $shippingWeightKg, $shippingCbm,
+            $deliveryAddress, $paymentMode, $kpayProvider, $kpayPhone, $notes
+        ) {
+            $subtotal = 0;
+            $orderItems = [];
+            $countryCode = null;
+
+            foreach ($items as $item) {
+                $product = Product::lockForUpdate()->findOrFail($item['product_id']);
+                if (!$product->is_wholesale || $product->status !== 'active') {
+                    throw new \Exception("Le produit '{$product->name}' n'est pas disponible en gros.");
+                }
+
+                $tier = ProductPriceTier::where('product_id', $product->id)
+                    ->where('id', $item['price_tier_id'])
+                    ->where('is_active', true)
+                    ->firstOrFail();
+
+                $quantity = (int) $item['quantity'];
+                if ($quantity < $tier->min_quantity) {
+                    throw new \Exception("Quantité minimale non atteinte pour '{$product->name}' ({$tier->label}) : minimum {$tier->min_quantity}.");
+                }
+
+                // Prix du palier converti en XAF (devise pivot) au taux du moment.
+                $tierCurrency = strtoupper($tier->currency ?? 'XAF');
+                $unitPrice = (float) $tier->unit_price;
+                if ($tierCurrency !== 'XAF') {
+                    $conv = \App\Services\ExchangeRateService::convert($tierCurrency, 'XAF', $unitPrice);
+                    if (empty($conv['success']) || $conv['amount'] === null) {
+                        throw new \Exception("Conversion {$tierCurrency} → XAF indisponible pour '{$product->name}'.");
+                    }
+                    $unitPrice = round((float) $conv['amount'], 2);
+                }
+
+                $lineTotal = $unitPrice * $quantity;
+                $subtotal += $lineTotal;
+                $countryCode = $countryCode ?? $product->origin_country;
+
+                $orderItems[] = [
+                    'product_id' => $product->id,
+                    'seller_id' => $product->user_id,
+                    'price_tier_id' => $tier->id,
+                    'tier_label' => $tier->label,
+                    'quantity' => $quantity,
+                    'unit_price' => $unitPrice,
+                    'total_price' => $lineTotal,
+                ];
+            }
+
+            // Expédition internationale : coût selon l'option choisie (poids / volume / forfait).
+            $shipping = ImportShippingOption::where('id', $shippingOptionId)->where('is_active', true)->firstOrFail();
+            $shippingCost = $shipping->computeCost($shippingWeightKg, $shippingCbm);
+            $total = $subtotal + $shippingCost;
+
+            $isDirect = in_array($paymentMode, ['kpay_direct', 'paypal_direct', 'stripe_direct']);
+
+            // Mode wallet : escrow depuis le solde. Modes directs : encaissement externe.
+            if (!$isDirect) {
+                $this->walletService->lockFunds(
+                    $client, $total, 'Escrow commande gros - En attente de validation vendeur',
+                    'order', null, ['wholesale' => true], $kpayProvider ?? 'kpay'
+                );
+            }
+
+            $order = Order::create([
+                'user_id' => $client->id,
+                'status' => 'pending',
+                'is_wholesale' => true,
+                'import_country_code' => $countryCode,
+                'shipping_mode' => $shipping->mode,
+                'shipping_option_id' => $shipping->id,
+                'subtotal' => $subtotal,
+                'delivery_fee' => $shippingCost, // coût d'expédition internationale
+                'base_delivery_price' => $shippingCost,
+                'delivery_commission' => 0,
+                'total' => $total,
+                'delivery_address' => $deliveryAddress,
+                'payment_method' => match (true) {
+                    $paymentMode === 'kpay_direct' => 'kpay_direct',
+                    $paymentMode === 'paypal_direct' => 'paypal_direct',
+                    $paymentMode === 'stripe_direct' => 'stripe_direct',
+                    default => 'wallet_' . ($kpayProvider ?? 'kpay'),
+                },
+                'payment_status' => $isDirect ? 'pending' : 'paid',
+                'notes' => $notes,
+            ]);
+
+            foreach ($orderItems as $itemData) {
+                $order->items()->create($itemData);
+            }
+
+            // Paiement (réutilise la logique des rails directs).
+            $approvalUrl = $this->initiateDirectPayment($order, $total, $paymentMode, $kpayProvider, $kpayPhone);
+
+            $this->fcmService->sendToUser(
+                $client,
+                'Commande en gros créée',
+                "Votre commande gros #{$order->order_number} a été créée. En attente de paiement/validation.",
+                ['type' => 'wholesale_order_created', 'order_id' => (string) $order->id, 'order_number' => $order->order_number]
+            );
+
+            $order->load(['items.product.primaryImage']);
+            if (in_array($paymentMode, ['paypal_direct', 'stripe_direct'])) {
+                $order->approval_url = $approvalUrl;
+            }
+
+            Log::info('[OrderService] Commande GROS créée', [
+                'order_id' => $order->id, 'subtotal' => $subtotal, 'shipping' => $shippingCost, 'total' => $total,
             ]);
 
             return $order;
@@ -639,6 +779,435 @@ class OrderService
     }
 
     /**
+     * Initie le paiement DIRECT d'une commande déjà créée (commande normale OU en gros).
+     * Renvoie l'URL de checkout à ouvrir en WebView (PayPal / Stripe) ou null (KPay / wallet).
+     * Lance une exception en cas d'échec → la transaction appelante fait un rollback.
+     *
+     * @param string $paymentMode wallet | kpay_direct | paypal_direct | stripe_direct
+     */
+    public function initiateDirectPayment(
+        Order $order,
+        float $total,
+        string $paymentMode,
+        ?string $kpayProvider = null,
+        ?string $kpayPhone = null
+    ): ?string {
+        // Mode kpay_direct : PayIn Mobile Money (devise de l'opérateur, déduite du numéro).
+        if ($paymentMode === 'kpay_direct') {
+            $payCurrency = \App\Services\KPayCatalog::currencyForProvider($kpayProvider);
+            $payAmount = (float) round($total);
+
+            if ($payCurrency !== 'XAF') {
+                $converted = \App\Services\ExchangeRateService::convertAmount('XAF', $payCurrency, $total);
+                if ($converted === null) {
+                    throw new \Exception("Conversion XAF → {$payCurrency} indisponible. Réessayez plus tard.");
+                }
+                $payAmount = (float) round($converted);
+            }
+
+            $order->update(['payment_currency' => $payCurrency, 'payment_amount' => $payAmount]);
+
+            $kpayResult = app(\App\Services\KPayService::class)->initializePayment([
+                'amount' => $payAmount,
+                'provider' => $kpayProvider,
+                'phone_number' => $kpayPhone,
+                'description' => "Commande {$order->order_number}",
+                'external_reference' => $order->order_number,
+            ]);
+
+            if (empty($kpayResult['success'])) {
+                throw new \Exception($kpayResult['message'] ?? "Échec de l'initiation du paiement KPay.");
+            }
+
+            $order->update(['payment_reference' => $kpayResult['id'] ?? null]);
+            Log::info('[OrderService] PayIn KPay initié', ['order_id' => $order->id, 'charged' => $payAmount, 'currency' => $payCurrency]);
+            return null;
+        }
+
+        // Mode paypal_direct : Checkout PayPal (encaissement USD), URL d'approbation en WebView.
+        if ($paymentMode === 'paypal_direct') {
+            $pp = app(\App\Services\PayPalService::class)->createOrder([
+                'amount' => (float) round($total),
+                'currency' => 'XAF',
+                'user_id' => $order->user_id,
+                'description' => "Commande {$order->order_number}",
+                'return_url' => route('payment.success'),
+                'cancel_url' => route('payment.cancel'),
+            ]);
+
+            if (empty($pp['success']) || empty($pp['approval_url']) || empty($pp['order_id'])) {
+                throw new \Exception($pp['message'] ?? "Échec de l'initiation du paiement PayPal.");
+            }
+
+            $order->update([
+                'payment_reference' => $pp['order_id'],
+                'payment_currency' => 'USD',
+                'payment_amount' => $pp['amount_usd'] ?? null,
+            ]);
+            Log::info('[OrderService] Checkout PayPal initié', ['order_id' => $order->id, 'paypal_order_id' => $pp['order_id']]);
+            return $pp['approval_url'];
+        }
+
+        // Mode stripe_direct : Checkout Session carte (devise Stripe configurée), URL en WebView.
+        if ($paymentMode === 'stripe_direct') {
+            $stripe = app(\App\Services\StripeService::class);
+            if (!$stripe->isConfigured()) {
+                throw new \Exception('Le paiement par carte est momentanément indisponible.');
+            }
+
+            $stripeCurrency = \App\Services\PaymentMethodService::currencyFor('stripe') ?? 'USD';
+            $stripeAmount = strtoupper($stripeCurrency) === 'XAF'
+                ? (float) round($total)
+                : \App\Services\ExchangeRateService::convertAmount('XAF', $stripeCurrency, $total);
+            if ($stripeAmount === null) {
+                throw new \Exception("Conversion XAF → {$stripeCurrency} indisponible pour le paiement carte.");
+            }
+
+            $session = $stripe->createCheckoutSession(
+                (float) $stripeAmount,
+                $stripeCurrency,
+                ['asso_kind' => 'order', 'order_id' => (string) $order->id],
+                route('payment.success'),
+                route('payment.cancel'),
+                "Commande {$order->order_number}"
+            );
+
+            if (empty($session['url']) || empty($session['id'])) {
+                throw new \Exception("Échec de l'initiation du paiement carte (Stripe).");
+            }
+
+            $order->update([
+                'payment_reference' => $session['id'],
+                'payment_currency' => strtoupper($stripeCurrency),
+                'payment_amount' => round((float) $stripeAmount, 2),
+            ]);
+            Log::info('[OrderService] Checkout Stripe initié', ['order_id' => $order->id, 'session_id' => $session['id']]);
+            return $session['url'];
+        }
+
+        return null; // mode wallet : aucun checkout externe
+    }
+
+    /**
+     * Synchronise l'état d'un paiement PayPal direct (idempotent), déclenché par le
+     * polling GET /v1/orders/{id}/payment-status. Calqué sur DiaspoController::syncPaypalBooking :
+     *  - APPROVED  → on capture puis on confirme
+     *  - COMPLETED → on confirme (déjà capturé)
+     *  - VOIDED/EXPIRED/CANCELLED → on échoue (stock restauré, commande annulée)
+     *  - CREATED/SAVED/PAYER_ACTION_REQUIRED → on reste en attente (le polling continue)
+     */
+    public function syncPaypalOrder(Order $order): void
+    {
+        if ($order->payment_status !== 'pending'
+            || $order->payment_method !== 'paypal_direct'
+            || !$order->payment_reference) {
+            return;
+        }
+
+        $paypal = app(\App\Services\PayPalService::class);
+        $details = $paypal->getOrderDetails($order->payment_reference);
+        $status = strtoupper($details['data']['status'] ?? 'UNKNOWN');
+
+        if ($status === 'APPROVED') {
+            $capture = $paypal->captureOrder($order->payment_reference);
+            if (!empty($capture['success']) && strtoupper($capture['status'] ?? '') === 'COMPLETED') {
+                $this->confirmPaypalOrderPayment($order);
+            }
+        } elseif ($status === 'COMPLETED') {
+            $this->confirmPaypalOrderPayment($order);
+        } elseif (in_array($status, ['VOIDED', 'EXPIRED', 'CANCELLED', 'CANCELED'])) {
+            $this->failPaypalOrderPayment($order);
+        }
+    }
+
+    /**
+     * Confirme le paiement PayPal direct d'une commande (idempotent).
+     * Même sémantique que confirmKpayOrderPayment : marque payment_status='paid'
+     * (la commande reste 'pending', en attente de validation vendeur), trace une
+     * transaction wallet (solde inchangé — argent encaissé chez PayPal) et notifie.
+     */
+    public function confirmPaypalOrderPayment(Order $order): void
+    {
+        $sellers = [];
+
+        DB::transaction(function () use ($order, &$sellers) {
+            $order = Order::whereKey($order->id)->lockForUpdate()->with('items')->first();
+            if (!$order || $order->payment_status === 'paid') {
+                return; // déjà traité
+            }
+
+            $order->update(['payment_status' => 'paid']);
+
+            $sellers = $order->items->pluck('seller_id')->unique()->values()->all();
+
+            // Trace dans l'historique du client (solde NON modifié : paiement PayPal externe).
+            $buyerBalance = (float) (User::where('id', $order->user_id)->value('paypal_wallet_balance') ?? 0);
+            WalletTransaction::create([
+                'user_id' => $order->user_id,
+                'type' => 'debit',
+                'amount' => (float) $order->total,
+                'balance_before' => $buyerBalance,
+                'balance_after' => $buyerBalance,
+                'description' => "Achat - Commande #{$order->order_number}",
+                'reference_type' => 'order',
+                'reference_id' => $order->id,
+                'metadata' => [
+                    'payment_method' => 'paypal_direct',
+                    'payment_reference' => $order->payment_reference,
+                    'subtotal' => (float) $order->subtotal,
+                    'delivery_fee' => (float) $order->delivery_fee,
+                ],
+                'status' => 'completed',
+                'provider' => 'paypal',
+            ]);
+
+            Log::info('[OrderService] Commande PayPal confirmée (payée)', [
+                'order_id' => $order->id,
+                'order_number' => $order->order_number,
+            ]);
+        });
+
+        // Notifier le client (hors transaction)
+        try {
+            $this->fcmService->sendToUser(
+                $order->user,
+                '✅ Paiement confirmé',
+                "Votre paiement pour la commande #{$order->order_number} a été confirmé. En attente de validation du vendeur.",
+                ['type' => 'order_paid', 'order_id' => (string) $order->id, 'order_number' => $order->order_number]
+            );
+        } catch (\Exception $e) {
+            Log::warning('[OrderService] FCM order_paid (paypal) échec: ' . $e->getMessage());
+        }
+
+        // Prévenir le(s) vendeur(s) : commande désormais payée et actionnable.
+        $client = $order->user;
+        foreach ($sellers as $sellerId) {
+            $seller = User::find($sellerId);
+            if (!$seller) {
+                continue;
+            }
+            try {
+                $this->fcmService->sendToUser(
+                    $seller,
+                    'Nouvelle commande reçue',
+                    "Vous avez reçu une nouvelle commande #{$order->order_number}"
+                        . ($client ? " de {$client->first_name}" : '')
+                        . " ({$order->formatted_total}).",
+                    [
+                        'type' => 'new_order_vendor',
+                        'order_id' => (string) $order->id,
+                        'order_number' => $order->order_number,
+                        'total' => (string) $order->total,
+                        'client_name' => $client ? trim($client->first_name . ' ' . $client->last_name) : '',
+                    ]
+                );
+            } catch (\Exception $e) {
+                Log::warning('[OrderService] FCM new_order_vendor (paypal) échec: ' . $e->getMessage());
+            }
+        }
+    }
+
+    /**
+     * Échec/annulation d'un paiement PayPal direct (idempotent) : restaure le stock
+     * et annule la commande. Même logique que failKpayOrderPayment.
+     */
+    public function failPaypalOrderPayment(Order $order): void
+    {
+        DB::transaction(function () use ($order) {
+            $order = Order::whereKey($order->id)->lockForUpdate()->with('items.product')->first();
+
+            if (!$order
+                || $order->payment_method !== 'paypal_direct'
+                || $order->payment_status === 'paid'
+                || $order->status === 'cancelled') {
+                return;
+            }
+
+            foreach ($order->items as $item) {
+                if ($item->product && $item->product->stock !== null) {
+                    $item->product->increment('stock', $item->quantity);
+                }
+            }
+
+            $order->update([
+                'payment_status' => 'failed',
+                'status' => 'cancelled',
+                'cancel_reason' => 'Paiement PayPal non abouti',
+                'cancelled_at' => now(),
+            ]);
+
+            Log::info('[OrderService] Commande PayPal échouée — stock restauré, commande annulée', [
+                'order_id' => $order->id,
+                'order_number' => $order->order_number,
+            ]);
+        });
+
+        try {
+            $this->fcmService->sendToUser(
+                $order->user,
+                '❌ Paiement échoué',
+                "Le paiement de la commande #{$order->order_number} n'a pas abouti. La commande a été annulée.",
+                ['type' => 'order_payment_failed', 'order_id' => (string) $order->id, 'order_number' => $order->order_number]
+            );
+        } catch (\Exception $e) {
+            Log::warning('[OrderService] FCM order_payment_failed (paypal) échec: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Synchronise l'état d'un paiement carte Stripe (idempotent), déclenché par le polling
+     * GET /v1/orders/{id}/payment-status. La Checkout Session est encaissée côté Stripe ;
+     * on confirme dès que status=complete ET payment_status=paid. (Le webhook Stripe peut
+     * aussi confirmer via checkout.session.completed → metadata order_id.)
+     */
+    public function syncStripeOrder(Order $order): void
+    {
+        if ($order->payment_status !== 'pending'
+            || $order->payment_method !== 'stripe_direct'
+            || !$order->payment_reference) {
+            return;
+        }
+
+        $session = app(\App\Services\StripeService::class)->retrieveCheckoutSession($order->payment_reference);
+        $status = strtolower($session['status'] ?? '');
+        $paymentStatus = strtolower($session['payment_status'] ?? '');
+
+        if ($status === 'complete' && $paymentStatus === 'paid') {
+            $this->confirmStripeOrderPayment($order);
+        } elseif ($status === 'expired') {
+            $this->failStripeOrderPayment($order);
+        }
+    }
+
+    /**
+     * Confirme le paiement carte Stripe d'une commande (idempotent). Même sémantique que
+     * confirmKpayOrderPayment : payment_status='paid' (commande reste 'pending' → validation
+     * vendeur), trace wallet (solde inchangé — encaissé chez Stripe), notifications.
+     */
+    public function confirmStripeOrderPayment(Order $order): void
+    {
+        $sellers = [];
+
+        DB::transaction(function () use ($order, &$sellers) {
+            $order = Order::whereKey($order->id)->lockForUpdate()->with('items')->first();
+            if (!$order || $order->payment_status === 'paid') {
+                return;
+            }
+
+            $order->update(['payment_status' => 'paid']);
+            $sellers = $order->items->pluck('seller_id')->unique()->values()->all();
+
+            $buyerBalance = (float) (User::where('id', $order->user_id)->value('kpay_wallet_balance') ?? 0);
+            WalletTransaction::create([
+                'user_id' => $order->user_id,
+                'type' => 'debit',
+                'amount' => (float) $order->total,
+                'balance_before' => $buyerBalance,
+                'balance_after' => $buyerBalance,
+                'description' => "Achat - Commande #{$order->order_number}",
+                'reference_type' => 'order',
+                'reference_id' => $order->id,
+                'metadata' => [
+                    'payment_method' => 'stripe_direct',
+                    'payment_reference' => $order->payment_reference,
+                    'subtotal' => (float) $order->subtotal,
+                    'delivery_fee' => (float) $order->delivery_fee,
+                ],
+                'status' => 'completed',
+                'provider' => 'stripe',
+            ]);
+
+            Log::info('[OrderService] Commande Stripe confirmée (payée)', [
+                'order_id' => $order->id,
+                'order_number' => $order->order_number,
+            ]);
+        });
+
+        try {
+            $this->fcmService->sendToUser(
+                $order->user,
+                '✅ Paiement confirmé',
+                "Votre paiement pour la commande #{$order->order_number} a été confirmé. En attente de validation du vendeur.",
+                ['type' => 'order_paid', 'order_id' => (string) $order->id, 'order_number' => $order->order_number]
+            );
+        } catch (\Exception $e) {
+            Log::warning('[OrderService] FCM order_paid (stripe) échec: ' . $e->getMessage());
+        }
+
+        $client = $order->user;
+        foreach ($sellers as $sellerId) {
+            $seller = User::find($sellerId);
+            if (!$seller) {
+                continue;
+            }
+            try {
+                $this->fcmService->sendToUser(
+                    $seller,
+                    'Nouvelle commande reçue',
+                    "Vous avez reçu une nouvelle commande #{$order->order_number}"
+                        . ($client ? " de {$client->first_name}" : '')
+                        . " ({$order->formatted_total}).",
+                    [
+                        'type' => 'new_order_vendor',
+                        'order_id' => (string) $order->id,
+                        'order_number' => $order->order_number,
+                        'total' => (string) $order->total,
+                        'client_name' => $client ? trim($client->first_name . ' ' . $client->last_name) : '',
+                    ]
+                );
+            } catch (\Exception $e) {
+                Log::warning('[OrderService] FCM new_order_vendor (stripe) échec: ' . $e->getMessage());
+            }
+        }
+    }
+
+    /**
+     * Échec/expiration d'un paiement carte Stripe (idempotent) : restaure le stock et annule.
+     */
+    public function failStripeOrderPayment(Order $order): void
+    {
+        DB::transaction(function () use ($order) {
+            $order = Order::whereKey($order->id)->lockForUpdate()->with('items.product')->first();
+
+            if (!$order
+                || $order->payment_method !== 'stripe_direct'
+                || $order->payment_status === 'paid'
+                || $order->status === 'cancelled') {
+                return;
+            }
+
+            foreach ($order->items as $item) {
+                if ($item->product && $item->product->stock !== null) {
+                    $item->product->increment('stock', $item->quantity);
+                }
+            }
+
+            $order->update([
+                'payment_status' => 'failed',
+                'status' => 'cancelled',
+                'cancel_reason' => 'Paiement carte (Stripe) non abouti',
+                'cancelled_at' => now(),
+            ]);
+
+            Log::info('[OrderService] Commande Stripe échouée — stock restauré, commande annulée', [
+                'order_id' => $order->id,
+                'order_number' => $order->order_number,
+            ]);
+        });
+
+        try {
+            $this->fcmService->sendToUser(
+                $order->user,
+                '❌ Paiement échoué',
+                "Le paiement de la commande #{$order->order_number} n'a pas abouti. La commande a été annulée.",
+                ['type' => 'order_payment_failed', 'order_id' => (string) $order->id, 'order_number' => $order->order_number]
+            );
+        } catch (\Exception $e) {
+            Log::warning('[OrderService] FCM order_payment_failed (stripe) échec: ' . $e->getMessage());
+        }
+    }
+
+    /**
      * Calcule la distance entre deux points GPS (Haversine).
      */
     private function calculateDistance(float $lat1, float $lon1, float $lat2, float $lon2): float
@@ -661,8 +1230,22 @@ class OrderService
      */
     private function getCityFromCoordinates(float $lat, float $lon): ?string
     {
+        // Cache par centre de zone (arrondi ~11 m) pour éviter de rappeler
+        // Nominatim à chaque requête : le résultat est stable dans le temps.
+        $cacheKey = 'geocode_city_' . round($lat, 4) . '_' . round($lon, 4);
+
+        return \Illuminate\Support\Facades\Cache::remember($cacheKey, now()->addDays(30), function () use ($lat, $lon) {
+            return $this->fetchCityFromNominatim($lat, $lon);
+        });
+    }
+
+    /**
+     * Appel réseau brut vers Nominatim (isolé pour permettre la mise en cache).
+     */
+    private function fetchCityFromNominatim(float $lat, float $lon): ?string
+    {
         try {
-            $response = \Illuminate\Support\Facades\Http::timeout(10)
+            $response = \Illuminate\Support\Facades\Http::timeout(5)
                 ->withHeaders([
                     'User-Agent' => 'AssoApp/1.0'
                 ])
