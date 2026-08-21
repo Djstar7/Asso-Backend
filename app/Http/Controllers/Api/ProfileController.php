@@ -336,11 +336,14 @@ class ProfileController extends Controller
                 ->distinct('order_items.order_id')
                 ->count('order_items.order_id');
 
-            // Calculate total sales from completed orders
+            // Total des ventes : comptabilisé DÈS LA VALIDATION de la commande
+            // (encaissement direct — le vendeur est crédité à la validation, pas à la
+            // livraison). On inclut donc tous les statuts postérieurs à la validation
+            // et on exclut uniquement 'pending' (non validée) et 'cancelled' (annulée).
             $totalSales = \DB::table('order_items')
                 ->join('orders', 'order_items.order_id', '=', 'orders.id')
                 ->where('order_items.seller_id', $user->id)
-                ->whereIn('orders.status', ['delivered', 'completed'])
+                ->whereIn('orders.status', ['confirmed', 'preparing', 'shipped', 'delivered', 'completed'])
                 ->sum('order_items.total_price');
 
             // Calculate average rating from product reviews
