@@ -200,9 +200,9 @@
 
                     <div class="space-y-2 text-sm">
                         @foreach($transaction->metadata as $key => $value)
-                            <div class="flex items-center justify-between p-2 bg-dark-50 rounded">
-                                <span class="text-gray-400">{{ ucfirst(str_replace('_', ' ', $key)) }}</span>
-                                <span class="text-white font-mono text-xs">{{ $value }}</span>
+                            <div class="flex items-start justify-between gap-3 p-2 bg-dark-50 rounded">
+                                <span class="text-gray-400 whitespace-nowrap">{{ ucfirst(str_replace('_', ' ', $key)) }}</span>
+                                <span class="text-white font-mono text-xs break-all text-right">{{ is_scalar($value) || is_null($value) ? $value : json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}</span>
                             </div>
                         @endforeach
                     </div>

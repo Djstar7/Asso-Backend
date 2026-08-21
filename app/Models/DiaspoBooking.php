@@ -198,9 +198,17 @@ class DiaspoBooking extends Model
      * NB : le schéma unifié n'a pas de colonne `currency` sur les réservations ; la devise
      * est dérivée de l'offre.
      */
-    public function toApi(): array
+    /**
+     * @param int|null $viewerId ID de l'utilisateur qui consulte. Le code secret de
+     *   remise (`confirmation_code`) n'est renvoyé QU'À L'ACHETEUR : c'est lui qui
+     *   le communique de vive voix au voyageur à la remise (le voyageur le saisit
+     *   ensuite via seller-confirm-code). Le vendeur/voyageur ne doit jamais le voir.
+     *   Masqué par défaut (viewerId null) par sécurité.
+     */
+    public function toApi(?int $viewerId = null): array
     {
         $currency = $this->offer?->currency ?? '';
+        $isBuyer = $viewerId !== null && $viewerId === $this->buyer_user_id;
 
         return [
             'id' => $this->id,
@@ -214,7 +222,8 @@ class DiaspoBooking extends Model
             'total_price' => (float) $this->total_price,
             'currency' => $currency,
             'status' => $this->status,
-            'confirmation_code' => $this->confirmation_code,
+            // Visible uniquement par l'acheteur (voir docblock).
+            'confirmation_code' => $isBuyer ? $this->confirmation_code : null,
             'confirmed_by_buyer_at' => $this->confirmed_by_buyer_at?->toIso8601String(),
             'payment_status' => $this->payment_status,
             'payment_reference' => $this->payment_reference,

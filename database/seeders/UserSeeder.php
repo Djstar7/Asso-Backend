@@ -13,8 +13,8 @@ class UserSeeder extends Seeder
      */
     public function run(): void
     {
-        // Create Admin users
-        User::create([
+        // Create Admin users (idempotent : re-seed sans doublon)
+        User::updateOrCreate(['email' => 'admin@asso.com'], [
             'first_name' => 'Admin',
             'last_name' => 'Principal',
             'email' => 'admin@asso.com',
@@ -72,7 +72,7 @@ class UserSeeder extends Seeder
         ];
 
         foreach ($sellers as $seller) {
-            User::create(array_merge($seller, [
+            User::updateOrCreate(['email' => $seller['email']], array_merge($seller, [
                 'password' => Hash::make('password'),
                 'role' => 'vendeur',
                 'country' => 'Bénin',
@@ -141,7 +141,7 @@ class UserSeeder extends Seeder
         ];
 
         foreach ($customers as $customer) {
-            User::create(array_merge($customer, [
+            User::updateOrCreate(['email' => $customer['email']], array_merge($customer, [
                 'password' => Hash::make('password'),
                 'role' => 'client',
                 'country' => 'Bénin',
@@ -176,7 +176,7 @@ class UserSeeder extends Seeder
         ];
 
         foreach ($deliveryPersons as $deliveryPerson) {
-            User::create(array_merge($deliveryPerson, [
+            User::updateOrCreate(['email' => $deliveryPerson['email']], array_merge($deliveryPerson, [
                 'password' => Hash::make('password'),
                 'role' => 'livreur',
                 'country' => 'Bénin',

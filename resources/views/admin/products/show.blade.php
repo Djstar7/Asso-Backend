@@ -95,7 +95,7 @@
                         <div class="text-sm text-gray-400 mb-1">
                             <i class="fas fa-store mr-2"></i>Boutique
                         </div>
-                        <div class="font-semibold text-white">{{ $product->shop->name }}</div>
+                        <div class="font-semibold text-white">{{ $product->shop?->name ?? '—' }}</div>
                     </div>
 
                     <!-- Propriétaire -->

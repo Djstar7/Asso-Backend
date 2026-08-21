@@ -528,7 +528,48 @@
                         <option value="EUR" {{ $stripeCur == 'EUR' ? 'selected' : '' }}>EUR - Euro</option>
                         <option value="GBP" {{ $stripeCur == 'GBP' ? 'selected' : '' }}>GBP - Livre Sterling</option>
                     </select>
-                    <p class="mt-1 text-xs text-gray-500">Les clés API Stripe se configurent via l'intégration Stripe Connect.</p>
+                    <p class="mt-1 text-xs text-gray-500">Devise réellement débitée par Stripe (conversion depuis XAF au taux stocké).</p>
+                </div>
+            </div>
+
+            <!-- Clés API Stripe -->
+            <div class="bg-dark-100 rounded-lg shadow-lg border border-dark-200 p-6 mb-6">
+                <h3 class="text-lg font-semibold text-white mb-1">Clés API Stripe</h3>
+                <p class="text-gray-400 text-sm mb-6">
+                    Laissez un champ secret <strong>vide</strong> pour conserver la valeur actuelle.
+                    Webhook à pointer sur <code class="text-emerald-400">/api/v1/stripe/webhook</code>
+                    (events : <em>checkout.session.completed</em>, <em>payment_intent.succeeded/payment_failed</em>, <em>payout.paid/failed</em>).
+                </p>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label for="stripe_mode" class="block text-sm font-medium text-gray-300 mb-2">Mode d'exécution</label>
+                        <select name="stripe_mode" id="stripe_mode"
+                                class="w-full px-4 py-3 bg-dark-200 border border-dark-300 rounded-lg text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
+                            @php $stripeMode = old('stripe_mode', $stripeConfig['mode'] ?? 'test'); @endphp
+                            <option value="test" {{ $stripeMode == 'test' ? 'selected' : '' }}>Test (Sandbox)</option>
+                            <option value="live" {{ $stripeMode == 'live' ? 'selected' : '' }}>Live (Production)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="stripe_publishable_key" class="block text-sm font-medium text-gray-300 mb-2">Clé publiable (pk_...)</label>
+                        <input type="text" name="stripe_publishable_key" id="stripe_publishable_key"
+                               value="{{ old('stripe_publishable_key', $stripeConfig['publishable_key'] ?? '') }}"
+                               placeholder="pk_test_..."
+                               class="w-full px-4 py-3 bg-dark-200 border border-dark-300 rounded-lg text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
+                    </div>
+                    <div>
+                        <label for="stripe_secret_key" class="block text-sm font-medium text-gray-300 mb-2">Clé secrète (sk_...)</label>
+                        <input type="password" name="stripe_secret_key" id="stripe_secret_key"
+                               placeholder="{{ !empty($stripeConfig['secret_key']) ? '•••••••••• (déjà configurée)' : 'sk_test_...' }}"
+                               class="w-full px-4 py-3 bg-dark-200 border border-dark-300 rounded-lg text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
+                    </div>
+                    <div>
+                        <label for="stripe_webhook_secret" class="block text-sm font-medium text-gray-300 mb-2">Webhook secret (whsec_...)</label>
+                        <input type="password" name="stripe_webhook_secret" id="stripe_webhook_secret"
+                               placeholder="{{ !empty($stripeConfig['webhook_secret']) ? '•••••••••• (déjà configuré)' : 'whsec_...' }}"
+                               class="w-full px-4 py-3 bg-dark-200 border border-dark-300 rounded-lg text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
+                    </div>
                 </div>
             </div>
 

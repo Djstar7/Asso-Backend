@@ -71,6 +71,24 @@ class StripeService
     }
 
     /**
+     * Exécute un appel du SDK Stripe en neutralisant les « stripe-notice »
+     * (avertissements E_USER_WARNING émis par le SDK, ex. la recommandation
+     * « Accounts v2 » renvoyée dans un en-tête de réponse v1). Sans cela,
+     * Laravel convertit cet avertissement en ErrorException qui court-circuite
+     * et MASQUE la véritable ApiErrorException (ex. IBAN de test invalide),
+     * affichant un message trompeur à l'utilisateur.
+     */
+    private function withoutStripeNotices(callable $fn)
+    {
+        set_error_handler(static fn (): bool => true, \E_USER_WARNING);
+        try {
+            return $fn();
+        } finally {
+            restore_error_handler();
+        }
+    }
+
+    /**
      * Test the API credentials (used by the admin config panel).
      * Retrieves the platform account — echoes back the account id / country.
      */
@@ -124,7 +142,10 @@ class StripeService
             'country' => $country,
             'email' => $data['email'] ?? null,
             'business_type' => 'individual',
+            // Stripe exige `card_payments` conjointement à `transfers` dans plusieurs
+            // pays (FR et zone EU notamment) : demander `transfers` seul y échoue.
             'capabilities' => [
+                'card_payments' => ['requested' => true],
                 'transfers' => ['requested' => true],
             ],
             'individual' => array_filter([
@@ -154,7 +175,7 @@ class StripeService
             ]);
         }
 
-        $account = $this->client()->accounts->create($params);
+        $account = $this->withoutStripeNotices(fn () => $this->client()->accounts->create($params));
 
         $external = $account->external_accounts->data[0] ?? null;
 
@@ -176,7 +197,7 @@ class StripeService
         $country = strtoupper($data['country']);
         $currency = strtolower($data['currency'] ?? $this->defaultCurrencyForCountry($country));
 
-        $bank = $this->client()->accounts->createExternalAccount($accountId, [
+        $bank = $this->withoutStripeNotices(fn () => $this->client()->accounts->createExternalAccount($accountId, [
             'external_account' => [
                 'object' => 'bank_account',
                 'country' => $country,
@@ -186,7 +207,7 @@ class StripeService
                 'account_number' => $data['iban'],
             ],
             'default_for_currency' => true,
-        ]);
+        ]));
 
         return [
             'external_last4' => $bank->last4 ?? substr(preg_replace('/\s+/', '', $data['iban']), -4),
@@ -196,7 +217,7 @@ class StripeService
 
     public function retrieveAccount(string $accountId): \Stripe\Account
     {
-        return $this->client()->accounts->retrieve($accountId);
+        return $this->withoutStripeNotices(fn () => $this->client()->accounts->retrieve($accountId));
     }
 
     /**

@@ -239,14 +239,17 @@ class CategorySeeder extends Seeder
             // Generate slug
             $categoryData['slug'] = Str::slug($categoryData['name']);
 
-            // Create category
-            $category = Category::create($categoryData);
+            // Create category (idempotent : re-seed sans doublon)
+            $category = Category::updateOrCreate(['slug' => $categoryData['slug']], $categoryData);
 
             // Create subcategories
             foreach ($subcategories as $subcategoryData) {
                 $subcategoryData['category_id'] = $category->id;
                 $subcategoryData['slug'] = Str::slug($subcategoryData['name']);
-                Subcategory::create($subcategoryData);
+                Subcategory::updateOrCreate(
+                    ['category_id' => $category->id, 'slug' => $subcategoryData['slug']],
+                    $subcategoryData
+                );
             }
         }
 

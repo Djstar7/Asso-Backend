@@ -101,9 +101,10 @@ class VendorOrderController extends Controller
 
                 // 3. ENCAISSEMENT DIRECT — l'argent est distribué immédiatement, sans escrow.
                 //    a) Mode wallet : on prélève DÉFINITIVEMENT les fonds du client (jusqu'ici
-                //       bloqués depuis la création). En kpay_direct le client a déjà réglé via
-                //       Mobile Money (fonds sur le compte marchand plateforme) → rien à prélever.
-                if ($order->payment_method !== 'kpay_direct') {
+                //       bloqués depuis la création). En modes directs (kpay_direct / paypal_direct)
+                //       le client a déjà réglé hors solde (Mobile Money / PayPal, fonds côté
+                //       plateforme) → rien à prélever du wallet.
+                if (!in_array($order->payment_method, ['kpay_direct', 'paypal_direct', 'stripe_direct'])) {
                     $this->walletService->releaseEscrow(
                         $order->user,
                         (float) $order->total,

@@ -232,6 +232,16 @@ class StripeWebhookController extends Controller
                     'payment_intent' => $pi->id ?? null,
                 ]);
             }
+        } elseif ($kind === 'order') {
+            $orderId = (int) ($pi->metadata->order_id ?? 0);
+            $order = \App\Models\Order::find($orderId);
+            if ($order) {
+                app(\App\Services\OrderService::class)->confirmStripeOrderPayment($order);
+                Log::info('[StripeWebhook] ✅ Commande payée (carte)', [
+                    'order_id' => $orderId,
+                    'payment_intent' => $pi->id ?? null,
+                ]);
+            }
         }
     }
 
@@ -250,6 +260,16 @@ class StripeWebhookController extends Controller
                 app(DiaspoController::class)->failBookingPayment($booking);
                 Log::warning('[StripeWebhook] ❌ Paiement carte réservation diaspo échoué', [
                     'booking_id' => $bookingId,
+                    'payment_intent' => $pi->id ?? null,
+                ]);
+            }
+        } elseif ($kind === 'order') {
+            $orderId = (int) ($pi->metadata->order_id ?? 0);
+            $order = \App\Models\Order::find($orderId);
+            if ($order) {
+                app(\App\Services\OrderService::class)->failStripeOrderPayment($order);
+                Log::warning('[StripeWebhook] ❌ Paiement carte commande échoué', [
+                    'order_id' => $orderId,
                     'payment_intent' => $pi->id ?? null,
                 ]);
             }
