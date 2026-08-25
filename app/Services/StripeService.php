@@ -371,6 +371,35 @@ class StripeService
         );
     }
 
+    /**
+     * Crédite le solde de la plateforme en MODE TEST, via la carte de test dont les
+     * fonds sont immédiatement disponibles (4000 0000 0000 0077).
+     *
+     * Une carte de test ordinaire (4242…) crédite le solde « pending » : les payouts
+     * resteraient impossibles. Réservé aux clés de test — la garde est dans la
+     * commande appelante.
+     *
+     * @return array{success:bool, charge_id?:string, message?:string}
+     */
+    public function fundTestBalance(float $amount, string $currency): array
+    {
+        try {
+            $charge = $this->withoutStripeNotices(fn () => $this->client()->charges->create([
+                'amount' => (int) round($amount * 100),
+                'currency' => strtolower($currency),
+                'source' => 'tok_bypassPending', // carte 4000 0000 0000 0077
+                'description' => 'ASSO — alimentation du solde de test',
+            ]));
+
+            return ['success' => true, 'charge_id' => $charge->id];
+        } catch (\Throwable $e) {
+            Log::error('[StripeService] Alimentation du solde de test échouée', [
+                'error' => $e->getMessage(),
+            ]);
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
     /** Devises dans lesquelles la plateforme détient un solde (pour les diagnostics). */
     public function platformBalanceCurrencies(): array
     {

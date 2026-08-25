@@ -137,6 +137,8 @@ class StripeConnectAdminTest extends TestCase
     {
         $this->mock(StripeService::class, function ($mock) use ($ready, $due, $transfers) {
             $mock->shouldReceive('isConfigured')->andReturn(true);
+            // Le message d'aide diffère en test (valeurs de vérification Stripe).
+            $mock->shouldReceive('mode')->andReturn('live');
             $mock->shouldReceive('accountState')->andReturn([
                 'exists' => true,
                 'transfers' => $transfers,

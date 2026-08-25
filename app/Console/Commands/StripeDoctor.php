@@ -173,8 +173,14 @@ class StripeDoctor extends Command
 
             $blocked = collect($rows)->where(4, 'NON')->count();
             if ($blocked > 0) {
-                $this->warn_("{$blocked} compte(s) validé(s) côté ASSO mais NON activé(s) par Stripe : "
-                    . 'leurs virements échoueraient. Le vendeur doit renvoyer son dossier.');
+                $this->warn_("{$blocked} compte(s) non activé(s) par Stripe : leurs virements "
+                    . 'échoueraient. Le vendeur doit renvoyer son dossier.');
+
+                if ($stripe->mode() === 'test') {
+                    $this->line('     <comment>Mode test : Stripe refuse une identité réelle. Pour qu\'un compte '
+                        . 's\'active, saisir la date de naissance 01/01/1901 et l\'adresse '
+                        . '« address_full_match » (ville et code postal libres).</comment>');
+                }
             }
 
             if (!empty($toFix)) {

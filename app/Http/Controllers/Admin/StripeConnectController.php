@@ -361,10 +361,20 @@ class StripeConnectController extends Controller
 
         $due = $state['requirements_due'] ?? [];
         if (!empty($due)) {
-            return "Stripe n'a pas activé ce compte : informations manquantes ("
+            $message = "Stripe n'a pas activé ce compte : informations manquantes ("
                 . implode(', ', array_slice($due, 0, 6))
                 . (count($due) > 6 ? ', …' : '')
                 . '). Demandez au vendeur de renvoyer son dossier.';
+
+            // En mode test, Stripe REFUSE une identité réelle : seules ses valeurs
+            // de vérification passent. Sans ce rappel, on croit à un dossier
+            // incomplet alors que la saisie est correcte.
+            if (app(\App\Services\StripeService::class)->mode() === 'test') {
+                $message .= ' [mode test : Stripe n\'accepte que ses valeurs de vérification — '
+                    . 'date de naissance 01/01/1901 et adresse « address_full_match ».]';
+            }
+
+            return $message;
         }
 
         return "Stripe n'a pas activé ce compte (transfers = {$state['transfers']}). "
