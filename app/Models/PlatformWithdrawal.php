@@ -29,6 +29,11 @@ class PlatformWithdrawal extends Model
         'stripe_transfer_id',
         'stripe_payout_id',
         'stripe_response',
+        // Conversion : le vendeur est débité en `currency`, l'IBAN reçoit
+        // `payout_amount` en `payout_currency` au taux `exchange_rate`.
+        'payout_amount',
+        'payout_currency',
+        'exchange_rate',
         'failure_code',
         'failure_reason',
         'admin_notes',
@@ -45,6 +50,7 @@ class PlatformWithdrawal extends Model
         'kpay_response' => 'array',
         'paypal_response' => 'array',
         'stripe_response' => 'array',
+        'payout_amount' => 'decimal:2',
         'completed_at' => 'datetime',
     ];
 

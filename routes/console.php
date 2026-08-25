@@ -53,3 +53,18 @@ Schedule::job(new CleanupStaleTransactionsJob)
 Schedule::job(new UpdateExchangeRatesJob)
     ->hourly()
     ->withoutOverlapping(300); // Max 5 minutes d'exécution
+
+/**
+ * =====================================================
+ * VIREMENTS IBAN (STRIPE CONNECT) — RÉCONCILIATION
+ * =====================================================
+ *
+ * Le chemin nominal reste le webhook `payout.paid` / `payout.failed`. Ce passage
+ * régulier est le filet de sécurité : il clôture les virements restés « en cours »
+ * quand un événement s'est perdu ou qu'aucun endpoint public n'est encore déclaré.
+ * Sans lui, un vendeur peut voir « virement en cours » indéfiniment alors que
+ * l'argent est arrivé sur son compte.
+ */
+Schedule::command('stripe:reconcile-payouts')
+    ->everyFifteenMinutes()
+    ->withoutOverlapping(300);

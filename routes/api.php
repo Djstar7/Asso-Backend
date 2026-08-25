@@ -304,6 +304,8 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('/withdraw/kpay', [WalletController::class, 'initiateKpayWithdrawal']);
             Route::post('/withdraw/paypal', [WalletController::class, 'initiatePayPalWithdrawal']);
             // Virement bancaire (Stripe Connect) vers l'IBAN validé du vendeur.
+            // Le devis renvoie le montant converti AVANT validation (XAF → EUR).
+            Route::post('/withdraw/stripe/quote', [WalletController::class, 'getStripeWithdrawalQuote']);
             Route::post('/withdraw/stripe', [WalletController::class, 'initiateStripeWithdrawal']);
             Route::get('/withdrawals', [WalletController::class, 'getWithdrawalHistory']);
             Route::get('/withdrawal-status/{withdrawalId}', [WalletController::class, 'checkWithdrawalStatus']);
