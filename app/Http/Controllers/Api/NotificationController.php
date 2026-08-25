@@ -166,7 +166,7 @@ class NotificationController extends Controller
 
         $result = $this->fcmService->sendToUser(
             $user,
-            '🔔 Test Notification',
+            'Test Notification',
             'Ceci est une notification de test depuis Asso!',
             [
                 'type' => 'test',

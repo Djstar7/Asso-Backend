@@ -8,7 +8,7 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Services\WalletService;
 use App\Services\ExchangeRateService;
-use App\Services\PayPalService;
+use App\Services\StripeService;
 use App\Services\FirebaseMessagingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -19,16 +19,13 @@ class WalletController extends Controller
 {
     protected WalletService $walletService;
     protected FirebaseMessagingService $fcmService;
-    protected PayPalService $paypalService;
 
     public function __construct(
         WalletService $walletService,
-        FirebaseMessagingService $fcmService,
-        PayPalService $paypalService
+        FirebaseMessagingService $fcmService
     ) {
         $this->walletService = $walletService;
         $this->fcmService = $fcmService;
-        $this->paypalService = $paypalService;
     }
 
     /**
@@ -91,7 +88,13 @@ class WalletController extends Controller
 
     /**
      * Initie une recharge du wallet
-     * Crée un paiement KPay ou PayPal
+     * Crée un paiement KPay (Mobile Money) ou Stripe (carte bancaire NATIVE).
+     *
+     * - kpay   : PayIn USSD, montant dans la devise de l'opérateur, polling.
+     * - stripe : PaymentIntent carte, montant saisi en XAF (converti vers la devise
+     *            Stripe configurée). Renvoie un client_secret confirmé côté mobile par
+     *            la Payment Sheet ; le solde XAF est crédité quand le PaymentIntent est
+     *            'succeeded' (polling /wallet/payment-status ou webhook Stripe).
      *
      * POST /api/v1/wallet/recharge
      */
@@ -105,7 +108,7 @@ class WalletController extends Controller
 
         $validator = Validator::make($request->all(), [
             'amount' => 'required|numeric|min:' . $minDepositAmount,
-            'payment_method' => 'required|in:kpay,paypal',
+            'payment_method' => 'required|in:kpay,stripe',
             // provider = code opérateur KPay (ex. MTN_MOMO_CMR) déterminant pays et devise
             'provider' => 'required_if:payment_method,kpay|string',
             'phone_number' => 'required_if:payment_method,kpay|string',
@@ -230,12 +233,96 @@ class WalletController extends Controller
                 ]);
             }
 
-            // PayPal (à implémenter plus tard)
-            if ($paymentMethod === 'paypal') {
+            // Recharge par CARTE BANCAIRE (Stripe natif — PaymentIntent).
+            if ($paymentMethod === 'stripe') {
+                $stripe = app(StripeService::class);
+                if (!$stripe->isConfigured() || !\App\Services\PaymentMethodService::isEnabled('stripe')) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "La recharge par carte bancaire n'est pas disponible pour le moment.",
+                    ], 503);
+                }
+
+                // Le solde wallet est crédité en XAF (devise pivot). Le montant saisi est
+                // en XAF ; on encaisse dans la devise Stripe configurée (conversion au taux stocké).
+                $creditXaf = (float) round($amount);
+                $stripeCurrency = \App\Services\PaymentMethodService::currencyFor('stripe') ?? 'USD';
+                $chargeAmount = strtoupper($stripeCurrency) === 'XAF'
+                    ? $creditXaf
+                    : ExchangeRateService::convertAmount('XAF', $stripeCurrency, $creditXaf);
+                if ($chargeAmount === null) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Conversion XAF → {$stripeCurrency} indisponible pour le paiement carte. Réessayez plus tard.",
+                    ], 422);
+                }
+
+                $currentBalance = $user->kpayBalanceFor('XAF');
+
+                DB::beginTransaction();
+
+                $walletTransaction = \App\Models\WalletTransaction::create([
+                    'user_id' => $user->id,
+                    'type' => 'credit',
+                    'amount' => $creditXaf, // crédité en XAF au succès
+                    'balance_before' => $currentBalance,
+                    'balance_after' => $currentBalance, // pas encore crédité
+                    'description' => 'Recharge wallet par carte bancaire (Stripe)',
+                    'status' => 'pending',
+                    'provider' => 'stripe',
+                    'metadata' => [
+                        'currency' => 'XAF',
+                        'charge_currency' => strtoupper($stripeCurrency),
+                        'charge_amount' => round((float) $chargeAmount, 2),
+                        'initiated_at' => now()->toIso8601String(),
+                    ],
+                ]);
+
+                $intent = $stripe->createPaymentIntent(
+                    (float) $chargeAmount,
+                    $stripeCurrency,
+                    [
+                        'asso_kind' => 'wallet_recharge',
+                        'wallet_transaction_id' => (string) $walletTransaction->id,
+                        'user_id' => (string) $user->id,
+                    ]
+                );
+
+                if (empty($intent['id']) || empty($intent['client_secret'])) {
+                    DB::rollBack();
+                    $walletTransaction->delete();
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Échec de l'initiation du paiement carte (Stripe).",
+                    ], 400);
+                }
+
+                $walletTransaction->metadata = array_merge($walletTransaction->metadata ?? [], [
+                    'provider_reference' => $intent['id'],
+                    'payment_intent_id' => $intent['id'],
+                ]);
+                $walletTransaction->save();
+
+                DB::commit();
+
                 return response()->json([
-                    'success' => false,
-                    'message' => 'PayPal n\'est pas encore implémenté pour les recharges',
-                ], 501);
+                    'success' => true,
+                    'message' => 'Recharge initiée. Finalisez le paiement par carte.',
+                    'data' => [
+                        'transaction_id' => $walletTransaction->id,
+                        'payment_id' => $walletTransaction->id, // alias pour le polling payment-status
+                        'amount' => $creditXaf,
+                        'currency' => 'XAF',
+                        'payment_method' => 'stripe',
+                        'status' => 'pending',
+                        // Carte native : le mobile confirme via la Payment Sheet.
+                        'client_secret' => $intent['client_secret'],
+                        'payment_intent_id' => $intent['id'],
+                        'publishable_key' => $intent['publishable_key'] ?? null,
+                        'charge_amount' => round((float) $chargeAmount, 2),
+                        'charge_currency' => strtoupper($stripeCurrency),
+                    ],
+                ]);
             }
 
             return response()->json([
@@ -265,7 +352,7 @@ class WalletController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'amount' => 'required|numeric|min:0',
-            'provider' => 'nullable|string|in:kpay,paypal',
+            'provider' => 'nullable|string|in:kpay',
         ]);
 
         if ($validator->fails()) {
@@ -306,7 +393,7 @@ class WalletController extends Controller
             'description' => 'required|string|max:255',
             'reference_type' => 'required|string|in:order',
             'reference_id' => 'required|integer',
-            'payment_provider' => 'required|string|in:kpay,paypal',
+            'payment_provider' => 'required|string|in:kpay',
         ]);
 
         if ($validator->fails()) {
@@ -386,8 +473,6 @@ class WalletController extends Controller
                 ])
                 ->values();
 
-            // Solde PayPal DISPONIBLE (solde - bloqué), même base que le contrôle du retrait.
-            $paypalBalance = ($user->paypal_wallet_balance ?? 0) - ($user->locked_paypal_balance ?? 0);
             $xafAvailable = $user->kpayAvailableFor('XAF');
 
             // Éligibilité au virement bancaire (Stripe Connect) : compte IBAN validé
@@ -406,7 +491,6 @@ class WalletController extends Controller
             // Permet au mobile de GRISER un moyen non configuré au lieu de laisser
             // l'utilisateur tenter un retrait qui échouerait par une erreur.
             $kpayConfigured = app(\App\Services\KPayService::class)->isConfigured();
-            $paypalConfigured = $this->paypalService->isConfigured();
             $stripeService = app(\App\Services\StripeService::class);
             $stripeConfigured = $stripeService->isConfigured();
 
@@ -420,10 +504,9 @@ class WalletController extends Controller
                 'data' => [
                     // Multi-devise : liste des soldes KPay par devise
                     'kpay_balances' => $kpayBalances,
-                    // Compat rétro (XAF + PayPal)
+                    // Compat rétro (XAF)
                     'kpay_wallet_balance' => max(0, $xafAvailable),
-                    'paypal_balance' => max(0, $paypalBalance),
-                    'total_balance' => max(0, $xafAvailable + $paypalBalance),
+                    'total_balance' => max(0, $xafAvailable),
                     // Virement bancaire (IBAN via Stripe Connect)
                     'stripe' => [
                         'eligible' => $stripeReady,
@@ -443,11 +526,6 @@ class WalletController extends Controller
                         'kpay' => [
                             'configured' => $kpayConfigured,
                             'available' => max(0, $xafAvailable),
-                            'currency' => 'XAF',
-                        ],
-                        'paypal' => [
-                            'configured' => $paypalConfigured,
-                            'available' => max(0, $paypalBalance),
                             'currency' => 'XAF',
                         ],
                         'stripe' => [
@@ -671,7 +749,7 @@ class WalletController extends Controller
             try {
                 $this->fcmService->sendToUser(
                     $user,
-                    '💸 Retrait KPay en cours',
+                    'Retrait KPay en cours',
                     "Votre demande de retrait de {$amount} {$currency} vers {$phone} est en cours de traitement.",
                     [
                         'type' => 'wallet_withdrawal_processing',
@@ -1056,7 +1134,7 @@ class WalletController extends Controller
             try {
                 $this->fcmService->sendToUser(
                     $user,
-                    '🏦 Virement en cours',
+                    'Virement en cours',
                     "Votre demande de virement de " . number_format($payoutAmount, 2, ',', ' ') . " {$payoutCurrency}"
                         . " vers votre IBAN ****{$ibanLast4} est en cours de traitement.",
                     [
@@ -1216,224 +1294,6 @@ class WalletController extends Controller
     }
 
     /**
-     * Initie un retrait PayPal Payout depuis le wallet
-     *
-     * POST /api/v1/wallet/withdraw/paypal
-     */
-    public function initiatePayPalWithdrawal(Request $request)
-    {
-        Log::info("[WalletController] ╔════════════════════════════════════════════════════════════════════╗");
-        Log::info("[WalletController] ║ [PayPal Withdrawal] DEMANDE DE RETRAIT                            ║");
-        Log::info("[WalletController] ╚════════════════════════════════════════════════════════════════════╝");
-
-        $user = $request->user();
-
-        // PayPal doit être configuré (client id/secret) avant tout débit du solde.
-        if (!$this->paypalService->isConfigured()) {
-            return response()->json([
-                'success' => false,
-                'message' => "Le retrait par PayPal n'est pas encore disponible.",
-            ], 503);
-        }
-
-        // Le montant est saisi ET traité dans la devise de l'utilisateur (FCFA/XAF),
-        // comme le solde affiché. Plus de conversion USD codée en dur (×600) sur le
-        // montant demandé, qui provoquait l'erreur « Solde insuffisant » sur un solde
-        // pourtant suffisant.
-        $minWithdrawalAmount = (float) Setting::get('min_withdrawal_amount', 100);
-
-        $validator = Validator::make($request->all(), [
-            'amount' => 'required|numeric|min:' . $minWithdrawalAmount,
-            'paypal_email' => 'required|email',
-            'notes' => 'nullable|string|max:500',
-        ]);
-
-        if ($validator->fails()) {
-            Log::warning("[WalletController] ❌ Validation failed", $validator->errors()->toArray());
-            return response()->json([
-                'success' => false,
-                'message' => 'Données invalides',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
-
-        $amountXaf = (float) $request->input('amount');
-        $paypalEmail = $request->input('paypal_email');
-        $notes = $request->input('notes');
-
-        // Solde PayPal disponible (FCFA) = solde - bloqué. Même unité que le montant saisi.
-        $availableBalance = ($user->paypal_wallet_balance ?? 0) - ($user->locked_paypal_balance ?? 0);
-
-        if ($amountXaf > $availableBalance) {
-            Log::warning("[WalletController] ❌ Insufficient PayPal wallet balance", [
-                'available_xaf' => $availableBalance,
-                'requested_xaf' => $amountXaf,
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Solde PayPal insuffisant.',
-            ], 400);
-        }
-
-        // Équivalent USD (PayPal verse en USD) via les taux stockés en base, jamais
-        // un taux fixe. Sert au versement réel et à l'affichage informatif.
-        $amountUsd = ExchangeRateService::convertAmount('XAF', 'USD', $amountXaf);
-        if ($amountUsd === null) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Conversion de devise momentanément indisponible. Réessayez plus tard.',
-            ], 422);
-        }
-
-        try {
-            DB::beginTransaction();
-
-            // Débiter le wallet PayPal. Le débit est réel (fonds bloqués immédiatement)
-            // mais la transaction visible reste 'pending' : elle ne passera 'completed'
-            // que lorsque PayPal aura CONFIRMÉ le versement (réconciliation). Sans ce
-            // débit, le retrait était un stub qui ne diminuait jamais le solde.
-            $debitTx = $this->walletService->debit(
-                $user,
-                $amountXaf,
-                "Retrait PayPal vers {$paypalEmail}",
-                'platform_withdrawal',
-                null,
-                ['paypal_email' => $paypalEmail, 'amount_usd' => $amountUsd],
-                'paypal',
-                'pending'
-            );
-
-            // Créer l'enregistrement de retrait
-            $withdrawal = PlatformWithdrawal::create([
-                'user_id' => $user->id,
-                'admin_id' => null,
-                'amount_requested' => $amountXaf,
-                'commission_rate' => 0,
-                'commission_amount' => 0,
-                'amount_sent' => $amountUsd,
-                'currency' => 'USD',
-                'provider' => 'paypal',
-                'payment_method' => 'paypal',
-                'payment_account' => $paypalEmail,
-                'payment_account_name' => $user->name,
-                'status' => 'pending',
-                'transaction_reference' => $this->generateTransactionReference(),
-                'admin_notes' => $notes,
-                'ip_address' => $request->ip(),
-                'user_agent' => $request->userAgent(),
-            ]);
-
-            // Relier la transaction visible au retrait (pour la réconciliation).
-            $debitTx->reference_id = $withdrawal->id;
-            $debitTx->save();
-
-            Log::info("[WalletController] ✅ PayPal withdrawal record created", [
-                'withdrawal_id' => $withdrawal->id,
-                'user_id' => $user->id,
-                'amount_usd' => $amountUsd,
-                'amount_xaf' => $amountXaf,
-            ]);
-
-            // Persister le débit + l'enregistrement AVANT l'appel réseau PayPal (on ne
-            // garde jamais une transaction DB ouverte pendant un appel HTTP externe).
-            DB::commit();
-
-            // Versement PayPal RÉEL (Payouts API), hors transaction DB.
-            $payout = $this->paypalService->payout(
-                $paypalEmail,
-                (float) $amountUsd,
-                'USD',
-                $withdrawal->transaction_reference,
-                "Retrait ASSO #{$withdrawal->id}"
-            );
-
-            if (!($payout['success'] ?? false)) {
-                // Échec du versement → recréditer le solde et marquer l'échec. Aucune
-                // transaction ne reste faussement 'completed'.
-                $this->walletService->credit(
-                    $user,
-                    $amountXaf,
-                    null,
-                    "Remboursement — retrait PayPal échoué (réf. {$withdrawal->transaction_reference})",
-                    ['withdrawal_id' => $withdrawal->id, 'refund' => true],
-                    'paypal'
-                );
-                $debitTx->update([
-                    'status' => 'failed',
-                    'metadata' => array_merge($debitTx->metadata ?? [], [
-                        'failure_reason' => $payout['message'] ?? 'Versement PayPal refusé.',
-                    ]),
-                ]);
-                $withdrawal->markAsFailed('paypal_payout_failed', $payout['message'] ?? 'Versement PayPal refusé.');
-
-                Log::warning("[WalletController] ❌ PayPal payout échoué, solde recrédité", [
-                    'withdrawal_id' => $withdrawal->id,
-                    'message' => $payout['message'] ?? null,
-                ]);
-
-                return response()->json([
-                    'success' => false,
-                    'message' => $payout['message'] ?? "Le versement PayPal a échoué. Votre solde a été recrédité.",
-                ], 422);
-            }
-
-            // Versement ACCEPTÉ par PayPal. Le règlement final est asynchrone : on reste
-            // en 'processing' et on stocke le batch pour la réconciliation ultérieure
-            // (checkWithdrawalStatus). La transaction ne passera 'completed' qu'une fois
-            // le batch confirmé SUCCESS par PayPal.
-            $withdrawal->update([
-                'status' => 'processing',
-                'paypal_batch_id' => $payout['payout_batch_id'] ?? null,
-                'paypal_payout_item_id' => $payout['data']['items'][0]['payout_item_id'] ?? null,
-                'paypal_response' => $payout['data'] ?? null,
-            ]);
-
-            // Envoyer notification FCM
-            try {
-                $this->fcmService->sendToUser(
-                    $user,
-                    '💸 Retrait PayPal en cours',
-                    "Votre demande de retrait de " . number_format($amountXaf, 0, ',', ' ') . " FCFA (~\${$amountUsd} USD) vers {$paypalEmail} est en cours de traitement.",
-                    [
-                        'type' => 'wallet_withdrawal_processing',
-                        'provider' => 'paypal',
-                        'amount_usd' => $amountUsd,
-                        'amount_xaf' => $amountXaf,
-                        'withdrawal_id' => $withdrawal->id,
-                        'transaction_reference' => $withdrawal->transaction_reference,
-                        'paypal_email' => $paypalEmail,
-                    ]
-                );
-                Log::info("[WalletController] 📬 FCM notification sent for PayPal withdrawal");
-            } catch (\Exception $e) {
-                Log::error("[WalletController] ❌ Failed to send FCM notification: " . $e->getMessage());
-            }
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Retrait PayPal en cours de traitement.',
-                'data' => [
-                    'withdrawal_id' => $withdrawal->id,
-                    'transaction_reference' => $withdrawal->transaction_reference,
-                    'amount_usd' => $withdrawal->amount_sent,
-                    'amount_xaf' => $withdrawal->amount_requested,
-                    'status' => 'processing',
-                ],
-            ]);
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error("[WalletController] ❌ PayPal withdrawal error: " . $e->getMessage());
-
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], 500);
-        }
-    }
-
-    /**
      * Vérifie le statut d'un retrait
      *
      * GET /api/v1/wallet/withdrawal-status/{withdrawalId}
@@ -1459,10 +1319,6 @@ class WalletController extends Controller
                 if ($withdrawal->provider === 'kpay') {
                     // KPay : re-vérification autoritative via le job dédié.
                     \App\Jobs\Wallet\ProcessWithdrawalStatusJob::dispatchSync($withdrawal->id);
-                    $withdrawal->refresh();
-                } elseif ($withdrawal->provider === 'paypal' && !empty($withdrawal->paypal_batch_id)) {
-                    // PayPal : réconcilier l'état réel du batch de payout.
-                    $this->reconcilePayPalWithdrawal($withdrawal);
                     $withdrawal->refresh();
                 } elseif ($withdrawal->provider === 'stripe' && !empty($withdrawal->stripe_payout_id)) {
                     // Stripe : réconcilier l'état réel du payout vers l'IBAN.
@@ -1493,63 +1349,6 @@ class WalletController extends Controller
                 'message' => 'Erreur lors de la vérification du statut',
             ], 500);
         }
-    }
-
-    /**
-     * Réconcilie un retrait PayPal avec l'état réel du batch de payout.
-     * Ne marque 'completed' QUE si PayPal confirme le règlement (SUCCESS). En cas
-     * d'échec terminal, recrédite le solde et marque l'échec.
-     */
-    private function reconcilePayPalWithdrawal(PlatformWithdrawal $withdrawal): void
-    {
-        $status = $this->paypalService->getPayoutStatus($withdrawal->paypal_batch_id);
-        if (!($status['success'] ?? false)) {
-            return; // Indisponible : on retentera au prochain poll.
-        }
-
-        $itemStatus = strtoupper((string) ($status['item_status'] ?? ''));
-        $batchStatus = strtoupper((string) ($status['batch_status'] ?? ''));
-
-        // Transaction wallet visible liée à ce retrait (pour refléter l'état réel).
-        $debitTx = \App\Models\WalletTransaction::where('reference_type', 'platform_withdrawal')
-            ->where('reference_id', $withdrawal->id)
-            ->where('provider', 'paypal')
-            ->where('type', 'debit')
-            ->first();
-
-        // Règlement confirmé.
-        if ($itemStatus === 'SUCCESS' || $batchStatus === 'SUCCESS') {
-            $withdrawal->markAsCompleted($withdrawal->paypal_batch_id, $status['data'] ?? []);
-            $debitTx?->update(['status' => 'completed']);
-            Log::info('[WalletController] ✅ Retrait PayPal réglé (SUCCESS)', [
-                'withdrawal_id' => $withdrawal->id,
-            ]);
-            return;
-        }
-
-        // Échec terminal → recréditer le solde.
-        $terminalFailures = ['DENIED', 'FAILED', 'RETURNED', 'BLOCKED', 'REFUNDED', 'CANCELED'];
-        if (in_array($itemStatus, $terminalFailures) || in_array($batchStatus, ['DENIED', 'CANCELED'])) {
-            $user = $withdrawal->user;
-            if ($user && $debitTx && $debitTx->status !== 'failed') {
-                $this->walletService->credit(
-                    $user,
-                    (float) $withdrawal->amount_requested,
-                    null,
-                    "Remboursement — versement PayPal non abouti (réf. {$withdrawal->transaction_reference})",
-                    ['withdrawal_id' => $withdrawal->id, 'refund' => true],
-                    'paypal'
-                );
-                $debitTx->update(['status' => 'failed']);
-            }
-            $withdrawal->markAsFailed('paypal_payout_' . strtolower($itemStatus ?: $batchStatus), "Versement PayPal non abouti ({$itemStatus}{$batchStatus}).");
-            Log::warning('[WalletController] ❌ Retrait PayPal échoué, solde recrédité', [
-                'withdrawal_id' => $withdrawal->id,
-                'item_status' => $itemStatus,
-                'batch_status' => $batchStatus,
-            ]);
-        }
-        // Sinon (PENDING/PROCESSING/UNCLAIMED) : on laisse en 'processing'.
     }
 
     /**
@@ -1706,299 +1505,6 @@ class WalletController extends Controller
         }
     }
 
-    // ============================================
-    // MÉTHODES PAYPAL (NATIVE)
-    // ============================================
-
-    /**
-     * Créer une commande PayPal native pour le paiement
-     *
-     * POST /api/v1/wallet/paypal/create-native-order
-     */
-    public function createNativePayPalOrder(Request $request)
-    {
-        Log::info("╔════════════════════════════════════════════════════════════════════╗");
-        Log::info("║ [WalletController] 🔵 CREATE PAYPAL NATIVE ORDER                  ║");
-        Log::info("╚════════════════════════════════════════════════════════════════════╝");
-
-        $minDepositAmount = Setting::get('min_deposit_amount', 100);
-
-        $validator = Validator::make($request->all(), [
-            'amount' => 'required|numeric|min:' . $minDepositAmount,
-        ]);
-
-        if ($validator->fails()) {
-            Log::warning("[WalletController] ❌ Validation failed", [
-                'errors' => $validator->errors()->toArray()
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Données invalides',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
-
-        try {
-            $user = $request->user();
-            $amount = $request->amount;
-
-            Log::info("[WalletController] 📝 Request details", [
-                'user_id' => $user->id,
-                'amount' => $amount,
-            ]);
-
-            // Créer d'abord la transaction wallet en status pending
-            $currentBalance = $user->paypal_wallet_balance ?? 0;
-
-            DB::beginTransaction();
-
-            $walletTransaction = \App\Models\WalletTransaction::create([
-                'user_id' => $user->id,
-                'type' => 'credit',
-                'amount' => $amount,
-                'balance_before' => $currentBalance,
-                'balance_after' => $currentBalance, // Pas encore crédité
-                'description' => 'Recharge wallet via PayPal',
-                'status' => 'pending',
-                'provider' => 'paypal',
-                'metadata' => [
-                    'initiated_at' => now()->toIso8601String(),
-                ],
-            ]);
-
-            Log::info("[WalletController] ✅ Wallet transaction created in pending state", [
-                'transaction_id' => $walletTransaction->id,
-            ]);
-
-            // Appeler PayPal pour créer l'ordre
-            $paypalService = app(\App\Services\PayPalService::class);
-
-            $orderResult = $paypalService->createOrder([
-                'amount' => $amount,
-                'user_id' => $user->id,
-                'return_url' => url('/api/v1/wallet/paypal/return'),
-                'cancel_url' => url('/api/v1/wallet/paypal/cancel'),
-            ]);
-
-            if (!$orderResult['success']) {
-                DB::rollBack();
-
-                // Supprimer la transaction wallet si la création de l'ordre a échoué
-                $walletTransaction->delete();
-
-                Log::error("[WalletController] ❌ PayPal order creation failed", [
-                    'error' => $orderResult['message'] ?? 'Unknown error',
-                ]);
-
-                return response()->json([
-                    'success' => false,
-                    'message' => $orderResult['message'] ?? 'Erreur lors de la création de l\'ordre PayPal',
-                ], 400);
-            }
-
-            // Mettre à jour la transaction avec les infos PayPal
-            $walletTransaction->metadata = array_merge($walletTransaction->metadata ?? [], [
-                'provider_reference' => $orderResult['order_id'] ?? null,
-                'paypal_order_id' => $orderResult['order_id'] ?? null,
-                'paypal_status' => 'CREATED',
-                'amount_usd' => $orderResult['amount_usd'] ?? null,
-            ]);
-            $walletTransaction->save();
-
-            DB::commit();
-
-            Log::info("[WalletController] ✅ PayPal order created", [
-                'transaction_id' => $walletTransaction->id,
-                'order_id' => $orderResult['order_id'],
-            ]);
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Ordre PayPal créé avec succès',
-                'data' => [
-                    'payment_id' => $walletTransaction->id,
-                    'order_id' => $orderResult['order_id'],
-                    'amount' => $amount,
-                    'amount_usd' => $orderResult['amount_usd'],
-                    'approval_url' => $orderResult['approval_url'],
-                    'client_id' => $orderResult['client_id'],
-                ],
-            ]);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error("[WalletController] ❌ CREATE PAYPAL ORDER FAILED: " . $e->getMessage());
-            Log::error($e->getTraceAsString());
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur lors de la création de l\'ordre PayPal',
-                'error' => $e->getMessage(),
-            ], 500);
-        }
-    }
-
-    /**
-     * Capturer une commande PayPal native après approbation
-     *
-     * POST /api/v1/wallet/paypal/capture-native-order
-     */
-    public function captureNativePayPalOrder(Request $request)
-    {
-        Log::info("╔════════════════════════════════════════════════════════════════════╗");
-        Log::info("║ [WalletController] 🔵 CAPTURE PAYPAL NATIVE ORDER                 ║");
-        Log::info("╚════════════════════════════════════════════════════════════════════╝");
-
-        $validator = Validator::make($request->all(), [
-            'payment_id' => 'required|integer',
-            'order_id' => 'required|string',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Données invalides',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
-
-        try {
-            $user = $request->user();
-            $paymentId = $request->payment_id;
-            $orderId = $request->order_id;
-
-            Log::info("[WalletController] 📝 Capture request", [
-                'user_id' => $user->id,
-                'payment_id' => $paymentId,
-                'order_id' => $orderId,
-            ]);
-
-            // Récupérer la transaction wallet
-            $walletTransaction = \App\Models\WalletTransaction::where('id', $paymentId)
-                ->where('user_id', $user->id)
-                ->where('status', 'pending')
-                ->first();
-
-            if (!$walletTransaction) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Transaction non trouvée ou déjà traitée',
-                ], 404);
-            }
-
-            DB::beginTransaction();
-
-            // Capturer l'ordre PayPal
-            $paypalService = app(\App\Services\PayPalService::class);
-            $captureResult = $paypalService->captureOrder($orderId);
-
-            if (!$captureResult['success']) {
-                DB::rollBack();
-
-                Log::error("[WalletController] ❌ PayPal capture failed", [
-                    'order_id' => $orderId,
-                    'error' => $captureResult['message'] ?? 'Unknown error',
-                ]);
-
-                // Marquer la transaction comme échouée
-                $walletTransaction->status = 'failed';
-                $walletTransaction->metadata = array_merge($walletTransaction->metadata ?? [], [
-                    'capture_error' => $captureResult['message'] ?? 'Capture failed',
-                    'failed_at' => now()->toIso8601String(),
-                ]);
-                $walletTransaction->save();
-
-                // Envoyer notification FCM d'échec
-                try {
-                    $this->fcmService->sendToUser(
-                        $user,
-                        '❌ Échec de paiement PayPal',
-                        "Votre paiement de {$walletTransaction->amount} FCFA via PayPal a échoué. Veuillez réessayer.",
-                        [
-                            'type' => 'wallet_deposit_failed',
-                            'provider' => 'paypal',
-                            'amount' => $walletTransaction->amount,
-                            'payment_id' => $walletTransaction->id,
-                            'order_id' => $orderId,
-                            'error' => $captureResult['message'] ?? 'Capture failed',
-                        ]
-                    );
-                    Log::info("[WalletController] 📬 FCM notification sent for PayPal deposit failure");
-                } catch (\Exception $e) {
-                    Log::error("[WalletController] ❌ Failed to send FCM notification: " . $e->getMessage());
-                }
-
-                return response()->json([
-                    'success' => false,
-                    'message' => $captureResult['message'] ?? 'Échec de la capture du paiement',
-                ], 400);
-            }
-
-            // Créditer le wallet PayPal de l'utilisateur
-            $amount = $walletTransaction->amount;
-            $user->increment('paypal_wallet_balance', $amount);
-
-            // Mettre à jour la transaction
-            $walletTransaction->status = 'completed';
-            $walletTransaction->balance_after = $user->paypal_wallet_balance;
-            $walletTransaction->metadata = array_merge($walletTransaction->metadata ?? [], [
-                'paypal_status' => $captureResult['status'],
-                'paypal_capture_data' => $captureResult['data'] ?? [],
-                'completed_at' => now()->toIso8601String(),
-            ]);
-            $walletTransaction->save();
-
-            DB::commit();
-
-            Log::info("[WalletController] ✅ PayPal order captured", [
-                'payment_id' => $paymentId,
-                'order_id' => $orderId,
-                'amount' => $amount,
-                'new_balance' => $user->paypal_wallet_balance,
-            ]);
-
-            // Envoyer notification FCM
-            try {
-                $this->fcmService->sendToUser(
-                    $user,
-                    '💰 Recharge PayPal réussie',
-                    "Votre wallet a été crédité de {$amount} FCFA via PayPal. Nouveau solde: " . number_format($user->paypal_wallet_balance, 0, ',', ' ') . " FCFA",
-                    [
-                        'type' => 'wallet_deposit_success',
-                        'provider' => 'paypal',
-                        'amount' => $amount,
-                        'new_balance' => $user->paypal_wallet_balance,
-                        'payment_id' => $walletTransaction->id,
-                        'order_id' => $orderId,
-                    ]
-                );
-                Log::info("[WalletController] 📬 FCM notification sent for PayPal deposit");
-            } catch (\Exception $e) {
-                Log::error("[WalletController] ❌ Failed to send FCM notification: " . $e->getMessage());
-            }
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Paiement capturé avec succès',
-                'data' => [
-                    'payment_id' => $walletTransaction->id,
-                    'amount' => $amount,
-                    'new_balance' => $user->paypal_wallet_balance,
-                ],
-            ]);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error("[WalletController] ❌ CAPTURE PAYPAL ORDER FAILED: " . $e->getMessage());
-            Log::error($e->getTraceAsString());
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur lors de la capture du paiement',
-                'error' => $e->getMessage(),
-            ], 500);
-        }
-    }
-
     /**
      * Vérifie le statut d'un paiement (pour polling)
      *
@@ -2027,6 +1533,26 @@ class WalletController extends Controller
                 $walletTransaction->refresh();
             }
 
+            // Recharge carte (Stripe natif) : relire le PaymentIntent et créditer si succeeded.
+            if ($walletTransaction->status === 'pending' && $walletTransaction->provider === 'stripe') {
+                $ref = $walletTransaction->metadata['payment_intent_id']
+                    ?? ($walletTransaction->metadata['provider_reference'] ?? null);
+                if ($ref) {
+                    try {
+                        $intent = app(StripeService::class)->retrievePaymentIntent($ref);
+                        $status = strtolower($intent['status'] ?? '');
+                        if ($status === 'succeeded') {
+                            $this->confirmStripeRecharge($walletTransaction);
+                        } elseif ($status === 'canceled') {
+                            $this->failStripeRecharge($walletTransaction, 'Paiement carte annulé.');
+                        }
+                    } catch (\Throwable $e) {
+                        Log::warning('[WalletController] Stripe recharge retrieve PI: ' . $e->getMessage());
+                    }
+                    $walletTransaction->refresh();
+                }
+            }
+
             return response()->json([
                 'success' => true,
                 'data' => [
@@ -2051,6 +1577,87 @@ class WalletController extends Controller
                 'message' => 'Erreur lors de la vérification du statut',
             ], 500);
         }
+    }
+
+    /**
+     * Confirme une recharge wallet par carte (Stripe natif) — idempotent.
+     *
+     * Crédite le solde XAF du wallet une seule fois (transition pending → completed).
+     * Appelé par le polling (checkPaymentStatus) ET le webhook payment_intent.succeeded
+     * (StripeWebhookController → asso_kind=wallet_recharge). Le crédit dépend du statut
+     * réel du PaymentIntent, jamais d'un corps de webhook falsifiable.
+     */
+    public function confirmStripeRecharge(\App\Models\WalletTransaction $tx): void
+    {
+        DB::transaction(function () use ($tx) {
+            $locked = \App\Models\WalletTransaction::whereKey($tx->id)->lockForUpdate()->first();
+            if (!$locked || $locked->status !== 'pending' || $locked->provider !== 'stripe') {
+                return; // déjà traité / non applicable
+            }
+
+            $user = User::find($locked->user_id);
+            if (!$user) {
+                return;
+            }
+
+            // Le montant à créditer est en XAF (le champ `amount` de la transaction).
+            $creditXaf = (float) $locked->amount;
+            $user->creditKpay('XAF', $creditXaf);
+
+            $locked->update([
+                'status' => 'completed',
+                'balance_after' => $user->kpayBalanceFor('XAF'),
+                'metadata' => array_merge($locked->metadata ?? [], [
+                    'completed_at' => now()->toIso8601String(),
+                ]),
+            ]);
+
+            Log::info('[WalletController] ✅ Recharge carte (Stripe) créditée', [
+                'transaction_id' => $locked->id,
+                'amount_xaf' => $creditXaf,
+            ]);
+        });
+
+        // Notification FCM (best-effort, hors transaction).
+        try {
+            $tx->refresh();
+            $user = User::find($tx->user_id);
+            if ($user) {
+                $this->fcmService->sendToUser(
+                    $user,
+                    'Recharge par carte réussie',
+                    'Votre wallet a été crédité de ' . number_format((float) $tx->amount, 0, ',', ' ')
+                        . ' FCFA par carte bancaire.',
+                    [
+                        'type' => 'wallet_deposit_success',
+                        'provider' => 'stripe',
+                        'amount' => $tx->amount,
+                        'payment_id' => $tx->id,
+                    ]
+                );
+            }
+        } catch (\Throwable $e) {
+            Log::warning('[WalletController] FCM recharge stripe: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Marque une recharge carte (Stripe) échouée — idempotent. Aucun crédit n'a été fait.
+     */
+    public function failStripeRecharge(\App\Models\WalletTransaction $tx, ?string $reason = null): void
+    {
+        $locked = \App\Models\WalletTransaction::whereKey($tx->id)->lockForUpdate()->first();
+        if (!$locked || $locked->status !== 'pending' || $locked->provider !== 'stripe') {
+            return;
+        }
+        $locked->update([
+            'status' => 'failed',
+            'metadata' => array_merge($locked->metadata ?? [], [
+                'capture_error' => $reason ?? 'Paiement carte non abouti.',
+                'failed_at' => now()->toIso8601String(),
+            ]),
+        ]);
+        Log::info('[WalletController] Recharge carte (Stripe) échouée', ['transaction_id' => $locked->id]);
     }
 
     /**

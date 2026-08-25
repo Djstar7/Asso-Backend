@@ -45,8 +45,6 @@ class User extends Authenticatable
         'withdrawn_earnings',
         'kpay_wallet_balance',
         'locked_kpay_balance',
-        'paypal_wallet_balance',
-        'locked_paypal_balance',
         'otp_code',
         'otp_expires_at',
         'is_profile_complete',
@@ -365,11 +363,11 @@ class User extends Authenticatable
     }
 
     /**
-     * Get total wallet balance (KPay + PayPal)
+     * Get total wallet balance (KPay)
      */
     public function getTotalWalletBalanceAttribute(): float
     {
-        return ($this->kpay_wallet_balance ?? 0) + ($this->paypal_wallet_balance ?? 0);
+        return ($this->kpay_wallet_balance ?? 0);
     }
 
     /**
@@ -389,14 +387,6 @@ class User extends Authenticatable
     }
 
     /**
-     * Get formatted PayPal wallet balance
-     */
-    public function getFormattedPaypalBalanceAttribute(): string
-    {
-        return number_format($this->paypal_wallet_balance ?? 0, 0, ',', ' ') . ' FCFA';
-    }
-
-    /**
      * Solde KPay disponible (total - bloqué)
      */
     public function getAvailableKpayBalanceAttribute(): float
@@ -405,19 +395,11 @@ class User extends Authenticatable
     }
 
     /**
-     * Solde PayPal disponible (total - bloqué)
-     */
-    public function getAvailablePaypalBalanceAttribute(): float
-    {
-        return ($this->paypal_wallet_balance ?? 0) - ($this->locked_paypal_balance ?? 0);
-    }
-
-    /**
      * Solde total disponible (non bloqué)
      */
     public function getAvailableTotalBalanceAttribute(): float
     {
-        return $this->available_kpay_balance + $this->available_paypal_balance;
+        return $this->available_kpay_balance;
     }
 
     /**
@@ -425,7 +407,7 @@ class User extends Authenticatable
      */
     public function getTotalLockedBalanceAttribute(): float
     {
-        return ($this->locked_kpay_balance ?? 0) + ($this->locked_paypal_balance ?? 0);
+        return ($this->locked_kpay_balance ?? 0);
     }
 
     // ==================== Soldes wallet multi-devise (KPay) ====================

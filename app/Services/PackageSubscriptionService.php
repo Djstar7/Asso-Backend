@@ -16,8 +16,7 @@ use Illuminate\Support\Str;
  *
  * Reproduit EXACTEMENT la mécanique des commandes directes (OrderService) :
  *  - kpay_direct   : PayIn Mobile Money (USSD), confirmation par polling
- *  - paypal_direct : Checkout PayPal → approval_url (WebView), capture au polling
- *  - stripe_direct : Checkout Session carte → url (WebView), confirmation au polling
+ *  - stripe_direct : carte NATIVE (PaymentIntent) → client_secret (Payment Sheet), polling
  *
  * Le VendorPackage n'est créé/cumulé QU'À la confirmation du paiement (applyPackage),
  * ce qui garantit qu'aucun espace n'est crédité tant que l'argent n'est pas encaissé.
@@ -37,7 +36,7 @@ class PackageSubscriptionService
      * Crée l'intent d'abonnement direct et initie le paiement chez le PSP.
      * Renvoie la PackageSubscription (statut 'pending', approval_url éventuelle).
      *
-     * @param string $paymentMode kpay_direct | paypal_direct | stripe_direct
+     * @param string $paymentMode kpay_direct | stripe_direct
      */
     public function createDirect(
         User $user,
@@ -62,18 +61,26 @@ class PackageSubscriptionService
 
         // Peut lancer une exception → la souscription reste 'pending' sans référence,
         // le contrôleur renvoie l'erreur (rien n'est crédité au vendeur).
-        $approvalUrl = $this->initiatePayment($subscription, $amountXaf, $paymentMode, $kpayProvider, $kpayPhone);
+        // Pour la carte native, renvoie ['client_secret','payment_intent_id','publishable_key'].
+        $stripeMeta = $this->initiatePayment($subscription, $amountXaf, $paymentMode, $kpayProvider, $kpayPhone);
 
-        if ($approvalUrl) {
-            $subscription->update(['approval_url' => $approvalUrl]);
+        $subscription = $subscription->fresh();
+
+        // Attributs transitoires (non persistés) consommés par le contrôleur pour la
+        // Payment Sheet côté mobile.
+        if (is_array($stripeMeta)) {
+            $subscription->client_secret = $stripeMeta['client_secret'] ?? null;
+            $subscription->payment_intent_id = $stripeMeta['payment_intent_id'] ?? null;
+            $subscription->stripe_publishable_key = $stripeMeta['publishable_key'] ?? null;
         }
 
-        return $subscription->fresh();
+        return $subscription;
     }
 
     /**
      * Initie le paiement direct chez le PSP et enregistre la référence sur la souscription.
-     * Renvoie l'URL de checkout (PayPal / Stripe) ou null (KPay). Calqué sur
+     * Renvoie null (KPay) ou, pour la carte native, un tableau
+     * ['client_secret','payment_intent_id','publishable_key']. Calqué sur
      * OrderService::initiateDirectPayment.
      */
     protected function initiatePayment(
@@ -82,7 +89,7 @@ class PackageSubscriptionService
         string $paymentMode,
         ?string $kpayProvider,
         ?string $kpayPhone
-    ): ?string {
+    ): ?array {
         $externalRef = 'SUB-' . $subscription->id;
 
         if ($paymentMode === 'kpay_direct') {
@@ -119,30 +126,6 @@ class PackageSubscriptionService
             return null;
         }
 
-        if ($paymentMode === 'paypal_direct') {
-            $pp = app(PayPalService::class)->createOrder([
-                'amount' => (float) round($total),
-                'currency' => 'XAF',
-                'user_id' => $subscription->user_id,
-                'description' => "Abonnement {$subscription->metadata['package_name']}",
-                'return_url' => route('payment.success'),
-                'cancel_url' => route('payment.cancel'),
-            ]);
-
-            if (empty($pp['success']) || empty($pp['approval_url']) || empty($pp['order_id'])) {
-                throw new \Exception($pp['message'] ?? "Échec de l'initiation du paiement PayPal.");
-            }
-
-            $subscription->update([
-                'payment_reference' => $pp['order_id'],
-                'payment_currency' => 'USD',
-                'payment_amount' => $pp['amount_usd'] ?? null,
-            ]);
-            Log::info('[PackageSubscription] Checkout PayPal initié', ['subscription_id' => $subscription->id, 'paypal_order_id' => $pp['order_id']]);
-
-            return $pp['approval_url'];
-        }
-
         if ($paymentMode === 'stripe_direct') {
             $stripe = app(StripeService::class);
             if (!$stripe->isConfigured()) {
@@ -157,27 +140,29 @@ class PackageSubscriptionService
                 throw new \Exception("Conversion XAF → {$stripeCurrency} indisponible pour le paiement carte.");
             }
 
-            $session = $stripe->createCheckoutSession(
+            // Carte NATIVE : PaymentIntent → client_secret confirmé par la Payment Sheet.
+            $intent = $stripe->createPaymentIntent(
                 (float) $stripeAmount,
                 $stripeCurrency,
-                ['asso_kind' => 'package_subscription', 'subscription_id' => (string) $subscription->id],
-                route('payment.success'),
-                route('payment.cancel'),
-                "Abonnement {$subscription->metadata['package_name']}"
+                ['asso_kind' => 'package_subscription', 'subscription_id' => (string) $subscription->id]
             );
 
-            if (empty($session['url']) || empty($session['id'])) {
+            if (empty($intent['id']) || empty($intent['client_secret'])) {
                 throw new \Exception("Échec de l'initiation du paiement carte (Stripe).");
             }
 
             $subscription->update([
-                'payment_reference' => $session['id'],
+                'payment_reference' => $intent['id'],
                 'payment_currency' => strtoupper($stripeCurrency),
                 'payment_amount' => round((float) $stripeAmount, 2),
             ]);
-            Log::info('[PackageSubscription] Checkout Stripe initié', ['subscription_id' => $subscription->id, 'session_id' => $session['id']]);
+            Log::info('[PackageSubscription] PaymentIntent Stripe initié', ['subscription_id' => $subscription->id, 'payment_intent' => $intent['id']]);
 
-            return $session['url'];
+            return [
+                'client_secret' => $intent['client_secret'],
+                'payment_intent_id' => $intent['id'],
+                'publishable_key' => $intent['publishable_key'] ?? null,
+            ];
         }
 
         return null;
@@ -204,29 +189,19 @@ class PackageSubscriptionService
                 }
                 break;
 
-            case 'paypal_direct':
-                $paypal = app(PayPalService::class);
-                $details = $paypal->getOrderDetails($subscription->payment_reference);
-                $status = strtoupper($details['data']['status'] ?? 'UNKNOWN');
-                if ($status === 'APPROVED') {
-                    $capture = $paypal->captureOrder($subscription->payment_reference);
-                    if (!empty($capture['success']) && strtoupper($capture['status'] ?? '') === 'COMPLETED') {
-                        $this->confirm($subscription);
-                    }
-                } elseif ($status === 'COMPLETED') {
-                    $this->confirm($subscription);
-                } elseif (in_array($status, ['VOIDED', 'EXPIRED', 'CANCELLED', 'CANCELED'])) {
-                    $this->fail($subscription);
-                }
-                break;
-
             case 'stripe_direct':
-                $session = app(StripeService::class)->retrieveCheckoutSession($subscription->payment_reference);
-                $status = strtolower($session['status'] ?? '');
-                $paymentStatus = strtolower($session['payment_status'] ?? '');
-                if ($status === 'complete' && $paymentStatus === 'paid') {
+                // Carte native : on relit le PaymentIntent (succeeded → confirmé,
+                // canceled → échec ; sinon on reste en attente pour le prochain poll).
+                try {
+                    $intent = app(StripeService::class)->retrievePaymentIntent($subscription->payment_reference);
+                } catch (\Throwable $e) {
+                    Log::warning('[PackageSubscription] Stripe retrieve PaymentIntent: ' . $e->getMessage());
+                    return;
+                }
+                $status = strtolower($intent['status'] ?? '');
+                if ($status === 'succeeded') {
                     $this->confirm($subscription);
-                } elseif ($status === 'expired') {
+                } elseif ($status === 'canceled') {
                     $this->fail($subscription);
                 }
                 break;
@@ -259,8 +234,8 @@ class PackageSubscriptionService
 
             // Trace dans l'historique du client (solde NON modifié : encaissé chez le PSP).
             $provider = $this->providerFor($sub->payment_method);
-            $balanceColumn = $provider === 'paypal' ? 'paypal_wallet_balance' : 'kpay_wallet_balance';
-            $balance = (float) (User::where('id', $sub->user_id)->value($balanceColumn) ?? 0);
+            // Solde indicatif pour la trace (non modifié : encaissé chez le PSP en rail direct).
+            $balance = (float) (User::where('id', $sub->user_id)->value('kpay_wallet_balance') ?? 0);
             WalletTransaction::create([
                 'user_id' => $sub->user_id,
                 'type' => 'debit',

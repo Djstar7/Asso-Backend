@@ -50,7 +50,7 @@ class PaymentController extends Controller
     {
         $request->validate([
             'order_id' => 'required|exists:orders,id',
-            'payment_method' => 'required|in:kpay,mobile,paypal,cash',
+            'payment_method' => 'required|in:kpay,mobile,cash',
             // provider = code opérateur KPay (ex. MTN_MOMO_CMR) — détermine pays et devise
             'provider' => 'required_if:payment_method,kpay,mobile|string',
             'phone_number' => 'required_if:payment_method,kpay,mobile|string',

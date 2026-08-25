@@ -22,8 +22,11 @@ use App\Models\Setting;
  *
  * Activation (« enabled ») = source de vérité réelle de chaque rail :
  *  - kpay   : KPayService::isConfigured() (reflète service_configurations.is_active)
- *  - paypal : Setting `paypal_enabled` ET credentials PayPal présents
- *  - stripe : Setting `stripe_enabled` ET clés Stripe présentes
+ *  - stripe : Setting `stripe_enabled` ET clés Stripe présentes (carte NATIVE, PaymentIntent)
+ *
+ * NB : le rail PayPal a été RETIRÉ (encaissement + retrait). Les colonnes de solde
+ * PayPal restent en base pour un traitement admin ultérieur, mais aucun rail PayPal
+ * n'est plus exposé au mobile.
  */
 class PaymentMethodService
 {
@@ -33,8 +36,7 @@ class PaymentMethodService
     /**
      * Définition statique des rails. `flow` pilote le sous-parcours mobile :
      *   - phone    : sélecteur pays→opérateur→numéro (KPay Mobile Money)
-     *   - redirect : approbation via WebView (PayPal)
-     *   - card     : feuille carte (Stripe PaymentIntent)
+     *   - card     : Payment Sheet (Stripe PaymentIntent natif, SDK flutter_stripe)
      */
     private const RAILS = [
         'kpay' => [
@@ -44,17 +46,10 @@ class PaymentMethodService
             'setting_min' => 'pay_min_kpay',
             'default_min' => 100.0,
         ],
-        'paypal' => [
-            'label' => 'PayPal',
-            'subtitle' => 'Compte PayPal',
-            'flow' => 'redirect',
-            'setting_min' => 'pay_min_paypal',
-            'default_min' => 600.0, // ≈ 1 USD
-        ],
         'stripe' => [
             'label' => 'Carte bancaire',
             'subtitle' => 'Visa, Mastercard, Amex',
-            'flow' => 'redirect',
+            'flow' => 'card',
             'setting_min' => 'pay_min_stripe',
             'default_min' => 300.0, // ≈ 0.50 USD
         ],
@@ -134,7 +129,6 @@ class PaymentMethodService
     {
         return match ($code) {
             'kpay' => (new KPayService())->isConfigured(),
-            'paypal' => (bool) Setting::get('paypal_enabled', false) && (new PayPalService())->isConfigured(),
             'stripe' => (bool) Setting::get('stripe_enabled', false) && (new StripeService())->isConfigured(),
             default => false,
         };
@@ -145,7 +139,6 @@ class PaymentMethodService
     {
         return match ($code) {
             'kpay' => null,
-            'paypal' => 'USD', // PayPalService encaisse en USD
             'stripe' => strtoupper((string) Setting::get('stripe_currency', 'USD')),
             default => null,
         };

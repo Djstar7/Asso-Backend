@@ -281,16 +281,9 @@ class SettingsController extends Controller
             // QUEL gateway est réécrit dans service_configurations : soumettre le
             // formulaire KPay ne doit jamais toucher is_active/clés de Stripe et
             // inversement (sinon l'autre gateway devient « non configuré » et grisé).
-            $form = $request->input('_form'); // 'paypal' | 'kpay' | 'stripe' | null
+            $form = $request->input('_form'); // 'kpay' | 'stripe' | null
 
             $validated = $request->validate([
-                // PayPal
-                'paypal_enabled' => 'nullable|boolean',
-                'paypal_mode' => 'nullable|in:sandbox,live',
-                'paypal_client_id' => 'nullable|string',
-                'paypal_client_secret' => 'nullable|string',
-                'paypal_webhook_id' => 'nullable|string',
-                'paypal_currency' => 'nullable|string|in:USD,EUR,XOF',
                 // Fedapay
                 'fedapay_enabled' => 'nullable|boolean',
                 'fedapay_mode' => 'nullable|in:sandbox,live',
@@ -326,7 +319,6 @@ class SettingsController extends Controller
                 'stripe_business_mcc' => 'nullable|string|max:10',
                 // Minimums d'encaissement par moyen (devise pivot XAF) — grisage mobile
                 'pay_min_kpay' => 'nullable|numeric|min:0',
-                'pay_min_paypal' => 'nullable|numeric|min:0',
                 'pay_min_stripe' => 'nullable|numeric|min:0',
                 // Conversion de devises (exchangerate-api.com)
                 'exchange_rate_api_key' => 'nullable|string',
@@ -501,7 +493,7 @@ class SettingsController extends Controller
      * de la config BRUTE via getRawConfig, indépendante de is_active).
      *
      * @param array       $validated Données validées du formulaire soumis
-     * @param string|null $form      'kpay' | 'stripe' | 'paypal' (aucun impact service_configs)
+     * @param string|null $form      'kpay' | 'stripe' (autre marqueur = aucun impact service_configs)
      * @return void
      */
     private function updateServiceConfiguration(array $validated, ?string $form = null): void
@@ -602,7 +594,6 @@ class SettingsController extends Controller
             return;
         }
 
-        // Formulaire PayPal (ou marqueur absent) : rien à écrire dans service_configurations
-        // (les identifiants PayPal vivent dans la table settings, gérés en amont).
+        // Marqueur absent : rien à écrire dans service_configurations.
     }
 }

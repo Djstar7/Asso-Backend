@@ -131,7 +131,7 @@ class FcmService
         $storageTotal = $packageData['storage_total'] ?? '0';
         $expiresAt = $packageData['expires_at'] ?? '';
 
-        $title = '🎉 Achat confirmé !';
+        $title = 'Achat confirmé !';
         $body = "Votre package {$packageName} ({$storageTotal} MB) a été activé avec succès.";
 
         return $this->sendAndStore(
@@ -154,7 +154,7 @@ class FcmService
      */
     public function sendPackageExpiringNotification(User $user, int $daysRemaining): ?Notification
     {
-        $title = '⚠️ Package bientôt expiré';
+        $title = 'Package bientôt expiré';
         $body = "Votre package expire dans {$daysRemaining} jour" . ($daysRemaining > 1 ? 's' : '') . '. Renouvelez-le pour continuer à publier vos produits.';
 
         return $this->sendAndStore(
@@ -178,14 +178,14 @@ class FcmService
         $orderNumber = $orderData['order_number'] ?? 'N/A';
 
         $statusMessages = [
-            'pending' => ['🛍️ Nouvelle commande', "Commande #{$orderNumber} reçue !"],
-            'confirmed' => ['✅ Commande confirmée', "Commande #{$orderNumber} confirmée"],
-            'shipped' => ['📦 Commande expédiée', "Commande #{$orderNumber} en cours de livraison"],
-            'delivered' => ['🎉 Commande livrée', "Commande #{$orderNumber} livrée avec succès"],
-            'cancelled' => ['❌ Commande annulée', "Commande #{$orderNumber} annulée"],
+            'pending' => ['Nouvelle commande', "Commande #{$orderNumber} reçue !"],
+            'confirmed' => ['Commande confirmée', "Commande #{$orderNumber} confirmée"],
+            'shipped' => ['Commande expédiée', "Commande #{$orderNumber} en cours de livraison"],
+            'delivered' => ['Commande livrée', "Commande #{$orderNumber} livrée avec succès"],
+            'cancelled' => ['Commande annulée', "Commande #{$orderNumber} annulée"],
         ];
 
-        [$title, $body] = $statusMessages[$orderStatus] ?? ['📋 Mise à jour commande', "Commande #{$orderNumber}"];
+        [$title, $body] = $statusMessages[$orderStatus] ?? ['Mise à jour commande', "Commande #{$orderNumber}"];
 
         return $this->sendAndStore(
             $user,

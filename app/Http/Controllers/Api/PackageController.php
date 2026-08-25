@@ -104,10 +104,10 @@ class PackageController extends Controller
 
         $validated = $request->validate([
             'package_id' => 'required|exists:packages,id',
-            // Rétro-compat : wallet_type (kpay|paypal) = paiement depuis le SOLDE wallet.
-            'wallet_type' => 'nullable|in:kpay,paypal',
+            // Rétro-compat : wallet_type = paiement depuis le SOLDE wallet (KPay).
+            'wallet_type' => 'nullable|in:kpay',
             // Nouveau : rail de paiement DIRECT (mêmes rails que les commandes acheteur).
-            'payment_mode' => 'nullable|in:wallet,kpay_direct,paypal_direct,stripe_direct',
+            'payment_mode' => 'nullable|in:wallet,kpay_direct,stripe_direct',
             // Requis en mode kpay_direct (parcours USSD Mobile Money).
             'provider' => 'required_if:payment_mode,kpay_direct|string',
             'phone_number' => 'required_if:payment_mode,kpay_direct|string',
@@ -133,18 +133,18 @@ class PackageController extends Controller
             ], 422);
         }
 
-        // ── Paiement par RAIL DIRECT (kpay_direct / paypal_direct / stripe_direct) ──
+        // ── Paiement par RAIL DIRECT (kpay_direct / stripe_direct) ──
         // Mêmes rails que les commandes acheteur : confirmation asynchrone par polling.
-        if (in_array($paymentMode, ['kpay_direct', 'paypal_direct', 'stripe_direct'])) {
+        if (in_array($paymentMode, ['kpay_direct', 'stripe_direct'])) {
             return $this->subscribeDirect($request, $user, $package, $paymentMode);
         }
 
         // ── Paiement par SOLDE wallet (rétro-compat) ──
         $walletType = $validated['wallet_type'] ?? null;
-        if (!in_array($walletType, ['kpay', 'paypal'])) {
+        if (!in_array($walletType, ['kpay'])) {
             return response()->json([
                 'success' => false,
-                'message' => 'wallet_type (kpay ou paypal) requis pour un paiement par solde.',
+                'message' => 'wallet_type (kpay) requis pour un paiement par solde.',
             ], 422);
         }
 
@@ -387,7 +387,7 @@ class PackageController extends Controller
     }
 
     /**
-     * Souscription d'un package par RAIL DIRECT (kpay_direct / paypal_direct / stripe_direct).
+     * Souscription d'un package par RAIL DIRECT (kpay_direct / stripe_direct).
      *
      * Crée un « intent » d'abonnement (PackageSubscription en 'pending') et initie le
      * paiement chez le PSP. Le VendorPackage n'est créé/cumulé qu'à la confirmation du
@@ -396,18 +396,12 @@ class PackageController extends Controller
      */
     private function subscribeDirect(Request $request, $user, Package $package, string $paymentMode)
     {
-        // Garde-fou : un rail par redirection (PayPal / carte Stripe) n'est proposé que
-        // s'il est réellement fonctionnel (clés configurées + activé). Sinon on bloque
-        // immédiatement, sans rien créer.
-        $railGuard = [
-            'paypal_direct' => ['paypal', 'PayPal'],
-            'stripe_direct' => ['stripe', 'par carte bancaire (Stripe)'],
-        ];
-        if (isset($railGuard[$paymentMode])
-            && !PaymentMethodService::isEnabled($railGuard[$paymentMode][0])) {
+        // Garde-fou : le rail carte (Stripe natif) n'est proposé que s'il est réellement
+        // fonctionnel (clés configurées + activé). Sinon on bloque immédiatement.
+        if ($paymentMode === 'stripe_direct' && !PaymentMethodService::isEnabled('stripe')) {
             return response()->json([
                 'success' => false,
-                'message' => "Le paiement {$railGuard[$paymentMode][1]} n'est pas disponible pour le moment. Veuillez choisir un autre moyen de paiement.",
+                'message' => "Le paiement par carte bancaire (Stripe) n'est pas disponible pour le moment. Veuillez choisir un autre moyen de paiement.",
             ], 422);
         }
 
@@ -431,7 +425,6 @@ class PackageController extends Controller
             'success' => true,
             'message' => match ($paymentMode) {
                 'kpay_direct' => 'Abonnement créé. Validez le paiement sur votre téléphone (USSD).',
-                'paypal_direct' => 'Abonnement créé. Finalisez le paiement PayPal.',
                 'stripe_direct' => 'Abonnement créé. Finalisez le paiement par carte.',
                 default => 'Abonnement créé.',
             },
@@ -439,9 +432,10 @@ class PackageController extends Controller
             'subscription_id' => $subscription->id,
             'status' => $subscription->status, // pending
             'payment_reference' => $subscription->payment_reference,
-            // Modes redirect (PayPal / carte Stripe) : URL de checkout à ouvrir en WebView.
-            'approval_url' => in_array($paymentMode, ['paypal_direct', 'stripe_direct'])
-                ? $subscription->approval_url : null,
+            // Carte native (stripe_direct) : confirmation via Payment Sheet, puis polling.
+            'client_secret' => $paymentMode === 'stripe_direct' ? ($subscription->client_secret ?? null) : null,
+            'payment_intent_id' => $paymentMode === 'stripe_direct' ? ($subscription->payment_intent_id ?? null) : null,
+            'publishable_key' => $paymentMode === 'stripe_direct' ? ($subscription->stripe_publishable_key ?? null) : null,
         ], 201);
     }
 

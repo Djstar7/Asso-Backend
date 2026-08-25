@@ -138,7 +138,7 @@ class ProcessWithdrawalStatusJob implements ShouldQueue
                         $user = $withdrawal->user;
                         $fcmService->sendToUser(
                             $user,
-                            '💸 Retrait effectué',
+                            'Retrait effectué',
                             "Votre retrait de {$withdrawal->amount_sent} FCFA a été envoyé avec succès à {$withdrawal->payment_account}.",
                             [
                                 'type' => 'wallet_withdrawal_completed',
@@ -198,7 +198,7 @@ class ProcessWithdrawalStatusJob implements ShouldQueue
                         $user = $withdrawal->user;
                         $fcmService->sendToUser(
                             $user,
-                            '❌ Retrait échoué',
+                            'Retrait échoué',
                             "Votre retrait de {$withdrawal->amount_sent} FCFA a échoué. " . ($reason ?? 'Veuillez réessayer.'),
                             [
                                 'type' => 'wallet_withdrawal_failed',

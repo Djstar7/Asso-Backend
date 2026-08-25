@@ -60,7 +60,7 @@ class StripePayoutSettlementService
 
             $this->notify(
                 $withdrawal,
-                '✅ Virement effectué',
+                'Virement effectué',
                 "Votre virement de {$amount} {$currency} a bien été versé sur votre compte bancaire.",
                 'wallet_withdrawal_completed',
             );
@@ -136,7 +136,7 @@ class StripePayoutSettlementService
 
             $this->notify(
                 $withdrawal,
-                '⚠️ Virement échoué',
+                'Virement échoué',
                 "Votre virement de {$amount} {$currency} a échoué. Le montant a été recrédité sur votre portefeuille.",
                 'wallet_withdrawal_failed',
             );

@@ -63,11 +63,6 @@ class StripeWebhookController extends Controller
                     $this->handlePayoutFailed($event->data->object);
                     break;
 
-                case 'checkout.session.completed':
-                    // Session Checkout terminée : le paiement carte est encaissé.
-                    $this->handlePaymentIntentSucceeded($event->data->object);
-                    break;
-
                 case 'payment_intent.succeeded':
                     $this->handlePaymentIntentSucceeded($event->data->object);
                     break;
@@ -137,6 +132,26 @@ class StripeWebhookController extends Controller
                     'payment_intent' => $pi->id ?? null,
                 ]);
             }
+        } elseif ($kind === 'package_subscription') {
+            $subscriptionId = (int) ($pi->metadata->subscription_id ?? 0);
+            $subscription = \App\Models\PackageSubscription::find($subscriptionId);
+            if ($subscription) {
+                app(\App\Services\PackageSubscriptionService::class)->confirm($subscription);
+                Log::info('[StripeWebhook] ✅ Abonnement payé (carte)', [
+                    'subscription_id' => $subscriptionId,
+                    'payment_intent' => $pi->id ?? null,
+                ]);
+            }
+        } elseif ($kind === 'wallet_recharge') {
+            $txId = (int) ($pi->metadata->wallet_transaction_id ?? 0);
+            $tx = \App\Models\WalletTransaction::find($txId);
+            if ($tx) {
+                app(\App\Http\Controllers\Api\WalletController::class)->confirmStripeRecharge($tx);
+                Log::info('[StripeWebhook] ✅ Recharge wallet payée (carte)', [
+                    'wallet_transaction_id' => $txId,
+                    'payment_intent' => $pi->id ?? null,
+                ]);
+            }
         }
     }
 
@@ -165,6 +180,26 @@ class StripeWebhookController extends Controller
                 app(\App\Services\OrderService::class)->failStripeOrderPayment($order);
                 Log::warning('[StripeWebhook] ❌ Paiement carte commande échoué', [
                     'order_id' => $orderId,
+                    'payment_intent' => $pi->id ?? null,
+                ]);
+            }
+        } elseif ($kind === 'package_subscription') {
+            $subscriptionId = (int) ($pi->metadata->subscription_id ?? 0);
+            $subscription = \App\Models\PackageSubscription::find($subscriptionId);
+            if ($subscription) {
+                app(\App\Services\PackageSubscriptionService::class)->fail($subscription);
+                Log::warning('[StripeWebhook] ❌ Paiement carte abonnement échoué', [
+                    'subscription_id' => $subscriptionId,
+                    'payment_intent' => $pi->id ?? null,
+                ]);
+            }
+        } elseif ($kind === 'wallet_recharge') {
+            $txId = (int) ($pi->metadata->wallet_transaction_id ?? 0);
+            $tx = \App\Models\WalletTransaction::find($txId);
+            if ($tx) {
+                app(\App\Http\Controllers\Api\WalletController::class)->failStripeRecharge($tx, 'Paiement carte refusé.');
+                Log::warning('[StripeWebhook] ❌ Recharge wallet carte échouée', [
+                    'wallet_transaction_id' => $txId,
                     'payment_intent' => $pi->id ?? null,
                 ]);
             }
