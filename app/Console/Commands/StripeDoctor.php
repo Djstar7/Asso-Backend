@@ -28,8 +28,7 @@ class StripeDoctor extends Command
         {--currency=EUR : Devise des virements à contrôler}
         {--user= : Ne contrôler que ce vendeur (id)}
         {--fix : Repasse en attente les comptes validés chez nous mais refusés par Stripe}
-        {--enable-conversion : Déclare que la conversion automatique est activée sur le compte Stripe}
-        {--disable-conversion : Retire cette déclaration (retour au refus si la devise manque)}';
+        {--fx-buffer= : Marge de change appliquée aux virements convertis (en %, défaut 3)}';
 
     protected $description = 'Diagnostique la chaîne de virement IBAN (Stripe Connect)';
 
@@ -39,19 +38,15 @@ class StripeDoctor extends Command
     {
         $currency = strtoupper((string) $this->option('currency'));
 
-        if ($this->option('enable-conversion') || $this->option('disable-conversion')) {
-            $enabled = (bool) $this->option('enable-conversion');
+        if ($this->option('fx-buffer') !== null) {
             \App\Models\Setting::set(
-                'stripe_allow_currency_conversion',
-                $enabled ? '1' : '0',
-                'boolean',
+                'stripe_fx_buffer_percent',
+                (string) (float) $this->option('fx-buffer'),
+                'string',
                 'payments',
-                'La conversion automatique de devises est activée sur le compte Stripe',
+                'Marge de change appliquée aux virements financés dans une autre devise',
             );
-            $this->info($enabled
-                ? '✅ Conversion automatique déclarée : les virements ne seront plus refusés faute de solde dans la devise.'
-                : '✅ Déclaration retirée : un virement sera refusé si la plateforme ne détient pas la devise.');
-            $this->warn('   Ce réglage ne fait que DÉCLARER l\'état du compte Stripe : activez-la aussi dans le dashboard.');
+            $this->info('✅ Marge de change enregistrée : ' . (float) $this->option('fx-buffer') . ' %.');
         }
 
         $this->line('');
@@ -82,24 +77,22 @@ class StripeDoctor extends Command
             )));
         }
 
-        $conversion = (bool) \App\Models\Setting::get('stripe_allow_currency_conversion', false);
+        // La devise n'est plus bloquante : un solde en CAD finance un virement en
+        // EUR (conversion au transfert). Seule la capacité totale compte.
+        $capacity = $stripe->platformPayoutCapacity($currency);
+        $buffer = (float) \App\Models\Setting::get('stripe_fx_buffer_percent', 3);
 
-        if (!array_key_exists($currency, $balances)) {
-            if ($conversion) {
-                $this->warn_("Aucun solde en {$currency} : les virements reposent sur la conversion "
-                    . 'automatique Stripe (réglage stripe_allow_currency_conversion actif). '
-                    . 'Vérifiez qu\'elle est bien activée dans le dashboard, sinon chaque virement sera refusé.');
-            } else {
-                $this->fail_(
-                    "Aucun solde en {$currency} : tout virement en {$currency} sera refusé "
-                        . '(« insufficient available funds »), même si le solde global est positif.',
-                    "Activez la conversion automatique dans le dashboard Stripe, puis le réglage "
-                        . "stripe_allow_currency_conversion (php artisan stripe:doctor --enable-conversion) "
-                        . "— ou encaissez en {$currency}.",
-                );
-            }
+        if ($capacity <= 0) {
+            $this->fail_(
+                "Aucun fonds disponible sur le compte Stripe : les virements seront refusés.",
+                'Alimentez le solde Stripe (encaissements ou virement bancaire vers Stripe).',
+            );
         } else {
-            $this->ok(sprintf('Solde %s disponible : %.2f.', $currency, $balances[$currency]));
+            $this->ok(sprintf('Capacité de virement : %.2f %s (toutes devises, conversion comprise).', $capacity, $currency));
+            if (!array_key_exists($currency, $balances)) {
+                $this->line(sprintf('     Les virements en %s seront financés depuis %s, avec une marge de change de %.1f %%.',
+                    $currency, array_key_first($balances) ?: '—', $buffer));
+            }
         }
 
         // 4. Webhooks

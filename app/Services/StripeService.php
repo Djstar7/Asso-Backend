@@ -356,24 +356,19 @@ class StripeService
     }
 
     /**
-     * La plateforme peut-elle payer dans cette devise ? (mise en cache 5 min)
+     * La plateforme a-t-elle de quoi payer, toutes devises confondues ? (cache 5 min)
      *
-     * Sert à GRISER le rail « virement bancaire » côté application : un compte
-     * plateforme qui ne détient aucun solde dans la devise du payout refusera tous
-     * les virements, autant ne pas les proposer. Le cache évite un appel Stripe à
-     * chaque ouverture du portefeuille.
+     * Sert à GRISER le rail « virement bancaire » côté application. La devise n'est
+     * plus un critère : un solde en CAD finance un virement en EUR, la conversion
+     * étant faite au transfert. Seule l'absence totale de fonds bloque.
      */
     public function platformSupportsCurrency(string $currency): bool
     {
-        $currency = strtoupper($currency);
-
-        $currencies = \Illuminate\Support\Facades\Cache::remember(
-            'stripe:platform_balance_currencies',
+        return \Illuminate\Support\Facades\Cache::remember(
+            'stripe:platform_capacity_' . strtoupper($currency),
             300,
-            fn () => array_keys($this->platformBalanceCurrencies()),
+            fn () => $this->platformPayoutCapacity($currency) > 0,
         );
-
-        return in_array($currency, $currencies, true);
     }
 
     /** Devises dans lesquelles la plateforme détient un solde (pour les diagnostics). */
@@ -490,25 +485,30 @@ class StripeService
     }
 
     /**
-     * Verse un montant au vendeur sur son IBAN (compte Connect déjà validé).
+     * Verse un montant au vendeur sur son IBAN, quelle que soit la devise détenue
+     * par la plateforme.
      *
-     * PRÉ-CONTRÔLES (avant tout mouvement d'argent) — voir assertPayoutPossible() :
-     *  a) la capability `transfers` du compte vendeur doit être `active` ;
-     *  b) la plateforme doit détenir le montant DANS LA DEVISE du versement.
-     * En cas d'échec, une StripePayoutUnavailableException est levée : rien n'a bougé.
+     * La plateforme encaisse en CAD/USD/… alors que l'IBAN du vendeur est en EUR :
+     * plutôt que de refuser, on FINANCE le virement depuis la devise disponible et
+     * on laisse Stripe convertir à l'arrivée sur le compte du vendeur.
      *
-     * Puis deux étapes :
-     *  1) **Transfer** plateforme → compte Connect du vendeur (mouvement autoritatif) ;
-     *  2) **Payout** compte Connect → IBAN. Le compte étant en versement MANUEL, ce
-     *     payout est le nôtre (id connu) : le webhook `payout.paid` pourra rapprocher
-     *     le retrait. S'il échoue, on **contre-passe le Transfer** pour ne pas laisser
-     *     les fonds bloqués sur le compte Connect, puis on lève l'exception.
+     *  1) On regarde ce que le compte du vendeur détient déjà dans la devise cible
+     *     (reliquat d'une conversion précédente) et on ne transfère que le manque.
+     *  2) **Transfer** plateforme → compte Connect : dans la devise cible si la
+     *     plateforme la détient, sinon dans sa devise de règlement, montant converti
+     *     au taux du moment plus une marge (`stripe_fx_buffer_percent`, 3 % par
+     *     défaut) qui absorbe l'écart entre notre taux et celui de Stripe.
+     *  3) **Payout** compte Connect → IBAN, du montant demandé — ou de ce qui est
+     *     réellement disponible si le change a été moins favorable que prévu. Le
+     *     montant effectivement versé est retourné à l'appelant.
      *
-     * ⚠️ Le montant est exprimé dans l'unité principale de la devise (ex. euros) et
-     * converti ici en plus petite unité (centimes). Valable pour EUR/GBP/USD (2
-     * décimales) — les seules devises de payout supportées ici.
+     * Si le payout est refusé, le transfer est contre-passé : aucun argent ne reste
+     * bloqué sur le compte du vendeur.
      *
-     * @return array { id, transfer_id, payout_id, amount_minor, currency }
+     * ⚠️ Devises de payout supportées : EUR/GBP/USD (2 décimales).
+     *
+     * @return array { id, transfer_id, payout_id, amount_minor, currency,
+     *                 payout_amount, funding_currency, funding_amount, shortfall }
      */
     public function payoutToVendor(string $accountId, float $amount, string $currency): array
     {
@@ -521,76 +521,219 @@ class StripeService
 
         $this->assertPayoutPossible($accountId, $amount, $currency);
 
-        // 1) Transfer plateforme → compte Connect (autoritatif).
-        //
-        // Le pré-contrôle a déjà écarté les cas connus, mais le solde peut avoir
-        // bougé entre-temps (ou la conversion automatique être annoncée à tort) :
-        // on traduit alors le refus Stripe en refus métier explicite plutôt qu'en
-        // erreur 500 opaque.
-        try {
-            $transfer = $this->withoutStripeNotices(fn () => $this->client()->transfers->create([
-                'amount' => $minor,
-                'currency' => $currency,
-                'destination' => $accountId,
-                'metadata' => ['asso_kind' => 'vendor_withdrawal'],
-            ]));
-        } catch (\Throwable $e) {
-            $raw = strtolower($e->getMessage());
-            $reason = str_contains($raw, 'insufficient') || str_contains($raw, 'balance')
-                ? 'platform_funds'
-                : 'transfer_refused';
+        // 1) Ce que le compte du vendeur détient déjà dans la devise du virement.
+        $connected = $this->connectedAvailableBalance($accountId, $currency);
+        $missing = round($amount - $connected, 2);
 
-            Log::error('[StripeService] Transfer plateforme → vendeur refusé', [
-                'account' => $accountId,
-                'currency' => $currency,
-                'error' => $e->getMessage(),
-            ]);
+        $transferId = null;
+        $funding = null;
 
+        // 2) Financement du manque, converti si nécessaire.
+        if ($missing > 0) {
+            $funding = $this->fundingFor($missing, $currency);
+
+            try {
+                $transfer = $this->withoutStripeNotices(fn () => $this->client()->transfers->create([
+                    'amount' => (int) round($funding['amount'] * 100),
+                    'currency' => $funding['currency'],
+                    'destination' => $accountId,
+                    'metadata' => [
+                        'asso_kind' => 'vendor_withdrawal',
+                        'target_currency' => strtoupper($currency),
+                        'target_amount' => (string) $amount,
+                    ],
+                ]));
+                $transferId = $transfer->id;
+            } catch (\Throwable $e) {
+                Log::error('[StripeService] Transfer plateforme → vendeur refusé', [
+                    'account' => $accountId,
+                    'funding' => $funding,
+                    'error' => $e->getMessage(),
+                ]);
+
+                $raw = strtolower($e->getMessage());
+                throw new \App\Exceptions\StripePayoutUnavailableException(
+                    str_contains($raw, 'insufficient') || str_contains($raw, 'balance')
+                        ? 'platform_funds'
+                        : 'transfer_refused',
+                    'Le transfert vers le compte du vendeur a été refusé : ' . $e->getMessage(),
+                    ['account_id' => $accountId, 'funding' => $funding],
+                );
+            }
+
+            // Relire le solde : Stripe a converti à SON taux.
+            $connected = $this->connectedAvailableBalance($accountId, $currency);
+        }
+
+        // 3) Payout : le montant demandé, ou tout le disponible si le change a été
+        // moins favorable que la marge prévue (mieux vaut verser un peu moins que
+        // de tout annuler ; l'écart est tracé et le reliquat sert au prochain virement).
+        $payoutAmount = min($amount, $connected);
+        $payoutMinor = (int) floor(round($payoutAmount, 2) * 100);
+
+        if ($payoutMinor <= 0) {
+            if ($transferId) {
+                $this->reverseTransfer($transferId);
+            }
             throw new \App\Exceptions\StripePayoutUnavailableException(
-                $reason,
-                'Le transfert vers le compte du vendeur a été refusé : ' . $e->getMessage(),
-                ['account_id' => $accountId, 'currency' => strtoupper($currency)],
+                'payout_refused',
+                "Le compte du vendeur n'a pas été crédité par la conversion.",
+                ['account_id' => $accountId, 'funding' => $funding],
             );
         }
 
-        // 2) Payout compte Connect → IBAN (versement manuel : c'est à nous de le créer).
         try {
             $payout = $this->withoutStripeNotices(fn () => $this->client()->payouts->create([
-                'amount' => $minor,
+                'amount' => $payoutMinor,
                 'currency' => $currency,
-                'metadata' => [
+                'metadata' => array_filter([
                     'asso_kind' => 'vendor_withdrawal',
-                    'transfer_id' => $transfer->id,
-                ],
+                    'transfer_id' => $transferId,
+                ]),
             ], ['stripe_account' => $accountId]));
         } catch (\Throwable $e) {
             // Sans payout, les fonds resteraient sur le compte Connect sans jamais
-            // partir (plus de versement automatique) : on les ramène côté plateforme.
+            // partir (versement manuel) : on les ramène côté plateforme.
             Log::error('[StripeService] Payout refusé — contre-passation du transfer', [
                 'account' => $accountId,
-                'transfer_id' => $transfer->id,
+                'transfer_id' => $transferId,
                 'error' => $e->getMessage(),
             ]);
-            $this->reverseTransfer($transfer->id, $minor);
+
+            if ($transferId) {
+                $this->reverseTransfer($transferId);
+            }
 
             throw new \App\Exceptions\StripePayoutUnavailableException(
                 'payout_refused',
                 "Le versement vers l'IBAN a été refusé par Stripe : " . $e->getMessage(),
-                ['account_id' => $accountId, 'transfer_id' => $transfer->id],
+                ['account_id' => $accountId, 'transfer_id' => $transferId],
             );
         }
 
+        $paid = $payoutMinor / 100;
+
         return [
             'id' => $payout->id,
-            'transfer_id' => $transfer->id,
+            'transfer_id' => $transferId,
             'payout_id' => $payout->id,
-            'amount_minor' => $minor,
+            'amount_minor' => $payoutMinor,
             'currency' => $currency,
+            'payout_amount' => $paid,
+            'funding_currency' => $funding['currency'] ?? $currency,
+            'funding_amount' => $funding['amount'] ?? 0.0,
+            // Écart éventuel entre le montant promis et le montant versé.
+            'shortfall' => round($amount - $paid, 2),
         ];
     }
 
     /**
-     * Vérifie que le virement est possible AVANT de toucher à l'argent.
+     * Détermine comment financer $missing dans la devise $currency.
+     *
+     * Devise cible si la plateforme la détient ; sinon sa devise de règlement, avec
+     * le montant converti au taux du moment plus une marge de sécurité — Stripe
+     * appliquera son propre taux à la conversion, généralement un peu moins bon.
+     *
+     * @return array{currency:string, amount:float, rate:float, buffer:float}
+     * @throws \App\Exceptions\StripePayoutUnavailableException
+     */
+    private function fundingFor(float $missing, string $currency): array
+    {
+        $currency = strtolower($currency);
+        $balances = $this->platformBalanceCurrencies();
+
+        // 1) La plateforme détient déjà la devise du virement.
+        if (($balances[strtoupper($currency)] ?? 0) >= $missing) {
+            return ['currency' => $currency, 'amount' => $missing, 'rate' => 1.0, 'buffer' => 0.0];
+        }
+
+        // 2) Sinon : la devise de règlement (le plus gros solde disponible).
+        arsort($balances);
+        $bufferPercent = (float) \App\Models\Setting::get('stripe_fx_buffer_percent', 3);
+
+        foreach ($balances as $code => $available) {
+            $conversion = \App\Services\ExchangeRateService::convert($currency, strtolower($code), $missing);
+            if (!($conversion['success'] ?? false)) {
+                continue; // taux inconnu : on n'invente pas de conversion.
+            }
+
+            $needed = round(((float) $conversion['amount']) * (1 + $bufferPercent / 100), 2);
+
+            if ($available + 0.0001 >= $needed) {
+                return [
+                    'currency' => strtolower($code),
+                    'amount' => $needed,
+                    'rate' => (float) $conversion['rate'],
+                    'buffer' => $bufferPercent,
+                ];
+            }
+        }
+
+        throw new \App\Exceptions\StripePayoutUnavailableException(
+            'platform_funds',
+            sprintf('Aucun solde plateforme ne permet de financer %.2f %s.', $missing, strtoupper($currency)),
+            ['needed' => $missing, 'currency' => strtoupper($currency), 'balances' => $balances],
+        );
+    }
+
+    /** Solde disponible d'un compte connecté dans une devise (unité principale). */
+    public function connectedAvailableBalance(string $accountId, string $currency): float
+    {
+        $currency = strtolower($currency);
+
+        try {
+            $balance = $this->withoutStripeNotices(
+                fn () => $this->client()->balance->retrieve([], ['stripe_account' => $accountId])
+            );
+        } catch (\Throwable $e) {
+            Log::warning('[StripeService] Solde du compte connecté illisible', [
+                'account' => $accountId,
+                'error' => $e->getMessage(),
+            ]);
+            return 0.0;
+        }
+
+        foreach (($balance->available ?? []) as $entry) {
+            if (strtolower($entry->currency ?? '') === $currency) {
+                return ((int) ($entry->amount ?? 0)) / 100;
+            }
+        }
+
+        return 0.0;
+    }
+
+    /**
+     * Capacité de virement de la plateforme, exprimée dans la devise demandée :
+     * somme de TOUS ses soldes convertis. Une devise sans taux connu est ignorée.
+     */
+    public function platformPayoutCapacity(string $currency): float
+    {
+        $currency = strtolower($currency);
+        $total = 0.0;
+
+        foreach ($this->platformBalanceCurrencies() as $code => $available) {
+            if ($available <= 0) {
+                continue;
+            }
+
+            if (strtolower($code) === $currency) {
+                $total += $available;
+                continue;
+            }
+
+            $conversion = \App\Services\ExchangeRateService::convert(strtolower($code), $currency, $available);
+            if ($conversion['success'] ?? false) {
+                $total += (float) $conversion['amount'];
+            }
+        }
+
+        return round($total, 2);
+    }
+
+    /**
+     * Vérifie que le virement est possible AVANT de toucher à l'argent : compte
+     * vendeur activé par Stripe, et plateforme capable de financer le montant —
+     * toutes devises confondues, la conversion étant assurée au moment du transfert.
      *
      * @throws \App\Exceptions\StripePayoutUnavailableException
      */
@@ -613,30 +756,21 @@ class StripeService
             );
         }
 
-        // b) La plateforme doit détenir les fonds DANS CETTE DEVISE.
-        //
-        // Sauf si la CONVERSION AUTOMATIQUE est activée sur le compte Stripe
-        // (dashboard → Balances → conversion de devises) : Stripe puise alors dans
-        // la devise de règlement et le vendeur reçoit le montant exact demandé.
-        // Le réglage `stripe_allow_currency_conversion` déclare cette activation ;
-        // s'il est faux, on refuse ici plutôt que de laisser Stripe échouer après
-        // avoir débité le wallet.
-        if (\App\Models\Setting::get('stripe_allow_currency_conversion', false)) {
-            return;
-        }
+        // b) La plateforme doit pouvoir financer le montant, quelle que soit la
+        // devise de ses fonds (le compte du vendeur peut déjà en détenir une partie).
+        $capacity = $this->platformPayoutCapacity($currency)
+            + $this->connectedAvailableBalance($accountId, $currency);
 
-        $available = $this->platformAvailableBalance($currency);
-        if ($available + 0.0001 < $amount) {
-            $balances = $this->platformBalanceCurrencies();
+        if ($capacity + 0.0001 < $amount) {
             throw new \App\Exceptions\StripePayoutUnavailableException(
-                empty($balances[strtoupper($currency)]) ? 'currency_unavailable' : 'platform_funds',
+                'platform_funds',
                 sprintf(
-                    'Solde plateforme Stripe insuffisant en %s (disponible %.2f, requis %.2f).',
+                    'Fonds plateforme insuffisants : %.2f %s disponibles (toutes devises), %.2f requis.',
+                    $capacity,
                     strtoupper($currency),
-                    $available,
                     $amount,
                 ),
-                ['currency' => strtoupper($currency), 'available' => $available, 'balances' => $balances],
+                ['currency' => strtoupper($currency), 'capacity' => $capacity, 'balances' => $this->platformBalanceCurrencies()],
             );
         }
     }

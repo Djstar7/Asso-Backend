@@ -1023,6 +1023,20 @@ class WalletController extends Controller
             // Appel Stripe : transfer (autoritatif) + payout IBAN, dans la devise du compte.
             $result = $stripe->payoutToVendor($user->stripe_account_id, $payoutAmount, $payoutCurrency);
 
+            // Le virement peut être financé depuis une autre devise (ex. solde CAD
+            // pour un IBAN en EUR) : c'est le montant RÉELLEMENT versé qui fait foi.
+            $paidAmount = (float) ($result['payout_amount'] ?? $payoutAmount);
+            if (abs($paidAmount - $payoutAmount) > 0.001) {
+                Log::info('[WalletController] Montant versé ajusté après conversion', [
+                    'withdrawal_id' => $withdrawal->id,
+                    'attendu' => $payoutAmount,
+                    'versé' => $paidAmount,
+                    'financement' => $result['funding_currency'] ?? null,
+                ]);
+                $withdrawal->payout_amount = $paidAmount;
+            }
+            $payoutAmount = $paidAmount;
+
             $withdrawal->stripe_transfer_id = $result['transfer_id'] ?? null;
             $withdrawal->stripe_payout_id = $result['payout_id'] ?? null;
             $withdrawal->stripe_response = $result;
@@ -1180,6 +1194,9 @@ class WalletController extends Controller
                 . 'Vérifiez vos informations dans « Compte de virement » ou réessayez sous peu.',
             'payout_refused', 'transfer_refused' => "Le virement a été refusé par notre partenaire bancaire. "
                 . "Votre solde n'a pas été débité. Vérifiez votre IBAN puis réessayez.",
+            'platform_funds' => "Le virement bancaire est momentanément indisponible (fonds en cours de "
+                . "réapprovisionnement). Votre solde n'a pas été débité : réessayez plus tard ou "
+                . 'choisissez un autre moyen de retrait.',
             default => "Le virement bancaire est momentanément indisponible. "
                 . "Votre solde n'a pas été débité. Réessayez plus tard ou choisissez un autre moyen de retrait.",
         };
