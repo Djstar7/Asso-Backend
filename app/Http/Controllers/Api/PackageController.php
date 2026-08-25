@@ -4,11 +4,14 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Package;
+use App\Models\PackageSubscription;
 use App\Models\VendorPackage;
 use App\Services\WalletService;
 use App\Services\InvoiceService;
 use App\Services\InvoiceGenerator;
 use App\Services\FcmService;
+use App\Services\PackageSubscriptionService;
+use App\Services\PaymentMethodService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -20,17 +23,20 @@ class PackageController extends Controller
     protected InvoiceService $invoiceService;
     protected InvoiceGenerator $invoiceGenerator;
     protected FcmService $fcmService;
+    protected PackageSubscriptionService $packageSubscriptionService;
 
     public function __construct(
         WalletService $walletService,
         InvoiceService $invoiceService,
         InvoiceGenerator $invoiceGenerator,
-        FcmService $fcmService
+        FcmService $fcmService,
+        PackageSubscriptionService $packageSubscriptionService
     ) {
         $this->walletService = $walletService;
         $this->invoiceService = $invoiceService;
         $this->invoiceGenerator = $invoiceGenerator;
         $this->fcmService = $fcmService;
+        $this->packageSubscriptionService = $packageSubscriptionService;
     }
 
     /**
@@ -98,12 +104,49 @@ class PackageController extends Controller
 
         $validated = $request->validate([
             'package_id' => 'required|exists:packages,id',
-            'wallet_type' => 'required|in:kpay,paypal',
+            // Rétro-compat : wallet_type (kpay|paypal) = paiement depuis le SOLDE wallet.
+            'wallet_type' => 'nullable|in:kpay,paypal',
+            // Nouveau : rail de paiement DIRECT (mêmes rails que les commandes acheteur).
+            'payment_mode' => 'nullable|in:wallet,kpay_direct,paypal_direct,stripe_direct',
+            // Requis en mode kpay_direct (parcours USSD Mobile Money).
+            'provider' => 'required_if:payment_mode,kpay_direct|string',
+            'phone_number' => 'required_if:payment_mode,kpay_direct|string',
         ]);
 
         $user = $request->user();
         $package = Package::findOrFail($validated['package_id']);
-        $walletType = $validated['wallet_type'];
+
+        // payment_mode absent ⇒ paiement par solde wallet (rétro-compat).
+        $paymentMode = $validated['payment_mode'] ?? 'wallet';
+
+        // Vérifications package communes aux deux modes (solde ou rail direct).
+        if (!in_array($package->type, ['storage', 'certification'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Type de package non supporté',
+            ], 422);
+        }
+        if (!$package->is_active) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Ce package n\'est plus disponible',
+            ], 422);
+        }
+
+        // ── Paiement par RAIL DIRECT (kpay_direct / paypal_direct / stripe_direct) ──
+        // Mêmes rails que les commandes acheteur : confirmation asynchrone par polling.
+        if (in_array($paymentMode, ['kpay_direct', 'paypal_direct', 'stripe_direct'])) {
+            return $this->subscribeDirect($request, $user, $package, $paymentMode);
+        }
+
+        // ── Paiement par SOLDE wallet (rétro-compat) ──
+        $walletType = $validated['wallet_type'] ?? null;
+        if (!in_array($walletType, ['kpay', 'paypal'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'wallet_type (kpay ou paypal) requis pour un paiement par solde.',
+            ], 422);
+        }
 
         Log::info("[PackageController] 📝 Request details", [
             'user_id' => $user->id,
@@ -112,22 +155,6 @@ class PackageController extends Controller
             'package_price' => $package->price,
             'wallet_type' => $walletType,
         ]);
-
-        // Verify package type is storage or certification
-        if (!in_array($package->type, ['storage', 'certification'])) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Type de package non supporté',
-            ], 422);
-        }
-
-        // Verify package is active
-        if (!$package->is_active) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Ce package n\'est plus disponible',
-            ], 422);
-        }
 
         // Check if user already has an active package - we'll cumulate it
         $existingPackage = $user->activeVendorPackage;
@@ -357,6 +384,107 @@ class PackageController extends Controller
                 'error' => app()->environment('local') ? $e->getMessage() : null,
             ], 500);
         }
+    }
+
+    /**
+     * Souscription d'un package par RAIL DIRECT (kpay_direct / paypal_direct / stripe_direct).
+     *
+     * Crée un « intent » d'abonnement (PackageSubscription en 'pending') et initie le
+     * paiement chez le PSP. Le VendorPackage n'est créé/cumulé qu'à la confirmation du
+     * paiement (polling GET /v1/packages/subscription/{id}/payment-status). Aucune
+     * validation vendeur ici : l'abonnement s'active dès que l'argent est encaissé.
+     */
+    private function subscribeDirect(Request $request, $user, Package $package, string $paymentMode)
+    {
+        // Garde-fou : un rail par redirection (PayPal / carte Stripe) n'est proposé que
+        // s'il est réellement fonctionnel (clés configurées + activé). Sinon on bloque
+        // immédiatement, sans rien créer.
+        $railGuard = [
+            'paypal_direct' => ['paypal', 'PayPal'],
+            'stripe_direct' => ['stripe', 'par carte bancaire (Stripe)'],
+        ];
+        if (isset($railGuard[$paymentMode])
+            && !PaymentMethodService::isEnabled($railGuard[$paymentMode][0])) {
+            return response()->json([
+                'success' => false,
+                'message' => "Le paiement {$railGuard[$paymentMode][1]} n'est pas disponible pour le moment. Veuillez choisir un autre moyen de paiement.",
+            ], 422);
+        }
+
+        try {
+            $subscription = $this->packageSubscriptionService->createDirect(
+                user: $user,
+                package: $package,
+                paymentMode: $paymentMode,
+                kpayProvider: $request->input('provider'),
+                kpayPhone: $request->input('phone_number'),
+            );
+        } catch (\Exception $e) {
+            Log::error('[PackageController] ❌ Direct subscription init failed', ['error' => $e->getMessage()]);
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => match ($paymentMode) {
+                'kpay_direct' => 'Abonnement créé. Validez le paiement sur votre téléphone (USSD).',
+                'paypal_direct' => 'Abonnement créé. Finalisez le paiement PayPal.',
+                'stripe_direct' => 'Abonnement créé. Finalisez le paiement par carte.',
+                default => 'Abonnement créé.',
+            },
+            'payment_mode' => $paymentMode,
+            'subscription_id' => $subscription->id,
+            'status' => $subscription->status, // pending
+            'payment_reference' => $subscription->payment_reference,
+            // Modes redirect (PayPal / carte Stripe) : URL de checkout à ouvrir en WebView.
+            'approval_url' => in_array($paymentMode, ['paypal_direct', 'stripe_direct'])
+                ? $subscription->approval_url : null,
+        ], 201);
+    }
+
+    /**
+     * Statut de paiement d'un abonnement direct (pollable).
+     * GET /v1/packages/subscription/{id}/payment-status
+     *
+     * Re-vérifie chez le PSP et active l'abonnement (crée/cumule le VendorPackage) dès
+     * que le paiement est confirmé. Renvoie {status: pending|paid|failed, ...}.
+     */
+    public function subscriptionPaymentStatus(Request $request, $id)
+    {
+        $subscription = PackageSubscription::where('user_id', $request->user()->id)
+            ->findOrFail($id);
+
+        if ($subscription->isPending()) {
+            $this->packageSubscriptionService->checkAndConfirm($subscription);
+            $subscription->refresh();
+        }
+
+        $vendorPackage = $subscription->vendor_package_id
+            ? VendorPackage::find($subscription->vendor_package_id)
+            : null;
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'subscription_id' => $subscription->id,
+                // pending | paid | failed
+                'status' => $subscription->status,
+                'payment_mode' => $subscription->payment_method,
+                'payment_reference' => $subscription->payment_reference,
+                'vendor_package_id' => $subscription->vendor_package_id,
+                'vendor_package' => $vendorPackage ? [
+                    'id' => $vendorPackage->id,
+                    'storage_total_mb' => (float) $vendorPackage->storage_total_mb,
+                    'storage_remaining_mb' => (float) $vendorPackage->storage_remaining_mb,
+                    'expires_at' => $vendorPackage->expires_at->toIso8601String(),
+                    'status' => $vendorPackage->status,
+                    'is_cumulative' => $vendorPackage->package_id === null,
+                ] : null,
+            ],
+        ]);
     }
 
     /**

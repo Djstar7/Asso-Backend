@@ -225,6 +225,12 @@
                         <i class="fas fa-life-ring w-5 mr-3"></i>
                         Support
                     </a>
+
+                    <a href="{{ route('admin.messages.index') }}"
+                       class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.messages.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
+                        <i class="fas fa-comments w-5 mr-3"></i>
+                        Messagerie
+                    </a>
                 </div>
 
                 <!-- Section DIASPO -->

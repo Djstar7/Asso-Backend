@@ -277,6 +277,12 @@ class SettingsController extends Controller
     public function updatePayments(Request $request)
     {
         try {
+            // Marqueur du formulaire soumis (un onglet = un gateway). Détermine
+            // QUEL gateway est réécrit dans service_configurations : soumettre le
+            // formulaire KPay ne doit jamais toucher is_active/clés de Stripe et
+            // inversement (sinon l'autre gateway devient « non configuré » et grisé).
+            $form = $request->input('_form'); // 'paypal' | 'kpay' | 'stripe' | null
+
             $validated = $request->validate([
                 // PayPal
                 'paypal_enabled' => 'nullable|boolean',
@@ -349,8 +355,9 @@ class SettingsController extends Controller
                 Setting::set($key, $value ?? '', $type, 'payment');
             }
 
-            // KPay → service_configurations
-            $this->updateServiceConfiguration($validated);
+            // KPay / Stripe → service_configurations (écriture PARTIELLE : seul le
+            // gateway du formulaire soumis est réécrit).
+            $this->updateServiceConfiguration($validated, $form);
 
             return redirect()->route('admin.settings.payments')
                 ->with('success', 'Paramètres de paiement mis à jour avec succès');
@@ -484,98 +491,118 @@ class SettingsController extends Controller
     }
 
     /**
-     * Mettre à jour les configurations de service (KPay, etc).
+     * Mettre à jour les configurations de service (KPay, Stripe) de façon PARTIELLE.
      *
-     * @param array $validated
+     * Chaque onglet de la page paiements est un formulaire distinct qui ne poste que
+     * SON gateway. On ne réécrit donc dans service_configurations QUE le gateway
+     * correspondant au marqueur `_form` : soumettre le formulaire KPay ne doit jamais
+     * remettre Stripe à is_active=false (il deviendrait « non configuré » et grisé côté
+     * mobile), ni inversement. Les clés absentes/vides sont toujours conservées (on part
+     * de la config BRUTE via getRawConfig, indépendante de is_active).
+     *
+     * @param array       $validated Données validées du formulaire soumis
+     * @param string|null $form      'kpay' | 'stripe' | 'paypal' (aucun impact service_configs)
      * @return void
      */
-    private function updateServiceConfiguration(array $validated): void
+    private function updateServiceConfiguration(array $validated, ?string $form = null): void
     {
-        // KPay : clés attendues par KPayService (api_key, secret_key, webhook_secret, base_url, mode).
-        // On repart de la config existante ; les secrets laissés vides sont conservés.
-        $existing = ServiceConfiguration::getConfig(ServiceConfiguration::SERVICE_KPAY) ?? [];
+        // KPay + exchange_rate : uniquement quand le formulaire KPay est soumis.
+        if ($form === 'kpay') {
+            // On repart de la config BRUTE (ignore is_active) : les secrets laissés vides
+            // sont conservés, même si le gateway était/est désactivé.
+            $existing = ServiceConfiguration::getRawConfig(ServiceConfiguration::SERVICE_KPAY) ?? [];
 
-        $kpayConfig = array_merge([
-            'base_url' => 'https://admin.kpay.site',
-            'mode' => 'sandbox',
-            'api_key' => '',
-            'secret_key' => '',
-            'webhook_secret' => '',
-        ], $existing);
+            $kpayConfig = array_merge([
+                'base_url' => 'https://admin.kpay.site',
+                'mode' => 'sandbox',
+                'api_key' => '',
+                'secret_key' => '',
+                'webhook_secret' => '',
+            ], $existing);
 
-        if (!empty($validated['kpay_base_url'])) {
-            $kpayConfig['base_url'] = $validated['kpay_base_url'];
-        }
-        if (!empty($validated['kpay_mode'])) {
-            $kpayConfig['mode'] = $validated['kpay_mode'];
-        }
-        // Ne pas écraser une clé existante par une valeur vide (laisser vide = conserver)
-        if (!empty($validated['kpay_api_key'])) {
-            $kpayConfig['api_key'] = $validated['kpay_api_key'];
-        }
-        if (!empty($validated['kpay_secret_key'])) {
-            $kpayConfig['secret_key'] = $validated['kpay_secret_key'];
-        }
-        if (!empty($validated['kpay_webhook_secret'])) {
-            $kpayConfig['webhook_secret'] = $validated['kpay_webhook_secret'];
-        }
-        if (!empty($validated['kpay_base_currency'])) {
-            $kpayConfig['base_currency'] = strtoupper($validated['kpay_base_currency']);
-        }
-        if (empty($kpayConfig['base_currency'])) {
-            $kpayConfig['base_currency'] = 'XAF';
-        }
+            if (!empty($validated['kpay_base_url'])) {
+                $kpayConfig['base_url'] = $validated['kpay_base_url'];
+            }
+            if (!empty($validated['kpay_mode'])) {
+                $kpayConfig['mode'] = $validated['kpay_mode'];
+            }
+            // Ne pas écraser une clé existante par une valeur vide (laisser vide = conserver)
+            if (!empty($validated['kpay_api_key'])) {
+                $kpayConfig['api_key'] = $validated['kpay_api_key'];
+            }
+            if (!empty($validated['kpay_secret_key'])) {
+                $kpayConfig['secret_key'] = $validated['kpay_secret_key'];
+            }
+            if (!empty($validated['kpay_webhook_secret'])) {
+                $kpayConfig['webhook_secret'] = $validated['kpay_webhook_secret'];
+            }
+            if (!empty($validated['kpay_base_currency'])) {
+                $kpayConfig['base_currency'] = strtoupper($validated['kpay_base_currency']);
+            }
+            if (empty($kpayConfig['base_currency'])) {
+                $kpayConfig['base_currency'] = 'XAF';
+            }
 
-        ServiceConfiguration::setConfig(
-            ServiceConfiguration::SERVICE_KPAY,
-            $kpayConfig,
-            isset($validated['kpay_enabled']) && $validated['kpay_enabled'],
-            'KPay - Paiements et retraits Mobile Money'
-        );
-
-        // Clé exchangerate-api.com (conversion de devises) — conservée si laissée vide.
-        if (!empty($validated['exchange_rate_api_key'])) {
-            $erExisting = ServiceConfiguration::getConfig('exchange_rate') ?? [];
             ServiceConfiguration::setConfig(
-                'exchange_rate',
-                array_merge($erExisting, ['api_key' => $validated['exchange_rate_api_key']]),
-                true,
-                'Conversion de devises (exchangerate-api.com)'
+                ServiceConfiguration::SERVICE_KPAY,
+                $kpayConfig,
+                isset($validated['kpay_enabled']) && $validated['kpay_enabled'],
+                'KPay - Paiements et retraits Mobile Money'
             );
+
+            // Clé exchangerate-api.com (conversion de devises) — conservée si laissée vide.
+            if (!empty($validated['exchange_rate_api_key'])) {
+                $erExisting = ServiceConfiguration::getRawConfig('exchange_rate') ?? [];
+                ServiceConfiguration::setConfig(
+                    'exchange_rate',
+                    array_merge($erExisting, ['api_key' => $validated['exchange_rate_api_key']]),
+                    true,
+                    'Conversion de devises (exchangerate-api.com)'
+                );
+            }
+
+            return;
         }
 
-        // Stripe : clés lues par StripeService (secret_key, publishable_key, webhook_secret, mode).
-        // Secrets laissés vides = conservés (on ne remplace jamais par une valeur vide).
-        $stripeExisting = ServiceConfiguration::getConfig(ServiceConfiguration::SERVICE_STRIPE) ?? [];
-        $stripeConfig = array_merge([
-            'mode' => 'test',
-            'publishable_key' => '',
-            'secret_key' => '',
-            'webhook_secret' => '',
-            'webhook_secret_connect' => '',
-        ], $stripeExisting);
+        // Stripe : uniquement quand le formulaire « Encaissement direct » est soumis.
+        if ($form === 'stripe') {
+            // Config BRUTE (ignore is_active) : clés conservées même quand on désactive.
+            $stripeExisting = ServiceConfiguration::getRawConfig(ServiceConfiguration::SERVICE_STRIPE) ?? [];
+            $stripeConfig = array_merge([
+                'mode' => 'test',
+                'publishable_key' => '',
+                'secret_key' => '',
+                'webhook_secret' => '',
+                'webhook_secret_connect' => '',
+            ], $stripeExisting);
 
-        if (!empty($validated['stripe_mode'])) {
-            $stripeConfig['mode'] = $validated['stripe_mode'];
-        }
-        if (!empty($validated['stripe_publishable_key'])) {
-            $stripeConfig['publishable_key'] = $validated['stripe_publishable_key'];
-        }
-        if (!empty($validated['stripe_secret_key'])) {
-            $stripeConfig['secret_key'] = $validated['stripe_secret_key'];
-        }
-        if (!empty($validated['stripe_webhook_secret'])) {
-            $stripeConfig['webhook_secret'] = $validated['stripe_webhook_secret'];
-        }
-        if (!empty($validated['stripe_webhook_secret_connect'])) {
-            $stripeConfig['webhook_secret_connect'] = $validated['stripe_webhook_secret_connect'];
+            if (!empty($validated['stripe_mode'])) {
+                $stripeConfig['mode'] = $validated['stripe_mode'];
+            }
+            if (!empty($validated['stripe_publishable_key'])) {
+                $stripeConfig['publishable_key'] = $validated['stripe_publishable_key'];
+            }
+            if (!empty($validated['stripe_secret_key'])) {
+                $stripeConfig['secret_key'] = $validated['stripe_secret_key'];
+            }
+            if (!empty($validated['stripe_webhook_secret'])) {
+                $stripeConfig['webhook_secret'] = $validated['stripe_webhook_secret'];
+            }
+            if (!empty($validated['stripe_webhook_secret_connect'])) {
+                $stripeConfig['webhook_secret_connect'] = $validated['stripe_webhook_secret_connect'];
+            }
+
+            ServiceConfiguration::setConfig(
+                ServiceConfiguration::SERVICE_STRIPE,
+                $stripeConfig,
+                isset($validated['stripe_enabled']) && $validated['stripe_enabled'],
+                'Stripe - Encaissement carte + payout IBAN (Connect)'
+            );
+
+            return;
         }
 
-        ServiceConfiguration::setConfig(
-            ServiceConfiguration::SERVICE_STRIPE,
-            $stripeConfig,
-            isset($validated['stripe_enabled']) && $validated['stripe_enabled'],
-            'Stripe - Encaissement carte + payout IBAN (Connect)'
-        );
+        // Formulaire PayPal (ou marqueur absent) : rien à écrire dans service_configurations
+        // (les identifiants PayPal vivent dans la table settings, gérés en amont).
     }
 }

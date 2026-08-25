@@ -117,6 +117,8 @@ Route::prefix('v1')->group(function () {
     // App info (public)
     Route::get('/app/about', [AppController::class, 'about']);
     Route::get('/app/version', [AppController::class, 'version']);
+    // Compte support ASSO (id à utiliser par le mobile pour démarrer une conversation).
+    Route::get('/app/support', [AppController::class, 'support']);
 
     // AI Product Analysis (Gemini Vision) — collab upstream
     Route::post('/products/analyze', [AnalyzeProductController::class, 'analyze']);
@@ -236,6 +238,8 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/', [PackageController::class, 'index']);
             Route::get('/certification', [PackageController::class, 'certificationPackages']);
             Route::post('/subscribe', [PackageController::class, 'subscribe']);
+            // Statut de paiement d'un abonnement direct (polling), équivalent des commandes.
+            Route::get('/subscription/{id}/payment-status', [PackageController::class, 'subscriptionPaymentStatus']);
         });
 
         // Invoices

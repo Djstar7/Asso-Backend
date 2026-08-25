@@ -93,6 +93,24 @@ class ServiceConfiguration extends Model
     }
 
     /**
+     * Récupérer la configuration BRUTE d'un service, INDÉPENDAMMENT de is_active.
+     *
+     * Contrairement à getConfig() (qui renvoie null si le service est désactivé),
+     * cette méthode retourne toujours les clés stockées. Indispensable pour fusionner
+     * une mise à jour partielle sans perdre les secrets d'un gateway qu'on désactive.
+     * N'utilise PAS le cache de getConfig() (qui mémorise null quand is_active=false).
+     *
+     * @param string $serviceName
+     * @return array|null
+     */
+    public static function getRawConfig(string $serviceName): ?array
+    {
+        $service = self::where('service_name', $serviceName)->first();
+
+        return $service?->configuration;
+    }
+
+    /**
      * Vérifier si un service est actif.
      *
      * @param string $serviceName
