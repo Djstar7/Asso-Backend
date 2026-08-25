@@ -34,6 +34,7 @@
             @csrf
             @method('PUT')
             <input type="hidden" name="payment_type" value="paypal">
+            <input type="hidden" name="_form" value="paypal">
 
             <!-- Service Header Card -->
             <div class="bg-gradient-to-br from-blue-500/10 to-blue-600/5 rounded-xl shadow-lg border border-blue-500/20 p-6 mb-6">
@@ -221,6 +222,7 @@
             @csrf
             @method('PUT')
             <input type="hidden" name="payment_type" value="kpay">
+            <input type="hidden" name="_form" value="kpay">
 
             <!-- Service Header Card -->
             <div class="bg-gradient-to-br from-purple-500/10 to-purple-600/5 rounded-xl shadow-lg border border-purple-500/20 p-6 mb-6">
@@ -236,6 +238,9 @@
                     </div>
                     <!-- Enable/Disable Toggle -->
                     <label class="relative inline-flex items-center cursor-pointer">
+                        <!-- Champ caché : garantit que kpay_enabled=0 est envoyé quand la case est décochée
+                             (aligné sur Stripe), pour désactiver KPay sans perdre ses clés API. -->
+                        <input type="hidden" name="kpay_enabled" value="0">
                         <input type="checkbox" name="kpay_enabled" value="1"
                                {{ old('kpay_enabled', ($kpayEnabled ?? false) ? '1' : '0') == '1' ? 'checked' : '' }}
                                class="sr-only peer">
@@ -495,6 +500,7 @@
         <form action="{{ route('admin.settings.payments.update') }}" method="POST">
             @csrf
             @method('PUT')
+            <input type="hidden" name="_form" value="stripe">
 
             <!-- Stripe (carte bancaire) -->
             <div class="bg-dark-100 rounded-lg shadow-lg border border-dark-200 p-6 mb-6">

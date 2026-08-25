@@ -18,6 +18,7 @@ use App\Http\Controllers\Admin\ExchangeController;
 use App\Http\Controllers\Admin\MapController;
 use App\Http\Controllers\Admin\PackageController;
 use App\Http\Controllers\Admin\SupportController;
+use App\Http\Controllers\Admin\MessageController;
 use App\Http\Controllers\Admin\AffiliateController;
 use App\Http\Controllers\Admin\DelivererController;
 use App\Http\Controllers\Admin\DelivererSyncManagementController;
@@ -189,6 +190,11 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/support/{ticket}/update-priority', [SupportController::class, 'updatePriority'])->name('support.update-priority');
         Route::post('/support/{ticket}/assign', [SupportController::class, 'assign'])->name('support.assign');
         Route::delete('/support/{ticket}', [SupportController::class, 'destroy'])->name('support.destroy');
+
+        // Messagerie support (style WhatsApp) — conversations client ↔ compte support
+        Route::get('/messages', [MessageController::class, 'index'])->name('messages.index');
+        Route::get('/messages/{conversation}', [MessageController::class, 'show'])->name('messages.show');
+        Route::post('/messages/{conversation}/reply', [MessageController::class, 'reply'])->name('messages.reply');
 
         // Affiliation - Système de parrainage
         Route::get('/affiliate/settings', [AffiliateController::class, 'settings'])->name('affiliate.settings');

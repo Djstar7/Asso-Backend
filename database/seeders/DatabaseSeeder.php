@@ -26,6 +26,8 @@ class DatabaseSeeder extends Seeder
             SettingsSeeder::class,
             PaymentSettingsSeeder::class,
             LegalPagesSeeder::class,
+            SystemUserSeeder::class,
+            SupportUserSeeder::class,
         ]);
 
         $this->command->info('');
