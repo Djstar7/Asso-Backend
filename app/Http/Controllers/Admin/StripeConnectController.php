@@ -361,10 +361,12 @@ class StripeConnectController extends Controller
 
         $due = $state['requirements_due'] ?? [];
         if (!empty($due)) {
+            // Le vendeur ne peut plus saisir tant qu'il est « en attente » :
+            // c'est le REJET (avec motif) qui lui rouvre le formulaire.
             $message = "Stripe n'a pas activé ce compte : informations manquantes ("
                 . implode(', ', array_slice($due, 0, 6))
                 . (count($due) > 6 ? ', …' : '')
-                . '). Demandez au vendeur de renvoyer son dossier.';
+                . '). Rejetez le dossier en indiquant ce motif : le vendeur pourra alors le renvoyer.';
 
             // En mode test, Stripe REFUSE une identité réelle : seules ses valeurs
             // de vérification passent. Sans ce rappel, on croit à un dossier
