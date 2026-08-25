@@ -45,9 +45,7 @@ class OrderTestSeeder extends Seeder
                 'longitude' => 9.6966,
                 'country' => 'Cameroun',
                 'kpay_wallet_balance' => 500000,
-                'paypal_wallet_balance' => 100000,
                 'locked_kpay_balance' => 0,
-                'locked_paypal_balance' => 0,
                 'is_profile_complete' => true,
             ]
         );

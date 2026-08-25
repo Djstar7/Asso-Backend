@@ -24,7 +24,7 @@ class OrderController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Order::with(['items.product.primaryImage', 'items.product.images', 'deliveryPerson', 'deliveryCompany', 'rating'])
+        $query = Order::with(['items.product.primaryImage', 'items.product.images', 'items.seller', 'deliveryPerson', 'deliveryCompany', 'rating'])
             ->where('user_id', $request->user()->id);
 
         // Masquer les commandes payées par un rail DIRECT (KPay/PayPal/carte) dont le
@@ -359,6 +359,22 @@ class OrderController extends Controller
                 'quantity' => $item->quantity,
                 'unit_price' => (float) $item->unit_price,
                 'total_price' => (float) $item->total_price,
+                // Vendeur de l'article : permet au mobile d'ouvrir une conversation
+                // avec le vendeur depuis le suivi de commande.
+                'seller_id' => $item->seller_id ?? $item->product?->user_id,
+                'seller' => $item->seller
+                    ? [
+                        'id' => $item->seller->id,
+                        'name' => $item->seller->name,
+                        'avatar' => $item->seller->avatar,
+                    ]
+                    : ($item->product?->user
+                        ? [
+                            'id' => $item->product->user->id,
+                            'name' => $item->product->user->name,
+                            'avatar' => $item->product->user->avatar,
+                        ]
+                        : null),
             ]),
             'items_count' => $order->items->count(),
             'rated_at' => $order->rated_at?->toIso8601String(),

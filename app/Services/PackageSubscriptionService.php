@@ -234,8 +234,8 @@ class PackageSubscriptionService
 
             // Trace dans l'historique du client (solde NON modifié : encaissé chez le PSP).
             $provider = $this->providerFor($sub->payment_method);
-            $balanceColumn = $provider === 'paypal' ? 'paypal_wallet_balance' : 'kpay_wallet_balance';
-            $balance = (float) (User::where('id', $sub->user_id)->value($balanceColumn) ?? 0);
+            // Solde indicatif pour la trace (non modifié : encaissé chez le PSP en rail direct).
+            $balance = (float) (User::where('id', $sub->user_id)->value('kpay_wallet_balance') ?? 0);
             WalletTransaction::create([
                 'user_id' => $sub->user_id,
                 'type' => 'debit',
