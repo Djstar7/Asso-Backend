@@ -522,12 +522,36 @@ class StripeService
         $this->assertPayoutPossible($accountId, $amount, $currency);
 
         // 1) Transfer plateforme → compte Connect (autoritatif).
-        $transfer = $this->withoutStripeNotices(fn () => $this->client()->transfers->create([
-            'amount' => $minor,
-            'currency' => $currency,
-            'destination' => $accountId,
-            'metadata' => ['asso_kind' => 'vendor_withdrawal'],
-        ]));
+        //
+        // Le pré-contrôle a déjà écarté les cas connus, mais le solde peut avoir
+        // bougé entre-temps (ou la conversion automatique être annoncée à tort) :
+        // on traduit alors le refus Stripe en refus métier explicite plutôt qu'en
+        // erreur 500 opaque.
+        try {
+            $transfer = $this->withoutStripeNotices(fn () => $this->client()->transfers->create([
+                'amount' => $minor,
+                'currency' => $currency,
+                'destination' => $accountId,
+                'metadata' => ['asso_kind' => 'vendor_withdrawal'],
+            ]));
+        } catch (\Throwable $e) {
+            $raw = strtolower($e->getMessage());
+            $reason = str_contains($raw, 'insufficient') || str_contains($raw, 'balance')
+                ? 'platform_funds'
+                : 'transfer_refused';
+
+            Log::error('[StripeService] Transfer plateforme → vendeur refusé', [
+                'account' => $accountId,
+                'currency' => $currency,
+                'error' => $e->getMessage(),
+            ]);
+
+            throw new \App\Exceptions\StripePayoutUnavailableException(
+                $reason,
+                'Le transfert vers le compte du vendeur a été refusé : ' . $e->getMessage(),
+                ['account_id' => $accountId, 'currency' => strtoupper($currency)],
+            );
+        }
 
         // 2) Payout compte Connect → IBAN (versement manuel : c'est à nous de le créer).
         try {
@@ -590,6 +614,17 @@ class StripeService
         }
 
         // b) La plateforme doit détenir les fonds DANS CETTE DEVISE.
+        //
+        // Sauf si la CONVERSION AUTOMATIQUE est activée sur le compte Stripe
+        // (dashboard → Balances → conversion de devises) : Stripe puise alors dans
+        // la devise de règlement et le vendeur reçoit le montant exact demandé.
+        // Le réglage `stripe_allow_currency_conversion` déclare cette activation ;
+        // s'il est faux, on refuse ici plutôt que de laisser Stripe échouer après
+        // avoir débité le wallet.
+        if (\App\Models\Setting::get('stripe_allow_currency_conversion', false)) {
+            return;
+        }
+
         $available = $this->platformAvailableBalance($currency);
         if ($available + 0.0001 < $amount) {
             $balances = $this->platformBalanceCurrencies();
@@ -804,10 +839,20 @@ class StripeService
         return array_filter($params);
     }
 
-    /** Une URL exploitable par Stripe : http(s) vers un domaine public. */
-    private function isPubliclyReachableUrl(string $url): bool
+    /**
+     * Une URL réellement joignable par Stripe : domaine public résolvable depuis
+     * Internet. Rejette les IP (privées comme publiques : Stripe exige un domaine
+     * pour les webhooks) et les noms locaux — une adresse `192.168.x.x` est acceptée
+     * à la création par Stripe mais aucune livraison n'aboutira jamais.
+     */
+    public function isPubliclyReachableUrl(string $url): bool
     {
         if (!filter_var($url, FILTER_VALIDATE_URL)) {
+            return false;
+        }
+
+        $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
+        if (!in_array($scheme, ['http', 'https'], true)) {
             return false;
         }
 
@@ -846,13 +891,29 @@ class StripeService
                 'id' => $e->id,
                 'url' => $e->url,
                 'status' => $e->status ?? 'unknown',
-                'connect' => (bool) ($e->application === null && ($e->metadata->asso_connect ?? null) === '1')
-                    || (bool) ($e->connect ?? false),
+                // Un endpoint Connect porte l'id de l'application Connect dans
+                // `application` ; nos créations portent aussi la metadata.
+                'connect' => !empty($e->application) || ($e->metadata->asso_connect ?? null) === '1',
                 'events' => (array) ($e->enabled_events ?? []),
             ];
         }
 
         return $out;
+    }
+
+    /** Supprime un endpoint webhook (URL devenue injoignable, doublon…). */
+    public function deleteWebhookEndpoint(string $endpointId): bool
+    {
+        try {
+            $this->withoutStripeNotices(fn () => $this->client()->webhookEndpoints->delete($endpointId, []));
+            return true;
+        } catch (\Throwable $e) {
+            Log::warning('[StripeService] Suppression endpoint webhook échouée', [
+                'endpoint' => $endpointId,
+                'error' => $e->getMessage(),
+            ]);
+            return false;
+        }
     }
 
     /**

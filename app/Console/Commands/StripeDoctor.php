@@ -27,7 +27,9 @@ class StripeDoctor extends Command
     protected $signature = 'stripe:doctor
         {--currency=EUR : Devise des virements à contrôler}
         {--user= : Ne contrôler que ce vendeur (id)}
-        {--fix : Repasse en attente les comptes validés chez nous mais refusés par Stripe}';
+        {--fix : Repasse en attente les comptes validés chez nous mais refusés par Stripe}
+        {--enable-conversion : Déclare que la conversion automatique est activée sur le compte Stripe}
+        {--disable-conversion : Retire cette déclaration (retour au refus si la devise manque)}';
 
     protected $description = 'Diagnostique la chaîne de virement IBAN (Stripe Connect)';
 
@@ -36,6 +38,21 @@ class StripeDoctor extends Command
     public function handle(StripeService $stripe): int
     {
         $currency = strtoupper((string) $this->option('currency'));
+
+        if ($this->option('enable-conversion') || $this->option('disable-conversion')) {
+            $enabled = (bool) $this->option('enable-conversion');
+            \App\Models\Setting::set(
+                'stripe_allow_currency_conversion',
+                $enabled ? '1' : '0',
+                'boolean',
+                'payments',
+                'La conversion automatique de devises est activée sur le compte Stripe',
+            );
+            $this->info($enabled
+                ? '✅ Conversion automatique déclarée : les virements ne seront plus refusés faute de solde dans la devise.'
+                : '✅ Déclaration retirée : un virement sera refusé si la plateforme ne détient pas la devise.');
+            $this->warn('   Ce réglage ne fait que DÉCLARER l\'état du compte Stripe : activez-la aussi dans le dashboard.');
+        }
 
         $this->line('');
         $this->line('<comment>═══ Diagnostic Stripe (virements IBAN) ═══</comment>');
@@ -65,13 +82,22 @@ class StripeDoctor extends Command
             )));
         }
 
+        $conversion = (bool) \App\Models\Setting::get('stripe_allow_currency_conversion', false);
+
         if (!array_key_exists($currency, $balances)) {
-            $this->fail_(
-                "Aucun solde en {$currency} : tout virement en {$currency} sera refusé "
-                    . '(« insufficient available funds »), même si le solde global est positif.',
-                "Activez le règlement multi-devises {$currency} sur le compte Stripe, "
-                    . "ou encaissez en {$currency}.",
-            );
+            if ($conversion) {
+                $this->warn_("Aucun solde en {$currency} : les virements reposent sur la conversion "
+                    . 'automatique Stripe (réglage stripe_allow_currency_conversion actif). '
+                    . 'Vérifiez qu\'elle est bien activée dans le dashboard, sinon chaque virement sera refusé.');
+            } else {
+                $this->fail_(
+                    "Aucun solde en {$currency} : tout virement en {$currency} sera refusé "
+                        . '(« insufficient available funds »), même si le solde global est positif.',
+                    "Activez la conversion automatique dans le dashboard Stripe, puis le réglage "
+                        . "stripe_allow_currency_conversion (php artisan stripe:doctor --enable-conversion) "
+                        . "— ou encaissez en {$currency}.",
+                );
+            }
         } else {
             $this->ok(sprintf('Solde %s disponible : %.2f.', $currency, $balances[$currency]));
         }
@@ -97,6 +123,18 @@ class StripeDoctor extends Command
             );
         } else {
             $this->ok(count($endpoints) . ' endpoint(s) webhook déclaré(s), dont les événements de virement.');
+        }
+
+        // Stripe accepte de créer un endpoint vers une adresse locale, mais ne
+        // l'appellera jamais : la chaîne semble en place alors que rien n'arrive.
+        $unreachable = array_filter($endpoints, fn ($e) => !$stripe->isPubliclyReachableUrl($e['url']));
+        if (!empty($unreachable)) {
+            $this->fail_(
+                count($unreachable) . ' endpoint(s) pointent vers une adresse injoignable depuis Internet ('
+                    . implode(', ', array_map(fn ($e) => $e['url'], array_slice($unreachable, 0, 2)))
+                    . ') : aucun événement ne sera livré.',
+                'php artisan stripe:webhook --prune puis --url=https://votre-domaine-public/api/v1/stripe/webhook',
+            );
         }
 
         if (empty($stripe->webhookSecretConnect())) {

@@ -969,7 +969,7 @@ class WalletController extends Controller
         return match ($reason) {
             'account_not_ready' => "Votre compte de virement n'est pas encore activé par notre partenaire bancaire. "
                 . 'Vérifiez vos informations dans « Compte de virement » ou réessayez sous peu.',
-            'payout_refused' => "Le virement a été refusé par notre partenaire bancaire. "
+            'payout_refused', 'transfer_refused' => "Le virement a été refusé par notre partenaire bancaire. "
                 . "Votre solde n'a pas été débité. Vérifiez votre IBAN puis réessayez.",
             default => "Le virement bancaire est momentanément indisponible. "
                 . "Votre solde n'a pas été débité. Réessayez plus tard ou choisissez un autre moyen de retrait.",

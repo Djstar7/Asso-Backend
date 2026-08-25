@@ -26,7 +26,8 @@ class StripeSetupWebhook extends Command
 {
     protected $signature = 'stripe:webhook
         {--url= : URL publique de l\'endpoint (défaut: APP_URL + /api/v1/stripe/webhook)}
-        {--show : Liste les endpoints existants sans rien créer}';
+        {--show : Liste les endpoints existants sans rien créer}
+        {--prune : Supprime les endpoints dont l\'URL n\'est pas joignable par Stripe}';
 
     protected $description = 'Déclare les webhooks Stripe (plateforme + Connect) et enregistre les secrets';
 
@@ -61,13 +62,26 @@ class StripeSetupWebhook extends Command
             return self::SUCCESS;
         }
 
+        if ($this->option('prune')) {
+            return $this->prune($stripe, $existing);
+        }
+
         $url = $this->option('url') ?: rtrim((string) config('app.url'), '/') . '/api/v1/stripe/webhook';
 
-        if (!filter_var($url, FILTER_VALIDATE_URL) || str_starts_with($url, 'http://localhost')) {
-            $this->error("❌ URL inutilisable par Stripe : {$url}");
-            $this->line('   Stripe doit pouvoir l\'appeler depuis Internet (https public).');
-            $this->line('   En local, utilisez : stripe listen --forward-to localhost:8000/api/v1/stripe/webhook');
+        // Stripe ACCEPTE de créer un endpoint vers une adresse locale (localhost,
+        // 192.168.x.x, ngrok expiré…) mais ne pourra jamais l'appeler : les retraits
+        // resteraient bloqués en « processing » sans le moindre message d'erreur.
+        if (!$stripe->isPubliclyReachableUrl($url)) {
+            $this->error("❌ URL injoignable depuis Internet : {$url}");
+            $this->line('   Stripe n\'accepte qu\'un domaine public (une IP locale ou publique ne suffit pas).');
+            $this->line('   • Production  : php artisan stripe:webhook --url=https://api.mondomaine.com/api/v1/stripe/webhook');
+            $this->line('   • Développement : stripe listen --forward-to localhost:8000/api/v1/stripe/webhook');
+            $this->line('     (la CLI affiche un secret whsec_… → php artisan stripe:keys --webhook=whsec_… --webhook-connect=whsec_…)');
             return self::FAILURE;
+        }
+
+        if (str_starts_with($url, 'http://')) {
+            $this->warn('⚠️  URL en http:// : les événements circuleront en clair. Préférez https.');
         }
 
         $this->line("Endpoint visé : <info>{$url}</info>");
@@ -110,6 +124,40 @@ class StripeSetupWebhook extends Command
                 . 'récupérez son secret dans le dashboard Stripe puis lancez '
                 . 'php artisan stripe:keys --webhook-connect=whsec_xxx');
         }
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * Supprime les endpoints dont l'URL n'est pas joignable par Stripe : ils ne
+     * reçoivent rien et leurs secrets, eux, sont bien enregistrés — de quoi croire
+     * la chaîne en place alors qu'aucun événement n'arrivera.
+     */
+    private function prune(StripeService $stripe, array $endpoints): int
+    {
+        $dead = array_filter($endpoints, fn ($e) => !$stripe->isPubliclyReachableUrl($e['url']));
+
+        if (empty($dead)) {
+            $this->info('✅ Aucun endpoint injoignable à supprimer.');
+            return self::SUCCESS;
+        }
+
+        $this->warn(count($dead) . ' endpoint(s) injoignable(s) :');
+        foreach ($dead as $e) {
+            $this->line("   • {$e['id']} → {$e['url']}");
+        }
+
+        if (!$this->confirm('Les supprimer ?', true)) {
+            return self::SUCCESS;
+        }
+
+        foreach ($dead as $e) {
+            $ok = $stripe->deleteWebhookEndpoint($e['id']);
+            $this->line($ok ? "   supprimé : {$e['id']}" : "   ÉCHEC : {$e['id']}");
+        }
+
+        $this->warn('⚠️  Les secrets enregistrés correspondaient à ces endpoints : '
+            . 'relancez la commande avec l\'URL publique pour en obtenir de nouveaux.');
 
         return self::SUCCESS;
     }
