@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\PlatformWithdrawal;
 use App\Models\Setting;
+use App\Models\User;
 use App\Services\WalletService;
 use App\Services\ExchangeRateService;
 use App\Services\PayPalService;
@@ -394,7 +395,12 @@ class WalletController extends Controller
             $stripeReady = $user->stripe_account_status === 'approved'
                 && !empty($user->stripe_account_id);
             $stripeCurrency = $this->stripePayoutCurrency($user->stripe_bank_country);
-            $stripeAvailable = $stripeReady ? $user->kpayAvailableFor($stripeCurrency) : 0.0;
+
+            // Le vendeur encaisse en XAF mais son IBAN est en EUR : le montant
+            // versable est la somme de ses soldes CONVERTIS, pas son seul solde EUR.
+            $stripeSources = $this->stripeWithdrawalSources($user, $stripeCurrency);
+            $stripeBest = $this->pickWithdrawalSource($stripeSources, null);
+            $stripeAvailable = $stripeBest['payout_equivalent'] ?? 0.0;
 
             // État de CONFIGURATION de chaque rail (clés API présentes côté plateforme).
             // Permet au mobile de GRISER un moyen non configuré au lieu de laisser
@@ -425,7 +431,11 @@ class WalletController extends Controller
                         'payout_supported' => $stripePayoutSupported,
                         'status' => $user->stripe_account_status, // null|pending|approved|rejected
                         'currency' => $stripeCurrency,
+                        // Montant versable sur l'IBAN, conversion comprise.
                         'available' => max(0, $stripeAvailable),
+                        // Soldes du portefeuille utilisables, avec taux et équivalent.
+                        'sources' => array_values($stripeSources),
+                        'source' => $stripeBest,
                         'iban_last4' => $user->stripe_external_last4,
                     ],
                     // Vue unifiée par méthode (configuration + solde retirable).
@@ -447,6 +457,7 @@ class WalletController extends Controller
                             'status' => $user->stripe_account_status,
                             'available' => max(0, $stripeAvailable),
                             'currency' => $stripeCurrency,
+                            'source' => $stripeBest,
                             'iban_last4' => $user->stripe_external_last4,
                         ],
                     ],
@@ -715,6 +726,97 @@ class WalletController extends Controller
      *
      * POST /api/v1/wallet/withdraw/stripe
      */
+    /**
+     * Devis d'un virement IBAN : combien le vendeur recevra sur son compte bancaire
+     * pour un montant pris sur son portefeuille.
+     *
+     * POST /api/v1/wallet/withdraw/stripe/quote  { amount, currency? }
+     *
+     * Les vendeurs encaissent en XAF alors que leur IBAN est libellé en EUR : la
+     * conversion doit donc être faite ET MONTRÉE avant de valider le virement.
+     */
+    public function getStripeWithdrawalQuote(Request $request)
+    {
+        $user = $request->user();
+        $payoutCurrency = $this->stripePayoutCurrency($user->stripe_bank_country);
+
+        $validator = Validator::make($request->all(), [
+            'amount' => 'nullable|numeric|min:0',
+            'currency' => 'nullable|string|size:3',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Données invalides',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $sources = $this->stripeWithdrawalSources($user, $payoutCurrency);
+        $requested = $request->filled('currency') ? strtoupper($request->input('currency')) : null;
+        $source = $this->pickWithdrawalSource($sources, $requested);
+
+        if (!$source) {
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'payout_currency' => $payoutCurrency,
+                    'sources' => array_values($sources),
+                    'source' => null,
+                    'can_withdraw' => false,
+                    'message' => 'Aucun solde convertible vers la devise de votre compte bancaire.',
+                ],
+            ]);
+        }
+
+        // Montant demandé, exprimé dans la devise du portefeuille (défaut : tout).
+        $sourceAmount = $request->filled('amount')
+            ? round((float) $request->input('amount'), 2)
+            : $source['available'];
+
+        $payoutAmount = round($sourceAmount * $source['rate'], 2);
+        $minPayout = (float) Setting::get('min_stripe_withdrawal_amount', 5);
+        $minSource = $source['rate'] > 0 ? ceil($minPayout / $source['rate']) : null;
+
+        $reasons = [];
+        if ($sourceAmount > $source['available']) {
+            $reasons[] = 'Solde insuffisant.';
+        }
+        if ($payoutAmount < $minPayout) {
+            $reasons[] = 'Le minimum est de ' . number_format($minPayout, 2, ',', ' ') . " {$payoutCurrency}"
+                . ($minSource ? ' (' . number_format($minSource, 0, ',', ' ') . " {$source['currency']})" : '') . '.';
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'payout_currency' => $payoutCurrency,
+                'source' => $source,
+                'sources' => array_values($sources),
+                'amount' => $sourceAmount,
+                'currency' => $source['currency'],
+                'payout_amount' => $payoutAmount,
+                'rate' => $source['rate'],
+                'minimum' => [
+                    'payout_amount' => $minPayout,
+                    'source_amount' => $minSource,
+                ],
+                'can_withdraw' => empty($reasons) && $user->stripe_account_status === 'approved',
+                'message' => empty($reasons) ? null : implode(' ', $reasons),
+            ],
+        ]);
+    }
+
+    /**
+     * Initie un virement IBAN (Stripe Connect) depuis le portefeuille du vendeur.
+     *
+     * POST /api/v1/wallet/withdraw/stripe  { amount, currency?, notes? }
+     *
+     * `amount` est exprimé dans la devise du PORTEFEUILLE (`currency`, ex. XAF) ;
+     * la conversion vers la devise du compte bancaire (ex. EUR) est faite ici, au
+     * taux du moment, et conservée sur le retrait pour l'audit.
+     */
     public function initiateStripeWithdrawal(Request $request)
     {
         Log::info("[WalletController] ╔════════════════════════════════════════════════════════════════════╗");
@@ -740,13 +842,12 @@ class WalletController extends Controller
             ], 422);
         }
 
-        // Devise du payout, déduite du pays de la banque du vendeur (ex. FR → EUR).
-        $currency = $this->stripePayoutCurrency($user->stripe_bank_country);
-
-        $minWithdrawalAmount = (float) Setting::get('min_stripe_withdrawal_amount', 5);
+        // Devise versée sur l'IBAN, déduite du pays de la banque du vendeur (ex. FR → EUR).
+        $payoutCurrency = $this->stripePayoutCurrency($user->stripe_bank_country);
 
         $validator = Validator::make($request->all(), [
-            'amount' => 'required|numeric|min:' . $minWithdrawalAmount,
+            'amount' => 'required|numeric|min:0.01',
+            'currency' => 'nullable|string|size:3',
             'notes' => 'nullable|string|max:500',
         ]);
 
@@ -759,21 +860,48 @@ class WalletController extends Controller
             ], 422);
         }
 
-        // Montant dans la devise du payout (2 décimales, ex. euros).
-        $amount = round((float) $request->input('amount'), 2);
+        // 3) Choix du solde débité + taux de conversion vers la devise du virement.
+        $sources = $this->stripeWithdrawalSources($user, $payoutCurrency);
+        $requestedCurrency = $request->filled('currency') ? strtoupper($request->input('currency')) : null;
+        $source = $this->pickWithdrawalSource($sources, $requestedCurrency);
+
+        if (!$source) {
+            return response()->json([
+                'success' => false,
+                'message' => $requestedCurrency
+                    ? "Aucun solde disponible en {$requestedCurrency} convertible vers {$payoutCurrency}."
+                    : 'Aucun solde convertible vers la devise de votre compte bancaire.',
+            ], 400);
+        }
+
+        $sourceCurrency = $source['currency'];
+        $rate = $source['rate'];
+        $amount = round((float) $request->input('amount'), 2);       // débité au vendeur
+        $payoutAmount = round($amount * $rate, 2);                    // versé sur l'IBAN
         $notes = $request->input('notes');
 
+        // 4) Minimum, exprimé dans la devise du virement.
+        $minWithdrawalAmount = (float) Setting::get('min_stripe_withdrawal_amount', 5);
+        if ($payoutAmount < $minWithdrawalAmount) {
+            $minSource = $rate > 0 ? ceil($minWithdrawalAmount / $rate) : null;
+            return response()->json([
+                'success' => false,
+                'message' => 'Montant trop faible : le minimum est de '
+                    . number_format($minWithdrawalAmount, 2, ',', ' ') . " {$payoutCurrency}"
+                    . ($minSource ? ' (' . number_format($minSource, 0, ',', ' ') . " {$sourceCurrency})" : '') . '.',
+            ], 422);
+        }
+
         // Pré-contrôle rapide non autoritatif (la vérif autoritative est sous verrou).
-        $availableBalance = $user->kpayAvailableFor($currency);
-        if ($amount > $availableBalance) {
+        if ($amount > $source['available']) {
             Log::warning("[WalletController] ❌ Insufficient balance for Stripe withdrawal", [
-                'currency' => $currency,
-                'available' => $availableBalance,
+                'currency' => $sourceCurrency,
+                'available' => $source['available'],
                 'requested_amount' => $amount,
             ]);
             return response()->json([
                 'success' => false,
-                'message' => "Solde $currency insuffisant. Disponible: " . number_format($availableBalance, 2, ',', ' ') . " $currency",
+                'message' => "Solde $sourceCurrency insuffisant. Disponible: " . number_format($source['available'], 2, ',', ' ') . " $sourceCurrency",
             ], 400);
         }
 
@@ -781,7 +909,7 @@ class WalletController extends Controller
         // et solde plateforme disponible DANS CETTE DEVISE. Sans lui, on débitait le
         // wallet pour ensuite tout annuler par rollback sur une erreur Stripe opaque.
         try {
-            $stripe->assertPayoutPossible($user->stripe_account_id, $amount, $currency);
+            $stripe->assertPayoutPossible($user->stripe_account_id, $payoutAmount, $payoutCurrency);
         } catch (\App\Exceptions\StripePayoutUnavailableException $e) {
             Log::error('[WalletController] ❌ Virement IBAN impossible (pré-contrôle)', [
                 'user_id' => $user->id,
@@ -801,7 +929,7 @@ class WalletController extends Controller
 
             // Verrou de ligne + re-vérification À L'INTÉRIEUR de la transaction (anti double-retrait).
             $walletBalance = \App\Models\WalletBalance::where('user_id', $user->id)
-                ->where('currency', $currency)
+                ->where('currency', $sourceCurrency)
                 ->lockForUpdate()
                 ->first();
 
@@ -812,13 +940,13 @@ class WalletController extends Controller
             if ($amount > $lockedAvailable) {
                 DB::rollBack();
                 Log::warning("[WalletController] ❌ Insufficient balance (locked re-check)", [
-                    'currency' => $currency,
+                    'currency' => $sourceCurrency,
                     'available' => $lockedAvailable,
                     'requested_amount' => $amount,
                 ]);
                 return response()->json([
                     'success' => false,
-                    'message' => "Solde $currency insuffisant. Disponible: " . number_format($lockedAvailable, 2, ',', ' ') . " $currency",
+                    'message' => "Solde $sourceCurrency insuffisant. Disponible: " . number_format($lockedAvailable, 2, ',', ' ') . " $sourceCurrency",
                 ], 400);
             }
 
@@ -826,28 +954,35 @@ class WalletController extends Controller
             $ibanLast4 = $user->stripe_external_last4 ?? '****';
             $holder = $user->stripe_account_holder_name ?? $user->name;
 
-            // Transaction wallet (débit immédiat pour bloquer les fonds).
+            // Transaction wallet (débit immédiat pour bloquer les fonds), dans la
+            // devise du portefeuille — c'est ce que le vendeur voit dans son historique.
             $walletTransaction = \App\Models\WalletTransaction::create([
                 'user_id' => $user->id,
                 'type' => 'debit',
                 'amount' => $amount,
                 'balance_before' => $currentBalance,
                 'balance_after' => $currentBalance - $amount,
-                'description' => "Virement IBAN ****{$ibanLast4}",
+                'description' => "Virement IBAN ****{$ibanLast4}"
+                    . ($sourceCurrency !== $payoutCurrency
+                        ? ' (' . number_format($payoutAmount, 2, ',', ' ') . " {$payoutCurrency})"
+                        : ''),
                 'status' => 'pending',
                 'provider' => 'stripe',
                 'reference_type' => 'platform_withdrawal',
                 'reference_id' => null,
                 'metadata' => [
                     'iban_last4' => $ibanLast4,
-                    'currency' => $currency,
+                    'currency' => $sourceCurrency,
+                    'payout_currency' => $payoutCurrency,
+                    'payout_amount' => $payoutAmount,
+                    'exchange_rate' => $rate,
                     'stripe_account_id' => $user->stripe_account_id,
                     'initiated_at' => now()->toIso8601String(),
                 ],
             ]);
 
             // Débit immédiat (fonds bloqués).
-            $user->debitKpay($currency, $amount);
+            $user->debitKpay($sourceCurrency, $amount);
 
             // Enregistrement de retrait.
             $withdrawal = PlatformWithdrawal::create([
@@ -857,7 +992,10 @@ class WalletController extends Controller
                 'commission_rate' => 0,
                 'commission_amount' => 0,
                 'amount_sent' => $amount,
-                'currency' => $currency,
+                'currency' => $sourceCurrency,
+                'payout_amount' => $payoutAmount,
+                'payout_currency' => $payoutCurrency,
+                'exchange_rate' => $rate,
                 'provider' => 'stripe',
                 'payment_method' => 'stripe_connect',
                 'payment_account' => "IBAN ****{$ibanLast4}",
@@ -876,11 +1014,14 @@ class WalletController extends Controller
                 'withdrawal_id' => $withdrawal->id,
                 'user_id' => $user->id,
                 'amount' => $amount,
-                'currency' => $currency,
+                'currency' => $sourceCurrency,
+                'payout_amount' => $payoutAmount,
+                'payout_currency' => $payoutCurrency,
+                'rate' => $rate,
             ]);
 
-            // Appel Stripe : transfer (autoritatif) + payout IBAN (best-effort).
-            $result = $stripe->payoutToVendor($user->stripe_account_id, $amount, $currency);
+            // Appel Stripe : transfer (autoritatif) + payout IBAN, dans la devise du compte.
+            $result = $stripe->payoutToVendor($user->stripe_account_id, $payoutAmount, $payoutCurrency);
 
             $withdrawal->stripe_transfer_id = $result['transfer_id'] ?? null;
             $withdrawal->stripe_payout_id = $result['payout_id'] ?? null;
@@ -902,15 +1043,18 @@ class WalletController extends Controller
                 $this->fcmService->sendToUser(
                     $user,
                     '🏦 Virement en cours',
-                    "Votre demande de virement de {$amount} {$currency} vers votre IBAN ****{$ibanLast4} est en cours de traitement.",
+                    "Votre demande de virement de " . number_format($payoutAmount, 2, ',', ' ') . " {$payoutCurrency}"
+                        . " vers votre IBAN ****{$ibanLast4} est en cours de traitement.",
                     [
                         'type' => 'wallet_withdrawal_processing',
                         'provider' => 'stripe',
-                        'currency' => $currency,
+                        'currency' => $sourceCurrency,
                         'amount' => $amount,
+                        'payout_currency' => $payoutCurrency,
+                        'payout_amount' => $payoutAmount,
                         'withdrawal_id' => $withdrawal->id,
                         'transaction_reference' => $withdrawal->transaction_reference,
-                        'new_balance' => $user->kpayBalanceFor($currency),
+                        'new_balance' => $user->kpayBalanceFor($sourceCurrency),
                     ]
                 );
             } catch (\Exception $e) {
@@ -919,16 +1063,20 @@ class WalletController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Virement en cours de traitement. Les fonds arriveront sur votre compte sous 1 à 3 jours ouvrés.',
+                'message' => 'Virement de ' . number_format($payoutAmount, 2, ',', ' ') . " {$payoutCurrency}"
+                    . ' en cours de traitement. Les fonds arriveront sur votre compte sous 1 à 3 jours ouvrés.',
                 'data' => [
                     'withdrawal_id' => $withdrawal->id,
                     'wallet_transaction_id' => $walletTransaction->id,
                     'transaction_reference' => $withdrawal->transaction_reference,
                     'amount' => $withdrawal->amount_requested,
-                    'currency' => $currency,
+                    'currency' => $sourceCurrency,
+                    'payout_amount' => $payoutAmount,
+                    'payout_currency' => $payoutCurrency,
+                    'exchange_rate' => $rate,
                     'status' => 'processing',
                     'iban_last4' => $ibanLast4,
-                    'new_balance' => $user->kpayBalanceFor($currency),
+                    'new_balance' => $user->kpayBalanceFor($sourceCurrency),
                     'balance_before' => $currentBalance,
                 ],
             ]);
@@ -957,6 +1105,67 @@ class WalletController extends Controller
                 'message' => "Le virement n'a pas pu être initié pour le moment. Votre solde n'a pas été débité. Réessayez plus tard.",
             ], 500);
         }
+    }
+
+    /**
+     * Soldes du vendeur convertibles vers la devise de son compte bancaire.
+     *
+     * Chaque entrée porte le solde disponible, le taux appliqué et l'équivalent
+     * versable — c'est ce que l'application affiche au vendeur (« 12 000 FCFA
+     * ≈ 18,29 EUR »). Une devise sans taux connu est ignorée plutôt que devinée.
+     *
+     * @return array<string, array{currency:string, available:float, rate:float, payout_equivalent:float}>
+     */
+    private function stripeWithdrawalSources(User $user, string $payoutCurrency): array
+    {
+        $sources = [];
+
+        foreach ($user->walletBalances()->get() as $balance) {
+            $available = max(0, (float) $balance->balance - (float) $balance->locked_balance);
+            if ($available <= 0) {
+                continue;
+            }
+
+            $currency = strtoupper($balance->currency);
+
+            if ($currency === $payoutCurrency) {
+                $rate = 1.0;
+            } else {
+                $conversion = ExchangeRateService::convert($currency, $payoutCurrency, 1);
+                if (!($conversion['success'] ?? false)) {
+                    continue; // taux inconnu : on ne propose pas cette devise.
+                }
+                $rate = (float) $conversion['rate'];
+            }
+
+            $sources[$currency] = [
+                'currency' => $currency,
+                'available' => round($available, 2),
+                'rate' => $rate,
+                'payout_equivalent' => round($available * $rate, 2),
+            ];
+        }
+
+        return $sources;
+    }
+
+    /**
+     * Solde à débiter : celui demandé s'il existe, sinon celui qui permet le plus
+     * gros virement (le vendeur n'a pas à choisir dans le cas courant).
+     */
+    private function pickWithdrawalSource(array $sources, ?string $requested): ?array
+    {
+        if ($requested !== null) {
+            return $sources[$requested] ?? null;
+        }
+
+        if (empty($sources)) {
+            return null;
+        }
+
+        usort($sources, fn ($a, $b) => $b['payout_equivalent'] <=> $a['payout_equivalent']);
+
+        return $sources[0];
     }
 
     /**
