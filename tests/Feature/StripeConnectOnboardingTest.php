@@ -25,26 +25,50 @@ class StripeConnectOnboardingTest extends TestCase
         });
     }
 
+    /**
+     * Formulaire vendeur complet. Les champs KYC (naissance, téléphone, adresse) sont
+     * OBLIGATOIRES : sans eux Stripe laisse le compte en `requirements.past_due` et
+     * aucun virement ne peut aboutir.
+     */
+    private function payload(array $overrides = []): array
+    {
+        return array_merge([
+            'country' => 'FR',
+            'iban' => 'FR1420041010050500013M02606',
+            'account_holder_name' => 'Jean Dupont',
+            'birth_date' => '1990-05-17',
+            'phone' => '+33612345678',
+            'address_line1' => '12 rue de la Paix',
+            'address_city' => 'Paris',
+            'address_postal_code' => '75002',
+        ], $overrides);
+    }
+
     public function test_submit_creates_account_and_sets_pending(): void
     {
         $this->mockStripe(function ($mock) {
             $mock->shouldReceive('isConfigured')->andReturn(true);
-            $mock->shouldReceive('createCustomAccountWithBank')->once()->andReturn([
-                'id' => 'acct_test_123',
-                'external_last4' => '3000',
-                'bank_country' => 'FR',
-                'account_holder_name' => 'Jean Dupont',
-            ]);
+            $mock->shouldReceive('createCustomAccountWithBank')->once()
+                ->withArgs(function (array $data) {
+                    // Le KYC saisi par le vendeur doit bien être transmis à Stripe.
+                    return $data['birth_date'] === '1990-05-17'
+                        && $data['phone'] === '+33612345678'
+                        && $data['address_line1'] === '12 rue de la Paix'
+                        && $data['address_city'] === 'Paris'
+                        && $data['address_postal_code'] === '75002';
+                })
+                ->andReturn([
+                    'id' => 'acct_test_123',
+                    'external_last4' => '3000',
+                    'bank_country' => 'FR',
+                    'account_holder_name' => 'Jean Dupont',
+                ]);
         });
 
         $user = User::factory()->create();
 
         $this->actingAs($user, 'sanctum')
-            ->postJson('/api/v1/stripe/connect/submit', [
-                'country' => 'FR',
-                'iban' => 'FR1420041010050500013M02606',
-                'account_holder_name' => 'Jean Dupont',
-            ])
+            ->postJson('/api/v1/stripe/connect/submit', $this->payload())
             ->assertOk()
             ->assertJsonPath('data.status', 'pending')
             ->assertJsonPath('data.iban_last4', '3000');
@@ -65,13 +89,49 @@ class StripeConnectOnboardingTest extends TestCase
         $user = User::factory()->create();
 
         $this->actingAs($user, 'sanctum')
+            ->postJson('/api/v1/stripe/connect/submit', $this->payload(['iban' => 'PAS-UN-IBAN']))
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('iban');
+    }
+
+    /** Sans KYC, le compte serait créé mais inutilisable : on refuse en amont. */
+    public function test_submit_requires_kyc_fields(): void
+    {
+        $this->mockStripe(function ($mock) {
+            $mock->shouldReceive('isConfigured')->andReturn(true);
+            $mock->shouldReceive('createCustomAccountWithBank')->never();
+        });
+
+        $user = User::factory()->create();
+
+        $this->actingAs($user, 'sanctum')
             ->postJson('/api/v1/stripe/connect/submit', [
                 'country' => 'FR',
-                'iban' => 'PAS-UN-IBAN',
+                'iban' => 'FR1420041010050500013M02606',
                 'account_holder_name' => 'Jean Dupont',
             ])
             ->assertStatus(422)
-            ->assertJsonValidationErrors('iban');
+            ->assertJsonValidationErrors([
+                'birth_date', 'phone', 'address_line1', 'address_city', 'address_postal_code',
+            ]);
+    }
+
+    /** Stripe refuse les mineurs : autant le dire tout de suite au vendeur. */
+    public function test_submit_rejects_minor(): void
+    {
+        $this->mockStripe(function ($mock) {
+            $mock->shouldReceive('isConfigured')->andReturn(true);
+            $mock->shouldReceive('createCustomAccountWithBank')->never();
+        });
+
+        $user = User::factory()->create();
+
+        $this->actingAs($user, 'sanctum')
+            ->postJson('/api/v1/stripe/connect/submit', $this->payload([
+                'birth_date' => now()->subYears(15)->toDateString(),
+            ]))
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('birth_date');
     }
 
     public function test_submit_blocked_when_already_approved(): void
@@ -89,11 +149,7 @@ class StripeConnectOnboardingTest extends TestCase
         ])->saveQuietly();
 
         $this->actingAs($user, 'sanctum')
-            ->postJson('/api/v1/stripe/connect/submit', [
-                'country' => 'FR',
-                'iban' => 'FR1420041010050500013M02606',
-                'account_holder_name' => 'Jean Dupont',
-            ])
+            ->postJson('/api/v1/stripe/connect/submit', $this->payload())
             ->assertStatus(422);
     }
 
@@ -106,11 +162,7 @@ class StripeConnectOnboardingTest extends TestCase
         $user = User::factory()->create();
 
         $this->actingAs($user, 'sanctum')
-            ->postJson('/api/v1/stripe/connect/submit', [
-                'country' => 'FR',
-                'iban' => 'FR1420041010050500013M02606',
-                'account_holder_name' => 'Jean Dupont',
-            ])
+            ->postJson('/api/v1/stripe/connect/submit', $this->payload())
             ->assertStatus(503);
     }
 
@@ -123,6 +175,10 @@ class StripeConnectOnboardingTest extends TestCase
                 'external_last4' => '9999',
                 'bank_country' => 'FR',
             ]);
+            // Le KYC est rafraîchi à la resoumission : c'est souvent lui qui bloquait.
+            $mock->shouldReceive('updateAccountKyc')->once()
+                ->withArgs(fn (string $id, array $data) => $id === 'acct_existing'
+                    && $data['birth_date'] === '1990-05-17');
         });
 
         $user = User::factory()->create();
@@ -133,11 +189,9 @@ class StripeConnectOnboardingTest extends TestCase
         ])->saveQuietly();
 
         $this->actingAs($user, 'sanctum')
-            ->postJson('/api/v1/stripe/connect/submit', [
-                'country' => 'FR',
+            ->postJson('/api/v1/stripe/connect/submit', $this->payload([
                 'iban' => 'FR7630006000011234567890189',
-                'account_holder_name' => 'Jean Dupont',
-            ])
+            ]))
             ->assertOk()
             ->assertJsonPath('data.status', 'pending')
             ->assertJsonPath('data.iban_last4', '9999');
@@ -149,6 +203,20 @@ class StripeConnectOnboardingTest extends TestCase
 
     public function test_status_endpoint_reflects_state(): void
     {
+        $this->mockStripe(function ($mock) {
+            $mock->shouldReceive('isConfigured')->andReturn(true);
+            $mock->shouldReceive('accountState')->andReturn([
+                'exists' => true,
+                'transfers' => 'pending',
+                'payouts_enabled' => false,
+                'charges_enabled' => false,
+                'requirements_due' => [],
+                'disabled_reason' => null,
+                'ready' => false,
+                'error' => null,
+            ]);
+        });
+
         $user = User::factory()->create();
         $user->forceFill([
             'stripe_account_id' => 'acct_x',
@@ -161,7 +229,10 @@ class StripeConnectOnboardingTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.status', 'pending')
             ->assertJsonPath('data.has_account', true)
-            ->assertJsonPath('data.iban_last4', '3000');
+            ->assertJsonPath('data.iban_last4', '3000')
+            // L'état réel Stripe est remonté au vendeur (vérification en cours).
+            ->assertJsonPath('data.stripe.ready', false)
+            ->assertJsonPath('data.stripe.verification', 'Vérification en cours chez Stripe (quelques minutes).');
     }
 
     protected function tearDown(): void

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Services\StripeService;
 use App\Services\FirebaseMessagingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Mockery;
@@ -88,6 +89,32 @@ class StripeConnectAdminWebTest extends TestCase
         $seller->refresh();
         $this->assertSame('rejected', $seller->stripe_account_status);
         $this->assertSame('IBAN erroné', $seller->stripe_rejection_reason);
+    }
+
+    /** Même garde-fou côté panneau admin web : pas d'approbation si Stripe bloque. */
+    public function test_admin_web_approve_blocked_when_stripe_not_ready(): void
+    {
+        $this->mock(StripeService::class, function ($mock) {
+            $mock->shouldReceive('isConfigured')->andReturn(true);
+            $mock->shouldReceive('accountState')->andReturn([
+                'exists' => true,
+                'transfers' => 'inactive',
+                'payouts_enabled' => false,
+                'charges_enabled' => false,
+                'requirements_due' => ['individual.dob.day'],
+                'disabled_reason' => 'requirements.past_due',
+                'ready' => false,
+                'error' => null,
+            ]);
+        });
+
+        $seller = $this->pendingSeller();
+
+        $this->actingAs($this->admin())
+            ->post(route('admin.stripe.accounts.approve', $seller->id))
+            ->assertSessionHas('error');
+
+        $this->assertSame('pending', $seller->fresh()->stripe_account_status);
     }
 
     protected function tearDown(): void

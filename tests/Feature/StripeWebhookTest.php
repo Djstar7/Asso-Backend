@@ -164,4 +164,65 @@ class StripeWebhookTest extends TestCase
         $this->assertSame('completed', $withdrawal->fresh()->status);
         $this->assertEquals(30.0, (float) $user->fresh()->kpayBalanceFor('EUR'));
     }
+    /**
+     * account.updated : Stripe peut désactiver un compte déjà validé chez nous
+     * (pièce manquante). Sans cette synchronisation, le vendeur resterait
+     * « approved » et ses virements échoueraient un par un.
+     */
+    public function test_account_updated_puts_approved_account_back_to_pending(): void
+    {
+        $user = User::factory()->create();
+        $user->forceFill([
+            'stripe_account_id' => 'acct_seller',
+            'stripe_account_status' => 'approved',
+            'stripe_verified_at' => now(),
+        ])->saveQuietly();
+
+        $this->mockEvent([
+            'id' => 'evt_acct_1',
+            'type' => 'account.updated',
+            'account' => 'acct_seller',
+            'data' => ['object' => [
+                'id' => 'acct_seller',
+                'object' => 'account',
+                'payouts_enabled' => false,
+                'capabilities' => ['transfers' => 'inactive'],
+                'requirements' => ['currently_due' => ['individual.verification.document']],
+            ]],
+        ]);
+
+        $this->postJson('/api/v1/stripe/webhook', [])->assertOk();
+
+        $user->refresh();
+        $this->assertSame('pending', $user->stripe_account_status);
+        $this->assertNull($user->stripe_verified_at);
+        $this->assertStringContainsString('individual.verification.document', $user->stripe_rejection_reason);
+    }
+
+    /** Un compte toujours actif ne doit PAS être remis en attente. */
+    public function test_account_updated_keeps_active_account_approved(): void
+    {
+        $user = User::factory()->create();
+        $user->forceFill([
+            'stripe_account_id' => 'acct_ok',
+            'stripe_account_status' => 'approved',
+        ])->saveQuietly();
+
+        $this->mockEvent([
+            'id' => 'evt_acct_2',
+            'type' => 'account.updated',
+            'account' => 'acct_ok',
+            'data' => ['object' => [
+                'id' => 'acct_ok',
+                'object' => 'account',
+                'payouts_enabled' => true,
+                'capabilities' => ['transfers' => 'active'],
+                'requirements' => ['currently_due' => []],
+            ]],
+        ]);
+
+        $this->postJson('/api/v1/stripe/webhook', [])->assertOk();
+
+        $this->assertSame('approved', $user->fresh()->stripe_account_status);
+    }
 }

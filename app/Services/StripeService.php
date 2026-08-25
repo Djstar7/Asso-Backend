@@ -21,6 +21,7 @@ class StripeService
     private ?string $secretKey;
     private ?string $publishableKey;
     private ?string $webhookSecret;
+    private ?string $webhookSecretConnect;
     private string $mode;
     private ?StripeClient $client = null;
 
@@ -31,6 +32,10 @@ class StripeService
         $this->secretKey = $config['secret_key'] ?? env('STRIPE_SECRET');
         $this->publishableKey = $config['publishable_key'] ?? env('STRIPE_KEY');
         $this->webhookSecret = $config['webhook_secret'] ?? env('STRIPE_WEBHOOK_SECRET');
+        // Les événements Connect (payout.*, account.updated, émis sur les comptes
+        // vendeurs) proviennent d'un endpoint Stripe DISTINCT, donc d'un secret de
+        // signature distinct : les deux sont acceptés à la vérification.
+        $this->webhookSecretConnect = $config['webhook_secret_connect'] ?? env('STRIPE_WEBHOOK_SECRET_CONNECT');
         $this->mode = $config['mode'] ?? (str_starts_with((string) $this->secretKey, 'sk_live_') ? 'live' : 'test');
 
         Log::debug('[StripeService] Initialized', [
@@ -59,6 +64,20 @@ class StripeService
     public function webhookSecret(): ?string
     {
         return $this->webhookSecret;
+    }
+
+    public function webhookSecretConnect(): ?string
+    {
+        return $this->webhookSecretConnect;
+    }
+
+    /** Secrets de signature acceptés (compte plateforme + Connect), sans doublon. */
+    public function webhookSecrets(): array
+    {
+        return array_values(array_unique(array_filter([
+            $this->webhookSecret,
+            $this->webhookSecretConnect,
+        ])));
     }
 
     /** Lazily build the Stripe SDK client. */
@@ -122,7 +141,20 @@ class StripeService
      * Les données bancaires brutes (IBAN) sont autorisées côté serveur pour ces
      * comptes contrôlés par la plateforme (hors France/PSD2 où un token est requis).
      *
-     * @param array $data country(2), email, first_name, last_name, iban, account_holder_name, currency?, user_id?, tos_ip?, tos_date?
+     * ⚠️ Le KYC est OBLIGATOIRE : sans `individual.dob`, `individual.address`,
+     * `individual.phone` et `business_profile{mcc,url}`, Stripe crée bien le compte
+     * mais le laisse en `requirements.past_due` avec `capabilities.transfers=inactive`
+     * — TOUT virement échoue alors (« destination account needs the transfers
+     * capability »). Ces champs sont donc collectés à l'onboarding et envoyés ici.
+     *
+     * Le versement est forcé en **manuel** (`settings.payouts.schedule.interval`) :
+     * ainsi c'est TOUJOURS nous qui créons le Payout, donc nous connaissons son id et
+     * le webhook `payout.paid` peut le rapprocher du retrait. En automatique, Stripe
+     * créerait des payouts inconnus de notre base et le retrait resterait `processing`.
+     *
+     * @param array $data country(2), email, first_name, last_name, iban, account_holder_name,
+     *                    birth_date(Y-m-d), phone, address_line1, address_city,
+     *                    address_postal_code, currency?, user_id?, tos_ip?, tos_date?
      * @return array { id, external_last4, bank_country, account_holder_name }
      */
     public function createCustomAccountWithBank(array $data): array
@@ -148,11 +180,12 @@ class StripeService
                 'card_payments' => ['requested' => true],
                 'transfers' => ['requested' => true],
             ],
-            'individual' => array_filter([
-                'first_name' => $data['first_name'] ?? null,
-                'last_name' => $data['last_name'] ?? null,
-                'email' => $data['email'] ?? null,
-            ]),
+            'individual' => $this->individualParams($data, $country),
+            'business_profile' => $this->businessProfileParams(),
+            // Versement manuel : nous seuls créons les Payouts (voir docblock).
+            'settings' => [
+                'payouts' => ['schedule' => ['interval' => 'manual']],
+            ],
             'external_account' => [
                 'object' => 'bank_account',
                 'country' => $country,
@@ -213,6 +246,151 @@ class StripeService
             'external_last4' => $bank->last4 ?? substr(preg_replace('/\s+/', '', $data['iban']), -4),
             'bank_country' => $bank->country ?? $country,
         ];
+    }
+
+    /**
+     * Met à jour les informations KYC d'un compte Connect existant (resoumission).
+     *
+     * Sans ces champs le compte reste `requirements.past_due` : c'est la cause n°1
+     * d'un virement refusé par Stripe. On les renvoie donc à chaque resoumission,
+     * en même temps que le nouvel IBAN.
+     */
+    public function updateAccountKyc(string $accountId, array $data): void
+    {
+        $country = strtoupper($data['country'] ?? '');
+        $individual = $this->individualParams($data, $country);
+
+        if (empty($individual)) {
+            return;
+        }
+
+        $this->withoutStripeNotices(fn () => $this->client()->accounts->update($accountId, [
+            'individual' => $individual,
+            'business_profile' => $this->businessProfileParams(),
+            'settings' => [
+                'payouts' => ['schedule' => ['interval' => 'manual']],
+            ],
+        ]));
+    }
+
+    /**
+     * État RÉEL du compte Connect côté Stripe (source d'autorité pour savoir si un
+     * virement est possible), utilisé par la validation admin et le retrait.
+     *
+     * @return array {
+     *   exists: bool, transfers: string (active|pending|inactive|unknown),
+     *   payouts_enabled: bool, charges_enabled: bool,
+     *   requirements_due: string[], disabled_reason: ?string, ready: bool, error: ?string
+     * }
+     */
+    public function accountState(string $accountId): array
+    {
+        $unknown = [
+            'exists' => false,
+            'transfers' => 'unknown',
+            'payouts_enabled' => false,
+            'charges_enabled' => false,
+            'requirements_due' => [],
+            'disabled_reason' => null,
+            'ready' => false,
+            'error' => null,
+        ];
+
+        try {
+            $account = $this->retrieveAccount($accountId);
+        } catch (\Throwable $e) {
+            Log::warning('[StripeService] accountState échoué', [
+                'account_id' => $accountId,
+                'error' => $e->getMessage(),
+            ]);
+            return array_merge($unknown, ['error' => $e->getMessage()]);
+        }
+
+        $transfers = (string) ($account->capabilities->transfers ?? 'unknown');
+        $due = array_values(array_unique(array_merge(
+            (array) ($account->requirements->currently_due ?? []),
+            (array) ($account->requirements->past_due ?? []),
+        )));
+
+        return [
+            'exists' => true,
+            'transfers' => $transfers,
+            'payouts_enabled' => (bool) ($account->payouts_enabled ?? false),
+            'charges_enabled' => (bool) ($account->charges_enabled ?? false),
+            'requirements_due' => $due,
+            'disabled_reason' => $account->requirements->disabled_reason ?? null,
+            // `ready` = Stripe accepterait un Transfer + un Payout vers l'IBAN.
+            'ready' => $transfers === 'active' && (bool) ($account->payouts_enabled ?? false),
+            'error' => null,
+        ];
+    }
+
+    /**
+     * Solde DISPONIBLE de la plateforme dans une devise donnée (unité principale).
+     *
+     * Le solde Stripe est par devise : un compte plateforme canadien qui encaisse en
+     * EUR voit ses fonds convertis en CAD, et un Transfer en EUR échoue alors même
+     * que le solde global est positif. On vérifie donc la devise AVANT de débiter le
+     * wallet du vendeur.
+     */
+    public function platformAvailableBalance(string $currency): float
+    {
+        $currency = strtolower($currency);
+
+        try {
+            $balance = $this->withoutStripeNotices(fn () => $this->client()->balance->retrieve());
+        } catch (\Throwable $e) {
+            Log::warning('[StripeService] Lecture du solde plateforme échouée', [
+                'error' => $e->getMessage(),
+            ]);
+            return 0.0;
+        }
+
+        foreach (($balance->available ?? []) as $entry) {
+            if (strtolower($entry->currency ?? '') === $currency) {
+                return ((int) ($entry->amount ?? 0)) / 100;
+            }
+        }
+
+        return 0.0;
+    }
+
+    /**
+     * La plateforme peut-elle payer dans cette devise ? (mise en cache 5 min)
+     *
+     * Sert à GRISER le rail « virement bancaire » côté application : un compte
+     * plateforme qui ne détient aucun solde dans la devise du payout refusera tous
+     * les virements, autant ne pas les proposer. Le cache évite un appel Stripe à
+     * chaque ouverture du portefeuille.
+     */
+    public function platformSupportsCurrency(string $currency): bool
+    {
+        $currency = strtoupper($currency);
+
+        $currencies = \Illuminate\Support\Facades\Cache::remember(
+            'stripe:platform_balance_currencies',
+            300,
+            fn () => array_keys($this->platformBalanceCurrencies()),
+        );
+
+        return in_array($currency, $currencies, true);
+    }
+
+    /** Devises dans lesquelles la plateforme détient un solde (pour les diagnostics). */
+    public function platformBalanceCurrencies(): array
+    {
+        try {
+            $balance = $this->withoutStripeNotices(fn () => $this->client()->balance->retrieve());
+        } catch (\Throwable $e) {
+            return [];
+        }
+
+        $out = [];
+        foreach (($balance->available ?? []) as $entry) {
+            $out[strtoupper($entry->currency ?? '')] = ((int) ($entry->amount ?? 0)) / 100;
+        }
+
+        return $out;
     }
 
     public function retrieveAccount(string $accountId): \Stripe\Account
@@ -291,25 +469,40 @@ class StripeService
      */
     public function constructWebhookEvent(string $payload, string $sigHeader): \Stripe\Event
     {
-        if (empty($this->webhookSecret)) {
+        $secrets = $this->webhookSecrets();
+
+        if (empty($secrets)) {
             throw new \RuntimeException('Webhook secret Stripe non configuré.');
         }
 
-        return \Stripe\Webhook::constructEvent($payload, $sigHeader, $this->webhookSecret);
+        // Un événement n'est signé que par UN des endpoints : on essaie chaque secret
+        // et on ne relaie l'échec que si aucun ne valide la signature.
+        $last = null;
+        foreach ($secrets as $secret) {
+            try {
+                return \Stripe\Webhook::constructEvent($payload, $sigHeader, $secret);
+            } catch (\Throwable $e) {
+                $last = $e;
+            }
+        }
+
+        throw $last;
     }
 
     /**
      * Verse un montant au vendeur sur son IBAN (compte Connect déjà validé).
      *
-     * Deux étapes :
-     *  1) **Transfer** plateforme → compte Connect du vendeur. C'est le mouvement
-     *     d'argent AUTORITATIF : s'il échoue (ex. solde plateforme Stripe insuffisant),
-     *     on lève une exception et le retrait est annulé (le wallet est recrédité par
-     *     le rollback côté contrôleur).
-     *  2) **Payout** compte Connect → IBAN. Best-effort : si le compte est configuré
-     *     en versement automatique (ou si les fonds ne sont pas encore « available »),
-     *     Stripe versera de lui-même vers l'IBAN ; on n'échoue donc PAS le retrait,
-     *     on renvoie simplement `payout_id = null`.
+     * PRÉ-CONTRÔLES (avant tout mouvement d'argent) — voir assertPayoutPossible() :
+     *  a) la capability `transfers` du compte vendeur doit être `active` ;
+     *  b) la plateforme doit détenir le montant DANS LA DEVISE du versement.
+     * En cas d'échec, une StripePayoutUnavailableException est levée : rien n'a bougé.
+     *
+     * Puis deux étapes :
+     *  1) **Transfer** plateforme → compte Connect du vendeur (mouvement autoritatif) ;
+     *  2) **Payout** compte Connect → IBAN. Le compte étant en versement MANUEL, ce
+     *     payout est le nôtre (id connu) : le webhook `payout.paid` pourra rapprocher
+     *     le retrait. S'il échoue, on **contre-passe le Transfer** pour ne pas laisser
+     *     les fonds bloqués sur le compte Connect, puis on lève l'exception.
      *
      * ⚠️ Le montant est exprimé dans l'unité principale de la devise (ex. euros) et
      * converti ici en plus petite unité (centimes). Valable pour EUR/GBP/USD (2
@@ -326,40 +519,91 @@ class StripeService
             throw new \InvalidArgumentException('Montant de payout invalide.');
         }
 
+        $this->assertPayoutPossible($accountId, $amount, $currency);
+
         // 1) Transfer plateforme → compte Connect (autoritatif).
-        $transfer = $this->client()->transfers->create([
+        $transfer = $this->withoutStripeNotices(fn () => $this->client()->transfers->create([
             'amount' => $minor,
             'currency' => $currency,
             'destination' => $accountId,
             'metadata' => ['asso_kind' => 'vendor_withdrawal'],
-        ]);
+        ]));
 
-        // 2) Payout compte Connect → IBAN (best-effort).
-        $payoutId = null;
+        // 2) Payout compte Connect → IBAN (versement manuel : c'est à nous de le créer).
         try {
-            $payout = $this->client()->payouts->create([
+            $payout = $this->withoutStripeNotices(fn () => $this->client()->payouts->create([
                 'amount' => $minor,
                 'currency' => $currency,
                 'metadata' => [
                     'asso_kind' => 'vendor_withdrawal',
                     'transfer_id' => $transfer->id,
                 ],
-            ], ['stripe_account' => $accountId]);
-            $payoutId = $payout->id;
+            ], ['stripe_account' => $accountId]));
         } catch (\Throwable $e) {
-            Log::warning('[StripeService] Payout manuel non créé (versement automatique probable)', [
+            // Sans payout, les fonds resteraient sur le compte Connect sans jamais
+            // partir (plus de versement automatique) : on les ramène côté plateforme.
+            Log::error('[StripeService] Payout refusé — contre-passation du transfer', [
                 'account' => $accountId,
+                'transfer_id' => $transfer->id,
                 'error' => $e->getMessage(),
             ]);
+            $this->reverseTransfer($transfer->id, $minor);
+
+            throw new \App\Exceptions\StripePayoutUnavailableException(
+                'payout_refused',
+                "Le versement vers l'IBAN a été refusé par Stripe : " . $e->getMessage(),
+                ['account_id' => $accountId, 'transfer_id' => $transfer->id],
+            );
         }
 
         return [
-            'id' => $payoutId ?? $transfer->id,
+            'id' => $payout->id,
             'transfer_id' => $transfer->id,
-            'payout_id' => $payoutId,
+            'payout_id' => $payout->id,
             'amount_minor' => $minor,
             'currency' => $currency,
         ];
+    }
+
+    /**
+     * Vérifie que le virement est possible AVANT de toucher à l'argent.
+     *
+     * @throws \App\Exceptions\StripePayoutUnavailableException
+     */
+    public function assertPayoutPossible(string $accountId, float $amount, string $currency): void
+    {
+        $currency = strtolower($currency);
+
+        // a) Le compte vendeur doit être réellement activé côté Stripe.
+        $state = $this->accountState($accountId);
+        if (!$state['ready']) {
+            throw new \App\Exceptions\StripePayoutUnavailableException(
+                'account_not_ready',
+                "Le compte de virement du vendeur n'est pas encore activé par Stripe.",
+                [
+                    'account_id' => $accountId,
+                    'transfers' => $state['transfers'],
+                    'requirements_due' => $state['requirements_due'],
+                    'disabled_reason' => $state['disabled_reason'],
+                ],
+            );
+        }
+
+        // b) La plateforme doit détenir les fonds DANS CETTE DEVISE.
+        $available = $this->platformAvailableBalance($currency);
+        if ($available + 0.0001 < $amount) {
+            $balances = $this->platformBalanceCurrencies();
+            throw new \App\Exceptions\StripePayoutUnavailableException(
+                empty($balances[strtoupper($currency)]) ? 'currency_unavailable' : 'platform_funds',
+                sprintf(
+                    'Solde plateforme Stripe insuffisant en %s (disponible %.2f, requis %.2f).',
+                    strtoupper($currency),
+                    $available,
+                    $amount,
+                ),
+                ['currency' => strtoupper($currency), 'available' => $available, 'balances' => $balances],
+            );
+        }
     }
 
     /**
@@ -484,6 +728,164 @@ class StripeService
             'payment_status' => $s->payment_status,
             'payment_intent' => $s->payment_intent,
         ];
+    }
+
+    /**
+     * Bloc `individual` (identité + KYC) envoyé à Stripe.
+     *
+     * `array_filter` retire les clés absentes : une resoumission qui ne fournirait
+     * qu'une partie des informations ne les écrase pas par des valeurs vides.
+     */
+    private function individualParams(array $data, string $country = ''): array
+    {
+        $params = array_filter([
+            'first_name' => $data['first_name'] ?? null,
+            'last_name' => $data['last_name'] ?? null,
+            'email' => $data['email'] ?? null,
+            'phone' => $data['phone'] ?? null,
+        ]);
+
+        // Date de naissance : Stripe attend jour/mois/année séparés.
+        if (!empty($data['birth_date'])) {
+            try {
+                $dob = new \DateTimeImmutable((string) $data['birth_date']);
+                $params['dob'] = [
+                    'day' => (int) $dob->format('j'),
+                    'month' => (int) $dob->format('n'),
+                    'year' => (int) $dob->format('Y'),
+                ];
+            } catch (\Throwable $e) {
+                Log::warning('[StripeService] Date de naissance illisible', [
+                    'birth_date' => $data['birth_date'],
+                ]);
+            }
+        }
+
+        $address = array_filter([
+            'line1' => $data['address_line1'] ?? null,
+            'line2' => $data['address_line2'] ?? null,
+            'city' => $data['address_city'] ?? null,
+            'postal_code' => $data['address_postal_code'] ?? null,
+            'state' => $data['address_state'] ?? null,
+            'country' => $data['address_country'] ?? ($country ?: null),
+        ]);
+
+        if (!empty($address['line1'])) {
+            $params['address'] = $address;
+        }
+
+        return $params;
+    }
+
+    /**
+     * Bloc `business_profile` : exigé par Stripe pour activer les capabilities.
+     * Ce sont des informations de la PLATEFORME, pas du vendeur — configurables via
+     * les settings `stripe_business_mcc` / `stripe_business_url`.
+     */
+    private function businessProfileParams(): array
+    {
+        $url = (string) \App\Models\Setting::get('stripe_business_url', config('app.url'));
+        $mcc = \App\Models\Setting::get('stripe_business_mcc', '5399');
+
+        $params = ['mcc' => $mcc ?: null];
+
+        // Stripe rejette (« Not a valid URL ») toute adresse non publique : en local
+        // ou tant que le site n'est pas en ligne, on décrit l'activité à la place —
+        // Stripe accepte `product_description` en substitut de `url`.
+        if ($this->isPubliclyReachableUrl($url)) {
+            $params['url'] = $url;
+        } else {
+            $params['product_description'] = (string) \App\Models\Setting::get(
+                'stripe_business_description',
+                'Place de marché en ligne : vente de produits et services entre membres.',
+            );
+        }
+
+        return array_filter($params);
+    }
+
+    /** Une URL exploitable par Stripe : http(s) vers un domaine public. */
+    private function isPubliclyReachableUrl(string $url): bool
+    {
+        if (!filter_var($url, FILTER_VALIDATE_URL)) {
+            return false;
+        }
+
+        $host = parse_url($url, PHP_URL_HOST) ?: '';
+
+        if ($host === '' || filter_var($host, FILTER_VALIDATE_IP)) {
+            return false;
+        }
+
+        foreach (['localhost', '.local', '.test', '.internal', '.example'] as $needle) {
+            if ($host === trim($needle, '.') || str_ends_with($host, $needle)) {
+                return false;
+            }
+        }
+
+        // Un domaine public a au moins un point (« exemple.com »).
+        return str_contains($host, '.');
+    }
+
+    /**
+     * Endpoints webhook déclarés sur le compte Stripe (diagnostic + idempotence de
+     * la commande `stripe:webhook`). Le `secret` n'est JAMAIS relu ici : Stripe ne le
+     * renvoie qu'à la création de l'endpoint.
+     *
+     * @return array<int, array{id:string,url:string,status:string,connect:bool,events:array}>
+     */
+    public function listWebhookEndpoints(): array
+    {
+        $endpoints = $this->withoutStripeNotices(
+            fn () => $this->client()->webhookEndpoints->all(['limit' => 100])
+        );
+
+        $out = [];
+        foreach ($endpoints->data as $e) {
+            $out[] = [
+                'id' => $e->id,
+                'url' => $e->url,
+                'status' => $e->status ?? 'unknown',
+                'connect' => (bool) ($e->application === null && ($e->metadata->asso_connect ?? null) === '1')
+                    || (bool) ($e->connect ?? false),
+                'events' => (array) ($e->enabled_events ?? []),
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Crée l'endpoint webhook s'il n'existe pas déjà pour cette URL/portée.
+     *
+     * @return array{id:string,secret:?string,created:bool}
+     */
+    public function ensureWebhookEndpoint(string $url, array $events, bool $connect): array
+    {
+        foreach ($this->listWebhookEndpoints() as $existing) {
+            if ($existing['url'] === $url && $existing['connect'] === $connect) {
+                return ['id' => $existing['id'], 'secret' => null, 'created' => false];
+            }
+        }
+
+        $params = [
+            'url' => $url,
+            'enabled_events' => $events,
+            'description' => $connect
+                ? 'ASSO — événements Connect (virements IBAN vendeurs)'
+                : 'ASSO — événements plateforme (paiements carte)',
+            'metadata' => ['asso_connect' => $connect ? '1' : '0'],
+        ];
+
+        if ($connect) {
+            $params['connect'] = true;
+        }
+
+        $endpoint = $this->withoutStripeNotices(
+            fn () => $this->client()->webhookEndpoints->create($params)
+        );
+
+        return ['id' => $endpoint->id, 'secret' => $endpoint->secret ?? null, 'created' => true];
     }
 
     /** Devise de payout par défaut selon le pays du compte bancaire. */

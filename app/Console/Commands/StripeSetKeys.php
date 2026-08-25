@@ -20,7 +20,8 @@ class StripeSetKeys extends Command
     protected $signature = 'stripe:keys
         {--secret= : Clé secrète (sk_test_... / sk_live_...)}
         {--publishable= : Clé publique (pk_test_... / pk_live_...)}
-        {--webhook= : Secret de signature des webhooks (whsec_...)}
+        {--webhook= : Secret de signature des webhooks plateforme (whsec_...)}
+        {--webhook-connect= : Secret de signature des webhooks Connect (payout.*, account.updated)}
         {--mode= : Environnement (test|live) — déduit du préfixe de clé si omis}
         {--show : Affiche la configuration actuelle sans la modifier}
         {--test : Teste la connexion après enregistrement}';
@@ -39,7 +40,8 @@ class StripeSetKeys extends Command
         $secret = $this->option('secret');
         $publishable = $this->option('publishable');
 
-        if (!$secret && !$publishable && !$this->option('webhook') && !$this->option('mode')) {
+        if (!$secret && !$publishable && !$this->option('webhook')
+            && !$this->option('webhook-connect') && !$this->option('mode')) {
             $publishable = $this->ask('Clé publique (pk_...)', $config['publishable_key'] ?? null);
             $secret = $this->secret('Clé secrète (sk_...)') ?: ($config['secret_key'] ?? '');
         }
@@ -54,11 +56,13 @@ class StripeSetKeys extends Command
             'secret_key' => '',
             'publishable_key' => '',
             'webhook_secret' => '',
+            'webhook_secret_connect' => '',
         ], $config);
 
         if ($secret !== null) $new['secret_key'] = $secret;
         if ($publishable !== null) $new['publishable_key'] = $publishable;
         if ($this->option('webhook') !== null) $new['webhook_secret'] = $this->option('webhook');
+        if ($this->option('webhook-connect') !== null) $new['webhook_secret_connect'] = $this->option('webhook-connect');
         if ($mode !== null) $new['mode'] = $mode;
 
         ServiceConfiguration::setConfig(ServiceConfiguration::SERVICE_STRIPE, $new, true, 'Stripe - Connect (payouts IBAN) et paiements carte');
@@ -86,6 +90,7 @@ class StripeSetKeys extends Command
             ['publishable_key', $mask($config['publishable_key'] ?? '')],
             ['secret_key', $mask($config['secret_key'] ?? '')],
             ['webhook_secret', $mask($config['webhook_secret'] ?? '')],
+            ['webhook_secret_connect', $mask($config['webhook_secret_connect'] ?? '')],
         ]);
     }
 }

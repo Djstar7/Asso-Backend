@@ -80,6 +80,10 @@ class StripeWebhookController extends Controller
                     $this->handlePaymentIntentFailed($event->data->object);
                     break;
 
+                case 'account.updated':
+                    $this->handleAccountUpdated($event->data->object);
+                    break;
+
                 default:
                     // Événement non géré : on accuse simplement réception.
                     break;
@@ -273,6 +277,74 @@ class StripeWebhookController extends Controller
                     'payment_intent' => $pi->id ?? null,
                 ]);
             }
+        }
+    }
+
+    /**
+     * account.updated → synchronise l'état de vérification du compte vendeur.
+     *
+     * Stripe peut désactiver à tout moment un compte déjà validé chez nous (pièce
+     * justificative demandée, informations expirées). Sans cette synchronisation, le
+     * vendeur resterait `approved` côté ASSO et ses virements échoueraient un par un.
+     */
+    private function handleAccountUpdated(object $account): void
+    {
+        $accountId = $account->id ?? null;
+        if (!$accountId) {
+            return;
+        }
+
+        $user = \App\Models\User::where('stripe_account_id', $accountId)->first();
+        if (!$user) {
+            return;
+        }
+
+        $transfers = (string) ($account->capabilities->transfers ?? 'unknown');
+        $ready = $transfers === 'active' && (bool) ($account->payouts_enabled ?? false);
+
+        Log::info('[StripeWebhook] account.updated', [
+            'user_id' => $user->id,
+            'transfers' => $transfers,
+            'payouts_enabled' => $account->payouts_enabled ?? null,
+            'internal_status' => $user->stripe_account_status,
+        ]);
+
+        // Compte validé chez nous mais désactivé par Stripe : on le remet en attente.
+        if (!$ready && $user->stripe_account_status === 'approved') {
+            $due = array_values(array_unique(array_merge(
+                (array) ($account->requirements->currently_due ?? []),
+                (array) ($account->requirements->past_due ?? []),
+            )));
+
+            $user->update([
+                'stripe_account_status' => 'pending',
+                'stripe_verified_at' => null,
+                'stripe_rejection_reason' => 'Informations complémentaires demandées par Stripe'
+                    . (empty($due) ? '.' : ' : ' . implode(', ', array_slice($due, 0, 6)) . '.'),
+            ]);
+
+            Log::warning('[StripeWebhook] ⚠️ Compte de virement repassé en attente', [
+                'user_id' => $user->id,
+                'requirements_due' => $due,
+            ]);
+
+            $this->notifyUser(
+                $user,
+                'Compte de virement à mettre à jour',
+                'Notre partenaire bancaire demande des informations complémentaires avant '
+                    . "d'autoriser vos virements. Mettez à jour votre compte de virement.",
+                ['type' => 'stripe_account_requirements', 'action' => 'open_stripe_connect'],
+            );
+        }
+    }
+
+    /** Notification FCM à un utilisateur (best-effort). */
+    private function notifyUser(\App\Models\User $user, string $title, string $body, array $data): void
+    {
+        try {
+            $this->fcm->sendToUser($user, $title, $body, $data);
+        } catch (\Throwable $e) {
+            Log::error('[StripeWebhook] Notification FCM échouée: ' . $e->getMessage());
         }
     }
 

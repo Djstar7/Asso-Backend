@@ -31,10 +31,40 @@ class StripeConnectController extends Controller
     {
         $user = $request->user();
 
+        $data = $this->formatStatus($user);
+
+        // État RÉEL côté Stripe : un compte peut être `approved` chez nous mais encore
+        // bloqué par Stripe (vérification en cours ou pièce manquante). Le vendeur doit
+        // le savoir avant de tenter un virement qui échouerait.
+        if (!empty($user->stripe_account_id) && $this->stripe->isConfigured()) {
+            $state = $this->stripe->accountState($user->stripe_account_id);
+            $data['stripe'] = [
+                'ready' => $state['ready'],
+                'verification' => $this->verificationLabel($state),
+                'requirements_due' => $state['requirements_due'],
+            ];
+        }
+
         return response()->json([
             'success' => true,
-            'data' => $this->formatStatus($user),
+            'data' => $data,
         ]);
+    }
+
+    /** Libellé de l'état de vérification Stripe, affichable tel quel par le mobile. */
+    private function verificationLabel(array $state): string
+    {
+        if ($state['ready']) {
+            return 'Compte vérifié par Stripe.';
+        }
+
+        return match ($state['transfers']) {
+            'pending' => 'Vérification en cours chez Stripe (quelques minutes).',
+            'inactive' => empty($state['requirements_due'])
+                ? "Compte pas encore activé par Stripe."
+                : 'Informations complémentaires demandées par Stripe.',
+            default => "État du compte indisponible pour le moment.",
+        };
     }
 
     /**
@@ -57,6 +87,15 @@ class StripeConnectController extends Controller
             'account_holder_name' => 'required|string|max:255',
             'first_name' => 'nullable|string|max:255',
             'last_name' => 'nullable|string|max:255',
+            // KYC EXIGÉ PAR STRIPE : sans ces informations le compte reste bloqué en
+            // `requirements.past_due` et AUCUN virement ne peut aboutir.
+            'birth_date' => 'required|date|before:-18 years',
+            'phone' => 'required|string|max:30',
+            'address_line1' => 'required|string|max:255',
+            'address_line2' => 'nullable|string|max:255',
+            'address_city' => 'required|string|max:120',
+            'address_postal_code' => 'required|string|max:20',
+            'address_state' => 'nullable|string|max:120',
         ]);
 
         $user = $request->user();
@@ -73,14 +112,25 @@ class StripeConnectController extends Controller
         $country = strtoupper($validated['country']);
         $holder = $validated['account_holder_name'];
 
+        // Informations d'identité transmises à Stripe (jamais stockées chez nous).
+        $kyc = [
+            'country' => $country,
+            'first_name' => $validated['first_name'] ?? $user->first_name,
+            'last_name' => $validated['last_name'] ?? $user->last_name,
+            'email' => $user->email,
+            'birth_date' => $validated['birth_date'],
+            'phone' => $validated['phone'],
+            'address_line1' => $validated['address_line1'],
+            'address_line2' => $validated['address_line2'] ?? null,
+            'address_city' => $validated['address_city'],
+            'address_postal_code' => $validated['address_postal_code'],
+            'address_state' => $validated['address_state'] ?? null,
+        ];
+
         try {
             if (empty($user->stripe_account_id)) {
                 // Premier envoi : créer le compte Connect + attacher l'IBAN.
-                $result = $this->stripe->createCustomAccountWithBank([
-                    'country' => $country,
-                    'email' => $user->email,
-                    'first_name' => $validated['first_name'] ?? $user->first_name,
-                    'last_name' => $validated['last_name'] ?? $user->last_name,
+                $result = $this->stripe->createCustomAccountWithBank($kyc + [
                     'iban' => $iban,
                     'account_holder_name' => $holder,
                     'user_id' => $user->id,
@@ -89,12 +139,14 @@ class StripeConnectController extends Controller
                 ]);
                 $accountId = $result['id'];
             } else {
-                // Renvoi (compte rejeté ou en attente) : remplacer l'IBAN.
+                // Renvoi (compte rejeté ou en attente) : remplacer l'IBAN ET
+                // rafraîchir le KYC (il est souvent la cause du rejet).
                 $result = $this->stripe->replaceExternalAccount($user->stripe_account_id, [
                     'country' => $country,
                     'iban' => $iban,
                     'account_holder_name' => $holder,
                 ]);
+                $this->stripe->updateAccountKyc($user->stripe_account_id, $kyc);
                 $accountId = $user->stripe_account_id;
             }
 
@@ -145,7 +197,10 @@ class StripeConnectController extends Controller
             if (str_contains($raw, 'iban') || str_contains($raw, 'bank') || str_contains($raw, 'account_number')) {
                 return "L'IBAN saisi semble invalide. Vérifiez-le puis réessayez.";
             }
-            if (str_contains($raw, 'country')) {
+            // Stripe formule le pays non supporté sans le mot « country »
+            // (ex. « CM is not currently supported by Stripe. ») : sans ce test, le
+            // vendeur recevait un message générique parlant d'informations invalides.
+            if (str_contains($raw, 'country') || str_contains($raw, 'not currently supported')) {
                 return "Le pays du compte bancaire n'est pas pris en charge pour les virements.";
             }
             return "Certaines informations bancaires sont invalides. Vérifiez vos données puis réessayez.";

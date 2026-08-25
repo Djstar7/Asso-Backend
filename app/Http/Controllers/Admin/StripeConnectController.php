@@ -84,7 +84,8 @@ class StripeConnectController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $this->formatAccount($user),
+            // L'état Stripe n'est lu que sur le détail (1 appel API), pas sur la liste.
+            'data' => $this->formatAccount($user) + ['stripe_state' => $this->stripeState($user)],
         ]);
     }
 
@@ -109,6 +110,17 @@ class StripeConnectController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Aucun compte Stripe soumis pour ce vendeur.',
+            ], 422);
+        }
+
+        // Garde-fou : approuver un compte que Stripe n'a pas activé produirait un
+        // vendeur « validé » dont tous les virements échoueraient.
+        $state = $this->stripeState($user);
+        if ($state && !$state['ready']) {
+            return response()->json([
+                'success' => false,
+                'message' => $this->notReadyMessage($state),
+                'stripe_state' => $state,
             ], 422);
         }
 
@@ -256,6 +268,12 @@ class StripeConnectController extends Controller
             return redirect()->back()->with('error', 'Ce compte a déjà été traité.');
         }
 
+        // Même garde-fou que l'API : Stripe doit avoir activé la capability transfers.
+        $state = $this->stripeState($user);
+        if ($state && !$state['ready']) {
+            return redirect()->back()->with('error', $this->notReadyMessage($state));
+        }
+
         $user->update([
             'stripe_account_status' => 'approved',
             'stripe_verified_at' => now(),
@@ -313,6 +331,44 @@ class StripeConnectController extends Controller
 
         return redirect()->route('admin.stripe.accounts.index')
             ->with('success', 'Compte de virement rejeté pour ' . $user->first_name . ' ' . $user->last_name . '.');
+    }
+
+    /**
+     * État réel du compte côté Stripe (null si Stripe n'est pas configuré ou si le
+     * vendeur n'a pas de compte : on ne bloque alors pas la décision de l'admin).
+     */
+    private function stripeState(User $user): ?array
+    {
+        $stripe = app(\App\Services\StripeService::class);
+
+        if (!$stripe->isConfigured() || empty($user->stripe_account_id)) {
+            return null;
+        }
+
+        $state = $stripe->accountState($user->stripe_account_id);
+
+        // Compte injoignable (panne réseau/API) : ne pas bloquer l'admin sur un doute.
+        return $state['exists'] ? $state : null;
+    }
+
+    /** Message d'explication quand Stripe n'a pas (encore) activé le compte. */
+    private function notReadyMessage(array $state): string
+    {
+        if ($state['transfers'] === 'pending') {
+            return "Stripe vérifie encore ce compte (capability transfers = pending). "
+                . 'Réessayez dans quelques minutes.';
+        }
+
+        $due = $state['requirements_due'] ?? [];
+        if (!empty($due)) {
+            return "Stripe n'a pas activé ce compte : informations manquantes ("
+                . implode(', ', array_slice($due, 0, 6))
+                . (count($due) > 6 ? ', …' : '')
+                . '). Demandez au vendeur de renvoyer son dossier.';
+        }
+
+        return "Stripe n'a pas activé ce compte (transfers = {$state['transfers']}). "
+            . 'Approbation impossible : les virements échoueraient.';
     }
 
     /** Notifie le vendeur (push + in-app), sans jamais faire échouer la requête. */

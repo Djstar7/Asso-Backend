@@ -401,7 +401,13 @@ class WalletController extends Controller
             // l'utilisateur tenter un retrait qui échouerait par une erreur.
             $kpayConfigured = app(\App\Services\KPayService::class)->isConfigured();
             $paypalConfigured = $this->paypalService->isConfigured();
-            $stripeConfigured = app(\App\Services\StripeService::class)->isConfigured();
+            $stripeService = app(\App\Services\StripeService::class);
+            $stripeConfigured = $stripeService->isConfigured();
+
+            // La plateforme doit détenir un solde DANS la devise du virement, sinon
+            // Stripe refuse le transfert : on grise le rail plutôt que de le proposer.
+            $stripePayoutSupported = $stripeConfigured
+                && $stripeService->platformSupportsCurrency($stripeCurrency);
 
             return response()->json([
                 'success' => true,
@@ -416,6 +422,7 @@ class WalletController extends Controller
                     'stripe' => [
                         'eligible' => $stripeReady,
                         'configured' => $stripeConfigured,
+                        'payout_supported' => $stripePayoutSupported,
                         'status' => $user->stripe_account_status, // null|pending|approved|rejected
                         'currency' => $stripeCurrency,
                         'available' => max(0, $stripeAvailable),
@@ -434,8 +441,9 @@ class WalletController extends Controller
                             'currency' => 'XAF',
                         ],
                         'stripe' => [
-                            'configured' => $stripeConfigured,
+                            'configured' => $stripeConfigured && $stripePayoutSupported,
                             'eligible' => $stripeReady,
+                            'payout_supported' => $stripePayoutSupported,
                             'status' => $user->stripe_account_status,
                             'available' => max(0, $stripeAvailable),
                             'currency' => $stripeCurrency,
@@ -769,6 +777,25 @@ class WalletController extends Controller
             ], 400);
         }
 
+        // Pré-contrôle Stripe AVANT toute écriture : compte vendeur réellement activé
+        // et solde plateforme disponible DANS CETTE DEVISE. Sans lui, on débitait le
+        // wallet pour ensuite tout annuler par rollback sur une erreur Stripe opaque.
+        try {
+            $stripe->assertPayoutPossible($user->stripe_account_id, $amount, $currency);
+        } catch (\App\Exceptions\StripePayoutUnavailableException $e) {
+            Log::error('[WalletController] ❌ Virement IBAN impossible (pré-contrôle)', [
+                'user_id' => $user->id,
+                'reason' => $e->reason,
+                'detail' => $e->getMessage(),
+                'context' => $e->context,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => $this->stripeUnavailableMessage($e->reason),
+            ], $e->reason === 'account_not_ready' ? 422 : 503);
+        }
+
         try {
             DB::beginTransaction();
 
@@ -905,6 +932,21 @@ class WalletController extends Controller
                     'balance_before' => $currentBalance,
                 ],
             ]);
+        } catch (\App\Exceptions\StripePayoutUnavailableException $e) {
+            // Le virement a été refusé sans mouvement d'argent net (transfer contre-passé
+            // le cas échéant) : on annule l'écriture du débit et on explique pourquoi.
+            DB::rollBack();
+            Log::error('[WalletController] ❌ Virement IBAN refusé par Stripe', [
+                'user_id' => $user->id,
+                'reason' => $e->reason,
+                'detail' => $e->getMessage(),
+                'context' => $e->context,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => $this->stripeUnavailableMessage($e->reason),
+            ], $e->reason === 'account_not_ready' ? 422 : 503);
         } catch (\Throwable $e) {
             DB::rollBack();
             Log::error("[WalletController] ❌ Stripe withdrawal error: " . $e->getMessage());
@@ -915,6 +957,23 @@ class WalletController extends Controller
                 'message' => "Le virement n'a pas pu être initié pour le moment. Votre solde n'a pas été débité. Réessayez plus tard.",
             ], 500);
         }
+    }
+
+    /**
+     * Message vendeur pour un virement IBAN impossible. Le détail technique (devise
+     * du solde plateforme, requirements Stripe) reste dans les logs : il concerne
+     * l'exploitation de la plateforme, pas le vendeur.
+     */
+    private function stripeUnavailableMessage(string $reason): string
+    {
+        return match ($reason) {
+            'account_not_ready' => "Votre compte de virement n'est pas encore activé par notre partenaire bancaire. "
+                . 'Vérifiez vos informations dans « Compte de virement » ou réessayez sous peu.',
+            'payout_refused' => "Le virement a été refusé par notre partenaire bancaire. "
+                . "Votre solde n'a pas été débité. Vérifiez votre IBAN puis réessayez.",
+            default => "Le virement bancaire est momentanément indisponible. "
+                . "Votre solde n'a pas été débité. Réessayez plus tard ou choisissez un autre moyen de retrait.",
+        };
     }
 
     /** Devise de payout Stripe selon le pays de la banque du vendeur (défaut EUR). */
