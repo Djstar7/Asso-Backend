@@ -159,6 +159,107 @@ class SettingsController extends Controller
     }
 
     /**
+     * Diagnostic de la chaîne de virement IBAN (AJAX) — équivalent web de la
+     * commande `stripe:doctor`.
+     *
+     * Contrôle ce qui a réellement empêché des virements d'aboutir : clés, fonds de
+     * la plateforme (toutes devises), endpoints webhook joignables depuis Internet,
+     * et comptes vendeurs validés chez nous mais refusés par Stripe.
+     */
+    public function diagnoseStripe()
+    {
+        $stripe = app(\App\Services\StripeService::class);
+
+        if (!$stripe->isConfigured()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Clés API Stripe manquantes.',
+            ]);
+        }
+
+        $connection = $stripe->testConnection();
+        if (!($connection['success'] ?? false)) {
+            return response()->json(['success' => false, 'message' => $connection['message'] ?? 'Connexion Stripe impossible.']);
+        }
+
+        $checks = [];
+
+        $checks[] = ['ok' => true, 'label' => $connection['message']];
+
+        // Fonds : la devise n'est plus bloquante (conversion au transfert), seule
+        // la capacité totale compte.
+        $balances = $stripe->platformBalanceCurrencies();
+        $capacity = $stripe->platformPayoutCapacity('EUR');
+        $checks[] = [
+            'ok' => $capacity > 0,
+            'label' => $capacity > 0
+                ? sprintf('Capacité de virement : %.2f EUR (soldes : %s).', $capacity, $this->formatBalances($balances))
+                : 'Aucun fonds disponible sur le compte Stripe : les virements seront refusés.',
+        ];
+
+        // Webhooks : un endpoint vers une adresse locale ne recevra jamais rien.
+        $endpoints = $stripe->listWebhookEndpoints();
+        $unreachable = array_filter($endpoints, fn ($e) => !$stripe->isPubliclyReachableUrl($e['url']));
+        $hasConnect = !empty(array_filter($endpoints, fn ($e) => $e['connect']));
+
+        $checks[] = [
+            'ok' => !empty($endpoints) && $hasConnect && empty($unreachable),
+            'label' => match (true) {
+                empty($endpoints) => 'Aucun endpoint webhook déclaré : les virements resteront « en cours » indéfiniment.',
+                !empty($unreachable) => count($unreachable) . ' endpoint(s) injoignable(s) depuis Internet ('
+                    . implode(', ', array_map(fn ($e) => $e['url'], array_slice($unreachable, 0, 2)))
+                    . ') : aucun événement ne sera livré.',
+                !$hasConnect => 'Aucun endpoint Connect (payout.paid / payout.failed) : les virements ne seront jamais marqués terminés.',
+                default => count($endpoints) . ' endpoint(s) webhook opérationnel(s).',
+            },
+        ];
+
+        $checks[] = [
+            'ok' => !empty($stripe->webhookSecretConnect()),
+            'label' => !empty($stripe->webhookSecretConnect())
+                ? 'Secret de signature Connect configuré.'
+                : 'Secret de signature Connect absent : les événements payout.* seront rejetés.',
+        ];
+
+        // Comptes vendeurs validés chez nous mais refusés par Stripe.
+        $blocked = [];
+        foreach (\App\Models\User::whereNotNull('stripe_account_id')
+            ->where('stripe_account_status', 'approved')->limit(25)->get() as $vendor) {
+            $state = $stripe->accountState($vendor->stripe_account_id);
+            if ($state['exists'] && !$state['ready']) {
+                $blocked[] = trim(($vendor->first_name ?? '') . ' ' . ($vendor->last_name ?? '')) . " (#{$vendor->id})";
+            }
+        }
+
+        $checks[] = [
+            'ok' => empty($blocked),
+            'label' => empty($blocked)
+                ? 'Tous les comptes vendeurs validés sont actifs chez Stripe.'
+                : count($blocked) . ' compte(s) validé(s) chez nous mais NON activé(s) par Stripe : '
+                    . implode(', ', array_slice($blocked, 0, 5)) . '.',
+        ];
+
+        return response()->json([
+            'success' => collect($checks)->every(fn ($c) => $c['ok']),
+            'checks' => $checks,
+        ]);
+    }
+
+    /** « CAD 55.93, EUR 10.00 » */
+    private function formatBalances(array $balances): string
+    {
+        if (empty($balances)) {
+            return 'aucun';
+        }
+
+        return implode(', ', array_map(
+            fn ($code, $amount) => sprintf('%s %.2f', $code, $amount),
+            array_keys($balances),
+            $balances,
+        ));
+    }
+
+    /**
      * Tester la connexion à l'API KPay (AJAX).
      */
     public function testKpay()
@@ -209,6 +310,14 @@ class SettingsController extends Controller
                 'stripe_publishable_key' => 'nullable|string',
                 'stripe_secret_key' => 'nullable|string',
                 'stripe_webhook_secret' => 'nullable|string',
+                // Événements Connect (payout.*, account.updated) : endpoint Stripe
+                // distinct, donc secret de signature distinct.
+                'stripe_webhook_secret_connect' => 'nullable|string',
+                // Virements bancaires vendeurs (Stripe Connect — payout IBAN)
+                'min_stripe_withdrawal_amount' => 'nullable|numeric|min:0',
+                'stripe_fx_buffer_percent' => 'nullable|numeric|min:0|max:20',
+                'stripe_business_url' => 'nullable|url',
+                'stripe_business_mcc' => 'nullable|string|max:10',
                 // Minimums d'encaissement par moyen (devise pivot XAF) — grisage mobile
                 'pay_min_kpay' => 'nullable|numeric|min:0',
                 'pay_min_paypal' => 'nullable|numeric|min:0',
@@ -222,7 +331,10 @@ class SettingsController extends Controller
                 // service_configurations (source de vérité), pas dans la table settings.
                 // (stripe_enabled / stripe_currency / pay_min_stripe restent en settings.)
                 if (str_starts_with($key, 'kpay_') || str_starts_with($key, 'exchange_rate_')
-                    || in_array($key, ['stripe_mode', 'stripe_publishable_key', 'stripe_secret_key', 'stripe_webhook_secret'])) {
+                    || in_array($key, [
+                        'stripe_mode', 'stripe_publishable_key', 'stripe_secret_key',
+                        'stripe_webhook_secret', 'stripe_webhook_secret_connect',
+                    ])) {
                     continue;
                 }
 
@@ -440,6 +552,7 @@ class SettingsController extends Controller
             'publishable_key' => '',
             'secret_key' => '',
             'webhook_secret' => '',
+            'webhook_secret_connect' => '',
         ], $stripeExisting);
 
         if (!empty($validated['stripe_mode'])) {
@@ -453,6 +566,9 @@ class SettingsController extends Controller
         }
         if (!empty($validated['stripe_webhook_secret'])) {
             $stripeConfig['webhook_secret'] = $validated['stripe_webhook_secret'];
+        }
+        if (!empty($validated['stripe_webhook_secret_connect'])) {
+            $stripeConfig['webhook_secret_connect'] = $validated['stripe_webhook_secret_connect'];
         }
 
         ServiceConfiguration::setConfig(

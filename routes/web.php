@@ -116,6 +116,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::get('/payments', [SettingsController::class, 'payments'])->name('payments');
             Route::put('/payments/update', [SettingsController::class, 'updatePayments'])->name('payments.update');
             Route::post('/payments/test-kpay', [SettingsController::class, 'testKpay'])->name('payments.test-kpay');
+            // Diagnostic de la chaîne de virement IBAN (équivalent web de stripe:doctor).
+            Route::post('/payments/diagnose-stripe', [SettingsController::class, 'diagnoseStripe'])->name('payments.diagnose-stripe');
 
             // Services
             Route::get('/services', [SettingsController::class, 'services'])->name('services');

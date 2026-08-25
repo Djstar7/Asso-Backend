@@ -504,8 +504,15 @@
                             <i class="fas fa-credit-card text-emerald-400 text-xl"></i>
                         </div>
                         <div>
-                            <h3 class="text-2xl font-bold text-white">Carte bancaire (Stripe)</h3>
-                            <p class="text-gray-400 mt-1">Encaissement direct par carte via Stripe</p>
+                            <h3 class="text-2xl font-bold text-white">Stripe</h3>
+                            <p class="text-gray-400 mt-1">
+                                Encaissement par carte <strong>et</strong> virements bancaires vendeurs (IBAN)
+                            </p>
+                            <p class="text-amber-400/90 text-xs mt-1">
+                                <i class="fas fa-exclamation-triangle mr-1"></i>
+                                Désactiver ce service masque toute la configuration Stripe : les virements
+                                IBAN s'arrêtent aussi, pas seulement les paiements par carte.
+                            </p>
                         </div>
                     </div>
                     <label class="relative inline-flex items-center cursor-pointer">
@@ -565,10 +572,86 @@
                                class="w-full px-4 py-3 bg-dark-200 border border-dark-300 rounded-lg text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
                     </div>
                     <div>
-                        <label for="stripe_webhook_secret" class="block text-sm font-medium text-gray-300 mb-2">Webhook secret (whsec_...)</label>
+                        <label for="stripe_webhook_secret" class="block text-sm font-medium text-gray-300 mb-2">Webhook secret — plateforme (whsec_...)</label>
                         <input type="password" name="stripe_webhook_secret" id="stripe_webhook_secret"
                                placeholder="{{ !empty($stripeConfig['webhook_secret']) ? '•••••••••• (déjà configuré)' : 'whsec_...' }}"
                                class="w-full px-4 py-3 bg-dark-200 border border-dark-300 rounded-lg text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
+                        <p class="mt-1 text-xs text-gray-500">Encaissements carte : <em>payment_intent.*</em>, <em>checkout.session.completed</em>.</p>
+                    </div>
+                    <div>
+                        <label for="stripe_webhook_secret_connect" class="block text-sm font-medium text-gray-300 mb-2">Webhook secret — Connect (whsec_...)</label>
+                        <input type="password" name="stripe_webhook_secret_connect" id="stripe_webhook_secret_connect"
+                               placeholder="{{ !empty($stripeConfig['webhook_secret_connect']) ? '•••••••••• (déjà configuré)' : 'whsec_...' }}"
+                               class="w-full px-4 py-3 bg-dark-200 border border-dark-300 rounded-lg text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
+                        <p class="mt-1 text-xs text-gray-500">
+                            Virements vendeurs : <em>payout.paid/failed</em>, <em>account.updated</em>.
+                            Ces événements viennent d'un endpoint <strong>distinct</strong> — sans ce secret, ils sont rejetés
+                            et les virements restent « en cours » indéfiniment.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Virements bancaires vendeurs (Stripe Connect) -->
+            <div class="bg-dark-100 rounded-lg shadow-lg border border-dark-200 p-6 mb-6">
+                <div class="flex items-center justify-between mb-1">
+                    <h3 class="text-lg font-semibold text-white">Virements bancaires vendeurs (IBAN)</h3>
+                    <button type="button" id="stripe-diagnose-btn"
+                            class="px-4 py-2 text-sm bg-dark-200 hover:bg-dark-300 border border-dark-300 text-gray-200 rounded-lg transition-colors">
+                        <i class="fas fa-stethoscope mr-1"></i> Vérifier la chaîne de virement
+                    </button>
+                </div>
+                <p class="text-gray-400 text-sm mb-6">
+                    Le vendeur est débité dans la devise de son portefeuille (XAF) ; le montant est converti
+                    vers la devise de son IBAN et financé depuis n'importe quelle devise détenue par la plateforme.
+                </p>
+
+                <div id="stripe-diagnose-result" class="hidden mb-6 space-y-1 text-sm"></div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label for="min_stripe_withdrawal_amount" class="block text-sm font-medium text-gray-300 mb-2">
+                            Retrait minimum (devise de l'IBAN)
+                        </label>
+                        <input type="number" step="0.01" min="0" name="min_stripe_withdrawal_amount" id="min_stripe_withdrawal_amount"
+                               value="{{ old('min_stripe_withdrawal_amount', $paymentSettings['min_stripe_withdrawal_amount']->value ?? '5') }}"
+                               class="w-full px-4 py-3 bg-dark-200 border border-dark-300 rounded-lg text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
+                        <p class="mt-1 text-xs text-gray-500">Ex. 5 EUR. Traduit automatiquement en XAF pour le vendeur.</p>
+                    </div>
+                    <div>
+                        <label for="stripe_fx_buffer_percent" class="block text-sm font-medium text-gray-300 mb-2">
+                            Marge de change (%)
+                        </label>
+                        <input type="number" step="0.1" min="0" max="20" name="stripe_fx_buffer_percent" id="stripe_fx_buffer_percent"
+                               value="{{ old('stripe_fx_buffer_percent', $paymentSettings['stripe_fx_buffer_percent']->value ?? '3') }}"
+                               class="w-full px-4 py-3 bg-dark-200 border border-dark-300 rounded-lg text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
+                        <p class="mt-1 text-xs text-gray-500">
+                            Appliquée quand le virement est financé depuis une autre devise : absorbe l'écart entre
+                            notre taux et celui de Stripe. Trop basse, le vendeur reçoit un peu moins que prévu.
+                        </p>
+                    </div>
+                    <div>
+                        <label for="stripe_business_url" class="block text-sm font-medium text-gray-300 mb-2">
+                            Site de la plateforme (profil Stripe)
+                        </label>
+                        <input type="url" name="stripe_business_url" id="stripe_business_url"
+                               value="{{ old('stripe_business_url', $paymentSettings['stripe_business_url']->value ?? '') }}"
+                               placeholder="https://mon-asso.com"
+                               class="w-full px-4 py-3 bg-dark-200 border border-dark-300 rounded-lg text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
+                        <p class="mt-1 text-xs text-gray-500">
+                            Transmis à Stripe à la création des comptes vendeurs. Une adresse locale est refusée :
+                            laissée vide, une description d'activité est envoyée à la place.
+                        </p>
+                    </div>
+                    <div>
+                        <label for="stripe_business_mcc" class="block text-sm font-medium text-gray-300 mb-2">
+                            Code d'activité (MCC)
+                        </label>
+                        <input type="text" name="stripe_business_mcc" id="stripe_business_mcc"
+                               value="{{ old('stripe_business_mcc', $paymentSettings['stripe_business_mcc']->value ?? '5399') }}"
+                               placeholder="5399"
+                               class="w-full px-4 py-3 bg-dark-200 border border-dark-300 rounded-lg text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
+                        <p class="mt-1 text-xs text-gray-500">5399 = commerce de détail divers. Exigé par Stripe pour activer un compte vendeur.</p>
                     </div>
                 </div>
             </div>
@@ -635,6 +718,44 @@ function togglePassword(fieldId) {
         icon.classList.add('fa-eye');
     }
 }
+
+// Diagnostic de la chaîne de virement IBAN (AJAX)
+(function () {
+    const btn = document.getElementById('stripe-diagnose-btn');
+    const box = document.getElementById('stripe-diagnose-result');
+    if (!btn) return;
+    btn.addEventListener('click', async function () {
+        const original = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Vérification…';
+        box.classList.remove('hidden');
+        box.innerHTML = '<p class="text-gray-300">Interrogation de Stripe…</p>';
+        try {
+            const res = await fetch('{{ route('admin.settings.payments.diagnose-stripe') }}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    'Accept': 'application/json',
+                },
+            });
+            const data = await res.json();
+            if (!data.checks) {
+                box.innerHTML = '<p class="text-red-400">✗ ' + (data.message || 'Diagnostic impossible') + '</p>';
+                return;
+            }
+            box.innerHTML = data.checks.map(function (c) {
+                const color = c.ok ? 'text-green-400' : 'text-red-400';
+                const icon = c.ok ? '✓' : '✗';
+                return '<p class="' + color + '">' + icon + ' ' + c.label + '</p>';
+            }).join('');
+        } catch (e) {
+            box.innerHTML = '<p class="text-red-400">✗ Erreur réseau</p>';
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = original;
+        }
+    });
+})();
 
 // Test de connexion KPay (AJAX)
 (function () {
