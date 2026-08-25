@@ -393,6 +393,25 @@ class StripeService
         return $this->withoutStripeNotices(fn () => $this->client()->accounts->retrieve($accountId));
     }
 
+    /** Objet payout complet (réconciliation) ; null si introuvable. */
+    public function retrievePayout(string $accountId, string $payoutId): ?\Stripe\Payout
+    {
+        try {
+            return $this->withoutStripeNotices(fn () => $this->client()->payouts->retrieve(
+                $payoutId,
+                [],
+                ['stripe_account' => $accountId]
+            ));
+        } catch (\Throwable $e) {
+            Log::warning('[StripeService] Payout introuvable', [
+                'account_id' => $accountId,
+                'payout_id' => $payoutId,
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
+    }
+
     /**
      * Statut d'un payout sur le compte connecté (réconciliation du virement IBAN).
      *

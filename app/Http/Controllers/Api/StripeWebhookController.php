@@ -3,12 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\PlatformWithdrawal;
-use App\Models\WalletTransaction;
 use App\Services\FirebaseMessagingService;
 use App\Services\StripeService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -100,121 +97,15 @@ class StripeWebhookController extends Controller
         return response()->json(['received' => true]);
     }
 
-    /**
-     * payout.paid → marque le retrait comme `completed`.
-     */
+    /** Règlement d'un payout : logique partagée avec `stripe:reconcile-payouts`. */
     private function handlePayoutPaid(object $payout): void
     {
-        DB::transaction(function () use ($payout) {
-            $withdrawal = $this->lockWithdrawalForPayout($payout);
-            if (!$withdrawal) {
-                Log::warning('[StripeWebhook] payout.paid : retrait introuvable', [
-                    'payout_id' => $payout->id ?? null,
-                ]);
-                return;
-            }
-
-            if ($withdrawal->isCompleted()) {
-                return; // idempotent
-            }
-
-            $withdrawal->stripe_payout_id = $withdrawal->stripe_payout_id ?? ($payout->id ?? null);
-            $withdrawal->markAsCompleted($payout->id ?? '', $this->payoutToArray($payout));
-
-            // Aligner la transaction wallet liée (pending → completed).
-            WalletTransaction::where('reference_type', 'platform_withdrawal')
-                ->where('reference_id', $withdrawal->id)
-                ->where('provider', 'stripe')
-                ->update(['status' => 'completed']);
-
-            Log::info('[StripeWebhook] ✅ Retrait complété', [
-                'withdrawal_id' => $withdrawal->id,
-                'payout_id' => $payout->id ?? null,
-            ]);
-
-            $this->notify(
-                $withdrawal,
-                '✅ Virement effectué',
-                "Votre virement de {$withdrawal->amount_sent} {$withdrawal->currency} a bien été versé sur votre compte bancaire.",
-                'wallet_withdrawal_completed',
-            );
-        });
+        app(\App\Services\StripePayoutSettlementService::class)->settlePaid($payout, 'StripeWebhook');
     }
 
-    /**
-     * payout.failed → marque le retrait comme `failed` et **rembourse** le wallet.
-     */
     private function handlePayoutFailed(object $payout): void
     {
-        DB::transaction(function () use ($payout) {
-            $withdrawal = $this->lockWithdrawalForPayout($payout);
-            if (!$withdrawal) {
-                Log::warning('[StripeWebhook] payout.failed : retrait introuvable', [
-                    'payout_id' => $payout->id ?? null,
-                ]);
-                return;
-            }
-
-            // N'agir qu'une seule fois, et jamais sur un retrait déjà terminal.
-            if ($withdrawal->isFailed() || $withdrawal->isCompleted()) {
-                return; // idempotent
-            }
-
-            $user = $withdrawal->user;
-            $amount = (float) $withdrawal->amount_requested;
-            $currency = $withdrawal->currency;
-
-            if ($user) {
-                // Recréditer le solde débité à l'initiation du retrait.
-                $balanceBefore = $user->kpayBalanceFor($currency);
-                $user->creditKpay($currency, $amount);
-                $balanceAfter = $balanceBefore + $amount;
-
-                WalletTransaction::create([
-                    'user_id' => $user->id,
-                    'type' => 'refund',
-                    'amount' => $amount,
-                    'balance_before' => $balanceBefore,
-                    'balance_after' => $balanceAfter,
-                    'description' => 'Remboursement virement bancaire échoué',
-                    'status' => 'completed',
-                    'provider' => 'stripe',
-                    'reference_type' => 'platform_withdrawal',
-                    'reference_id' => $withdrawal->id,
-                    'metadata' => [
-                        'reason' => $payout->failure_message ?? $payout->failure_code ?? 'payout_failed',
-                        'payout_id' => $payout->id ?? null,
-                        'refunded_at' => now()->toIso8601String(),
-                    ],
-                ]);
-
-                // La transaction de débit initiale devient "failed".
-                WalletTransaction::where('reference_type', 'platform_withdrawal')
-                    ->where('reference_id', $withdrawal->id)
-                    ->where('provider', 'stripe')
-                    ->where('type', 'debit')
-                    ->update(['status' => 'failed']);
-            }
-
-            $withdrawal->stripe_response = $this->payoutToArray($payout);
-            $withdrawal->markAsFailed(
-                (string) ($payout->failure_code ?? 'stripe_payout_failed'),
-                (string) ($payout->failure_message ?? 'Le versement vers votre IBAN a échoué.'),
-            );
-
-            Log::warning('[StripeWebhook] ❌ Retrait échoué + remboursé', [
-                'withdrawal_id' => $withdrawal->id,
-                'payout_id' => $payout->id ?? null,
-                'refunded' => (bool) $user,
-            ]);
-
-            $this->notify(
-                $withdrawal,
-                '⚠️ Virement échoué',
-                "Votre virement de {$amount} {$currency} a échoué. Le montant a été recrédité sur votre portefeuille.",
-                'wallet_withdrawal_failed',
-            );
-        });
+        app(\App\Services\StripePayoutSettlementService::class)->settleFailed($payout, 'StripeWebhook');
     }
 
     /**
@@ -348,63 +239,4 @@ class StripeWebhookController extends Controller
         }
     }
 
-    /**
-     * Retrouve et VERROUILLE le retrait correspondant au payout Stripe.
-     * Priorité : stripe_payout_id ; repli : stripe_transfer_id (via metadata).
-     */
-    private function lockWithdrawalForPayout(object $payout): ?PlatformWithdrawal
-    {
-        $payoutId = $payout->id ?? null;
-
-        if ($payoutId) {
-            $withdrawal = PlatformWithdrawal::where('provider', 'stripe')
-                ->where('stripe_payout_id', $payoutId)
-                ->lockForUpdate()
-                ->first();
-            if ($withdrawal) {
-                return $withdrawal;
-            }
-        }
-
-        // Repli : le payout que nous avons créé porte transfer_id dans ses metadata.
-        $transferId = $payout->metadata->transfer_id ?? null;
-        if ($transferId) {
-            return PlatformWithdrawal::where('provider', 'stripe')
-                ->where('stripe_transfer_id', $transferId)
-                ->lockForUpdate()
-                ->first();
-        }
-
-        return null;
-    }
-
-    /** Sérialise l'objet payout Stripe pour l'audit (stripe_response). */
-    private function payoutToArray(object $payout): array
-    {
-        if (method_exists($payout, 'toArray')) {
-            return $payout->toArray();
-        }
-        return json_decode(json_encode($payout), true) ?? [];
-    }
-
-    /** Notification FCM best-effort (jamais bloquante). */
-    private function notify(PlatformWithdrawal $withdrawal, string $title, string $body, string $type): void
-    {
-        try {
-            $user = $withdrawal->user;
-            if (!$user) {
-                return;
-            }
-            $this->fcm->sendToUser($user, $title, $body, [
-                'type' => $type,
-                'provider' => 'stripe',
-                'currency' => $withdrawal->currency,
-                'amount' => $withdrawal->amount_sent,
-                'withdrawal_id' => $withdrawal->id,
-                'transaction_reference' => $withdrawal->transaction_reference,
-            ]);
-        } catch (\Throwable $e) {
-            Log::error('[StripeWebhook] Notification FCM échouée: ' . $e->getMessage());
-        }
-    }
 }
