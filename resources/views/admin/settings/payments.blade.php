@@ -4,16 +4,11 @@
 @section('header', 'Configuration des Paiements')
 
 @section('content')
-<div class="space-y-6" x-data="{ activePayment: 'paypal' }">
+<div class="space-y-6" x-data="{ activePayment: 'kpay' }">
     <!-- Sticky Tabs Navigation -->
     <div class="bg-dark-100 rounded-lg shadow-lg border border-dark-200 sticky top-0 z-10">
         <div class="border-b border-dark-200">
             <nav class="flex space-x-4 px-6" aria-label="Payment Tabs">
-                <button @click="activePayment = 'paypal'"
-                        :class="activePayment === 'paypal' ? 'border-blue-500 text-blue-500' : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-300'"
-                        class="py-4 px-1 border-b-2 font-medium text-sm transition-colors">
-                    <i class="fab fa-paypal mr-2"></i> PayPal
-                </button>
                 <button @click="activePayment = 'kpay'"
                         :class="activePayment === 'kpay' ? 'border-purple-500 text-purple-500' : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-300'"
                         class="py-4 px-1 border-b-2 font-medium text-sm transition-colors">
@@ -27,194 +22,6 @@
             </nav>
         </div>
     </div>
-
-    <!-- PayPal Tab -->
-    <div x-show="activePayment === 'paypal'" x-cloak>
-        <form action="{{ route('admin.settings.payments.update') }}" method="POST">
-            @csrf
-            @method('PUT')
-            <input type="hidden" name="payment_type" value="paypal">
-            <input type="hidden" name="_form" value="paypal">
-
-            <!-- Service Header Card -->
-            <div class="bg-gradient-to-br from-blue-500/10 to-blue-600/5 rounded-xl shadow-lg border border-blue-500/20 p-6 mb-6">
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center">
-                        <div class="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center mr-4 shadow-lg">
-                            <i class="fab fa-paypal text-3xl text-white"></i>
-                        </div>
-                        <div>
-                            <h3 class="text-2xl font-bold text-white">PayPal</h3>
-                            <p class="text-gray-400 mt-1">Acceptez les paiements via PayPal dans le monde entier</p>
-                        </div>
-                    </div>
-                    <!-- Enable/Disable Toggle -->
-                    <label class="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" name="paypal_enabled" value="1"
-                               {{ old('paypal_enabled', $paymentSettings['paypal_enabled']->value ?? '0') == '1' ? 'checked' : '' }}
-                               class="sr-only peer">
-                        <div class="w-16 h-8 bg-dark-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-500/20 rounded-full peer peer-checked:after:translate-x-8 peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[4px] after:bg-white after:rounded-full after:h-7 after:w-7 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-blue-500 peer-checked:to-blue-600 shadow-inner"></div>
-                        <span class="ml-3 text-sm font-medium text-gray-300">
-                            <span x-show="$el.previousElementSibling.querySelector('input').checked" class="text-blue-400">Activé</span>
-                            <span x-show="!$el.previousElementSibling.querySelector('input').checked" class="text-gray-500">Désactivé</span>
-                        </span>
-                    </label>
-                </div>
-            </div>
-
-            <!-- Important Notice -->
-            <div class="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4 mb-6">
-                <div class="flex items-start">
-                    <div class="flex-shrink-0">
-                        <i class="fas fa-info-circle text-blue-500 text-xl"></i>
-                    </div>
-                    <div class="ml-3">
-                        <p class="text-sm text-blue-300">
-                            <strong>Important:</strong> PayPal accepte les paiements par carte bancaire (Visa, MasterCard, Amex) sans compte PayPal requis.
-                        </p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Configuration Card -->
-            <div class="bg-dark-100 rounded-xl shadow-lg border border-dark-200 p-6 mb-6">
-                <h4 class="text-lg font-semibold text-white mb-6 flex items-center">
-                    <i class="fas fa-cog text-blue-500 mr-2"></i>
-                    Configuration de l'API PayPal
-                </h4>
-
-                <div class="space-y-6">
-                    <!-- Environment Mode -->
-                    <div>
-                        <label for="paypal_mode" class="block text-sm font-medium text-gray-300 mb-2">
-                            <i class="fas fa-server text-blue-400 mr-1"></i> Mode d'exécution <span class="text-red-500">*</span>
-                        </label>
-                        <select name="paypal_mode" id="paypal_mode"
-                                class="w-full px-4 py-3 bg-dark-50 border border-dark-300 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                                required>
-                            <option value="sandbox" {{ old('paypal_mode', $paymentSettings['paypal_mode']->value ?? 'sandbox') == 'sandbox' ? 'selected' : '' }}>Sandbox (Test)</option>
-                            <option value="live" {{ old('paypal_mode', $paymentSettings['paypal_mode']->value ?? '') == 'live' ? 'selected' : '' }}>Live (Production)</option>
-                        </select>
-                        <p class="mt-1 text-xs text-gray-500">Utilisez "Sandbox" pour les tests, "Live" pour la production</p>
-                    </div>
-
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <!-- Client ID -->
-                        <div>
-                            <label for="paypal_client_id" class="block text-sm font-medium text-gray-300 mb-2">
-                                <i class="fas fa-key text-blue-400 mr-1"></i> Client ID <span class="text-red-500">*</span>
-                            </label>
-                            <div class="relative">
-                                <input type="text" name="paypal_client_id" id="paypal_client_id"
-                                       value="{{ old('paypal_client_id', $paymentSettings['paypal_client_id']->value ?? '') }}"
-                                       class="w-full px-4 py-3 bg-dark-50 border border-dark-300 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                                       placeholder="Entrez votre PayPal Client ID">
-                            </div>
-                        </div>
-
-                        <!-- Client Secret -->
-                        <div>
-                            <label for="paypal_client_secret" class="block text-sm font-medium text-gray-300 mb-2">
-                                <i class="fas fa-lock text-blue-400 mr-1"></i> Client Secret <span class="text-red-500">*</span>
-                            </label>
-                            <div class="relative">
-                                <input type="password" name="paypal_client_secret" id="paypal_client_secret"
-                                       value="{{ old('paypal_client_secret', $paymentSettings['paypal_client_secret']->value ?? '') }}"
-                                       class="w-full px-4 py-3 bg-dark-50 border border-dark-300 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                                       placeholder="Entrez votre PayPal Client Secret">
-                                <button type="button" onclick="togglePassword('paypal_client_secret')"
-                                        class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white">
-                                    <i class="fas fa-eye"></i>
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Currency -->
-                        <div class="md:col-span-2">
-                            <label for="paypal_currency" class="block text-sm font-medium text-gray-300 mb-2">
-                                <i class="fas fa-dollar-sign text-blue-400 mr-1"></i> Devise <span class="text-red-500">*</span>
-                            </label>
-                            <select name="paypal_currency" id="paypal_currency"
-                                    class="w-full px-4 py-3 bg-dark-50 border border-dark-300 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all">
-                                <option value="USD" {{ old('paypal_currency', $paymentSettings['paypal_currency']->value ?? 'USD') == 'USD' ? 'selected' : '' }}>USD - Dollar américain</option>
-                                <option value="EUR" {{ old('paypal_currency', $paymentSettings['paypal_currency']->value ?? '') == 'EUR' ? 'selected' : '' }}>EUR - Euro</option>
-                                <option value="GBP" {{ old('paypal_currency', $paymentSettings['paypal_currency']->value ?? '') == 'GBP' ? 'selected' : '' }}>GBP - Livre Sterling</option>
-                            </select>
-                            <p class="mt-1 text-xs text-gray-500">Devise utilisée pour tous les paiements PayPal</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Help Box -->
-            <div class="bg-blue-500/10 border border-blue-500/30 rounded-xl p-6 mb-6">
-                <div class="flex items-start">
-                    <div class="flex-shrink-0">
-                        <i class="fas fa-question-circle text-blue-500 text-2xl mt-1"></i>
-                    </div>
-                    <div class="ml-4">
-                        <h4 class="text-base font-semibold text-blue-400 mb-3">Aide PayPal</h4>
-
-                        <div class="mb-3">
-                            <p class="text-sm font-medium text-blue-300 mb-2">Configuration requise:</p>
-                            <ul class="text-sm text-blue-300/80 space-y-1 ml-4">
-                                <li>• Compte PayPal Business ou Developer</li>
-                                <li>• Client ID et Secret</li>
-                                <li>• URLs de retour et annulation</li>
-                            </ul>
-                        </div>
-
-                        <div class="mb-3">
-                            <p class="text-sm font-medium text-blue-300 mb-2">Où trouver vos credentials:</p>
-                            <ul class="text-sm text-blue-300/80 space-y-1 ml-4">
-                                <li>• Connectez-vous au <a href="https://developer.paypal.com" target="_blank" class="underline hover:text-blue-300">PayPal Developer Dashboard</a></li>
-                                <li>• Accédez à "My Apps & Credentials"</li>
-                                <li>• Créez une app ou sélectionnez-en une existante</li>
-                                <li>• Copiez le Client ID et Secret</li>
-                            </ul>
-                        </div>
-
-                        <div class="mb-3">
-                            <p class="text-sm font-medium text-blue-300 mb-2">Modes disponibles:</p>
-                            <ul class="text-sm text-blue-300/80 space-y-1 ml-4">
-                                <li>• <strong>Sandbox:</strong> Pour les tests (utilise des credentials de test)</li>
-                                <li>• <strong>Live:</strong> Pour la production (transactions réelles)</li>
-                            </ul>
-                        </div>
-
-                        <div>
-                            <p class="text-sm font-medium text-blue-300 mb-2">Méthodes de paiement acceptées:</p>
-                            <ul class="text-sm text-blue-300/80 space-y-1 ml-4">
-                                <li>• Compte PayPal</li>
-                                <li>• Visa, MasterCard, American Express</li>
-                                <li>• Cartes de débit</li>
-                                <li>• Discover (selon la région)</li>
-                            </ul>
-                        </div>
-
-                        <div class="mt-3 p-3 bg-blue-500/20 rounded-lg">
-                            <p class="text-sm text-blue-200">
-                                <strong>Note:</strong> Les clients peuvent payer par carte bancaire SANS avoir de compte PayPal.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Submit Buttons -->
-            <div class="flex justify-between items-center">
-                <a href="{{ route('admin.settings.index') }}"
-                   class="px-6 py-3 bg-dark-300 text-white rounded-lg hover:bg-dark-400 transition-all shadow-md">
-                    <i class="fas fa-arrow-left mr-2"></i> Retour
-                </a>
-                <button type="submit"
-                        class="px-8 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all shadow-lg hover:shadow-xl">
-                    <i class="fas fa-save mr-2"></i> Enregistrer la configuration
-                </button>
-            </div>
-        </form>
-    </div>
-
 
     <!-- KPay Tab -->
     <div x-show="activePayment === 'kpay'" x-cloak>
@@ -551,7 +358,7 @@
                 <p class="text-gray-400 text-sm mb-6">
                     Laissez un champ secret <strong>vide</strong> pour conserver la valeur actuelle.
                     Webhook à pointer sur <code class="text-emerald-400">/api/v1/stripe/webhook</code>
-                    (events : <em>checkout.session.completed</em>, <em>payment_intent.succeeded/payment_failed</em>, <em>payout.paid/failed</em>).
+                    (events : <em>payment_intent.succeeded/payment_failed</em>, <em>payout.paid/failed</em>, <em>account.updated</em>).
                 </p>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -582,7 +389,7 @@
                         <input type="password" name="stripe_webhook_secret" id="stripe_webhook_secret"
                                placeholder="{{ !empty($stripeConfig['webhook_secret']) ? '•••••••••• (déjà configuré)' : 'whsec_...' }}"
                                class="w-full px-4 py-3 bg-dark-200 border border-dark-300 rounded-lg text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
-                        <p class="mt-1 text-xs text-gray-500">Encaissements carte : <em>payment_intent.*</em>, <em>checkout.session.completed</em>.</p>
+                        <p class="mt-1 text-xs text-gray-500">Encaissements carte (natif, Payment Sheet) : <em>payment_intent.succeeded</em>, <em>payment_intent.payment_failed</em>.</p>
                     </div>
                     <div>
                         <label for="stripe_webhook_secret_connect" class="block text-sm font-medium text-gray-300 mb-2">Webhook secret — Connect (whsec_...)</label>
@@ -670,21 +477,13 @@
                     apparaît grisé (indisponible) côté application, sans jamais être masqué selon le pays.
                 </p>
 
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                         <label for="pay_min_kpay" class="block text-sm font-medium text-gray-300 mb-2">
                             <i class="fas fa-mobile-alt text-purple-400 mr-1"></i> Mobile Money
                         </label>
                         <input type="number" step="1" min="0" name="pay_min_kpay" id="pay_min_kpay"
                                value="{{ old('pay_min_kpay', $paymentSettings['pay_min_kpay']->value ?? '100') }}"
-                               class="w-full px-4 py-3 bg-dark-200 border border-dark-300 rounded-lg text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
-                    </div>
-                    <div>
-                        <label for="pay_min_paypal" class="block text-sm font-medium text-gray-300 mb-2">
-                            <i class="fab fa-paypal text-blue-400 mr-1"></i> PayPal
-                        </label>
-                        <input type="number" step="1" min="0" name="pay_min_paypal" id="pay_min_paypal"
-                               value="{{ old('pay_min_paypal', $paymentSettings['pay_min_paypal']->value ?? '600') }}"
                                class="w-full px-4 py-3 bg-dark-200 border border-dark-300 rounded-lg text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
                     </div>
                     <div>

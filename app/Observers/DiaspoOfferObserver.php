@@ -34,7 +34,7 @@ class DiaspoOfferObserver
                 $fcmService = new FirebaseMessagingService();
                 $fcmService->sendToTopic(
                     'all_users',
-                    '✈️ Nouvelle offre DIASPO disponible',
+                    'Nouvelle offre DIASPO disponible',
                     "{$offer->departure_city} → {$offer->arrival_city} - {$offer->price_per_kg}€/kg",
                     [
                         'type' => 'new_diaspo_offer',

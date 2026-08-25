@@ -87,7 +87,7 @@ class ImportController extends Controller
             'shipping_option_id' => 'required|exists:import_shipping_options,id',
             'shipping_weight_kg' => 'nullable|numeric|min:0',
             'shipping_cbm' => 'nullable|numeric|min:0',
-            'payment_mode' => 'nullable|in:wallet,kpay_direct,paypal_direct,stripe_direct',
+            'payment_mode' => 'nullable|in:wallet,kpay_direct,stripe_direct',
             'provider' => 'required_if:payment_mode,kpay_direct|string',
             'phone_number' => 'required_if:payment_mode,kpay_direct|string',
             'delivery_address' => 'nullable|string',
@@ -96,12 +96,11 @@ class ImportController extends Controller
 
         $paymentMode = $validated['payment_mode'] ?? 'kpay_direct';
 
-        // Garde-fou : rail redirect (PayPal/carte) proposé seulement s'il est fonctionnel.
-        $railGuard = ['paypal_direct' => ['paypal', 'PayPal'], 'stripe_direct' => ['stripe', 'par carte (Stripe)']];
-        if (isset($railGuard[$paymentMode]) && !PaymentMethodService::isEnabled($railGuard[$paymentMode][0])) {
+        // Garde-fou : le rail carte (Stripe natif) n'est proposé que s'il est fonctionnel.
+        if ($paymentMode === 'stripe_direct' && !PaymentMethodService::isEnabled('stripe')) {
             return response()->json([
                 'success' => false,
-                'message' => "Le paiement {$railGuard[$paymentMode][1]} n'est pas disponible pour le moment.",
+                'message' => "Le paiement par carte (Stripe) n'est pas disponible pour le moment.",
             ], 422);
         }
 
@@ -125,8 +124,10 @@ class ImportController extends Controller
                 'order_id' => $order->id,
                 'order_number' => $order->order_number,
                 'payment_reference' => $order->payment_reference,
-                'approval_url' => in_array($paymentMode, ['paypal_direct', 'stripe_direct'])
-                    ? ($order->approval_url ?? null) : null,
+                // Carte native (stripe_direct) : confirmation via Payment Sheet, puis polling.
+                'client_secret' => $paymentMode === 'stripe_direct' ? ($order->client_secret ?? null) : null,
+                'payment_intent_id' => $paymentMode === 'stripe_direct' ? ($order->payment_intent_id ?? null) : null,
+                'publishable_key' => $paymentMode === 'stripe_direct' ? ($order->stripe_publishable_key ?? null) : null,
             ], 201);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);

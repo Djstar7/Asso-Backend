@@ -429,7 +429,7 @@ class ProductController extends Controller
                 $fcmService = new FirebaseMessagingService();
                 $fcmService->sendToTopic(
                     'all_users',
-                    '🛍️ Nouveau produit disponible',
+                    'Nouveau produit disponible',
                     "{$shop->name} a publié : {$product->name}",
                     [
                         'type' => 'new_product',

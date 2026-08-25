@@ -87,9 +87,9 @@ class OrderController extends Controller
             'delivery_company_id' => 'required|exists:deliverer_companies,id',
             'delivery_zone_id' => 'required|exists:delivery_zones,id',
             // Mode de paiement : 'wallet' (escrow solde) | 'kpay_direct' (PayIn KPay)
-            //                  | 'paypal_direct' (checkout PayPal) | 'stripe_direct' (carte)
-            'payment_mode' => 'nullable|in:wallet,kpay_direct,paypal_direct,stripe_direct',
-            'wallet_provider' => 'required_if:payment_mode,wallet|in:kpay,paypal',
+            //                  | 'stripe_direct' (carte bancaire NATIVE, Payment Sheet)
+            'payment_mode' => 'nullable|in:wallet,kpay_direct,stripe_direct',
+            'wallet_provider' => 'required_if:payment_mode,wallet|in:kpay',
             // Requis en mode kpay_direct
             'provider' => 'required_if:payment_mode,kpay_direct|string',
             'phone_number' => 'required_if:payment_mode,kpay_direct|string',
@@ -102,18 +102,14 @@ class OrderController extends Controller
         try {
             $paymentMode = $request->input('payment_mode', 'wallet');
 
-            // Garde-fou : un paiement par redirection (PayPal / carte Stripe) n'est proposé
-            // que s'il est réellement fonctionnel (clés configurées + activé). Sinon la
-            // commande est BLOQUÉE immédiatement, sans rien créer ni décrémenter de stock.
-            $railGuard = [
-                'paypal_direct' => ['paypal', 'PayPal'],
-                'stripe_direct' => ['stripe', 'par carte bancaire (Stripe)'],
-            ];
-            if (isset($railGuard[$paymentMode])
-                && !\App\Services\PaymentMethodService::isEnabled($railGuard[$paymentMode][0])) {
+            // Garde-fou : le paiement par carte (Stripe natif) n'est proposé que s'il est
+            // réellement fonctionnel (clés configurées + activé). Sinon la commande est
+            // BLOQUÉE immédiatement, sans rien créer ni décrémenter de stock.
+            if ($paymentMode === 'stripe_direct'
+                && !\App\Services\PaymentMethodService::isEnabled('stripe')) {
                 return response()->json([
                     'success' => false,
-                    'message' => "Le paiement {$railGuard[$paymentMode][1]} n'est pas disponible pour le moment. Veuillez choisir un autre moyen de paiement.",
+                    'message' => "Le paiement par carte bancaire (Stripe) n'est pas disponible pour le moment. Veuillez choisir un autre moyen de paiement.",
                 ], 422);
             }
 
@@ -136,7 +132,6 @@ class OrderController extends Controller
                 'success' => true,
                 'message' => match ($paymentMode) {
                     'kpay_direct' => 'Commande créée. Validez le paiement sur votre téléphone (USSD).',
-                    'paypal_direct' => 'Commande créée. Finalisez le paiement PayPal.',
                     'stripe_direct' => 'Commande créée. Finalisez le paiement par carte.',
                     default => 'Commande créée avec succès. Fonds bloqués en attente de validation.',
                 },
@@ -144,9 +139,11 @@ class OrderController extends Controller
                 // Pour le polling du statut de paiement (modes directs)
                 'payment_reference' => $order->payment_reference,
                 'order_id' => $order->id,
-                // Modes redirect (PayPal / carte Stripe) : URL de checkout à ouvrir en WebView
-                'approval_url' => in_array($paymentMode, ['paypal_direct', 'stripe_direct'])
-                    ? ($order->approval_url ?? null) : null,
+                // Carte native (stripe_direct) : le mobile confirme via la Payment Sheet
+                // (SDK flutter_stripe) avec ces éléments, puis poll payment-status.
+                'client_secret' => $paymentMode === 'stripe_direct' ? ($order->client_secret ?? null) : null,
+                'payment_intent_id' => $paymentMode === 'stripe_direct' ? ($order->payment_intent_id ?? null) : null,
+                'publishable_key' => $paymentMode === 'stripe_direct' ? ($order->stripe_publishable_key ?? null) : null,
             ], 201);
 
         } catch (\Exception $e) {
@@ -180,15 +177,9 @@ class OrderController extends Controller
                 $order->refresh();
             }
         } elseif ($order->payment_status === 'pending'
-            && $order->payment_method === 'paypal_direct'
-            && $order->payment_reference) {
-            // Capture PayPal côté serveur (idempotent) sur la base de l'état de l'ordre PayPal.
-            $this->orderService->syncPaypalOrder($order);
-            $order->refresh();
-        } elseif ($order->payment_status === 'pending'
             && $order->payment_method === 'stripe_direct'
             && $order->payment_reference) {
-            // Confirmation carte Stripe côté serveur (idempotent) via la Checkout Session.
+            // Confirmation carte Stripe côté serveur (idempotent) via le PaymentIntent.
             $this->orderService->syncStripeOrder($order);
             $order->refresh();
         }

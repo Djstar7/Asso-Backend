@@ -283,19 +283,17 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('/{id}/complete', [DeliveryController::class, 'complete']);
         });
 
-        // Wallet - Système à deux portefeuilles (KPay + PayPal)
+        // Wallet - Portefeuille KPay (Mobile Money) + recharge carte (Stripe natif)
         Route::prefix('wallet')->group(function () {
             // Stats & historique
             Route::get('/', [WalletController::class, 'index']); // Solde et stats
             Route::get('/transactions', [WalletController::class, 'transactions']); // Historique transactions
 
-            // Recharge wallet (dépôt)
-            Route::post('/recharge', [WalletController::class, 'recharge']); // KPay ou PayPal
-
-            // PayPal Native Integration
-            Route::post('/paypal/create-native-order', [WalletController::class, 'createNativePayPalOrder']);
-            Route::post('/paypal/capture-native-order', [WalletController::class, 'captureNativePayPalOrder']);
-            Route::get('/payment-status/{paymentId}', [WalletController::class, 'checkPaymentStatus']);
+            // Recharge wallet (dépôt) : KPay (Mobile Money) ou Stripe (carte native).
+            // Pour la carte, la réponse renvoie un client_secret confirmé via la Payment Sheet ;
+            // le suivi se fait ensuite via GET /wallet/payment-status/{paymentId}.
+            Route::post('/recharge', [WalletController::class, 'recharge'])->name('api.wallet.recharge');
+            Route::get('/payment-status/{paymentId}', [WalletController::class, 'checkPaymentStatus'])->name('api.wallet.payment-status');
 
             // Vérifier si peut payer
             Route::post('/can-pay', [WalletController::class, 'canPay']);
@@ -306,7 +304,6 @@ Route::middleware('auth:sanctum')->group(function () {
             // Retrait wallet
             Route::get('/withdrawal-balances', [WalletController::class, 'getWithdrawalBalances']);
             Route::post('/withdraw/kpay', [WalletController::class, 'initiateKpayWithdrawal']);
-            Route::post('/withdraw/paypal', [WalletController::class, 'initiatePayPalWithdrawal']);
             // Virement bancaire (Stripe Connect) vers l'IBAN validé du vendeur.
             // Le devis renvoie le montant converti AVANT validation (XAF → EUR).
             Route::post('/withdraw/stripe/quote', [WalletController::class, 'getStripeWithdrawalQuote']);

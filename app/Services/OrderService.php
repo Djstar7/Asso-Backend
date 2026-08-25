@@ -370,12 +370,10 @@ class OrderService
             $total = $subtotal + $deliveryFee;
 
             $isKpayDirect = $paymentMode === 'kpay_direct';
-            $isPaypalDirect = $paymentMode === 'paypal_direct';
             $isStripeDirect = $paymentMode === 'stripe_direct';
-            // Paiements « directs » (Mobile Money KPay, PayPal, ou carte Stripe) : l'argent
+            // Paiements « directs » (Mobile Money KPay ou carte Stripe native) : l'argent
             // est encaissé en dehors du solde wallet, la commande reste 'pending' de paiement.
-            $isDirect = $isKpayDirect || $isPaypalDirect || $isStripeDirect;
-            $approvalUrl = null; // URL de checkout (PayPal / Stripe) à ouvrir en WebView
+            $isDirect = $isKpayDirect || $isStripeDirect;
 
             // 3. Mode wallet : verrouiller les fonds du client (escrow depuis le solde).
             //    Modes directs (kpay_direct / paypal_direct) : pas de verrou — le client
@@ -408,11 +406,10 @@ class OrderService
                 'delivery_zone_id' => $deliveryZoneId,
                 'payment_method' => match (true) {
                     $isKpayDirect => 'kpay_direct',
-                    $isPaypalDirect => 'paypal_direct',
                     $isStripeDirect => 'stripe_direct',
                     default => 'wallet_' . $walletProvider,
                 },
-                // Modes directs : en attente du paiement (Mobile Money / PayPal) ;
+                // Modes directs : en attente du paiement (Mobile Money / carte) ;
                 // wallet : déjà payé (fonds bloqués en escrow).
                 'payment_status' => $isDirect ? 'pending' : 'paid',
                 'notes' => $notes,
@@ -423,10 +420,10 @@ class OrderService
                 $order->items()->create($itemData);
             }
 
-            // 4b. Initier le paiement direct (KPay / PayPal / Stripe). Retourne l'URL de
-            //     checkout (PayPal/Stripe, à ouvrir en WebView) ou null (KPay/wallet).
+            // 4b. Initier le paiement direct (KPay / carte Stripe). Pour la carte, pose
+            //     les attributs transitoires client_secret / payment_intent_id sur $order.
             //     Logique partagée avec la commande EN GROS — voir initiateDirectPayment().
-            $approvalUrl = $this->initiateDirectPayment($order, $total, $paymentMode, $kpayProvider, $kpayPhone);
+            $this->initiateDirectPayment($order, $total, $paymentMode, $kpayProvider, $kpayPhone);
 
             // 5. Envoyer les notifications FCM
 
@@ -444,10 +441,10 @@ class OrderService
             );
 
             // Notification vendeur(s).
-            // En modes directs (kpay_direct / paypal_direct), la commande n'est pas encore
-            // payée (PayIn Mobile Money / checkout PayPal en attente) : on ne prévient les
-            // vendeurs qu'à la confirmation du paiement (voir confirm*OrderPayment) pour ne
-            // pas les solliciter sur une commande qui pourrait ne jamais être réglée.
+            // En modes directs (kpay_direct / stripe_direct), la commande n'est pas encore
+            // payée (PayIn Mobile Money / carte en attente) : on ne prévient les vendeurs
+            // qu'à la confirmation du paiement (voir confirm*OrderPayment) pour ne pas les
+            // solliciter sur une commande qui pourrait ne jamais être réglée.
             if (!$isDirect) {
                 foreach ($sellers as $sellerId) {
                     $seller = User::find($sellerId);
@@ -477,12 +474,9 @@ class OrderService
                 'payment_mode' => $paymentMode,
             ]);
 
-            // Attribut transitoire (non persisté) : l'URL de checkout (PayPal / Stripe) à
-            // ouvrir dans la WebView côté mobile. Défini en dernier, après toute écriture DB,
-            // pour ne jamais être persisté sur une colonne inexistante.
-            if ($isPaypalDirect || $isStripeDirect) {
-                $order->approval_url = $approvalUrl;
-            }
+            // Les attributs transitoires (client_secret / payment_intent_id /
+            // stripe_publishable_key) pour la carte native ont été posés sur $order par
+            // initiateDirectPayment ; ils sont lus par le contrôleur, jamais persistés.
 
             return $order;
         });
@@ -565,7 +559,7 @@ class OrderService
             $shippingCost = $shipping->computeCost($shippingWeightKg, $shippingCbm);
             $total = $subtotal + $shippingCost;
 
-            $isDirect = in_array($paymentMode, ['kpay_direct', 'paypal_direct', 'stripe_direct']);
+            $isDirect = in_array($paymentMode, ['kpay_direct', 'stripe_direct']);
 
             // Mode wallet : escrow depuis le solde. Modes directs : encaissement externe.
             if (!$isDirect) {
@@ -590,7 +584,6 @@ class OrderService
                 'delivery_address' => $deliveryAddress,
                 'payment_method' => match (true) {
                     $paymentMode === 'kpay_direct' => 'kpay_direct',
-                    $paymentMode === 'paypal_direct' => 'paypal_direct',
                     $paymentMode === 'stripe_direct' => 'stripe_direct',
                     default => 'wallet_' . ($kpayProvider ?? 'kpay'),
                 },
@@ -602,8 +595,9 @@ class OrderService
                 $order->items()->create($itemData);
             }
 
-            // Paiement (réutilise la logique des rails directs).
-            $approvalUrl = $this->initiateDirectPayment($order, $total, $paymentMode, $kpayProvider, $kpayPhone);
+            // Paiement (réutilise la logique des rails directs). Pour la carte native,
+            // pose les attributs transitoires client_secret / payment_intent_id sur $order.
+            $this->initiateDirectPayment($order, $total, $paymentMode, $kpayProvider, $kpayPhone);
 
             $this->fcmService->sendToUser(
                 $client,
@@ -613,9 +607,6 @@ class OrderService
             );
 
             $order->load(['items.product.primaryImage']);
-            if (in_array($paymentMode, ['paypal_direct', 'stripe_direct'])) {
-                $order->approval_url = $approvalUrl;
-            }
 
             Log::info('[OrderService] Commande GROS créée', [
                 'order_id' => $order->id, 'subtotal' => $subtotal, 'shipping' => $shippingCost, 'total' => $total,
@@ -688,7 +679,7 @@ class OrderService
         try {
             $this->fcmService->sendToUser(
                 $order->user,
-                '✅ Paiement confirmé',
+                'Paiement confirmé',
                 "Votre paiement pour la commande #{$order->order_number} a été confirmé. En attente de validation du vendeur.",
                 ['type' => 'order_paid', 'order_id' => (string) $order->id, 'order_number' => $order->order_number]
             );
@@ -769,7 +760,7 @@ class OrderService
         try {
             $this->fcmService->sendToUser(
                 $order->user,
-                '❌ Paiement échoué',
+                'Paiement échoué',
                 "Le paiement de la commande #{$order->order_number} n'a pas abouti. La commande a été annulée.",
                 ['type' => 'order_payment_failed', 'order_id' => (string) $order->id, 'order_number' => $order->order_number]
             );
@@ -780,10 +771,11 @@ class OrderService
 
     /**
      * Initie le paiement DIRECT d'une commande déjà créée (commande normale OU en gros).
-     * Renvoie l'URL de checkout à ouvrir en WebView (PayPal / Stripe) ou null (KPay / wallet).
+     * Renvoie toujours null : pour la carte native, les attributs transitoires
+     * client_secret / payment_intent_id / stripe_publishable_key sont posés sur $order.
      * Lance une exception en cas d'échec → la transaction appelante fait un rollback.
      *
-     * @param string $paymentMode wallet | kpay_direct | paypal_direct | stripe_direct
+     * @param string $paymentMode wallet | kpay_direct | stripe_direct
      */
     public function initiateDirectPayment(
         Order $order,
@@ -824,31 +816,10 @@ class OrderService
             return null;
         }
 
-        // Mode paypal_direct : Checkout PayPal (encaissement USD), URL d'approbation en WebView.
-        if ($paymentMode === 'paypal_direct') {
-            $pp = app(\App\Services\PayPalService::class)->createOrder([
-                'amount' => (float) round($total),
-                'currency' => 'XAF',
-                'user_id' => $order->user_id,
-                'description' => "Commande {$order->order_number}",
-                'return_url' => route('payment.success'),
-                'cancel_url' => route('payment.cancel'),
-            ]);
-
-            if (empty($pp['success']) || empty($pp['approval_url']) || empty($pp['order_id'])) {
-                throw new \Exception($pp['message'] ?? "Échec de l'initiation du paiement PayPal.");
-            }
-
-            $order->update([
-                'payment_reference' => $pp['order_id'],
-                'payment_currency' => 'USD',
-                'payment_amount' => $pp['amount_usd'] ?? null,
-            ]);
-            Log::info('[OrderService] Checkout PayPal initié', ['order_id' => $order->id, 'paypal_order_id' => $pp['order_id']]);
-            return $pp['approval_url'];
-        }
-
-        // Mode stripe_direct : Checkout Session carte (devise Stripe configurée), URL en WebView.
+        // Mode stripe_direct : carte NATIVE (PaymentIntent). On renvoie un client_secret
+        // que le mobile confirme via la Payment Sheet (SDK flutter_stripe). La confirmation
+        // serveur se fait ensuite au polling (syncStripeOrder → retrievePaymentIntent) et/ou
+        // via le webhook payment_intent.succeeded (metadata asso_kind=order). Aucune WebView.
         if ($paymentMode === 'stripe_direct') {
             $stripe = app(\App\Services\StripeService::class);
             if (!$stripe->isConfigured()) {
@@ -863,202 +834,42 @@ class OrderService
                 throw new \Exception("Conversion XAF → {$stripeCurrency} indisponible pour le paiement carte.");
             }
 
-            $session = $stripe->createCheckoutSession(
+            $intent = $stripe->createPaymentIntent(
                 (float) $stripeAmount,
                 $stripeCurrency,
-                ['asso_kind' => 'order', 'order_id' => (string) $order->id],
-                route('payment.success'),
-                route('payment.cancel'),
-                "Commande {$order->order_number}"
+                ['asso_kind' => 'order', 'order_id' => (string) $order->id]
             );
 
-            if (empty($session['url']) || empty($session['id'])) {
+            if (empty($intent['id']) || empty($intent['client_secret'])) {
                 throw new \Exception("Échec de l'initiation du paiement carte (Stripe).");
             }
 
             $order->update([
-                'payment_reference' => $session['id'],
+                'payment_reference' => $intent['id'],
                 'payment_currency' => strtoupper($stripeCurrency),
                 'payment_amount' => round((float) $stripeAmount, 2),
             ]);
-            Log::info('[OrderService] Checkout Stripe initié', ['order_id' => $order->id, 'session_id' => $session['id']]);
-            return $session['url'];
+
+            // Attributs transitoires (non persistés) : consommés par le contrôleur pour
+            // renvoyer le client_secret au mobile.
+            $order->client_secret = $intent['client_secret'];
+            $order->payment_intent_id = $intent['id'];
+            $order->stripe_publishable_key = $intent['publishable_key'] ?? null;
+
+            Log::info('[OrderService] PaymentIntent Stripe initié', ['order_id' => $order->id, 'payment_intent' => $intent['id']]);
+            return null;
         }
 
         return null; // mode wallet : aucun checkout externe
     }
 
     /**
-     * Synchronise l'état d'un paiement PayPal direct (idempotent), déclenché par le
-     * polling GET /v1/orders/{id}/payment-status. Calqué sur DiaspoController::syncPaypalBooking :
-     *  - APPROVED  → on capture puis on confirme
-     *  - COMPLETED → on confirme (déjà capturé)
-     *  - VOIDED/EXPIRED/CANCELLED → on échoue (stock restauré, commande annulée)
-     *  - CREATED/SAVED/PAYER_ACTION_REQUIRED → on reste en attente (le polling continue)
-     */
-    public function syncPaypalOrder(Order $order): void
-    {
-        if ($order->payment_status !== 'pending'
-            || $order->payment_method !== 'paypal_direct'
-            || !$order->payment_reference) {
-            return;
-        }
-
-        $paypal = app(\App\Services\PayPalService::class);
-        $details = $paypal->getOrderDetails($order->payment_reference);
-        $status = strtoupper($details['data']['status'] ?? 'UNKNOWN');
-
-        if ($status === 'APPROVED') {
-            $capture = $paypal->captureOrder($order->payment_reference);
-            if (!empty($capture['success']) && strtoupper($capture['status'] ?? '') === 'COMPLETED') {
-                $this->confirmPaypalOrderPayment($order);
-            }
-        } elseif ($status === 'COMPLETED') {
-            $this->confirmPaypalOrderPayment($order);
-        } elseif (in_array($status, ['VOIDED', 'EXPIRED', 'CANCELLED', 'CANCELED'])) {
-            $this->failPaypalOrderPayment($order);
-        }
-    }
-
-    /**
-     * Confirme le paiement PayPal direct d'une commande (idempotent).
-     * Même sémantique que confirmKpayOrderPayment : marque payment_status='paid'
-     * (la commande reste 'pending', en attente de validation vendeur), trace une
-     * transaction wallet (solde inchangé — argent encaissé chez PayPal) et notifie.
-     */
-    public function confirmPaypalOrderPayment(Order $order): void
-    {
-        $sellers = [];
-
-        DB::transaction(function () use ($order, &$sellers) {
-            $order = Order::whereKey($order->id)->lockForUpdate()->with('items')->first();
-            if (!$order || $order->payment_status === 'paid') {
-                return; // déjà traité
-            }
-
-            $order->update(['payment_status' => 'paid']);
-
-            $sellers = $order->items->pluck('seller_id')->unique()->values()->all();
-
-            // Trace dans l'historique du client (solde NON modifié : paiement PayPal externe).
-            $buyerBalance = (float) (User::where('id', $order->user_id)->value('paypal_wallet_balance') ?? 0);
-            WalletTransaction::create([
-                'user_id' => $order->user_id,
-                'type' => 'debit',
-                'amount' => (float) $order->total,
-                'balance_before' => $buyerBalance,
-                'balance_after' => $buyerBalance,
-                'description' => "Achat - Commande #{$order->order_number}",
-                'reference_type' => 'order',
-                'reference_id' => $order->id,
-                'metadata' => [
-                    'payment_method' => 'paypal_direct',
-                    'payment_reference' => $order->payment_reference,
-                    'subtotal' => (float) $order->subtotal,
-                    'delivery_fee' => (float) $order->delivery_fee,
-                ],
-                'status' => 'completed',
-                'provider' => 'paypal',
-            ]);
-
-            Log::info('[OrderService] Commande PayPal confirmée (payée)', [
-                'order_id' => $order->id,
-                'order_number' => $order->order_number,
-            ]);
-        });
-
-        // Notifier le client (hors transaction)
-        try {
-            $this->fcmService->sendToUser(
-                $order->user,
-                '✅ Paiement confirmé',
-                "Votre paiement pour la commande #{$order->order_number} a été confirmé. En attente de validation du vendeur.",
-                ['type' => 'order_paid', 'order_id' => (string) $order->id, 'order_number' => $order->order_number]
-            );
-        } catch (\Exception $e) {
-            Log::warning('[OrderService] FCM order_paid (paypal) échec: ' . $e->getMessage());
-        }
-
-        // Prévenir le(s) vendeur(s) : commande désormais payée et actionnable.
-        $client = $order->user;
-        foreach ($sellers as $sellerId) {
-            $seller = User::find($sellerId);
-            if (!$seller) {
-                continue;
-            }
-            try {
-                $this->fcmService->sendToUser(
-                    $seller,
-                    'Nouvelle commande reçue',
-                    "Vous avez reçu une nouvelle commande #{$order->order_number}"
-                        . ($client ? " de {$client->first_name}" : '')
-                        . " ({$order->formatted_total}).",
-                    [
-                        'type' => 'new_order_vendor',
-                        'order_id' => (string) $order->id,
-                        'order_number' => $order->order_number,
-                        'total' => (string) $order->total,
-                        'client_name' => $client ? trim($client->first_name . ' ' . $client->last_name) : '',
-                    ]
-                );
-            } catch (\Exception $e) {
-                Log::warning('[OrderService] FCM new_order_vendor (paypal) échec: ' . $e->getMessage());
-            }
-        }
-    }
-
-    /**
-     * Échec/annulation d'un paiement PayPal direct (idempotent) : restaure le stock
-     * et annule la commande. Même logique que failKpayOrderPayment.
-     */
-    public function failPaypalOrderPayment(Order $order): void
-    {
-        DB::transaction(function () use ($order) {
-            $order = Order::whereKey($order->id)->lockForUpdate()->with('items.product')->first();
-
-            if (!$order
-                || $order->payment_method !== 'paypal_direct'
-                || $order->payment_status === 'paid'
-                || $order->status === 'cancelled') {
-                return;
-            }
-
-            foreach ($order->items as $item) {
-                if ($item->product && $item->product->stock !== null) {
-                    $item->product->increment('stock', $item->quantity);
-                }
-            }
-
-            $order->update([
-                'payment_status' => 'failed',
-                'status' => 'cancelled',
-                'cancel_reason' => 'Paiement PayPal non abouti',
-                'cancelled_at' => now(),
-            ]);
-
-            Log::info('[OrderService] Commande PayPal échouée — stock restauré, commande annulée', [
-                'order_id' => $order->id,
-                'order_number' => $order->order_number,
-            ]);
-        });
-
-        try {
-            $this->fcmService->sendToUser(
-                $order->user,
-                '❌ Paiement échoué',
-                "Le paiement de la commande #{$order->order_number} n'a pas abouti. La commande a été annulée.",
-                ['type' => 'order_payment_failed', 'order_id' => (string) $order->id, 'order_number' => $order->order_number]
-            );
-        } catch (\Exception $e) {
-            Log::warning('[OrderService] FCM order_payment_failed (paypal) échec: ' . $e->getMessage());
-        }
-    }
-
-    /**
-     * Synchronise l'état d'un paiement carte Stripe (idempotent), déclenché par le polling
-     * GET /v1/orders/{id}/payment-status. La Checkout Session est encaissée côté Stripe ;
-     * on confirme dès que status=complete ET payment_status=paid. (Le webhook Stripe peut
-     * aussi confirmer via checkout.session.completed → metadata order_id.)
+     * Synchronise l'état d'un paiement carte Stripe NATIF (idempotent), déclenché par le
+     * polling GET /v1/orders/{id}/payment-status. On relit le PaymentIntent :
+     *  - succeeded → on confirme la commande (payée)
+     *  - canceled  → on échoue (stock restauré, commande annulée)
+     *  - autres (requires_payment_method / processing…) → on reste en attente
+     * (Le webhook payment_intent.succeeded confirme aussi, via metadata order_id.)
      */
     public function syncStripeOrder(Order $order): void
     {
@@ -1068,13 +879,18 @@ class OrderService
             return;
         }
 
-        $session = app(\App\Services\StripeService::class)->retrieveCheckoutSession($order->payment_reference);
-        $status = strtolower($session['status'] ?? '');
-        $paymentStatus = strtolower($session['payment_status'] ?? '');
+        try {
+            $intent = app(\App\Services\StripeService::class)->retrievePaymentIntent($order->payment_reference);
+        } catch (\Throwable $e) {
+            Log::warning('[OrderService] Stripe retrieve PaymentIntent: ' . $e->getMessage());
+            return;
+        }
 
-        if ($status === 'complete' && $paymentStatus === 'paid') {
+        $status = strtolower($intent['status'] ?? '');
+
+        if ($status === 'succeeded') {
             $this->confirmStripeOrderPayment($order);
-        } elseif ($status === 'expired') {
+        } elseif ($status === 'canceled') {
             $this->failStripeOrderPayment($order);
         }
     }
@@ -1126,7 +942,7 @@ class OrderService
         try {
             $this->fcmService->sendToUser(
                 $order->user,
-                '✅ Paiement confirmé',
+                'Paiement confirmé',
                 "Votre paiement pour la commande #{$order->order_number} a été confirmé. En attente de validation du vendeur.",
                 ['type' => 'order_paid', 'order_id' => (string) $order->id, 'order_number' => $order->order_number]
             );
@@ -1198,7 +1014,7 @@ class OrderService
         try {
             $this->fcmService->sendToUser(
                 $order->user,
-                '❌ Paiement échoué',
+                'Paiement échoué',
                 "Le paiement de la commande #{$order->order_number} n'a pas abouti. La commande a été annulée.",
                 ['type' => 'order_payment_failed', 'order_id' => (string) $order->id, 'order_number' => $order->order_number]
             );
