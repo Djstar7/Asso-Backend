@@ -35,7 +35,7 @@ class DiaspoOfferObserver
                 $fcmService->sendToTopic(
                     'all_users',
                     'Nouvelle offre DIASPO disponible',
-                    "{$offer->departure_city} → {$offer->arrival_city} - {$offer->price_per_kg}€/kg",
+                    "{$offer->departure_city} → {$offer->arrival_city}",
                     [
                         'type' => 'new_diaspo_offer',
                         'offer_id' => (string) $offer->id,
