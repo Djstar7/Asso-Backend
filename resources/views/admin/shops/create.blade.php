@@ -40,7 +40,6 @@
                     @error('user_id')
                         <p class="mt-1 text-sm text-red-400">{{ $message }}</p>
                     @enderror
-                    <p class="mt-1 text-xs text-gray-400">Seuls les vendeurs et clients peuvent avoir des boutiques</p>
                 </div>
 
                 <!-- Shop Name -->

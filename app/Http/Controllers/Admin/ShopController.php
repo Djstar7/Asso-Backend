@@ -46,7 +46,7 @@ class ShopController extends Controller
         }
 
         $shops = $query->latest()->paginate(15)->withQueryString();
-        $users = User::where('role', 'vendeur')->get();
+        $users = User::all();
 
         return view('admin.shops.index', compact('shops', 'users'));
     }
@@ -56,7 +56,7 @@ class ShopController extends Controller
      */
     public function create()
     {
-        $users = User::whereIn('role', ['vendeur', 'client'])->get();
+        $users = User::all();
         return view('admin.shops.create', compact('users'));
     }
 
@@ -112,7 +112,7 @@ class ShopController extends Controller
     public function edit(Shop $shop)
     {
         $shop->load('verifier', 'rejector', 'user', 'products');
-        $users = User::whereIn('role', ['vendeur', 'client'])->get();
+        $users = User::all();
         return view('admin.shops.edit', compact('shop', 'users'));
     }
 
