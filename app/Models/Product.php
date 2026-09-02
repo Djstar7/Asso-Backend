@@ -45,6 +45,7 @@ class Product extends Model
         'latitude',
         'longitude',
         'status',
+        'is_wholesale'
     ];
 
     protected $casts = [
@@ -152,12 +153,9 @@ class Product extends Model
     /**
      * Paliers de prix « gros » (conditionnements + cota) du produit importé.
      */
-    public function priceTiers(): HasMany
+    public function priceTiers()
     {
-        return $this->hasMany(ProductPriceTier::class)
-            ->where('is_active', true)
-            ->orderBy('sort_order')
-            ->orderBy('min_quantity');
+        return $this->hasMany(ProductPriceTier::class)->orderBy('sort_order');
     }
 
     /**

@@ -82,6 +82,49 @@
                 </div>
             </div>
 
+            <!-- Paliers de prix (Vente en gros) -->
+@if($product->is_wholesale && $product->priceTiers->count() > 0)
+<div class="bg-dark-100 rounded-xl shadow-lg p-6">
+    <h2 class="text-lg font-semibold text-white mb-4 flex items-center">
+        <i class="fas fa-boxes text-primary-500 mr-2"></i>
+        Paliers de prix (Gros)
+    </h2>
+
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="text-left text-gray-400 border-b border-dark-300">
+                    <th class="pb-2 pr-4">Label</th>
+                    <th class="pb-2 pr-4">Prix unitaire</th>
+                    <th class="pb-2 pr-4">Qté min</th>
+                    <th class="pb-2 pr-4">Pack size</th>
+                    <th class="pb-2">Statut</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($product->priceTiers as $tier)
+                    <tr class="border-b border-dark-200/50">
+                        <td class="py-3 pr-4 text-white font-medium">{{ $tier->label }}</td>
+                        <td class="py-3 pr-4 text-primary-400 font-semibold">
+                            {{ number_format($tier->unit_price, 0, ',', ' ') }} {{ $tier->currency }}
+                        </td>
+                        <td class="py-3 pr-4 text-gray-300">{{ $tier->min_quantity }}</td>
+                        <td class="py-3 pr-4 text-gray-300">{{ $tier->pack_size }}</td>
+                        <td class="py-3">
+                            @if($tier->is_active)
+                                <span class="px-2 py-0.5 text-xs rounded-full bg-green-500/20 text-green-300 border border-green-500/50">Actif</span>
+                            @else
+                                <span class="px-2 py-0.5 text-xs rounded-full bg-gray-500/20 text-gray-300 border border-gray-500/50">Inactif</span>
+                            @endif
+                        </td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+    </div>
+</div>
+@endif
+
             <!-- Product Information -->
             <div class="bg-dark-100 rounded-xl shadow-lg p-6">
                 <h2 class="text-lg font-semibold text-white mb-4 flex items-center">
@@ -136,6 +179,14 @@
                             <i class="fas fa-link mr-2"></i>Slug
                         </div>
                         <div class="font-semibold text-white text-sm">{{ $product->slug }}</div>
+                    </div>
+
+                    <!-- Pays d'origine -->
+                    <div class="p-4 bg-dark-50 rounded-lg">
+                        <div class="text-sm text-gray-400 mb-1">
+                            <i class="fas fa-globe mr-2"></i>Pays d'origine
+                        </div>
+                        <div class="font-semibold text-white">{{ $product->origin_country ?? 'Produit local' }}</div>
                     </div>
 
                     <!-- Created At -->
@@ -212,6 +263,30 @@
                 </div>
                 @endif
             </div>
+
+            <!-- Pays d'origine (Import) -->
+            @if($product->origin_country)
+            <div class="bg-dark-100 rounded-xl shadow-lg p-6">
+                <h2 class="text-lg font-semibold text-white mb-4 flex items-center">
+                    <i class="fas fa-globe text-primary-500 mr-2"></i>
+                    Produit importé
+                </h2>
+                <div class="p-4 bg-primary-500/20 rounded-lg border-2 border-primary-500/50">
+                    <div class="flex items-center text-white">
+                        <div>
+                            <div class="font-semibold">{{ $product->origin_country }}</div>
+                            <div class="text-xs text-gray-400">
+                                @if($product->is_wholesale)
+                                    Vente en gros activée — {{ $product->priceTiers->count() }} palier(s)
+                                @else
+                                    Produit importé, vente au détail
+                                @endif
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            @endif
 
             <!-- Stock -->
             <div class="bg-dark-100 rounded-xl shadow-lg p-6">

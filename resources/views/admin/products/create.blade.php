@@ -108,6 +108,53 @@
                     </div>
                 </div>
 
+                <!-- Vente en gros (Import) -->
+<div class="bg-dark-100 rounded-xl shadow-lg p-6" id="wholesale_section" style="display:none;">
+    <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold text-white flex items-center">
+            <i class="fas fa-boxes text-primary-500 mr-2"></i>
+            Vente en gros (Import)
+        </h2>
+        <span id="wholesale_country_badge" class="text-xs px-2 py-1 bg-primary-600/20 text-primary-400 rounded-full"></span>
+    </div>
+
+    <div class="mb-4 flex items-center">
+        <input type="checkbox" name="is_wholesale" id="is_wholesale" value="1"
+               {{ old('is_wholesale', $product->is_wholesale ?? false) ? 'checked' : '' }}
+               class="mr-2 w-4 h-4 text-primary-500 focus:ring-primary-500 rounded">
+        <label for="is_wholesale" class="text-white text-sm font-medium cursor-pointer">
+            Activer les paliers de prix (cota / gros)
+        </label>
+    </div>
+
+    <div id="tiers_container" class="{{ old('is_wholesale', $product->is_wholesale ?? false) ? '' : 'hidden' }}">
+        <div class="flex items-center justify-between mb-2">
+            <label class="text-sm font-medium text-white">Paliers de prix</label>
+            <button type="button" onclick="addTierRow()"
+                    class="px-3 py-1.5 bg-primary-600 text-white text-xs rounded-lg hover:bg-primary-700">
+                <i class="fas fa-plus mr-1"></i> Ajouter un palier
+            </button>
+        </div>
+
+        <div id="tiers_wrapper" class="space-y-2"></div>
+
+        <p id="tiers_empty_msg" class="text-xs text-gray-500 mt-2 hidden">
+            Aucun palier. Cliquez sur « Ajouter un palier » (ex: Pack de 50, Carton de 100...).
+        </p>
+
+        @error('tiers')
+            <p class="mt-2 text-sm text-red-400">{{ $message }}</p>
+        @enderror
+    </div>
+
+    <div id="shipping_preview" class="mt-6 border-t border-dark-300 pt-4 hidden">
+        <h3 class="text-sm font-semibold text-white mb-2">
+            <i class="fas fa-ship text-primary-500 mr-1"></i> Expéditions configurées pour ce pays
+        </h3>
+        <div id="shipping_list" class="text-sm text-gray-300 space-y-1"></div>
+    </div>
+</div>
+
                 <!-- Pricing Card -->
                 <div class="bg-dark-100 rounded-xl shadow-lg p-6">
                     <h3 class="text-lg font-bold text-white mb-4 flex items-center">
@@ -343,6 +390,124 @@ function previewImages(event) {
     });
 }
 
+// ============================================
+// MODULE GROS — Vente en gros par pays d'import
+// ============================================
+let tierIndex = 0;
+
+function tierRowTemplate(data = {}) {
+    const idx = tierIndex++;
+    const esc = (v) => String(v ?? '').replace(/"/g, '&quot;');
+    return `
+    <div class="grid grid-cols-1 md:grid-cols-12 gap-2 items-end bg-dark-50 p-3 rounded-lg" id="tier_row_${idx}">
+        <div class="md:col-span-4">
+            <label class="block text-xs text-gray-400 mb-1">Label</label>
+            <input type="text" name="tiers[${idx}][label]" value="${esc(data.label)}"
+                   placeholder="Ex: Pack de 50"
+                   class="w-full px-3 py-2 bg-dark-100 border border-dark-300 rounded text-white text-sm">
+        </div>
+        <div class="md:col-span-3">
+            <label class="block text-xs text-gray-400 mb-1">Prix unitaire (FCFA)</label>
+            <input type="number" step="0.01" min="0" name="tiers[${idx}][unit_price]" value="${esc(data.unit_price)}"
+                   class="w-full px-3 py-2 bg-dark-100 border border-dark-300 rounded text-white text-sm">
+        </div>
+        <div class="md:col-span-2">
+            <label class="block text-xs text-gray-400 mb-1">Qté min</label>
+            <input type="number" min="1" name="tiers[${idx}][min_quantity]" value="${esc(data.min_quantity)}"
+                   class="w-full px-3 py-2 bg-dark-100 border border-dark-300 rounded text-white text-sm">
+        </div>
+        <div class="md:col-span-2">
+            <label class="block text-xs text-gray-400 mb-1">Pack size</label>
+            <input type="number" min="1" name="tiers[${idx}][pack_size]" value="${esc(data.pack_size ?? 1)}"
+                   class="w-full px-3 py-2 bg-dark-100 border border-dark-300 rounded text-white text-sm">
+        </div>
+        <div class="md:col-span-1">
+            <button type="button" onclick="removeTierRow(${idx})"
+                    class="w-full px-3 py-2 bg-red-500 text-white rounded text-sm hover:bg-red-600">
+                <i class="fas fa-trash"></i>
+            </button>
+        </div>
+    </div>`;
+}
+
+function addTierRow(data = {}) {
+    document.getElementById('tiers_wrapper').insertAdjacentHTML('beforeend', tierRowTemplate(data));
+    updateEmptyMsg();
+}
+
+function removeTierRow(idx) {
+    document.getElementById(`tier_row_${idx}`)?.remove();
+    updateEmptyMsg();
+}
+
+function updateEmptyMsg() {
+    const wrapper = document.getElementById('tiers_wrapper');
+    const msg = document.getElementById('tiers_empty_msg');
+    if (!wrapper || !msg) return;
+    msg.classList.toggle('hidden', wrapper.children.length > 0);
+}
+
+function toggleTiersContainer() {
+    const checkbox = document.getElementById('is_wholesale');
+    const container = document.getElementById('tiers_container');
+    if (!checkbox || !container) return;
+    container.classList.toggle('hidden', !checkbox.checked);
+    if (checkbox.checked) updateEmptyMsg();
+}
+
+function toggleWholesaleSection() {
+    const select = document.querySelector('select[name="origin_country"]');
+    const country = select ? select.value : '';
+    const section = document.getElementById('wholesale_section');
+    const badge = document.getElementById('wholesale_country_badge');
+    if (!section) return;
+
+    if (country) {
+        section.style.display = 'block';
+        const label = select.options[select.selectedIndex]?.text?.trim() ?? country;
+        if (badge) badge.textContent = label;
+        loadShippingOptions(country);
+    } else {
+        section.style.display = 'none';
+        const cb = document.getElementById('is_wholesale');
+        if (cb) cb.checked = false;
+        toggleTiersContainer();
+    }
+}
+
+function loadShippingOptions(countryCode) {
+    fetch(`/api/v1/import/${countryCode}/shipping`)
+        .then(r => r.json())
+        .then(response => {
+            const data = response.success ? (response.shipping_options ?? []) : [];
+            const list = document.getElementById('shipping_list');
+            const preview = document.getElementById('shipping_preview');
+            preview.classList.remove('hidden');
+
+            if (!data.length) {
+                list.innerHTML = '<p class="text-gray-500">Aucune option d\'expédition définie pour ce pays.</p>';
+                return;
+            }
+
+            list.innerHTML = data.map(s => {
+                const mode = s.mode ?? s.type ?? '';
+                const rateType = s.rate_type ?? s.rateType ?? '';
+                const rateAmount = s.rate_amount ?? s.rateAmount ?? s.price ?? 0;
+                const leadTime = s.lead_time_days ?? s.leadTimeDays ?? s.delay ?? '?';
+                const note = s.expedition_note ?? s.expeditionNote ?? s.note ?? '';
+
+                const priceLabel = rateType === 'flat'
+                    ? Number(rateAmount).toLocaleString() + ' FCFA (forfait)'
+                    : Number(rateAmount).toLocaleString() + ' FCFA/kg';
+
+                return `<div>• <strong>${String(mode).toUpperCase()}</strong> — ${priceLabel} — ${leadTime}j${note ? ' · ' + note : ''}</div>`;
+            }).join('');
+        })
+        .catch(() => {
+            document.getElementById('shipping_preview')?.classList.add('hidden');
+        });
+}
+
 // Initialize on load
 document.addEventListener('DOMContentLoaded', function() {
     togglePriceFields();
@@ -353,6 +518,21 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('subcategory_id').value = '{{ old("subcategory_id") }}';
         }, 500);
     }
+    @foreach(old('tiers', []) as $tier)
+        addTierRow({
+            label: @json($tier['label'] ?? ''),
+            unit_price: {{ $tier['unit_price'] ?? 0 }},
+            min_quantity: {{ $tier['min_quantity'] ?? 1 }},
+            pack_size: {{ $tier['pack_size'] ?? 1 }}
+        });
+    @endforeach
+
+    document.querySelector('select[name="origin_country"]')?.addEventListener('change', toggleWholesaleSection);
+    document.getElementById('is_wholesale')?.addEventListener('change', toggleTiersContainer);
+
+    toggleWholesaleSection();
+    toggleTiersContainer();
+
 });
 </script>
 @endpush

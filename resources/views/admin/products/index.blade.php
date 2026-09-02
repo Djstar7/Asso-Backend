@@ -62,6 +62,14 @@
                 <option value="active" {{ request('status') == 'active' ? 'selected' : '' }}>Actif</option>
                 <option value="inactive" {{ request('status') == 'inactive' ? 'selected' : '' }}>Inactif</option>
             </select>
+            <select name="origin_country" class="px-4 py-2 bg-dark-50 border border-dark-300 text-white rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                <option value="">Tous pays</option>
+                @foreach(\App\Models\ImportCountry::activeOrdered()->get() as $country)
+                    <option value="{{ $country->code }}" {{ request('origin_country') == $country->code ? 'selected' : '' }}>
+                        {{ $country->flag }} {{ $country->name }}
+                    </option>
+                @endforeach
+            </select>
             <button type="submit" class="px-4 py-2 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-lg hover:shadow-lg transition-all"><i class="fas fa-filter mr-2"></i>Filtrer</button>
         </form>
     </div>
@@ -80,14 +88,19 @@
                             <i class="fas fa-image text-6xl"></i>
                         </div>
                     @endif
-                    <div class="absolute top-2 right-2 flex gap-2">
-                        <span class="px-2 py-1 text-xs rounded-full backdrop-blur-sm {{ $product->status == 'active' ? 'bg-green-500/20 text-green-300 border border-green-500/50' : 'bg-gray-500/20 text-gray-300 border border-gray-500/50' }}">
-                            {{ $product->status == 'active' ? 'Actif' : 'Inactif' }}
+                    <div class="absolute top-2 right-2 flex flex-wrap gap-2 justify-end max-w-[70%]">
+                    <span class="px-2 py-1 text-xs rounded-full backdrop-blur-sm {{ $product->status == 'active' ? 'bg-green-500/20 text-green-300 border border-green-500/50' : 'bg-gray-500/20 text-gray-300 border border-gray-500/50' }}">
+                        {{ $product->status == 'active' ? 'Actif' : 'Inactif' }}
+                    </span>
+                    <span class="px-2 py-1 text-xs rounded-full backdrop-blur-sm bg-blue-500/20 text-blue-300 border border-blue-500/50">
+                        {{ $product->type == 'article' ? 'Article' : 'Service' }}
+                    </span>
+                    @if($product->is_wholesale)
+                        <span class="px-2 py-1 text-xs rounded-full backdrop-blur-sm bg-orange-500/20 text-orange-300 border border-orange-500/50">
+                            <i class="fas fa-boxes mr-1"></i>Gros
                         </span>
-                        <span class="px-2 py-1 text-xs rounded-full backdrop-blur-sm bg-blue-500/20 text-blue-300 border border-blue-500/50">
-                            {{ $product->type == 'article' ? 'Article' : 'Service' }}
-                        </span>
-                    </div>
+                    @endif
+                </div>
                 </div>
                 <div class="p-4">
                     <h3 class="font-semibold text-white mb-1 truncate">{{ $product->name }}</h3>
@@ -115,10 +128,15 @@
                         <span class="text-xs text-gray-400">({{ $product->reviews_count }})</span>
                     </div>
 
-                    <div class="flex items-center gap-2 mb-2">
+                    <div class="flex items-center gap-2 mb-2 flex-wrap">
                         <span class="px-2 py-0.5 text-xs rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/50">
                             <i class="fas fa-weight-hanging mr-1"></i>{{ $product->weight_category ?? 'X-small' }}
                         </span>
+                        @if($product->origin_country)
+                            <span class="px-2 py-0.5 text-xs rounded-full bg-primary-500/20 text-primary-300 border border-primary-500/50">
+                                <i class="fas fa-globe mr-1"></i>{{ $product->origin_country }}
+                            </span>
+                        @endif
                     </div>
 
                     <div class="flex items-center justify-between mb-3">
@@ -205,6 +223,16 @@
                                     <span class="px-2 py-1 text-xs rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/50">
                                         <i class="fas fa-weight-hanging mr-1"></i>{{ $product->weight_category ?? 'X-small' }}
                                     </span>
+                                    @if($product->is_wholesale)
+                                        <span class="px-2 py-1 text-xs rounded-full bg-orange-500/20 text-orange-300 border border-orange-500/50">
+                                            <i class="fas fa-boxes mr-1"></i>Gros
+                                        </span>
+                                    @endif
+                                    @if($product->origin_country)
+                                        <span class="px-2 py-1 text-xs rounded-full bg-primary-500/20 text-primary-300 border border-primary-500/50">
+                                            <i class="fas fa-globe mr-1"></i>{{ $product->origin_country }}
+                                        </span>
+                                    @endif
                                     <span class="text-xs text-gray-400">
                                         <i class="fas fa-box mr-1"></i>Stock: {{ $product->stock }}
                                     </span>

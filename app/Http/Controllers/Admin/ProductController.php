@@ -25,32 +25,36 @@ class ProductController extends Controller
                         ->withCount('reviews')
                         ->latest();
 
-        // Filter by shop
         if ($request->filled('shop_id')) {
             $query->where('shop_id', $request->shop_id);
         }
 
-        // Filter by category
         if ($request->filled('category_id')) {
             $query->where('category_id', $request->category_id);
         }
 
-        // Filter by type
         if ($request->filled('type')) {
             $query->where('type', $request->type);
         }
 
-        // Filter by price type
         if ($request->filled('price_type')) {
             $query->where('price_type', $request->price_type);
         }
 
-        // Filter by status
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
 
-        // Search
+        // Filter by origin country (module GROS)
+        if ($request->filled('origin_country')) {
+            $query->where('origin_country', strtoupper($request->origin_country));
+        }
+
+        // Filter wholesale only
+        if ($request->boolean('wholesale_only')) {
+            $query->where('is_wholesale', true);
+        }
+
         if ($request->filled('search')) {
             $query->where('name', 'like', '%' . $request->search . '%');
         }
@@ -96,7 +100,19 @@ class ProductController extends Controller
             'stock' => 'required|integer|min:0',
             'status' => 'required|in:active,inactive',
             'images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
+
+            'is_wholesale'         => 'nullable|boolean',
+            'tiers'                => 'nullable|array',
+            'tiers.*.label'        => 'required_with:tiers|string|max:255',
+            'tiers.*.unit_price'   => 'required_with:tiers|numeric|min:0',
+            'tiers.*.min_quantity' => 'required_with:tiers|integer|min:1',
+            'tiers.*.pack_size'    => 'nullable|integer|min:1',
         ]);
+
+        // Isole les données "gros" AVANT toute insertion — elles ne vont pas dans `products`
+        $tiers = $validated['tiers'] ?? [];
+        $isWholesale = $request->boolean('is_wholesale');
+        unset($validated['tiers'], $validated['is_wholesale']);
 
         // Get shop owner
         $shop = Shop::findOrFail($validated['shop_id']);
@@ -111,8 +127,14 @@ class ProductController extends Controller
         // Generate slug
         $validated['slug'] = Str::slug($validated['name']);
 
+        // Vente en gros
+        $validated['is_wholesale'] = $isWholesale;
+
         // Create product
         $product = Product::create($validated);
+
+        // Paliers de prix (module GROS)
+        $this->syncPriceTiers($product, $tiers);
 
         // Handle images upload
         if ($request->hasFile('images')) {
@@ -127,7 +149,7 @@ class ProductController extends Controller
      */
     public function show(Product $product)
     {
-        $product->load(['shop', 'category', 'subcategory', 'images', 'user']);
+        $product->load(['shop', 'category', 'subcategory', 'images', 'user', 'priceTiers']);
 
         return view('admin.products.show', compact('product'));
     }
@@ -137,7 +159,7 @@ class ProductController extends Controller
      */
     public function edit(Product $product)
     {
-        $product->load('images');
+        $product->load(['images', 'priceTiers']);
         $shops = Shop::where('status', 'active')->orderBy('name')->get();
         $categories = Category::orderBy('name')->get();
         $subcategories = Subcategory::with('category')->orderBy('name')->get();
@@ -167,7 +189,19 @@ class ProductController extends Controller
             'stock' => 'required|integer|min:0',
             'status' => 'required|in:active,inactive',
             'images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
+
+            'is_wholesale'         => 'nullable|boolean',
+            'tiers'                => 'nullable|array',
+            'tiers.*.label'        => 'required_with:tiers|string|max:255',
+            'tiers.*.unit_price'   => 'required_with:tiers|numeric|min:0',
+            'tiers.*.min_quantity' => 'required_with:tiers|integer|min:1',
+            'tiers.*.pack_size'    => 'nullable|integer|min:1',
         ]);
+
+        // Isole les données "gros" AVANT l'update — elles ne vont pas dans `products`
+        $tiers = $validated['tiers'] ?? [];
+        $isWholesale = $request->boolean('is_wholesale');
+        unset($validated['tiers'], $validated['is_wholesale']);
 
         // Get shop owner
         $shop = Shop::findOrFail($validated['shop_id']);
@@ -183,8 +217,14 @@ class ProductController extends Controller
             $validated['slug'] = Str::slug($validated['name']);
         }
 
+        // Vente en gros
+        $validated['is_wholesale'] = $isWholesale;
+
         // Update product
         $product->update($validated);
+
+        // Paliers de prix (module GROS) — remplace intégralement l'ancienne liste
+        $this->syncPriceTiers($product, $tiers);
 
         // Handle new images upload
         if ($request->hasFile('images')) {
@@ -199,17 +239,40 @@ class ProductController extends Controller
      */
     public function destroy(Product $product)
     {
-        // Delete all product images
         foreach ($product->images as $image) {
             if (File::exists(public_path($image->image_path))) {
                 File::delete(public_path($image->image_path));
             }
         }
 
-        // Delete product (images will be cascade deleted)
         $product->delete();
 
         return redirect()->route('admin.products.index')->with('success', 'Produit supprimé avec succès!');
+    }
+
+    /**
+     * Synchronise les paliers de prix (vente en gros) d'un produit.
+     * Stratégie "replace all" : simple, robuste, aucun palier orphelin possible.
+     */
+    private function syncPriceTiers(Product $product, array $tiers): void
+    {
+        $product->priceTiers()->delete();
+
+        foreach ($tiers as $i => $tier) {
+            if (empty($tier['label']) || !isset($tier['unit_price'])) {
+                continue; // ignore les lignes vides envoyées par erreur
+            }
+
+            $product->priceTiers()->create([
+                'label'        => $tier['label'],
+                'unit_price'   => $tier['unit_price'],
+                'min_quantity' => $tier['min_quantity'] ?? 1,
+                'pack_size'    => $tier['pack_size'] ?? 1,
+                'currency'     => 'XAF',
+                'is_active'    => true,
+                'sort_order'   => $i + 1,
+            ]);
+        }
     }
 
     /**
@@ -218,7 +281,7 @@ class ProductController extends Controller
     private function uploadImages(Product $product, array $images)
     {
         $order = $product->images()->max('order') ?? 0;
-        $isPrimary = $product->images()->count() === 0; // First image is primary
+        $isPrimary = $product->images()->count() === 0;
 
         foreach ($images as $image) {
             $order++;
@@ -232,7 +295,7 @@ class ProductController extends Controller
                 'order' => $order,
             ]);
 
-            $isPrimary = false; // Only first image is primary
+            $isPrimary = false;
         }
     }
 
@@ -241,17 +304,14 @@ class ProductController extends Controller
      */
     public function deleteImage(Request $request, Product $product, ProductImage $image)
     {
-        // Verify image belongs to product
         if ($image->product_id !== $product->id) {
             return response()->json(['error' => 'Image not found'], 404);
         }
 
-        // Delete physical file
         if (File::exists(public_path($image->image_path))) {
             File::delete(public_path($image->image_path));
         }
 
-        // If this was primary image, set another one as primary
         $wasPrimary = $image->is_primary;
         $image->delete();
 
@@ -270,15 +330,11 @@ class ProductController extends Controller
      */
     public function setPrimaryImage(Request $request, Product $product, ProductImage $image)
     {
-        // Verify image belongs to product
         if ($image->product_id !== $product->id) {
             return response()->json(['error' => 'Image not found'], 404);
         }
 
-        // Remove primary from all images
         $product->images()->update(['is_primary' => false]);
-
-        // Set this image as primary
         $image->update(['is_primary' => true]);
 
         return response()->json(['success' => true]);
