@@ -141,7 +141,7 @@
     <div id="tiers_container" class="{{ old('is_wholesale', $product->is_wholesale ?? false) ? '' : 'hidden' }}">
         <div class="flex items-center justify-between mb-2">
             <label class="text-sm font-medium text-white">Paliers de prix</label>
-            <button type="button" onclick="addTierRow({ min_quantity: getNextMinQuantity() })"
+            <button type="button" onclick="addTierRow()"
                     class="px-3 py-1.5 bg-primary-600 text-white text-xs rounded-lg hover:bg-primary-700">
                 <i class="fas fa-plus mr-1"></i> Ajouter un palier
             </button>
@@ -539,129 +539,136 @@
     };
 
     // ============================================
-// MODULE GROS — Vente en gros par pays d'import
-// ============================================
-let tierIndex = 0;
+    // MODULE GROS — Vente en gros par pays d'import
+    // ============================================
+    let tierIndex = 0;
 
-function tierRowTemplate(data = {}) {
-    const idx = tierIndex++;
-    const esc = (v) => String(v ?? '').replace(/"/g, '&quot;');
-    return `
-    <div class="grid grid-cols-1 md:grid-cols-12 gap-2 items-end bg-dark-50 p-3 rounded-lg" id="tier_row_${idx}">
-        <div class="md:col-span-4">
-            <label class="block text-xs text-gray-400 mb-1">Label</label>
-            <input type="text" name="tiers[${idx}][label]" value="${esc(data.label)}"
-                   placeholder="Ex: Pack de 50"
-                   class="w-full px-3 py-2 bg-dark-100 border border-dark-300 rounded text-white text-sm">
-        </div>
-        <div class="md:col-span-3">
-            <label class="block text-xs text-gray-400 mb-1">Prix unitaire (FCFA)</label>
-            <input type="number" step="0.01" min="0" name="tiers[${idx}][unit_price]" value="${esc(data.unit_price)}"
-                   class="w-full px-3 py-2 bg-dark-100 border border-dark-300 rounded text-white text-sm">
-        </div>
-        <div class="md:col-span-2">
-            <label class="block text-xs text-gray-400 mb-1">Qté min</label>
-            <input type="number" min="1" name="tiers[${idx}][min_quantity]" value="${esc(data.min_quantity)}"
-                   class="w-full px-3 py-2 bg-dark-100 border border-dark-300 rounded text-white text-sm">
-        </div>
-        <div class="md:col-span-2">
-            <label class="block text-xs text-gray-400 mb-1">Pack size</label>
-            <input type="number" min="1" name="tiers[${idx}][pack_size]" value="${esc(data.pack_size ?? 1)}"
-                   class="w-full px-3 py-2 bg-dark-100 border border-dark-300 rounded text-white text-sm">
-        </div>
-        <div class="md:col-span-1">
-            <button type="button" onclick="removeTierRow(${idx})"
-                    class="w-full px-3 py-2 bg-red-500 text-white rounded text-sm hover:bg-red-600">
-                <i class="fas fa-trash"></i>
-            </button>
-        </div>
-    </div>`;
-}
-function getNextMinQuantity() {
-    const wrapper = document.getElementById('tiers_wrapper');
-    if (!wrapper || wrapper.children.length === 0) return 1;
-    const lastRow = wrapper.lastElementChild;
-    const lastInput = lastRow.querySelector('input[name*="[min_quantity]"]');
-    const lastVal = parseInt(lastInput?.value, 10);
-    return isNaN(lastVal) ? 1 : lastVal + 1;
-}
-function addTierRow(data = {}) {
-    document.getElementById('tiers_wrapper').insertAdjacentHTML('beforeend', tierRowTemplate(data));
-    updateEmptyMsg();
-}
-
-function removeTierRow(idx) {
-    document.getElementById(`tier_row_${idx}`)?.remove();
-    updateEmptyMsg();
-}
-
-function updateEmptyMsg() {
-    const wrapper = document.getElementById('tiers_wrapper');
-    const msg = document.getElementById('tiers_empty_msg');
-    if (!wrapper || !msg) return;
-    msg.classList.toggle('hidden', wrapper.children.length > 0);
-}
-
-function toggleTiersContainer() {
-    const checkbox = document.getElementById('is_wholesale');
-    const container = document.getElementById('tiers_container');
-    if (!checkbox || !container) return;
-    container.classList.toggle('hidden', !checkbox.checked);
-    if (checkbox.checked) updateEmptyMsg();
-}
-
-function toggleWholesaleSection() {
-    const select = document.querySelector('select[name="origin_country"]');
-    const country = select ? select.value : '';
-    const section = document.getElementById('wholesale_section');
-    const badge = document.getElementById('wholesale_country_badge');
-    if (!section) return;
-
-    if (country) {
-        section.style.display = 'block';
-        const label = select.options[select.selectedIndex]?.text?.trim() ?? country;
-        if (badge) badge.textContent = label;
-        loadShippingOptions(country);
-    } else {
-        section.style.display = 'none';
-        const cb = document.getElementById('is_wholesale');
-        if (cb) cb.checked = false;
-        toggleTiersContainer();
+    function tierRowTemplate(data = {}) {
+        const idx = tierIndex++;
+        const esc = (v) => String(v ?? '').replace(/"/g, '&quot;');
+        return `
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-2 items-end bg-dark-50 p-3 rounded-lg" id="tier_row_${idx}">
+            <div class="md:col-span-4">
+                <label class="block text-xs text-gray-400 mb-1">Label</label>
+                <input type="text" name="tiers[${idx}][label]" value="${esc(data.label)}"
+                       placeholder="Ex: Pack de 50"
+                       class="w-full px-3 py-2 bg-dark-100 border border-dark-300 rounded text-white text-sm">
+            </div>
+            <div class="md:col-span-3">
+                <label class="block text-xs text-gray-400 mb-1">Prix unitaire (FCFA)</label>
+                <input type="number" step="0.01" min="0" name="tiers[${idx}][unit_price]" value="${esc(data.unit_price)}"
+                       class="w-full px-3 py-2 bg-dark-100 border border-dark-300 rounded text-white text-sm">
+            </div>
+            <div class="md:col-span-2">
+                <label class="block text-xs text-gray-400 mb-1">Qté min</label>
+                <input type="number" min="1" name="tiers[${idx}][min_quantity]" value="${esc(data.min_quantity)}"
+                       class="w-full px-3 py-2 bg-dark-100 border border-dark-300 rounded text-white text-sm">
+            </div>
+            <div class="md:col-span-2">
+                <label class="block text-xs text-gray-400 mb-1">Pack size</label>
+                <input type="number" min="1" name="tiers[${idx}][pack_size]" value="${esc(data.pack_size ?? 1)}"
+                       class="w-full px-3 py-2 bg-dark-100 border border-dark-300 rounded text-white text-sm">
+            </div>
+            <div class="md:col-span-1">
+                <button type="button" onclick="removeTierRow(${idx})"
+                        class="w-full px-3 py-2 bg-red-500 text-white rounded text-sm hover:bg-red-600">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        </div>`;
     }
-}
 
-function loadShippingOptions(countryCode) {
-    fetch(`/api/v1/import/${countryCode}/shipping`)
-        .then(r => r.json())
-        .then(response => {
-            const data = response.success ? (response.shipping_options ?? []) : [];
-            const list = document.getElementById('shipping_list');
-            const preview = document.getElementById('shipping_preview');
-            preview.classList.remove('hidden');
+    // Calcule automatiquement la prochaine quantité min à partir du dernier palier existant
+    function getNextMinQuantity() {
+        const wrapper = document.getElementById('tiers_wrapper');
+        if (!wrapper || wrapper.children.length === 0) return 1;
+        const lastRow = wrapper.lastElementChild;
+        const lastInput = lastRow.querySelector('input[name*="[min_quantity]"]');
+        const lastVal = parseInt(lastInput?.value, 10);
+        return isNaN(lastVal) ? 1 : lastVal + 1;
+    }
 
-            if (!data.length) {
-                list.innerHTML = '<p class="text-gray-500">Aucune option d\'expédition définie pour ce pays.</p>';
-                return;
-            }
+    window.addTierRow = function(data = {}) {
+        // Si aucune quantité min n'est fournie explicitement, on la calcule automatiquement
+        if (data.min_quantity === undefined || data.min_quantity === null || data.min_quantity === '') {
+            data.min_quantity = getNextMinQuantity();
+        }
+        document.getElementById('tiers_wrapper').insertAdjacentHTML('beforeend', tierRowTemplate(data));
+        updateEmptyMsg();
+    };
 
-            list.innerHTML = data.map(s => {
-                const mode = s.mode ?? s.type ?? '';
-                const rateType = s.rate_type ?? s.rateType ?? '';
-                const rateAmount = s.rate_amount ?? s.rateAmount ?? s.price ?? 0;
-                const leadTime = s.lead_time_days ?? s.leadTimeDays ?? s.delay ?? '?';
-                const note = s.expedition_note ?? s.expeditionNote ?? s.note ?? '';
+    window.removeTierRow = function(idx) {
+        document.getElementById(`tier_row_${idx}`)?.remove();
+        updateEmptyMsg();
+    };
 
-                const priceLabel = rateType === 'flat'
-                    ? Number(rateAmount).toLocaleString() + ' FCFA (forfait)'
-                    : Number(rateAmount).toLocaleString() + ' FCFA/kg';
+    function updateEmptyMsg() {
+        const wrapper = document.getElementById('tiers_wrapper');
+        const msg = document.getElementById('tiers_empty_msg');
+        if (!wrapper || !msg) return;
+        msg.classList.toggle('hidden', wrapper.children.length > 0);
+    }
 
-                return `<div>• <strong>${String(mode).toUpperCase()}</strong> — ${priceLabel} — ${leadTime}j${note ? ' · ' + note : ''}</div>`;
-            }).join('');
-        })
-        .catch(() => {
-            document.getElementById('shipping_preview')?.classList.add('hidden');
-        });
-}
+    window.toggleTiersContainer = function() {
+        const checkbox = document.getElementById('is_wholesale');
+        const container = document.getElementById('tiers_container');
+        if (!checkbox || !container) return;
+        container.classList.toggle('hidden', !checkbox.checked);
+        if (checkbox.checked) updateEmptyMsg();
+    };
+
+    window.toggleWholesaleSection = function() {
+        const select = document.querySelector('select[name="origin_country"]');
+        const country = select ? select.value : '';
+        const section = document.getElementById('wholesale_section');
+        const badge = document.getElementById('wholesale_country_badge');
+        if (!section) return;
+
+        if (country) {
+            section.style.display = 'block';
+            const label = select.options[select.selectedIndex]?.text?.trim() ?? country;
+            if (badge) badge.textContent = label;
+            loadShippingOptions(country);
+        } else {
+            section.style.display = 'none';
+            const cb = document.getElementById('is_wholesale');
+            if (cb) cb.checked = false;
+            toggleTiersContainer();
+        }
+    };
+
+    function loadShippingOptions(countryCode) {
+        fetch(`/api/v1/import/${countryCode}/shipping`)
+            .then(r => r.json())
+            .then(response => {
+                const data = response.success ? (response.shipping_options ?? []) : [];
+                const list = document.getElementById('shipping_list');
+                const preview = document.getElementById('shipping_preview');
+                preview.classList.remove('hidden');
+
+                if (!data.length) {
+                    list.innerHTML = '<p class="text-gray-500">Aucune option d\'expédition définie pour ce pays.</p>';
+                    return;
+                }
+
+                list.innerHTML = data.map(s => {
+                    const mode = s.mode ?? s.type ?? '';
+                    const rateType = s.rate_type ?? s.rateType ?? '';
+                    const rateAmount = s.rate_amount ?? s.rateAmount ?? s.price ?? 0;
+                    const leadTime = s.lead_time_days ?? s.leadTimeDays ?? s.delay ?? '?';
+                    const note = s.expedition_note ?? s.expeditionNote ?? s.note ?? '';
+
+                    const priceLabel = rateType === 'flat'
+                        ? Number(rateAmount).toLocaleString() + ' FCFA (forfait)'
+                        : Number(rateAmount).toLocaleString() + ' FCFA/kg';
+
+                    return `<div>• <strong>${String(mode).toUpperCase()}</strong> — ${priceLabel} — ${leadTime}j${note ? ' · ' + note : ''}</div>`;
+                }).join('');
+            })
+            .catch(() => {
+                document.getElementById('shipping_preview')?.classList.add('hidden');
+            });
+    }
 
     // Initialize on page load
     document.addEventListener('DOMContentLoaded', function() {
