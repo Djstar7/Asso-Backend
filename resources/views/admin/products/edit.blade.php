@@ -141,7 +141,7 @@
     <div id="tiers_container" class="{{ old('is_wholesale', $product->is_wholesale ?? false) ? '' : 'hidden' }}">
         <div class="flex items-center justify-between mb-2">
             <label class="text-sm font-medium text-white">Paliers de prix</label>
-            <button type="button" onclick="addTierRow()"
+            <button type="button" onclick="addTierRow({ min_quantity: getNextMinQuantity() })"
                     class="px-3 py-1.5 bg-primary-600 text-white text-xs rounded-lg hover:bg-primary-700">
                 <i class="fas fa-plus mr-1"></i> Ajouter un palier
             </button>
@@ -577,7 +577,14 @@ function tierRowTemplate(data = {}) {
         </div>
     </div>`;
 }
-
+function getNextMinQuantity() {
+    const wrapper = document.getElementById('tiers_wrapper');
+    if (!wrapper || wrapper.children.length === 0) return 1;
+    const lastRow = wrapper.lastElementChild;
+    const lastInput = lastRow.querySelector('input[name*="[min_quantity]"]');
+    const lastVal = parseInt(lastInput?.value, 10);
+    return isNaN(lastVal) ? 1 : lastVal + 1;
+}
 function addTierRow(data = {}) {
     document.getElementById('tiers_wrapper').insertAdjacentHTML('beforeend', tierRowTemplate(data));
     updateEmptyMsg();

@@ -110,6 +110,15 @@
                                 <td class="px-6 py-4 text-right text-sm">
                                     <div class="flex justify-end gap-2">
                                         <a href="#"
+                                            class="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                                            title="Gérer les expéditions"
+                                            data-shipping
+                                            data-id="{{ $country->id }}"
+                                            data-name="{{ $country->name }}"
+                                            data-flag="{{ $country->flag }}">
+                                            <i class="fas fa-ship"></i>
+                                        </a>
+                                        <a href="#"
                                            class="px-3 py-1.5 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-lg hover:shadow-lg transition-all"
                                            title="Modifier"
                                            data-edit
@@ -191,6 +200,71 @@
     </div>
 </div>
 
+<!-- Modale de gestion des expéditions -->
+<div id="shippingModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 p-4">
+    <div class="bg-dark-100 rounded-xl shadow-2xl border border-dark-200 w-full max-w-3xl p-6 max-h-[90vh] overflow-y-auto">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-semibold text-white">
+                <i class="fas fa-ship text-primary-400 mr-2"></i>
+                Expéditions — <span id="shipping_country_label"></span>
+            </h2>
+            <button type="button" onclick="closeShipping()" class="text-gray-400 hover:text-white">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <div id="shipping_list_container" class="space-y-2 mb-6"></div>
+
+        <div class="border-t border-dark-300 pt-4">
+            <h3 class="text-sm font-semibold text-white mb-3">Ajouter / Modifier une option</h3>
+            <form id="shippingForm" class="grid grid-cols-1 md:grid-cols-6 gap-3 items-end">
+                <div class="md:col-span-1">
+                    <label class="block text-xs text-gray-400 mb-1">Mode</label>
+                    <select name="mode" id="shipping_mode" required
+                            class="w-full px-3 py-2 bg-dark-50 border border-dark-200 rounded-lg text-white text-sm">
+                        <option value="air">Avion</option>
+                        <option value="sea">Bateau</option>
+                        <option value="express">Express</option>
+                    </select>
+                </div>
+                <div class="md:col-span-1">
+                    <label class="block text-xs text-gray-400 mb-1">Tarif</label>
+                    <select name="rate_type" id="shipping_rate_type" required
+                            class="w-full px-3 py-2 bg-dark-50 border border-dark-200 rounded-lg text-white text-sm">
+                        <option value="per_kg">Par kg</option>
+                        <option value="flat">Forfait</option>
+                    </select>
+                </div>
+                <div class="md:col-span-1">
+                    <label class="block text-xs text-gray-400 mb-1">Montant (FCFA)</label>
+                    <input type="number" step="0.01" min="0" name="rate_amount" id="shipping_rate_amount" required
+                           class="w-full px-3 py-2 bg-dark-50 border border-dark-200 rounded-lg text-white text-sm">
+                </div>
+                <div class="md:col-span-1">
+                    <label class="block text-xs text-gray-400 mb-1">Délai (jours)</label>
+                    <input type="number" min="1" name="lead_time_days" id="shipping_lead_time" required
+                           class="w-full px-3 py-2 bg-dark-50 border border-dark-200 rounded-lg text-white text-sm">
+                </div>
+                <div class="md:col-span-2">
+                    <label class="block text-xs text-gray-400 mb-1">Note</label>
+                    <input type="text" name="expedition_note" id="shipping_note"
+                           placeholder="Ex: Commande du 11 au 15, arrivée le 20"
+                           class="w-full px-3 py-2 bg-dark-50 border border-dark-200 rounded-lg text-white text-sm">
+                </div>
+                <div class="md:col-span-6 flex justify-end gap-2">
+                    <button type="button" id="shipping_cancel_edit" onclick="resetShippingForm()"
+                            class="hidden px-4 py-2 bg-dark-200 text-gray-300 rounded-lg hover:bg-dark-50 text-sm">
+                        Annuler modif.
+                    </button>
+                    <button type="submit"
+                            class="px-4 py-2 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-lg hover:shadow-lg text-sm">
+                        <i class="fas fa-save mr-1"></i> <span id="shipping_submit_label">Ajouter</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 <script>
     const editBaseUrl = "{{ url('admin/import-countries') }}";
     function closeEdit() {
@@ -211,5 +285,147 @@
             m.classList.add('flex');
         });
     });
+
+    const shippingBaseUrl = "{{ url('admin/import-countries') }}";
+let currentShippingCountryId = null;
+let editingShippingOptionId = null;
+
+document.querySelectorAll('[data-shipping]').forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+        e.preventDefault();
+        currentShippingCountryId = this.dataset.id;
+        document.getElementById('shipping_country_label').textContent =
+            `${this.dataset.flag ?? ''} ${this.dataset.name}`.trim();
+        resetShippingForm();
+        loadShippingList();
+        const m = document.getElementById('shippingModal');
+        m.classList.remove('hidden');
+        m.classList.add('flex');
+    });
+});
+
+function closeShipping() {
+    const m = document.getElementById('shippingModal');
+    m.classList.add('hidden');
+    m.classList.remove('flex');
+}
+
+function loadShippingList() {
+    fetch(`${shippingBaseUrl}/${currentShippingCountryId}/shipping-options`)
+        .then(r => r.json())
+        .then(res => {
+            const container = document.getElementById('shipping_list_container');
+            const options = res.shipping_options ?? [];
+
+            if (!options.length) {
+                container.innerHTML = '<p class="text-sm text-gray-500">Aucune option configurée pour ce pays.</p>';
+                return;
+            }
+
+            container.innerHTML = options.map(o => `
+                <div class="flex items-center justify-between bg-dark-50 p-3 rounded-lg">
+                    <div class="text-sm text-white">
+                        <strong>${o.mode.toUpperCase()}</strong> —
+                        ${o.rate_type === 'flat'
+                            ? Number(o.rate_amount).toLocaleString() + ' FCFA (forfait)'
+                            : Number(o.rate_amount).toLocaleString() + ' FCFA/kg'}
+                        — ${o.lead_time_days}j
+                        ${o.expedition_note ? '· ' + o.expedition_note : ''}
+                        ${!o.is_active ? '<span class="ml-2 text-xs text-gray-500">(inactif)</span>' : ''}
+                    </div>
+                    <div class="flex gap-2 flex-shrink-0">
+                        <button type="button" onclick='editShippingOption(${JSON.stringify(o)})'
+                                class="px-2 py-1 bg-primary-600 text-white text-xs rounded hover:bg-primary-700">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button type="button" onclick="toggleShippingOption(${o.id})"
+                                class="px-2 py-1 bg-yellow-600 text-white text-xs rounded hover:bg-yellow-700">
+                            <i class="fas fa-power-off"></i>
+                        </button>
+                        <button type="button" onclick="deleteShippingOption(${o.id})"
+                                class="px-2 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        });
+}
+
+document.getElementById('shippingForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+
+    const payload = {
+        mode: document.getElementById('shipping_mode').value,
+        rate_type: document.getElementById('shipping_rate_type').value,
+        rate_amount: document.getElementById('shipping_rate_amount').value,
+        lead_time_days: document.getElementById('shipping_lead_time').value,
+        expedition_note: document.getElementById('shipping_note').value,
+    };
+
+    const url = editingShippingOptionId
+        ? `${shippingBaseUrl}/${currentShippingCountryId}/shipping-options/${editingShippingOptionId}`
+        : `${shippingBaseUrl}/${currentShippingCountryId}/shipping-options`;
+
+    fetch(url, {
+        method: editingShippingOptionId ? 'PUT' : 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+            'Accept': 'application/json',
+        },
+        body: JSON.stringify(payload),
+    })
+        .then(r => r.json())
+        .then(res => {
+            if (res.success) {
+                resetShippingForm();
+                loadShippingList();
+            } else {
+                alert("Erreur lors de l'enregistrement.");
+            }
+        })
+        .catch(() => alert("Erreur réseau lors de l'enregistrement."));
+});
+
+function editShippingOption(option) {
+    editingShippingOptionId = option.id;
+    document.getElementById('shipping_mode').value = option.mode;
+    document.getElementById('shipping_rate_type').value = option.rate_type;
+    document.getElementById('shipping_rate_amount').value = option.rate_amount;
+    document.getElementById('shipping_lead_time').value = option.lead_time_days;
+    document.getElementById('shipping_note').value = option.expedition_note ?? '';
+    document.getElementById('shipping_submit_label').textContent = 'Mettre à jour';
+    document.getElementById('shipping_cancel_edit').classList.remove('hidden');
+}
+
+function resetShippingForm() {
+    editingShippingOptionId = null;
+    document.getElementById('shippingForm').reset();
+    document.getElementById('shipping_submit_label').textContent = 'Ajouter';
+    document.getElementById('shipping_cancel_edit').classList.add('hidden');
+}
+
+function toggleShippingOption(id) {
+    fetch(`${shippingBaseUrl}/${currentShippingCountryId}/shipping-options/${id}/toggle-status`, {
+        method: 'PATCH',
+        headers: {
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+            'Accept': 'application/json',
+        },
+    }).then(() => loadShippingList());
+}
+
+function deleteShippingOption(id) {
+    window.customConfirm("Supprimer cette option d'expédition ?", function () {
+        fetch(`${shippingBaseUrl}/${currentShippingCountryId}/shipping-options/${id}`, {
+            method: 'DELETE',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                'Accept': 'application/json',
+            },
+        }).then(() => loadShippingList());
+    });
+}
 </script>
 @endsection

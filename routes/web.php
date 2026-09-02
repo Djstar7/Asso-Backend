@@ -31,6 +31,7 @@ use App\Http\Controllers\Admin\OtpBypassController;
 use App\Http\Controllers\Admin\DiaspoVerificationController;
 use App\Http\Controllers\Admin\DiaspoOfferController;
 use App\Http\Controllers\Admin\PostController;
+use App\Http\Controllers\Admin\ImportShippingOptionController;
 
 // Redirect root to admin login
 Route::get('/', function () {
@@ -156,6 +157,17 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::put('/import-countries/{importCountry}', [ImportCountryController::class, 'update'])->name('import-countries.update');
         Route::patch('/import-countries/{importCountry}/toggle-status', [ImportCountryController::class, 'toggleStatus'])->name('import-countries.toggle-status');
         Route::delete('/import-countries/{importCountry}', [ImportCountryController::class, 'destroy'])->name('import-countries.destroy');
+
+        // Options d'expédition rattachées à un pays importé
+        Route::prefix('import-countries/{importCountry}/shipping-options')
+            ->name('import-countries.shipping-options.')
+            ->group(function () {
+                Route::get('/', [ImportShippingOptionController::class, 'index'])->name('index');
+                Route::post('/', [ImportShippingOptionController::class, 'store'])->name('store');
+                Route::put('/{shippingOption}', [ImportShippingOptionController::class, 'update'])->name('update');
+                Route::patch('/{shippingOption}/toggle-status', [ImportShippingOptionController::class, 'toggleStatus'])->name('toggle-status');
+                Route::delete('/{shippingOption}', [ImportShippingOptionController::class, 'destroy'])->name('destroy');
+            });
 
         // Announcements
         Route::resource('announcements', AnnouncementController::class);
