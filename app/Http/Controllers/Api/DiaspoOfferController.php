@@ -95,15 +95,7 @@ class DiaspoOfferController extends Controller
      */
     public function store(Request $request)
     {
-        // Vérifier que l'utilisateur est vérifié
         $user = auth()->user();
-        if (!$user->canCreateDiaspoOffers()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Vous devez vérifier votre identité avant de créer une offre',
-                'verification_status' => $user->diaspo_verification_status,
-            ], 403);
-        }
 
         $validated = $request->validate([
             'departure_country' => 'required|string|max:255',
@@ -117,11 +109,14 @@ class DiaspoOfferController extends Controller
             'currency' => 'nullable|string|max:3',
         ]);
 
-        // Create offer - will be auto-approved via DiaspoOfferObserver if user is verified
+        // Une identité incomplète ne bloque plus la saisie de l'offre. L'offre reste
+        // invisible du catalogue public jusqu'à la validation de l'identité et peut
+        // ensuite être rejetée/supprimée par l'équipe depuis l'administration.
+        $isVerified = $user->canCreateDiaspoOffers();
         $offer = DiaspoOffer::create([
             'user_id' => auth()->id(),
-            'status' => 'pending',
-            'verification_status' => 'pending',
+            'status' => $isVerified ? 'approved' : 'pending',
+            'verification_status' => $isVerified ? 'verified' : 'pending',
             ...$validated,
         ]);
 
@@ -130,7 +125,7 @@ class DiaspoOfferController extends Controller
 
         $message = $offer->status === 'approved'
             ? 'Offre créée et publiée avec succès!'
-            : 'Offre créée avec succès. Elle sera vérifiée par notre équipe.';
+            : 'Offre enregistrée. Elle sera publiée après validation de votre identité. Notre équipe vous demandera un complément si nécessaire.';
 
         return response()->json([
             'success' => true,

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\Document;
+use App\Models\DiaspoOffer;
 use App\Services\FirebaseMessagingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -159,6 +160,17 @@ class DiaspoVerificationController extends Controller
                 'diaspo_rejection_reason' => null,
             ]);
 
+            DiaspoOffer::where('user_id', $user->id)
+                ->where('status', 'pending')
+                ->where('verification_status', 'pending')
+                ->update([
+                    'status' => 'approved',
+                    'verification_status' => 'verified',
+                    'verified_at' => now(),
+                    'verified_by' => auth()->id(),
+                    'rejection_reason' => null,
+                ]);
+
             DB::commit();
 
             Log::info('[ADMIN-DIASPO-VERIFICATION] Verification approved successfully', [
@@ -171,7 +183,7 @@ class DiaspoVerificationController extends Controller
                 $fcmService->sendToUser(
                     $user,
                     'Vérification DIASPO approuvée !',
-                    'Félicitations ! Votre identité a été vérifiée. Vous pouvez maintenant créer vos offres DIASPO.',
+                    'Félicitations ! Votre identité a été vérifiée. Vos offres DIASPO en attente sont maintenant publiées.',
                     [
                         'type' => 'diaspo_verified',
                         'action' => 'open_diaspo',
@@ -380,6 +392,17 @@ class DiaspoVerificationController extends Controller
                 'diaspo_rejection_reason' => null,
             ]);
 
+            DiaspoOffer::where('user_id', $user->id)
+                ->where('status', 'pending')
+                ->where('verification_status', 'pending')
+                ->update([
+                    'status' => 'approved',
+                    'verification_status' => 'verified',
+                    'verified_at' => now(),
+                    'verified_by' => auth()->id(),
+                    'rejection_reason' => null,
+                ]);
+
             DB::commit();
 
             Log::info('[ADMIN-DIASPO-VERIFICATION] Verification approved successfully', [
@@ -392,7 +415,7 @@ class DiaspoVerificationController extends Controller
                 $fcmService->sendToUser(
                     $user,
                     'Vérification DIASPO approuvée !',
-                    'Félicitations ! Votre identité a été vérifiée. Vous pouvez maintenant créer vos offres DIASPO.',
+                    'Félicitations ! Votre identité a été vérifiée. Vos offres DIASPO en attente sont maintenant publiées.',
                     [
                         'type' => 'diaspo_verified',
                         'action' => 'open_diaspo',

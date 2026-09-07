@@ -511,6 +511,8 @@ class OrderService
             $subtotal = 0;
             $orderItems = [];
             $countryCode = null;
+            $calculatedWeightKg = 0;
+            $hasMissingWeight = false;
 
             foreach ($items as $item) {
                 $product = Product::lockForUpdate()->findOrFail($item['product_id']);
@@ -542,6 +544,11 @@ class OrderService
                 $lineTotal = $unitPrice * $quantity;
                 $subtotal += $lineTotal;
                 $countryCode = $countryCode ?? $product->origin_country;
+                if (is_numeric($product->weight) && (float) $product->weight > 0) {
+                    $calculatedWeightKg += (float) $product->weight * $quantity;
+                } else {
+                    $hasMissingWeight = true;
+                }
 
                 $orderItems[] = [
                     'product_id' => $product->id,
@@ -556,6 +563,14 @@ class OrderService
 
             // Expédition internationale : coût selon l'option choisie (poids / volume / forfait).
             $shipping = ImportShippingOption::where('id', $shippingOptionId)->where('is_active', true)->firstOrFail();
+            if ($shipping->rate_type === 'per_kg') {
+                if ($hasMissingWeight || $calculatedWeightKg <= 0) {
+                    throw new \Exception("Le poids du colis doit d'abord être renseigné par ASSO avant le paiement.");
+                }
+                // Calcul autoritaire côté serveur : ne jamais faire saisir ni faire
+                // confiance au poids envoyé par le client.
+                $shippingWeightKg = $calculatedWeightKg;
+            }
             $shippingCost = $shipping->computeCost($shippingWeightKg, $shippingCbm);
             $total = $subtotal + $shippingCost;
 

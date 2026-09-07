@@ -8,6 +8,7 @@ use App\Models\ImportShippingOption;
 use App\Models\Product;
 use App\Services\OrderService;
 use App\Services\PaymentMethodService;
+use App\Services\ExchangeRateService;
 use Illuminate\Http\Request;
 
 /**
@@ -22,9 +23,10 @@ class ImportController extends Controller
      * Catalogue gros d'un pays d'import.
      * GET /v1/import/{code}/products
      */
-    public function products(string $code)
+    public function products(Request $request, string $code)
     {
         $code = strtoupper($code);
+        $targetCurrency = $this->targetCurrency($request);
         $country = ImportCountry::where('code', $code)->where('is_active', true)->firstOrFail();
 
         $products = Product::query()
@@ -34,13 +36,18 @@ class ImportController extends Controller
             ->with(['priceTiers', 'primaryImage'])
             ->latest()
             ->get()
-            ->map(fn (Product $p) => $this->serializeProduct($p));
+            ->map(fn (Product $p) => $this->serializeProduct($p, false, $targetCurrency));
+
+        $shippingOptions = ImportShippingOption::activeForCountry($code)
+            ->get()
+            ->map(fn (ImportShippingOption $option) => $this->serializeShippingOption($option, $targetCurrency));
 
         return response()->json([
             'success' => true,
             'country' => ['code' => $country->code, 'name' => $country->name, 'flag' => $country->flag],
             'products' => $products,
-            'shipping_options' => ImportShippingOption::activeForCountry($code)->get()->map->toApi(),
+            'currency' => $targetCurrency,
+            'shipping_options' => $shippingOptions,
         ]);
     }
 
@@ -48,7 +55,7 @@ class ImportController extends Controller
      * Détail d'un produit gros (avec paliers).
      * GET /v1/import/products/{id}
      */
-    public function show(int $id)
+    public function show(Request $request, int $id)
     {
         $product = Product::where('is_wholesale', true)
             ->with(['priceTiers', 'images'])
@@ -56,8 +63,9 @@ class ImportController extends Controller
 
         return response()->json([
             'success' => true,
-            'product' => $this->serializeProduct($product, true),
-            'shipping_options' => ImportShippingOption::activeForCountry($product->origin_country)->get()->map->toApi(),
+            'product' => $this->serializeProduct($product, true, $this->targetCurrency($request)),
+            'shipping_options' => ImportShippingOption::activeForCountry($product->origin_country)
+                ->get()->map(fn (ImportShippingOption $option) => $this->serializeShippingOption($option, $this->targetCurrency($request))),
         ]);
     }
 
@@ -135,7 +143,7 @@ class ImportController extends Controller
     }
 
     /** Sérialisation d'un produit gros avec ses paliers et sa quantité minimale. */
-    private function serializeProduct(Product $p, bool $full = false): array
+    private function serializeProduct(Product $p, bool $full = false, string $targetCurrency = 'XAF'): array
     {
         $tiers = $p->relationLoaded('priceTiers') ? $p->priceTiers : collect();
         // Quantité minimale « effective » = plus petit cota parmi les paliers (repli sur le champ produit).
@@ -148,15 +156,75 @@ class ImportController extends Controller
             'origin_country' => $p->origin_country,
             'currency' => $p->currency,
             'min_order_quantity' => $minFromTiers ?? $p->min_order_quantity,
-            'price_tiers' => $tiers->map->toApi()->values(),
-            'image' => $p->primaryImage?->image_path,
+            // Le poids est renseigné par l'équipe/le vendeur, jamais par le client.
+            'unit_weight_kg' => is_numeric($p->weight) ? (float) $p->weight : null,
+            'price_tiers' => $tiers->map(fn ($tier) => $this->serializeTier($tier, $targetCurrency))->values(),
+            'image' => $this->imageUrl($p->primaryImage?->image_path),
         ];
 
         if ($full) {
             $data['images'] = ($p->relationLoaded('images') ? $p->images : collect())
-                ->map(fn ($i) => $i->image_path)->values();
+                ->map(fn ($i) => $this->imageUrl($i->image_path))->values();
         }
 
         return $data;
+    }
+
+    private function targetCurrency(Request $request): string
+    {
+        $currency = strtoupper(trim((string) $request->query('currency', 'XAF')));
+        return preg_match('/^[A-Z]{3}$/', $currency) ? $currency : 'XAF';
+    }
+
+    private function convertAmount(float $amount, string $from, string $to): ?float
+    {
+        $result = ExchangeRateService::convert(strtoupper($from), strtoupper($to), $amount);
+        return !empty($result['success']) ? (float) $result['amount'] : null;
+    }
+
+    private function serializeTier($tier, string $targetCurrency): array
+    {
+        $sourceCurrency = strtoupper($tier->currency ?? 'XAF');
+        $sourceAmount = (float) $tier->unit_price;
+        $amountXaf = $this->convertAmount($sourceAmount, $sourceCurrency, 'XAF');
+        $displayAmount = $this->convertAmount($sourceAmount, $sourceCurrency, $targetCurrency);
+
+        // Si la devise choisie est momentanément indisponible, on expose le prix
+        // d'origine au lieu d'afficher un montant inventé.
+        $effectiveCurrency = $displayAmount === null ? $sourceCurrency : $targetCurrency;
+        $effectiveAmount = $displayAmount ?? $sourceAmount;
+
+        return array_merge($tier->toApi(), [
+            'unit_price' => $effectiveAmount,
+            'unit_price_xaf' => $amountXaf ?? ($sourceCurrency === 'XAF' ? $sourceAmount : 0),
+            'currency' => $effectiveCurrency,
+            'formatted_price' => number_format($effectiveAmount, 2, ',', ' ') . ' ' . $effectiveCurrency,
+        ]);
+    }
+
+    private function serializeShippingOption(ImportShippingOption $option, string $targetCurrency): array
+    {
+        $data = $option->toApi();
+        $sourceCurrency = strtoupper($option->currency ?? 'XAF');
+        $sourceAmount = (float) $option->rate_amount;
+        $amountXaf = $this->convertAmount($sourceAmount, $sourceCurrency, 'XAF');
+        $displayAmount = $this->convertAmount($sourceAmount, $sourceCurrency, $targetCurrency);
+        $effectiveCurrency = $displayAmount === null ? $sourceCurrency : $targetCurrency;
+        $effectiveAmount = $displayAmount ?? $sourceAmount;
+        $suffix = match ($option->rate_type) { 'per_kg' => ' / kg', 'per_cbm' => ' / CBM', default => '' };
+
+        return array_merge($data, [
+            'rate_amount' => $effectiveAmount,
+            'rate_amount_xaf' => $amountXaf ?? ($sourceCurrency === 'XAF' ? $sourceAmount : 0),
+            'currency' => $effectiveCurrency,
+            'formatted_rate' => number_format($effectiveAmount, 2, ',', ' ') . ' ' . $effectiveCurrency . $suffix,
+        ]);
+    }
+
+    private function imageUrl(?string $path): ?string
+    {
+        if (!$path) return null;
+        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) return $path;
+        return asset('storage/' . ltrim($path, '/'));
     }
 }

@@ -251,6 +251,23 @@
 
                     <!-- Weight Category -->
                     <div class="mb-4">
+                        <label for="weight" class="block text-sm font-medium text-white mb-2">
+                            <i class="fas fa-weight-scale text-primary-500 mr-1"></i>
+                            Poids unitaire (kg) <span class="text-red-500">*</span>
+                        </label>
+                        <input type="number" name="weight" id="weight" value="{{ old('weight') }}"
+                               min="0.001" max="999999" step="0.001" inputmode="decimal"
+                               {{ old('type', 'article') === 'article' ? 'required' : '' }}
+                               class="w-full px-4 py-2 bg-dark-50 border border-dark-300 rounded-lg focus:ring-2 focus:ring-primary-500 @error('weight') border-red-500 @enderror"
+                               placeholder="Ex : 2.5">
+                        <p class="mt-1 text-xs text-gray-400">
+                            Poids d'une seule unité. Le poids total sera calculé automatiquement : poids unitaire × quantité commandée.
+                        </p>
+                        @error('weight')<p class="mt-1 text-sm text-red-400">{{ $message }}</p>@enderror
+                    </div>
+
+                    <!-- Weight Category -->
+                    <div class="mb-4">
                         <label class="block text-sm font-medium text-white mb-2">
                             <i class="fas fa-weight-hanging text-primary-500 mr-1"></i>
                             Catégorie de poids
@@ -510,6 +527,13 @@ function loadShippingOptions(countryCode) {
 
 // Initialize on load
 document.addEventListener('DOMContentLoaded', function() {
+    const syncWeightRequirement = () => {
+        const weight = document.getElementById('weight');
+        const type = document.querySelector('input[name="type"]:checked')?.value;
+        if (weight) weight.required = type === 'article';
+    };
+    document.querySelectorAll('input[name="type"]').forEach(input => input.addEventListener('change', syncWeightRequirement));
+    syncWeightRequirement();
     togglePriceFields();
     const oldCategoryId = '{{ old("category_id") }}';
     if (oldCategoryId) {
