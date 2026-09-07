@@ -188,6 +188,8 @@ class ShopController extends Controller
             'shop_address' => 'sometimes|nullable|string',
             'shop_phone' => 'sometimes|nullable|string|max:20',
             'shop_logo' => 'sometimes|nullable|image|max:2048',
+            'shop_latitude' => 'sometimes|numeric|between:-90,90',
+            'shop_longitude' => 'sometimes|numeric|between:-180,180',
             'categories' => 'sometimes|nullable|array',
             'categories.*' => 'string',
         ]);
@@ -196,72 +198,6 @@ class ShopController extends Controller
             'validated_data' => $validated,
             'categories_in_validated' => $validated['categories'] ?? 'NOT SET',
         ]);
-
-        // Variable to track if a location request was created
-        $locationRequest = null;
-        $hasLocationRequest = $request->has('shop_latitude') || $request->has('shop_longitude');
-
-        // Handle latitude/longitude as a location change request (process later after updating other fields)
-        if ($hasLocationRequest) {
-            Log::info('[VENDOR-SHOP-UPDATE] Vendor requested location change', [
-                'vendor_id' => $user->id,
-                'shop_id' => $shop->id,
-                'latitude' => $request->shop_latitude,
-                'longitude' => $request->shop_longitude
-            ]);
-
-            // Validate location data
-            $locationValidated = $request->validate([
-                'shop_latitude' => 'required|numeric|between:-90,90',
-                'shop_longitude' => 'required|numeric|between:-180,180',
-                'location_change_reason' => 'nullable|string|max:500',
-            ]);
-
-            // Check if there's already a pending request
-            $existingRequest = ShopLocationRequest::where('shop_id', $shop->id)
-                ->where('status', 'pending')
-                ->first();
-
-            if ($existingRequest) {
-                // If there are no other fields to update, return error immediately
-                if (empty($validated)) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Vous avez déjà une demande de changement d\'emplacement en attente',
-                        'pending_request' => [
-                            'id' => $existingRequest->id,
-                            'latitude' => $existingRequest->latitude,
-                            'longitude' => $existingRequest->longitude,
-                            'status' => $existingRequest->status,
-                            'created_at' => $existingRequest->created_at->toIso8601String(),
-                        ]
-                    ], 422);
-                }
-
-                // Otherwise, just log a warning and continue with other updates
-                Log::warning('[VENDOR-SHOP-UPDATE] Skipping location request creation - pending request exists', [
-                    'existing_request_id' => $existingRequest->id,
-                    'shop_id' => $shop->id
-                ]);
-            } else {
-                // Create a new location change request
-                $locationRequest = ShopLocationRequest::create([
-                    'shop_id' => $shop->id,
-                    'vendor_id' => $user->id,
-                    'latitude' => $locationValidated['shop_latitude'],
-                    'longitude' => $locationValidated['shop_longitude'],
-                    'address' => $request->shop_address ?? $shop->address,
-                    'reason' => $locationValidated['location_change_reason'] ?? 'Demande de changement d\'emplacement',
-                    'status' => 'pending',
-                ]);
-
-                Log::info('[VENDOR-SHOP-UPDATE] Location change request created', [
-                    'request_id' => $locationRequest->id,
-                    'shop_id' => $shop->id,
-                    'vendor_id' => $user->id
-                ]);
-            }
-        }
 
         // Validation supplémentaire pour l'adresse
         if (isset($validated['shop_address'])) {
@@ -295,6 +231,12 @@ class ShopController extends Controller
             }
             if (isset($validated['shop_phone'])) {
                 $updateData['phone'] = $validated['shop_phone'];
+            }
+            if (isset($validated['shop_latitude'])) {
+                $updateData['latitude'] = $validated['shop_latitude'];
+            }
+            if (isset($validated['shop_longitude'])) {
+                $updateData['longitude'] = $validated['shop_longitude'];
             }
             if (isset($validated['categories'])) {
                 $updateData['categories'] = $validated['categories'];
@@ -337,32 +279,14 @@ class ShopController extends Controller
             Log::info('[VENDOR-SHOP-UPDATE] Shop updated successfully', [
                 'shop_id' => $shop->id,
                 'vendor_id' => $user->id,
-                'location_request_created' => $locationRequest !== null
             ]);
-
-            // Build response message
-            $message = 'Boutique mise à jour avec succès';
-            if ($locationRequest) {
-                $message .= '. Votre demande de changement d\'emplacement a été soumise et sera validée par un administrateur.';
-            }
 
             $response = [
                 'success' => true,
-                'message' => $message,
+                'message' => 'Boutique mise à jour avec succès',
                 'shop' => $this->formatShop($shop),
                 'stats' => $stats,
             ];
-
-            // Add location request info if created
-            if ($locationRequest) {
-                $response['location_request'] = [
-                    'id' => $locationRequest->id,
-                    'latitude' => $locationRequest->latitude,
-                    'longitude' => $locationRequest->longitude,
-                    'status' => $locationRequest->status,
-                    'created_at' => $locationRequest->created_at->toIso8601String(),
-                ];
-            }
 
             return response()->json($response);
         } catch (\Exception $e) {
