@@ -197,13 +197,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/posts/{id}', [PostController::class, 'destroy']);
         Route::post('/posts/{id}/react', [PostController::class, 'react']);
         Route::delete('/posts/{id}/react', [PostController::class, 'unreact']);
-        Route::get('/posts/{postId}/comments', [PostController::class, 'comments']);
-        Route::post('/posts/{postId}/comments', [PostController::class, 'storeComment']);
-        Route::put('/posts/{postId}/comments/{commentId}', [PostController::class, 'updateComment']);
-        Route::delete('/posts/{postId}/comments/{commentId}', [PostController::class, 'destroyComment']);
-        Route::post('/posts/{postId}/comments/{commentId}/react', [PostController::class, 'reactComment']);
-        Route::delete('/posts/{postId}/comments/{commentId}/react', [PostController::class, 'unreactComment']);
-
         // Diaspo — RÉSERVATIONS (flux de paiement KPay direct, DiaspoController).
         // Les OFFRES et la VÉRIFICATION sont servies par DiaspoOfferController (schéma
         // unifié upstream), plus bas dans le groupe prefix('v1/diaspo'). Chaque chemin

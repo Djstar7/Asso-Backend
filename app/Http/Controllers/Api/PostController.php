@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Post;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 
@@ -13,6 +14,37 @@ use Illuminate\Support\Carbon;
  */
 class PostController extends Controller
 {
+    /** Convert a persisted post to the mobile API shape. */
+    private function postPayload(Post $post, ?int $currentUserId): array
+    {
+        $isMine = $currentUserId !== null && $post->user_id === $currentUserId;
+        $isAnonymous = (bool) $post->is_anonymous;
+
+        return [
+            'id' => $post->id,
+            'user_id' => $isAnonymous && !$isMine ? null : $post->user_id,
+            'content' => $post->content,
+            'is_anonymous' => $isAnonymous,
+            'likes_count' => (int) $post->likes_count,
+            'dislikes_count' => (int) $post->dislikes_count,
+            'comments_count' => (int) $post->comments_count,
+            'user_reaction' => $post->getUserReaction($currentUserId),
+            'is_liked' => $post->isLikedByUser($currentUserId),
+            'is_disliked' => $post->isDislikedByUser($currentUserId),
+            'is_my_post' => $isMine,
+            'created_at' => $post->created_at?->toIso8601String(),
+            'updated_at' => $post->updated_at?->toIso8601String(),
+            'user' => $isAnonymous && !$isMine
+                ? null
+                : ($post->user ? [
+                    'id' => $post->user->id,
+                    'first_name' => $post->user->first_name,
+                    'last_name' => $post->user->last_name,
+                    'avatar' => $post->user->avatar,
+                ] : null),
+        ];
+    }
+
     /** Build a fake post matching the mobile Post.fromJson shape. */
     private function fakePost(int $id, ?int $currentUserId = null): array
     {
@@ -95,13 +127,22 @@ class PostController extends Controller
         $page = (int) $request->query('page', 1);
         $perPage = (int) $request->query('per_page', 20);
 
-        $posts = $page === 1
-            ? array_map(fn($i) => $this->fakePost($i), range(1, 5))
-            : [];
+        $query = Post::query()->with('user');
+        if ($request->query('sort', 'recent') === 'popular') {
+            $query->orderByDesc('likes_count');
+        } else {
+            $query->latest();
+        }
+
+        $paginator = $query->paginate($perPage, ['*'], 'page', $page);
+        $posts = $paginator->getCollection()
+            ->map(fn(Post $post) => $this->postPayload($post, $request->user()?->id))
+            ->values()
+            ->all();
 
         return response()->json([
             'success' => true,
-            'data' => $this->paginate($posts, $page, $perPage),
+            'data' => array_merge($paginator->toArray(), ['data' => $posts]),
         ]);
     }
 
@@ -115,11 +156,20 @@ class PostController extends Controller
     }
 
     /** GET /v1/posts/{id} */
-    public function show($id)
+    public function show(Request $request, $id)
     {
+        $post = Post::with('user')->find($id);
+
+        if (!$post) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Post introuvable',
+            ], 404);
+        }
+
         return response()->json([
             'success' => true,
-            'data' => $this->fakePost((int) $id),
+            'data' => $this->postPayload($post, $request->user()?->id),
         ]);
     }
 
@@ -127,18 +177,16 @@ class PostController extends Controller
     public function store(Request $request)
     {
         $request->validate(['content' => 'required|string']);
-        $post = $this->fakePost(random_int(1000, 9999));
-        $post['content'] = $request->input('content');
-        $post['is_anonymous'] = (bool) $request->input('is_anonymous', false);
-        $post['is_my_post'] = true;
-        $post['likes_count'] = 0;
-        $post['dislikes_count'] = 0;
-        $post['comments_count'] = 0;
+        $post = Post::create([
+            'user_id' => $request->user()->id,
+            'content' => $request->input('content'),
+            'is_anonymous' => (bool) $request->input('is_anonymous', false),
+        ])->load('user');
 
         return response()->json([
             'success' => true,
             'message' => 'Publication créée',
-            'data' => $post,
+            'data' => $this->postPayload($post, $request->user()->id),
         ], 201);
     }
 
