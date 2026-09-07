@@ -269,6 +269,8 @@ class OrderService
         int $deliveryZoneId,
         string $walletProvider,
         ?string $deliveryAddress = null,
+        ?string $deliveryAddressDetails = null,
+        ?string $customerPhone = null,
         ?float $deliveryLatitude = null,
         ?float $deliveryLongitude = null,
         ?string $notes = null,
@@ -278,7 +280,12 @@ class OrderService
     ): Order {
         return DB::transaction(function () use (
             $client, $items, $deliveryCompanyId, $deliveryZoneId, $walletProvider,
-            $deliveryAddress, $deliveryLatitude, $deliveryLongitude, $notes,
+            $deliveryAddress,
+            $deliveryAddressDetails,
+            $customerPhone,
+            $deliveryLatitude,
+            $deliveryLongitude,
+            $notes,
             $paymentMode, $kpayProvider, $kpayPhone
         ) {
             Log::info("[OrderService] === CREATION COMMANDE ===", [
@@ -400,6 +407,8 @@ class OrderService
                 'delivery_commission' => $assoCommission,
                 'total' => $total,
                 'delivery_address' => $deliveryAddress,
+                'delivery_address_details' => $deliveryAddressDetails,
+                'customer_phone' => $customerPhone,
                 'delivery_latitude' => $deliveryLatitude,
                 'delivery_longitude' => $deliveryLongitude,
                 'delivery_company_id' => $deliveryCompanyId,

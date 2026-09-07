@@ -625,8 +625,10 @@ class DeliveryController extends Controller
             'total' => (float) $order->total,
             'delivery_fee' => (float) $order->delivery_fee,
             'delivery_address' => $order->delivery_address,
+            'delivery_address_details' => $order->delivery_address_details,
             'delivery_latitude' => $order->delivery_latitude,
             'delivery_longitude' => $order->delivery_longitude,
+            'customer_phone' => $order->customer_phone ?: ($order->user?->phone ?? ''),
             'customer' => $order->user ? [
                 'id' => $order->user->id,
                 'name' => $order->user->name,

@@ -359,13 +359,15 @@ class VendorOrderController extends Controller
         $this->fcmService->sendToUser(
             $deliveryPerson,
             'Nouvelle livraison assignée',
-            "Commande #{$order->order_number} — Livraison vers {$order->delivery_address}. Frais: " . number_format($order->delivery_fee, 0, ',', ' ') . " FCFA",
+            "Commande #{$order->order_number} — Livraison vers {$order->delivery_address}" . ($order->delivery_address_details ? " ({$order->delivery_address_details})" : '') . ". Contact: {$order->customer_phone}. Frais: " . number_format($order->delivery_fee, 0, ',', ' ') . " FCFA",
             [
                 'type' => 'delivery_assigned',
                 'order_id' => (string) $order->id,
                 'order_number' => $order->order_number,
                 'delivery_fee' => (string) $order->delivery_fee,
                 'delivery_address' => $order->delivery_address,
+                'delivery_address_details' => $order->delivery_address_details,
+                'customer_phone' => $order->customer_phone,
             ]
         );
 
