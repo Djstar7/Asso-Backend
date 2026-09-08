@@ -21,6 +21,63 @@ class Product extends Model
         'Pallet',
     ];
 
+    /** Sizes offered by the product configuration form. Keep this list in code. */
+    const SIZE_GROUPS = [
+        'Vêtements' => ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', '4XL', '5XL', '6XL'],
+        'Tailles numériques' => ['28', '30', '32', '34', '36', '38', '40', '42', '44', '46', '48', '50', '52', '54', '56', '58', '60'],
+        'Pointures' => ['35', '36', '37', '38', '39', '40', '41', '42', '43', '44', '45', '46', '47', '48'],
+        'Tailles bébé' => ['0-3M', '3-6M', '6-9M', '9-12M', '12-18M', '18-24M', '2-3A', '3-4A', '4-5A', '5-6A'],
+        'Dimensions' => ['S', 'M', 'L'],
+    ];
+
+    const AVAILABLE_SIZES = [
+        'XXS',
+        'XS',
+        'S',
+        'M',
+        'L',
+        'XL',
+        'XXL',
+        'XXXL',
+        '4XL',
+        '5XL',
+        '6XL',
+        '28',
+        '30',
+        '32',
+        '34',
+        '36',
+        '38',
+        '40',
+        '42',
+        '44',
+        '46',
+        '48',
+        '50',
+        '52',
+        '54',
+        '56',
+        '58',
+        '60',
+        '35',
+        '0-3M',
+        '3-6M',
+        '6-9M',
+        '9-12M',
+        '12-18M',
+        '18-24M',
+        '2-3A',
+        '3-4A',
+        '4-5A',
+        '5-6A',
+        '37',
+        '39',
+        '41',
+        '43',
+        '45',
+        '47',
+    ];
+
     protected $fillable = [
         'shop_id',
         'user_id',
@@ -42,6 +99,7 @@ class Product extends Model
         'stock',
         'weight',
         'weight_category',
+        'sizes',
         'latitude',
         'longitude',
         'status',
@@ -57,6 +115,7 @@ class Product extends Model
         'longitude' => 'decimal:8',
         'is_wholesale' => 'boolean',
         'min_order_quantity' => 'integer',
+        'sizes' => 'array',
     ];
 
     /**
@@ -180,6 +239,57 @@ class Product extends Model
     public function getAverageRatingAttribute(): float
     {
         return round($this->reviews()->avg('rating') ?? 0, 1);
+    }
+
+    /**
+     * Return the allowed size groups for a category/subcategory pair.
+     * Categories without a size system remain empty.
+     */
+    public static function getAllowedSizeGroupsForCategory(?string $categoryName, ?string $subcategoryName = null): array
+    {
+        if (blank($categoryName) && blank($subcategoryName)) {
+            return [];
+        }
+
+        $combined = trim(($categoryName ?? '') . ' ' . ($subcategoryName ?? ''));
+        if ($combined === '') {
+            return [];
+        }
+
+        $normalized = Str::ascii(strtolower($combined));
+        $normalized = preg_replace('/[&\/]/', ' ', $normalized) ?? $normalized;
+        $normalized = preg_replace('/[^a-z0-9\s]/', ' ', $normalized) ?? $normalized;
+        $normalized = preg_replace('/\s+/', ' ', $normalized) ?? $normalized;
+        $normalized = trim($normalized);
+
+        if (str_contains($normalized, 'chauss') || str_contains($normalized, 'shoe')) {
+            return ['shoes'];
+        }
+
+        if (str_contains($normalized, 'bebe') || str_contains($normalized, 'baby') || str_contains($normalized, 'enfant')) {
+            return ['baby'];
+        }
+
+        if (
+            str_contains($normalized, 'maison')
+            || str_contains($normalized, 'meuble')
+            || str_contains($normalized, 'mobilier')
+            || str_contains($normalized, 'furniture')
+            || str_contains($normalized, 'literie')
+            || str_contains($normalized, 'linge')
+        ) {
+            return ['dimensions'];
+        }
+
+        if (str_contains($normalized, 'mode') || str_contains($normalized, 'vetement') || str_contains($normalized, 'fashion')) {
+            if (str_contains($normalized, 'chauss')) {
+                return ['shoes'];
+            }
+
+            return ['clothing', 'numeric'];
+        }
+
+        return [];
     }
 
     /**

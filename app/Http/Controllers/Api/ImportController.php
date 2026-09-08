@@ -10,6 +10,7 @@ use App\Services\OrderService;
 use App\Services\PaymentMethodService;
 use App\Services\ExchangeRateService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Module ASSO CHINA / DUBAÏ / TURQUIE — catalogue de commande EN GROS (import).
@@ -66,6 +67,33 @@ class ImportController extends Controller
             'product' => $this->serializeProduct($product, true, $this->targetCurrency($request)),
             'shipping_options' => ImportShippingOption::activeForCountry($product->origin_country)
                 ->get()->map(fn (ImportShippingOption $option) => $this->serializeShippingOption($option, $this->targetCurrency($request))),
+        ]);
+    }
+
+    /** Serve the primary product image through the API for Flutter Web/CORS. */
+    public function image(int $id)
+    {
+        $product = Product::where('is_wholesale', true)
+            ->with('primaryImage')
+            ->findOrFail($id);
+
+        $path = $product->primaryImage?->image_path;
+        if (!$path) {
+            abort(404);
+        }
+
+        $relativePath = ltrim($path, '/');
+        if (str_starts_with($relativePath, 'storage/')) {
+            $relativePath = substr($relativePath, strlen('storage/'));
+        }
+
+        if (!Storage::disk('public')->exists($relativePath)) {
+            abort(404);
+        }
+
+        return response()->file(Storage::disk('public')->path($relativePath), [
+            'Access-Control-Allow-Origin' => '*',
+            'Cache-Control' => 'public, max-age=86400',
         ]);
     }
 
@@ -159,7 +187,9 @@ class ImportController extends Controller
             // Le poids est renseigné par l'équipe/le vendeur, jamais par le client.
             'unit_weight_kg' => is_numeric($p->weight) ? (float) $p->weight : null,
             'price_tiers' => $tiers->map(fn ($tier) => $this->serializeTier($tier, $targetCurrency))->values(),
-            'image' => $this->imageUrl($p->primaryImage?->image_path),
+            'image' => $p->id
+                ? url('/api/v1/import/products/' . $p->id . '/image')
+                : null,
         ];
 
         if ($full) {
@@ -225,6 +255,10 @@ class ImportController extends Controller
     {
         if (!$path) return null;
         if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) return $path;
-        return asset('storage/' . ltrim($path, '/'));
+        $relativePath = ltrim($path, '/');
+        if (str_starts_with($relativePath, 'storage/')) {
+            return asset($relativePath);
+        }
+        return asset('storage/' . $relativePath);
     }
 }

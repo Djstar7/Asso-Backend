@@ -98,6 +98,8 @@ class ProductController extends Controller
             'origin_country' => 'nullable|exists:import_countries,code',
             'weight' => 'required_if:type,article|nullable|numeric|min:0.001|max:999999',
             'weight_category' => 'sometimes|in:' . implode(',', Product::WEIGHT_CATEGORIES),
+            'sizes' => 'nullable|array',
+            'sizes.*' => 'string|in:' . implode(',', Product::AVAILABLE_SIZES),
             'stock' => 'required|integer|min:0',
             'status' => 'required|in:active,inactive',
             'images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
@@ -119,6 +121,7 @@ class ProductController extends Controller
         $shop = Shop::findOrFail($validated['shop_id']);
         $validated['user_id'] = $shop->user_id;
         $validated['weight_category'] = $validated['weight_category'] ?? 'X-small';
+        $validated['sizes'] = $this->normalizeSizes($request->input('sizes', []));
 
         // Pays d'origine (produits importés). Vide = produit local.
         $validated['origin_country'] = $request->filled('origin_country')
@@ -188,6 +191,8 @@ class ProductController extends Controller
             'origin_country' => 'nullable|exists:import_countries,code',
             'weight' => 'required_if:type,article|nullable|numeric|min:0.001|max:999999',
             'weight_category' => 'sometimes|in:' . implode(',', Product::WEIGHT_CATEGORIES),
+            'sizes' => 'nullable|array',
+            'sizes.*' => 'string|in:' . implode(',', Product::AVAILABLE_SIZES),
             'stock' => 'required|integer|min:0',
             'status' => 'required|in:active,inactive',
             'images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
@@ -208,6 +213,7 @@ class ProductController extends Controller
         // Get shop owner
         $shop = Shop::findOrFail($validated['shop_id']);
         $validated['user_id'] = $shop->user_id;
+        $validated['sizes'] = $this->normalizeSizes($request->input('sizes', []));
 
         // Pays d'origine (produits importés). Vide = produit local (repasse à null).
         $validated['origin_country'] = $request->filled('origin_country')
@@ -275,6 +281,16 @@ class ProductController extends Controller
                 'sort_order'   => $i + 1,
             ]);
         }
+    }
+
+    private function normalizeSizes(array $sizes): array
+    {
+        $selected = array_map('strval', $sizes);
+
+        return array_values(array_filter(
+            Product::AVAILABLE_SIZES,
+            fn(string $size): bool => in_array($size, $selected, true),
+        ));
     }
 
     /**

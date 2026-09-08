@@ -125,6 +125,22 @@
 </div>
 @endif
 
+            @if(!empty($product->sizes))
+            <div class="bg-dark-100 rounded-xl shadow-lg p-6">
+                <h2 class="text-lg font-semibold text-white mb-4 flex items-center">
+                    <i class="fas fa-ruler-combined text-primary-500 mr-2"></i>
+                    Tailles disponibles
+                </h2>
+                <div class="flex flex-wrap gap-2">
+                    @foreach($product->sizes as $size)
+                        <span class="rounded-lg border border-primary-500/40 bg-primary-500/10 px-3 py-1 text-sm font-semibold text-primary-300">
+                            {{ $size }}
+                        </span>
+                    @endforeach
+                </div>
+            </div>
+            @endif
+
             <!-- Product Information -->
             <div class="bg-dark-100 rounded-xl shadow-lg p-6">
                 <h2 class="text-lg font-semibold text-white mb-4 flex items-center">

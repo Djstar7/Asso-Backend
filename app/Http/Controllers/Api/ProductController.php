@@ -286,6 +286,8 @@ class ProductController extends Controller
             'stock' => 'nullable|integer|min:0',
             'weight' => 'nullable|string|max:255',
             'weight_category' => 'nullable|in:' . implode(',', Product::WEIGHT_CATEGORIES),
+            'sizes' => 'nullable|array',
+            'sizes.*' => 'string|in:' . implode(',', Product::AVAILABLE_SIZES),
             'images' => 'required|array|min:1',
             'images.*' => 'file|image|mimes:jpeg,png,jpg,gif|max:5120',
         ]);
@@ -352,6 +354,7 @@ class ProductController extends Controller
             'origin_country' => isset($validated['origin_country']) ? strtoupper($validated['origin_country']) : null,
             'condition' => $validated['condition'],
             'weight_category' => $validated['weight_category'] ?? 'X-small',
+            'sizes' => $this->normalizeSizes($validated['sizes'] ?? []),
             'slug' => \Str::slug($validated['name']) . '-' . \Str::random(5),
             'status' => 'active', // Set product as active (database constraint: active or inactive only)
         ];
@@ -482,6 +485,7 @@ class ProductController extends Controller
             'type' => $product->type ?? 'article',
             'origin_country' => $product->origin_country, // CN/TR/AE… (produits importés), null = local
             'weight_category' => $product->weight_category ?? 'X-small',
+            'sizes' => $product->sizes ?? [],
             'stock' => $product->stock,
             'weight' => $product->weight,
             'status' => $product->status,
@@ -543,6 +547,16 @@ class ProductController extends Controller
         }
 
         return $data;
+    }
+
+    private function normalizeSizes(array $sizes): array
+    {
+        $selected = array_map('strval', $sizes);
+
+        return array_values(array_filter(
+            Product::AVAILABLE_SIZES,
+            fn(string $size): bool => in_array($size, $selected, true),
+        ));
     }
 
     /**

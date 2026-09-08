@@ -110,6 +110,7 @@ Route::prefix('v1')->group(function () {
     Route::get('/import-countries', [\App\Http\Controllers\Api\ImportCountryController::class, 'index']);
 
     // Module GROS (ASSO CHINA / DUBAÏ / TURQUIE) — catalogue par pays (public)
+    Route::get('/import/products/{id}/image', [\App\Http\Controllers\Api\ImportController::class, 'image']);
     Route::get('/import/products/{id}', [\App\Http\Controllers\Api\ImportController::class, 'show']);
     Route::get('/import/{code}/products', [\App\Http\Controllers\Api\ImportController::class, 'products']);
     Route::get('/import/{code}/shipping', [\App\Http\Controllers\Api\ImportController::class, 'shipping']);

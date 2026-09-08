@@ -82,6 +82,8 @@ class VendorProductController extends Controller
             'origin_country' => 'sometimes|nullable|string|max:2',
             'condition' => 'sometimes|in:new,used,refurbished',
             'weight_category' => 'sometimes|nullable|in:' . implode(',', Product::WEIGHT_CATEGORIES),
+            'sizes' => 'sometimes|nullable|array',
+            'sizes.*' => 'string|in:' . implode(',', Product::AVAILABLE_SIZES),
             'stock' => 'sometimes|integer|min:0',
             'weight' => 'sometimes|nullable|string|max:255',
             'images' => 'sometimes|array',
@@ -146,6 +148,9 @@ class VendorProductController extends Controller
             // Don't update weight_category if it's an empty string - keep existing value
             if (isset($updateData['weight_category']) && $updateData['weight_category'] === '') {
                 unset($updateData['weight_category']);
+            }
+            if (array_key_exists('sizes', $updateData)) {
+                $updateData['sizes'] = $this->normalizeSizes($updateData['sizes'] ?? []);
             }
 
             \Log::info('[VENDOR_PRODUCT_UPDATE] Updating product:', [
@@ -568,6 +573,16 @@ class VendorProductController extends Controller
     /**
      * Update product stock directly
      */
+    private function normalizeSizes(array $sizes): array
+    {
+        $selected = array_map('strval', $sizes);
+
+        return array_values(array_filter(
+            Product::AVAILABLE_SIZES,
+            fn(string $size): bool => in_array($size, $selected, true),
+        ));
+    }
+
     public function updateStock(Request $request, $id)
     {
         $user = $request->user();
