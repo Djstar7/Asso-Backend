@@ -8,9 +8,12 @@ use App\Models\DeliveryPricelist;
 use App\Models\DeliveryRoute;
 use App\Models\DeliveryZone;
 use App\Models\Product;
+use App\Models\ProductPriceTier;
 use App\Models\Setting;
+use App\Models\Shop;
 use App\Support\CityCoordinates;
 use App\Support\CountryCode;
+use App\Support\ImportHub;
 use App\Support\LocationFormatter;
 use App\Support\WeightGrid;
 
@@ -65,7 +68,7 @@ class DeliveryQuoteService
     /**
      * Toutes les offres de livraison pour un panier.
      *
-     * @param array $items [['product_id' => int, 'quantity' => int], …]
+     * @param array $items [['product_id' => int, 'quantity' => int, 'price_tier_id' => ?int], …]
      */
     public function quotes(array $items, ?float $lat, ?float $lng, ?string $city, ?string $country = null, ?string $quarter = null, ?string $address = null): array
     {
@@ -339,6 +342,8 @@ class DeliveryQuoteService
         $originLng = null;
         $category = null;
         $products = Product::with('shop')->whereIn('id', collect($items)->pluck('product_id'))->get()->keyBy('id');
+        // Gros : la quantité compte des unités du palier (pack, bidon, pièce), chacune son poids.
+        $tiers = ProductPriceTier::whereIn('id', collect($items)->pluck('price_tier_id')->filter())->get()->keyBy('id');
 
         foreach ($items as $item) {
             $product = $products->get((int) $item['product_id']);
@@ -347,9 +352,12 @@ class DeliveryQuoteService
             }
             $quantity = max(1, (int) ($item['quantity'] ?? 1));
 
+            $tier = $tiers->get((int) ($item['price_tier_id'] ?? 0));
+            $tierWeight = $tier && $tier->product_id === $product->id && $tier->weight_kg > 0 ? (float) $tier->weight_kg : null;
+
             if ($product->type === 'service') {
                 // Une prestation n'a pas de poids ni de colis.
-            } elseif (($unit = $product->weightKg()) !== null) {
+            } elseif (($unit = $tierWeight ?? $product->weightKg()) !== null) {
                 $weight += $unit * $quantity;
             } else {
                 // Poids non renseigné : poids par défaut, signalé dans le devis.
@@ -358,11 +366,14 @@ class DeliveryQuoteService
             }
 
             if ($origin === [null, null]) {
-                $origin = $this->productOrigin($product);
-                $originAddress = trim(implode(', ', array_filter([$product->shop?->address, $product->shop?->city])));
-                $originQuarter = $product->shop?->quarter;
-                $originLat = $product->shop?->latitude !== null ? (float) $product->shop->latitude : null;
-                $originLng = $product->shop?->longitude !== null ? (float) $product->shop->longitude : null;
+                // Import en gros : quel que soit le pays d'origine, le colis part de
+                // l'entrepôt ASSO de Douala, d'où SOLEX livre le client.
+                $shop = ($product->is_wholesale ? ImportHub::shop() : null) ?? $product->shop;
+                $origin = $this->productOrigin($product, $shop);
+                $originAddress = trim(implode(', ', array_filter([$shop?->address, $shop?->city])));
+                $originQuarter = $shop?->quarter;
+                $originLat = $shop?->latitude !== null ? (float) $shop->latitude : null;
+                $originLng = $shop?->longitude !== null ? (float) $shop->longitude : null;
             }
             $category ??= $product->weight_category;
         }
@@ -380,9 +391,8 @@ class DeliveryQuoteService
     }
 
     /** @return array{0: ?string, 1: ?string} [ville, code pays] de la boutique qui expédie */
-    private function productOrigin(Product $product): array
+    private function productOrigin(Product $product, ?Shop $shop): array
     {
-        $shop = $product->shop;
         $city = $shop?->city;
         $country = CountryCode::normalize($shop?->country);
 

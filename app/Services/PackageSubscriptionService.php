@@ -647,6 +647,13 @@ class PackageSubscriptionService
                         'product_id' => (string) ($boost?->product_id ?? ''),
                     ]
                 );
+
+                // La campagne est payée et ouverte : on l'annonce à tous les
+                // utilisateurs. notifyActivated n'est appelé qu'une fois par
+                // souscription (confirm() est idempotent), donc un seul envoi.
+                if ($boost) {
+                    app(ProductBroadcastService::class)->sponsoredProduct($boost);
+                }
                 return;
             }
 

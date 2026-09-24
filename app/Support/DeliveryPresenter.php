@@ -48,6 +48,8 @@ class DeliveryPresenter
                 'carrier_price_ht', 'prices_exclude_vat', 'vat_rate', 'vat_amount', 'carrier_price',
                 'asso_commission', 'total',
             ])) : null,
+            // Import en gros : trajet Chine / Dubaï / Turquie → Douala, avant SOLEX.
+            'import_leg' => $snapshot['import_leg'] ?? null,
             'carrier_tracking_number' => $order->carrier_tracking_number,
             'carrier_tracking_url' => $trackingUrl,
             'tracking_status' => $order->tracking_status,
@@ -61,13 +63,15 @@ class DeliveryPresenter
 
     /**
      * Point d'ENLÈVEMENT présenté au livreur : la boutique (ou l'agence du
-     * partenaire pour un dernier kilomètre). Le coursier va chercher le colis
-     * ici, il lui faut donc de quoi s'y rendre ET appeler sur place.
+     * partenaire pour un dernier kilomètre, ou l'entrepôt ASSO de Douala pour un
+     * import livré dans Douala). Le coursier va chercher le colis ici, il lui faut
+     * donc de quoi s'y rendre ET appeler sur place.
      */
     public static function pickupFor(Order $order): array
     {
-        $shop = $order->items->first()?->product?->shop;
-        $isAgency = $order->hasLastMileDelivery();
+        $fromHub = $order->leavesFromImportHub();
+        $shop = ($fromHub ? ImportHub::shop() : null) ?? $order->items->first()?->product?->shop;
+        $isAgency = $order->hasLastMileDelivery() && !$fromHub;
         $company = $order->relationLoaded('deliveryCompany') ? $order->deliveryCompany : $order->deliveryCompany;
 
         if ($isAgency) {

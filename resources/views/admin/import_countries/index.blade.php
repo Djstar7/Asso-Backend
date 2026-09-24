@@ -30,6 +30,50 @@
         </div>
     @endif
 
+    <!-- Parcours d'une commande en gros : pays d'origine → Douala → SOLEX → client -->
+    <div class="bg-dark-100 rounded-xl shadow-lg border border-dark-200 p-6 mb-6">
+        <h2 class="text-lg font-semibold text-white mb-1"><i class="fas fa-route mr-2 text-primary-400"></i>Livraison des commandes en gros</h2>
+        <p class="text-sm text-gray-400 mb-4">
+            Quel que soit le pays, la commande arrive à Douala. SOLEX la livre ensuite au client : le prix SOLEX est calculé depuis l'entrepôt jusqu'à l'adresse du client, et le client paie tout à la commande.
+        </p>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="bg-dark-50 rounded-lg p-4">
+                <p class="text-xs uppercase tracking-wider text-gray-500 mb-1">1. Pays d'origine → Douala</p>
+                <p class="text-sm text-white">Prix par pays et par mode (avion, bateau, express)&nbsp;: bouton <i class="fas fa-ship text-blue-400"></i> de chaque pays ci-dessous.</p>
+            </div>
+            <div class="bg-dark-50 rounded-lg p-4">
+                <p class="text-xs uppercase tracking-wider text-gray-500 mb-1">2. Entrepôt de réception</p>
+                @if($hub)
+                    <p class="text-sm font-semibold text-white">{{ $hub->name }}</p>
+                    <p class="text-sm text-gray-300">{{ $hub->location_label ?: $hub->address ?: $hub->city }}</p>
+                    @if($hubZone)
+                        <p class="text-xs text-green-300 mt-1"><i class="fas fa-check-circle mr-1"></i>Départ SOLEX : {{ $hubZone }}</p>
+                    @else
+                        <p class="text-xs text-yellow-300 mt-1"><i class="fas fa-exclamation-triangle mr-1"></i>Position inconnue : placez l'entrepôt sur la carte, sinon SOLEX ne peut pas chiffrer les livraisons dans Douala.</p>
+                    @endif
+                    <a href="{{ route('admin.shops.edit', $hub) }}" class="inline-block mt-2 text-xs text-primary-400 hover:text-primary-300">
+                        <i class="fas fa-map-marker-alt mr-1"></i>Modifier l'adresse de l'entrepôt
+                    </a>
+                @else
+                    <p class="text-sm text-yellow-300 mb-2">Boutique « {{ \App\Support\ImportHub::NAME }} » pas encore créée.</p>
+                    <form action="{{ route('admin.import-countries.hub') }}" method="POST">
+                        @csrf
+                        <button type="submit" class="px-3 py-1.5 text-sm bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-lg hover:shadow-lg">
+                            <i class="fas fa-warehouse mr-1"></i> Créer la boutique
+                        </button>
+                    </form>
+                @endif
+            </div>
+            <div class="bg-dark-50 rounded-lg p-4">
+                <p class="text-xs uppercase tracking-wider text-gray-500 mb-1">3. Douala → client</p>
+                <p class="text-sm text-white">SOLEX, avec ses tarifs par zone à Douala et ses trajets vers les autres villes.</p>
+                <a href="{{ route('admin.deliverers.index') }}" class="inline-block mt-2 text-xs text-primary-400 hover:text-primary-300">
+                    <i class="fas fa-truck mr-1"></i>Configuration des livreurs
+                </a>
+            </div>
+        </div>
+    </div>
+
     <!-- Formulaire d'ajout -->
     <div class="bg-dark-100 rounded-xl shadow-lg border border-dark-200 p-6 mb-6">
         <h2 class="text-lg font-semibold text-white mb-4"><i class="fas fa-plus-circle mr-2 text-primary-400"></i>Ajouter un pays</h2>
@@ -206,12 +250,14 @@
         <div class="flex items-center justify-between mb-4">
             <h2 class="text-lg font-semibold text-white">
                 <i class="fas fa-ship text-primary-400 mr-2"></i>
-                Expéditions — <span id="shipping_country_label"></span>
+                Expéditions — <span id="shipping_country_label"></span> → {{ \App\Support\ImportHub::CITY }}
             </h2>
             <button type="button" onclick="closeShipping()" class="text-gray-400 hover:text-white">
                 <i class="fas fa-times"></i>
             </button>
         </div>
+
+        <p class="text-sm text-gray-400 mb-4">Prix du trajet jusqu'à l'entrepôt de Douala. La livraison SOLEX jusqu'au client s'ajoute d'après son adresse.</p>
 
         <div id="shipping_list_container" class="space-y-2 mb-6"></div>
 

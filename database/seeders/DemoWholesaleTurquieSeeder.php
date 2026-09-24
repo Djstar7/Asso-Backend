@@ -50,9 +50,9 @@ class DemoWholesaleTurquieSeeder extends Seeder
             );
 
             $tiers = [
-                ['label' => 'Bidon 1L — pack de 12', 'unit_price' => 10524, 'min_quantity' => 100, 'pack_size' => 12, 'sort_order' => 1],
-                ['label' => 'Bidon 5L — pack de 5', 'unit_price' => 13940, 'min_quantity' => 50, 'pack_size' => 5, 'sort_order' => 2],
-                ['label' => 'Bidon 20L', 'unit_price' => 15600, 'min_quantity' => 50, 'pack_size' => 1, 'sort_order' => 3],
+                ['label' => 'Bidon 1L — pack de 12', 'unit_price' => 10524, 'min_quantity' => 100, 'pack_size' => 12, 'weight_kg' => 11.5, 'sort_order' => 1],
+                ['label' => 'Bidon 5L — pack de 5', 'unit_price' => 13940, 'min_quantity' => 50, 'pack_size' => 5, 'weight_kg' => 23, 'sort_order' => 2],
+                ['label' => 'Bidon 20L', 'unit_price' => 15600, 'min_quantity' => 50, 'pack_size' => 1, 'weight_kg' => 18.5, 'sort_order' => 3],
             ];
             foreach ($tiers as $t) {
                 ProductPriceTier::updateOrCreate(

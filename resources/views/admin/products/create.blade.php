@@ -140,6 +140,10 @@
             Activer les paliers de prix (cota / gros)
         </label>
     </div>
+    <p class="mb-4 -mt-2 text-xs text-gray-400">
+        <i class="fas fa-warehouse mr-1"></i>
+        Un produit en gros est rattaché à la boutique « {{ \App\Support\ImportHub::NAME }} » : il arrive à Douala, puis SOLEX le livre au client.
+    </p>
 
     <div id="tiers_container" class="{{ old('is_wholesale', $product->is_wholesale ?? false) ? '' : 'hidden' }}">
         <div class="flex items-center justify-between mb-2">
@@ -160,6 +164,8 @@
             <p class="mt-2 text-sm text-red-400">{{ $message }}</p>
         @enderror
     </div>
+
+    @include('admin.products._video')
 
     <div id="shipping_preview" class="mt-6 border-t border-dark-300 pt-4 hidden">
         <h3 class="text-sm font-semibold text-white mb-2">
@@ -401,13 +407,13 @@ function tierRowTemplate(data = {}) {
     const esc = (v) => String(v ?? '').replace(/"/g, '&quot;');
     return `
     <div class="grid grid-cols-1 md:grid-cols-12 gap-2 items-end bg-dark-50 p-3 rounded-lg" id="tier_row_${idx}">
-        <div class="md:col-span-4">
+        <div class="md:col-span-3">
             <label class="block text-xs text-gray-400 mb-1">Label</label>
             <input type="text" name="tiers[${idx}][label]" value="${esc(data.label)}"
                    placeholder="Ex: Pack de 50"
                    class="w-full px-3 py-2 bg-dark-100 border border-dark-300 rounded text-white text-sm">
         </div>
-        <div class="md:col-span-3">
+        <div class="md:col-span-2">
             <label class="block text-xs text-gray-400 mb-1">Prix unitaire (FCFA)</label>
             <input type="number" step="0.01" min="0" name="tiers[${idx}][unit_price]" value="${esc(data.unit_price)}"
                    class="w-full px-3 py-2 bg-dark-100 border border-dark-300 rounded text-white text-sm">
@@ -420,6 +426,12 @@ function tierRowTemplate(data = {}) {
         <div class="md:col-span-2">
             <label class="block text-xs text-gray-400 mb-1">Pack size</label>
             <input type="number" min="1" name="tiers[${idx}][pack_size]" value="${esc(data.pack_size ?? 1)}"
+                   class="w-full px-3 py-2 bg-dark-100 border border-dark-300 rounded text-white text-sm">
+        </div>
+        <div class="md:col-span-2">
+            <label class="block text-xs text-gray-400 mb-1" title="Poids d'une unité commandée à ce palier : un pack, un bidon, une pièce">Poids / unité (kg)</label>
+            <input type="number" step="0.001" min="0" name="tiers[${idx}][weight_kg]" value="${esc(data.weight_kg)}"
+                   placeholder="Ex: 4.8"
                    class="w-full px-3 py-2 bg-dark-100 border border-dark-300 rounded text-white text-sm">
         </div>
         <div class="md:col-span-1">
@@ -539,7 +551,8 @@ document.addEventListener('DOMContentLoaded', function() {
             label: @json($tier['label'] ?? ''),
             unit_price: {{ $tier['unit_price'] ?? 0 }},
             min_quantity: {{ $tier['min_quantity'] ?? 1 }},
-            pack_size: {{ $tier['pack_size'] ?? 1 }}
+            pack_size: {{ $tier['pack_size'] ?? 1 }},
+            weight_kg: @json($tier['weight_kg'] ?? null)
         });
     @endforeach
 

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\ImportCountry;
+use App\Support\ImportHub;
 use Illuminate\Http\Request;
 
 /**
@@ -16,8 +17,24 @@ class ImportCountryController extends Controller
     public function index()
     {
         $countries = ImportCountry::orderBy('sort_order')->orderBy('name')->paginate(20);
+        // Entrepôt de réception à Douala, d'où SOLEX livre le client.
+        $hub = ImportHub::shop();
+        $hubZone = $hub ? ImportHub::deliveryZoneLabel($hub) : null;
 
-        return view('admin.import_countries.index', compact('countries'));
+        return view('admin.import_countries.index', compact('countries', 'hub', 'hubZone'));
+    }
+
+    /** Crée la boutique « ASSO Import Douala » et y rattache les produits en gros. */
+    public function createHub()
+    {
+        $hub = ImportHub::ensureShop();
+        if (!$hub) {
+            return back()->with('error', 'Compte plateforme ASSO introuvable : impossible de créer la boutique de réception.');
+        }
+        $moved = ImportHub::attachWholesaleProducts($hub);
+
+        return redirect()->route('admin.import-countries.index')
+            ->with('success', "Boutique « {$hub->name} » prête ({$moved} produit(s) en gros rattaché(s)). Placez-la sur la carte pour le calcul SOLEX.");
     }
 
     public function store(Request $request)

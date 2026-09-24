@@ -415,6 +415,8 @@ class VendorProductController extends Controller
      */
     private function formatProduct($product): array
     {
+        [$latitude, $longitude] = $product->publicCoordinates();
+
         return [
             'id' => $product->id,
             'name' => $product->name,
@@ -438,8 +440,8 @@ class VendorProductController extends Controller
                 ->map(fn ($variant) => app(ProductVariantService::class)->presentVariant($variant, $product))->values(),
             'variant_options' => app(ProductVariantService::class)->presentOptions($product),
             'status' => $product->status,
-            'latitude' => $product->latitude ? (float) $product->latitude : null,
-            'longitude' => $product->longitude ? (float) $product->longitude : null,
+            'latitude' => $latitude,
+            'longitude' => $longitude,
             'primary_image' => $product->primaryImage ? $this->getImageUrl($product->primaryImage->image_path) : null,
             'images' => $product->images->map(fn($img) => [
                 'id' => $img->id,

@@ -132,3 +132,11 @@ Schedule::command('diaspo:enforce-verification-deadline')
 Schedule::command('ads:expire-boosts')
     ->hourly()
     ->withoutOverlapping(300);
+
+/*
+ * Vidéos produits abandonnées : envoyées depuis le formulaire admin mais jamais
+ * rattachées à un produit, ou envois interrompus en cours de route.
+ */
+Schedule::command('product-videos:prune')
+    ->daily()
+    ->withoutOverlapping(300);

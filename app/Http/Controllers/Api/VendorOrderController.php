@@ -89,53 +89,14 @@ class VendorOrderController extends Controller
         }
 
         try {
-            DB::transaction(function () use ($vendor, $order) {
-                // 1. Confirmer la commande — verrou de ligne + re-contrôle du statut :
-                //    deux validations simultanées ne peuvent plus créditer deux fois.
-                $locked = Order::whereKey($order->id)->lockForUpdate()->first();
-                if (!$locked || $locked->status !== 'pending') {
-                    throw new \Exception('Cette commande a déjà été traitée.');
-                }
-                $locked->update([
-                    'status' => 'confirmed',
-                    'confirmed_at' => now(),
-                ]);
+            // Confirmation + règlement (vendeur, livreur, ASSO) + acheteur prévenu.
+            $this->orderService->confirmBySeller($order, $vendor, 'vendor', $vendor->id);
 
-                // 2. ENCAISSEMENT DIRECT (sans escrow) : prélèvement de l'acheteur (mode
-                //    wallet) puis crédit immédiat du vendeur (net de commission ASSO),
-                //    de l'entreprise de livraison et d'ASSO. Idempotent (settled_at).
-                $this->orderService->settleOrder($locked, $vendor);
-
-                app(\App\Services\OrderTrackingService::class)->record($locked, 'confirmed', null, null, 'vendor', $vendor->id);
-
-                // 4. Notifications FCM
-
-                // Au client
-                $client = $order->user;
-                if ($client) {
-                    $this->fcmService->sendToUser(
-                        $client,
-                        'Commande validée !',
-                        $order->isCarrierDelivery()
-                            ? "Votre commande #{$order->order_number} a été acceptée par le vendeur. Le colis va être remis au transporteur."
-                            : "Votre commande #{$order->order_number} a été acceptée par le vendeur. En attente du livreur.",
-                        [
-                            'type' => 'order_confirmed',
-                            'order_id' => (string) $order->id,
-                            'order_number' => $order->order_number,
-                        ]
-                    );
-                }
-
-                // Au livreur (via la delivery company assignée) — livraison urbaine
-                // uniquement : un transporteur reçoit le colis en agence.
-                if (!$order->isCarrierDelivery()) {
-                    $this->notifyDeliveryCompany($order);
-                }
-            });
-
-            // 5. Dispatcher le job de vérification après 5 minutes
+            // Au livreur (via la delivery company assignée) — livraison urbaine
+            // uniquement : un transporteur reçoit le colis en agence. Vérification
+            // de l'acceptation de la course après 5 minutes.
             if (!$order->isCarrierDelivery()) {
+                $this->notifyDeliveryCompany($order);
                 \App\Jobs\CheckDeliveryAcceptanceJob::dispatch($order->id)
                     ->delay(now()->addMinutes(5));
             }
@@ -177,55 +138,14 @@ class VendorOrderController extends Controller
             return response()->json(['success' => false, 'message' => 'Cette commande ne peut plus être refusée'], 422);
         }
 
-        $refunded = 0.0;
         try {
-            DB::transaction(function () use ($request, $order, &$refunded) {
-                $cancelReason = $request->reason ?? 'Refusée par le vendeur';
-
-                // 1. Annuler la commande (verrou + re-contrôle : pas de refus après validation)
-                $locked = Order::whereKey($order->id)->lockForUpdate()->first();
-                if (!$locked || $locked->status !== 'pending') {
-                    throw new \Exception('Cette commande a déjà été traitée.');
-                }
-                $order->update([
-                    'status' => 'cancelled',
-                    'cancel_reason' => $cancelReason,
-                    'cancelled_at' => now(),
-                ]);
-
-                // 2. Rembourser le client : déblocage de l'escrow (wallet) ou crédit du
-                //    Wallet ASSO (Mobile Money / carte déjà encaissés). Idempotent.
-                $refunded = $this->orderService->refundBuyer(
-                    $order,
-                    "Remboursement commande #{$order->order_number} — refusée par le vendeur",
-                    ['cancel_reason' => $cancelReason]
-                );
-
-                // 3. Restaurer le stock
-                foreach ($order->items as $item) {
-                    $item->restoreStock();
-                }
-
-                app(\App\Services\OrderTrackingService::class)->record($order, 'cancelled', null, $cancelReason, 'vendor', $request->user()->id);
-
-                // 4. Notification au client
-                $client = $order->user;
-                if ($client) {
-                    $this->fcmService->sendToUser(
-                        $client,
-                        'Commande refusée',
-                        $refunded > 0
-                            ? "Votre commande #{$order->order_number} a été refusée. " . number_format($refunded, 0, ',', ' ') . " FCFA ont été rendus disponibles sur votre Wallet ASSO."
-                            : "Votre commande #{$order->order_number} a été refusée.",
-                        [
-                            'type' => 'order_rejected',
-                            'order_id' => (string) $order->id,
-                            'order_number' => $order->order_number,
-                            'reason' => $cancelReason,
-                        ]
-                    );
-                }
-            });
+            // Annulation + remboursement + stock restauré + acheteur prévenu.
+            $refunded = $this->orderService->rejectBySeller(
+                $order,
+                $request->reason ?? 'Refusée par le vendeur',
+                'vendor',
+                $request->user()->id,
+            );
 
             return response()->json([
                 'success' => true,
@@ -361,13 +281,18 @@ class VendorOrderController extends Controller
     public function addTrackingStep(Request $request, $id)
     {
         $validated = $request->validate([
-            'step' => 'required|in:' . implode(',', \App\Services\OrderTrackingService::CARRIER_UPDATE_STEPS),
+            'step' => 'required|string',
             'location' => 'nullable|string|max:150',
             'note' => 'nullable|string|max:500',
         ]);
 
         $vendor = $request->user();
         $order = $this->getVendorOrder($vendor, $id);
+
+        // Import en gros : « arrivé à l'entrepôt de Douala » en plus des étapes transporteur.
+        if (!in_array($validated['step'], \App\Services\OrderTrackingService::carrierUpdateSteps($order), true)) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['step' => 'Étape de suivi inconnue.']);
+        }
 
         if (!$order->isCarrierDelivery() || $order->status !== 'shipped') {
             return response()->json(['success' => false, 'message' => 'Le suivi transporteur commence après la remise du colis.'], 422);

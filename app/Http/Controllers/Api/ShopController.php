@@ -224,6 +224,20 @@ class ShopController extends Controller
             }
         }
 
+        // Emplacement verrouillé une fois la boutique placée : le changer passe par une
+        // demande que l'admin valide (POST vendor/shop/location-requests). Les valeurs
+        // renvoyées telles quelles avec le reste du formulaire sont simplement ignorées.
+        if ($shop->hasLocation()) {
+            if ($this->locationChanged($shop, $validated)) {
+                return response()->json([
+                    'success' => false,
+                    'code' => 'location_change_requires_approval',
+                    'message' => "L'emplacement de la boutique ne se modifie plus directement : envoyez une demande de changement, l'équipe ASSO la valide.",
+                ], 422);
+            }
+            $validated = array_diff_key($validated, array_flip(['shop_address', 'shop_city', 'shop_country', 'shop_latitude', 'shop_longitude']));
+        }
+
         try {
             $updateData = [];
 
@@ -234,7 +248,10 @@ class ShopController extends Controller
                     'new_name' => $validated['shop_name']
                 ]);
             }
-            if (isset($validated['shop_description'])) {
+            // Un champ envoyé vide arrive à null (ConvertEmptyStringsToNull) : isset() le
+            // prenait pour absent, et le vendeur ne pouvait ni vider sa description ni
+            // retirer toutes ses catégories.
+            if (array_key_exists('shop_description', $validated)) {
                 $updateData['description'] = $validated['shop_description'];
             }
             if (isset($validated['shop_address'])) {
@@ -256,16 +273,13 @@ class ShopController extends Controller
             if (isset($validated['shop_longitude'])) {
                 $updateData['longitude'] = $validated['shop_longitude'];
             }
-            if (isset($validated['categories'])) {
-                $updateData['categories'] = $validated['categories'];
+            if (array_key_exists('categories', $validated)) {
+                $updateData['categories'] = $validated['categories'] ?? [];
                 Log::info('[VENDOR-SHOP-UPDATE] Categories to update', [
                     'old_categories' => $shop->categories,
                     'new_categories' => $validated['categories'],
                 ]);
             }
-
-            // Note: Latitude and longitude are not allowed for vendors
-            // They can only be updated by admin through Admin\ShopController
 
             // Handle logo upload
             if ($request->hasFile('shop_logo')) {
@@ -382,6 +396,10 @@ class ShopController extends Controller
     private function formatShopPublicWithProducts(Shop $shop): array
     {
         $products = $shop->products->map(function ($product) use ($shop) {
+            // Boutique déjà chargée : pas une requête par produit pour sa position.
+            $product->setRelation('shop', $shop);
+            [$latitude, $longitude] = $product->publicCoordinates();
+
             // Get all images
             $images = [];
 
@@ -411,8 +429,8 @@ class ShopController extends Controller
                 'images' => $images,
                 'category' => $product->category,
                 'condition' => $product->condition,
-                'latitude' => $product->latitude,
-                'longitude' => $product->longitude,
+                'latitude' => $latitude,
+                'longitude' => $longitude,
                 'location' => $shop->location_label ?? $product->address,
                 'created_at' => $product->created_at->toIso8601String(),
             ];
@@ -512,6 +530,84 @@ class ShopController extends Controller
         ];
     }
 
+    /** L'emplacement envoyé diffère-t-il de celui enregistré (position ou adresse) ? */
+    private function locationChanged(Shop $shop, array $validated): bool
+    {
+        foreach (['shop_latitude' => 'latitude', 'shop_longitude' => 'longitude'] as $field => $column) {
+            if (isset($validated[$field]) && abs((float) $validated[$field] - (float) $shop->{$column}) > 0.00001) {
+                return true;
+            }
+        }
+
+        return isset($validated['shop_address'])
+            && trim((string) $validated['shop_address']) !== trim((string) $shop->address);
+    }
+
+    /**
+     * Demande de changement d'emplacement : la boutique ne bouge qu'une fois la
+     * demande validée par l'admin. Une seule demande en attente : la renvoyer la
+     * remplace.
+     *
+     * POST /v1/vendor/shop/location-requests
+     */
+    public function storeLocationRequest(Request $request)
+    {
+        $user = $request->user();
+        if (!$user->hasAnyRole(['vendeur', 'vendor'])) {
+            return response()->json(['success' => false, 'message' => 'Vous n\'êtes pas vendeur'], 403);
+        }
+        $shop = $user->primaryShop;
+        if (!$shop) {
+            return response()->json(['success' => false, 'message' => 'Aucune boutique trouvée'], 404);
+        }
+
+        $validated = $request->validate([
+            'latitude' => 'required|numeric|between:-90,90',
+            'longitude' => 'required|numeric|between:-180,180',
+            'address' => 'required|string|max:255',
+            'city' => 'nullable|string|max:120',
+            'country' => 'nullable|string|max:120',
+            'reason' => 'nullable|string|max:500',
+        ]);
+
+        $locationRequest = ShopLocationRequest::updateOrCreate(
+            ['shop_id' => $shop->id, 'status' => 'pending'],
+            $validated + ['vendor_id' => $user->id],
+        );
+
+        Log::info('[VENDOR-LOCATION-REQUEST] Demande de changement d\'emplacement', [
+            'shop_id' => $shop->id,
+            'request_id' => $locationRequest->id,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => "Demande envoyée. L'équipe ASSO la vérifie avant que votre boutique ne change d'emplacement.",
+            'request' => $this->formatLocationRequest($locationRequest->load('reviewer')),
+        ], 201);
+    }
+
+    private function formatLocationRequest(ShopLocationRequest $request): array
+    {
+        return [
+            'id' => $request->id,
+            'latitude' => $request->latitude,
+            'longitude' => $request->longitude,
+            'address' => $request->address,
+            'city' => $request->city,
+            'country' => $request->country,
+            'reason' => $request->reason,
+            'status' => $request->status,
+            'rejection_reason' => $request->rejection_reason,
+            'reviewed_by' => $request->reviewer ? [
+                'id' => $request->reviewer->id,
+                'name' => $request->reviewer->first_name . ' ' . $request->reviewer->last_name,
+            ] : null,
+            'reviewed_at' => $request->reviewed_at?->toIso8601String(),
+            'created_at' => $request->created_at->toIso8601String(),
+        ];
+    }
+
     /**
      * Get vendor's location change requests
      */
@@ -540,23 +636,7 @@ class ShopController extends Controller
             ->with('reviewer')
             ->latest()
             ->get()
-            ->map(function ($request) {
-                return [
-                    'id' => $request->id,
-                    'latitude' => $request->latitude,
-                    'longitude' => $request->longitude,
-                    'address' => $request->address,
-                    'reason' => $request->reason,
-                    'status' => $request->status,
-                    'rejection_reason' => $request->rejection_reason,
-                    'reviewed_by' => $request->reviewer ? [
-                        'id' => $request->reviewer->id,
-                        'name' => $request->reviewer->first_name . ' ' . $request->reviewer->last_name,
-                    ] : null,
-                    'reviewed_at' => $request->reviewed_at?->toIso8601String(),
-                    'created_at' => $request->created_at->toIso8601String(),
-                ];
-            });
+            ->map(fn (ShopLocationRequest $request) => $this->formatLocationRequest($request));
 
         return response()->json([
             'success' => true,

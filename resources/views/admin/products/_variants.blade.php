@@ -120,6 +120,9 @@
             <p class="mt-2 text-xs text-gray-500">
                 Le supplément s'ajoute au prix de base (ex. +5 000 pour la version 256 Go). Une quantité à 0 affiche « épuisé » au client.
             </p>
+            <p class="mt-1 text-xs text-gray-500">
+                <i class="fas fa-info-circle mr-1"></i>Produit vendu en gros : la quantité est ignorée, toutes les options restent commandables. Le client répartit sa commande entre les options, et la quantité minimale du palier s'applique au total.
+            </p>
         </div>
 
         <div id="vb_hidden_inputs"></div>

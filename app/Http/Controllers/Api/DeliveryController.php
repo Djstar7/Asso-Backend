@@ -57,11 +57,9 @@ class DeliveryController extends Controller
                 ->whereNull('delivery_person_id')
                 ->where(fn ($q) => $q
                     ->where(fn ($l) => $l->where('delivery_mode', Order::DELIVERY_LOCAL)->where('status', 'confirmed'))
-                    // Transporteur : dernier kilomètre une fois le colis arrivé à l'agence.
-                    ->orWhere(fn ($c) => $c->where('delivery_mode', Order::DELIVERY_CARRIER)
-                        ->where(fn ($z) => $z->whereNotNull('delivery_zone_id')->orWhereNotNull('delivery_city_grid_id'))
-                        ->where('status', 'shipped')
-                        ->whereIn('tracking_status', ['arrived', 'ready_for_pickup'])))
+                    // Transporteur : dernier kilomètre une fois le colis arrivé à l'agence
+                    // (ou à l'entrepôt ASSO de Douala pour un import livré dans Douala).
+                    ->orWhere(fn ($c) => $c->readyForLastMile()))
                 ->orderBy('created_at', 'desc')
                 ->get();
         }
@@ -100,10 +98,7 @@ class DeliveryController extends Controller
                     })
                     ->where(fn ($q) => $q
                         ->where(fn ($l) => $l->where('delivery_mode', Order::DELIVERY_LOCAL)->whereIn('status', ['confirmed', 'preparing']))
-                        ->orWhere(fn ($c) => $c->where('delivery_mode', Order::DELIVERY_CARRIER)
-                            ->where(fn ($z) => $z->whereNotNull('delivery_zone_id')->orWhereNotNull('delivery_city_grid_id'))
-                            ->where('status', 'shipped')
-                            ->whereIn('tracking_status', ['arrived', 'ready_for_pickup'])))
+                        ->orWhere(fn ($c) => $c->readyForLastMile()))
                     ->findOrFail($id);
 
                 // Plafond de courses simultanées : le coursier ne transporte pas
@@ -568,6 +563,8 @@ class DeliveryController extends Controller
                     collect($items)->map(fn ($i) => [
                         'product_id' => (int) ($i['product_id'] ?? 0),
                         'quantity' => max(1, (int) ($i['quantity'] ?? 1)),
+                        // Gros : palier choisi, dont l'unité a son propre poids.
+                        'price_tier_id' => isset($i['price_tier_id']) ? (int) $i['price_tier_id'] : null,
                     ])->all(),
                     $latitude ? (float) $latitude : null,
                     $longitude ? (float) $longitude : null,
@@ -690,15 +687,16 @@ class DeliveryController extends Controller
     private function formatDeliveryRequest($order): array
     {
         $delivery = \App\Support\DeliveryPresenter::forOrder($order);
-        $shop = $order->items->first()?->product?->shop;
+        $pickup = \App\Support\DeliveryPresenter::pickupFor($order);
 
         return [
-            // Où récupérer le colis : boutique (quartier, ville) ou agence du partenaire.
-            'pickup_address' => $order->hasLastMileDelivery()
+            // Où récupérer le colis : boutique (quartier, ville), entrepôt ASSO de Douala
+            // pour un import, ou agence du partenaire.
+            'pickup_address' => $pickup['kind'] === 'agency'
                 ? "Agence {$delivery['company_name']}"
-                : trim(implode(' — ', array_filter([$shop?->name, $shop?->location_label, $shop?->address]))),
-            'pickup_latitude' => $shop?->latitude,
-            'pickup_longitude' => $shop?->longitude,
+                : trim(implode(' — ', array_filter([$pickup['name'], $pickup['address']]))),
+            'pickup_latitude' => $pickup['latitude'],
+            'pickup_longitude' => $pickup['longitude'],
             // Véhicule, trajet et délai annoncés à l'acheteur.
             'notes' => trim(implode(' · ', array_filter([
                 $delivery['vehicle_label'],
@@ -708,7 +706,7 @@ class DeliveryController extends Controller
             ]))),
             'delivery' => $delivery,
             // Les deux bouts de la course, en clair : où retirer, chez qui livrer.
-            'pickup' => \App\Support\DeliveryPresenter::pickupFor($order),
+            'pickup' => $pickup,
             'dropoff' => \App\Support\DeliveryPresenter::dropoffFor($order),
             'id' => $order->id,
             'order_number' => $order->order_number,

@@ -5,7 +5,8 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Option d'expédition internationale (Avion / Bateau / Express) pour le module gros.
+ * Option d'expédition internationale (Avion / Bateau / Express) pour le module gros :
+ * prix du trajet pays d'origine → Douala (entrepôt ASSO). SOLEX livre ensuite le client.
  * `country_code` nulle = option valable pour tous les pays d'import.
  */
 class ImportShippingOption extends Model
@@ -77,6 +78,8 @@ class ImportShippingOption extends Model
             'lead_time_days' => $this->lead_time_days,
             'expedition_note' => $this->expedition_note,
             'destinations' => $this->destinations ?? [],
+            // Toute commande importée arrive à l'entrepôt ASSO de Douala, puis SOLEX livre.
+            'destination' => \App\Support\ImportHub::CITY,
             'formatted_rate' => number_format((float) $this->rate_amount, 0, ',', ' ') . ' ' . $this->currency
                 . match ($this->rate_type) { 'per_kg' => ' / kg', 'per_cbm' => ' / CBM', default => '' },
         ];

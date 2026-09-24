@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Str;
 
 class Product extends Model
@@ -209,6 +210,29 @@ class Product extends Model
     }
 
     /**
+     * Position publiée du produit : celle de sa boutique.
+     *
+     * Les colonnes latitude/longitude du produit ne sont écrites par aucune route (seuls
+     * des seeders les remplissent) et ne suivaient pas un déménagement de la boutique :
+     * la carte de la fiche produit montrait l'ancien lieu. Elles ne servent plus que de
+     * secours pour un produit dont la boutique n'est pas positionnée.
+     *
+     * @return array{0: ?float, 1: ?float} [latitude, longitude]
+     */
+    public function publicCoordinates(): array
+    {
+        $shop = $this->shop;
+        if ($shop && (float) $shop->latitude && (float) $shop->longitude) {
+            return [(float) $shop->latitude, (float) $shop->longitude];
+        }
+
+        return [
+            $this->latitude ? (float) $this->latitude : null,
+            $this->longitude ? (float) $this->longitude : null,
+        ];
+    }
+
+    /**
      * Get the category of this product
      */
     public function category(): BelongsTo
@@ -225,11 +249,18 @@ class Product extends Model
     }
 
     /**
-     * Get all images for this product
+     * Images du produit, l'image principale TOUJOURS en premier.
+     *
+     * `order` n'est jamais renseigné à l'upload (0 partout) : seul, il laissait
+     * la base choisir l'ordre, et la fiche produit — qui affiche `images[0]` —
+     * pouvait montrer une autre photo que la carte, qui affiche `primary_image`.
      */
     public function images(): HasMany
     {
-        return $this->hasMany(ProductImage::class)->orderBy('order');
+        return $this->hasMany(ProductImage::class)
+            ->orderByDesc('is_primary')
+            ->orderBy('order')
+            ->orderBy('id');
     }
 
     public function variants(): HasMany
@@ -251,6 +282,16 @@ class Product extends Model
     public function primaryImage()
     {
         return $this->hasOne(ProductImage::class)->where('is_primary', true);
+    }
+
+    /**
+     * Vidéo de présentation (produits grossistes uniquement pour l'instant).
+     *
+     * Une seule par produit ; seule une vidéo `ready` est exposée à l'app.
+     */
+    public function video(): HasOne
+    {
+        return $this->hasOne(ProductVideo::class)->latestOfMany();
     }
 
     /**

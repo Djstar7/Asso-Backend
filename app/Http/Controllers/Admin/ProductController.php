@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Models\ProductImage;
+use App\Models\ProductVideo;
 use App\Models\Category;
 use App\Models\Subcategory;
 use App\Models\Shop;
@@ -15,7 +16,9 @@ use Illuminate\Support\Str;
 use Illuminate\Support\Facades\File;
 use Illuminate\Validation\Rule;
 use App\Models\DeliveryPricelist;
+use App\Services\ProductBroadcastService;
 use App\Services\ProductVariantService;
+use App\Support\ImportHub;
 
 class ProductController extends Controller
 {
@@ -126,6 +129,11 @@ class ProductController extends Controller
             'tiers.*.unit_price'   => 'required_with:tiers|numeric|min:0',
             'tiers.*.min_quantity' => 'required_with:tiers|integer|min:1',
             'tiers.*.pack_size'    => 'nullable|integer|min:1',
+            'tiers.*.weight_kg'    => 'nullable|numeric|min:0',
+
+            // Vidéo déjà envoyée par morceaux (ProductVideoController) : on ne reçoit que son id.
+            'video_id'             => 'nullable|integer|exists:product_videos,id',
+            'remove_video'         => 'nullable|boolean',
         ] + ProductVariantService::rules());
 
         // Isole les données "gros" AVANT toute insertion — elles ne vont pas dans `products`
@@ -133,8 +141,13 @@ class ProductController extends Controller
         $variants = $validated['variants'] ?? [];
         $variantOptions = $validated['variant_options'] ?? null;
         $isWholesale = $request->boolean('is_wholesale');
-        unset($validated['tiers'], $validated['variants'], $validated['variant_options'], $validated['is_wholesale'], $validated['images']);
+        unset($validated['tiers'], $validated['variants'], $validated['variant_options'], $validated['is_wholesale'], $validated['images'], $validated['video_id'], $validated['remove_video']);
         $validated['currency'] = strtoupper($validated['currency'] ?? 'XAF');
+
+        // Produit en gros : toujours la boutique « ASSO Import Douala » (entrepôt de réception).
+        if ($isWholesale && ($hub = ImportHub::shop())) {
+            $validated['shop_id'] = $hub->id;
+        }
 
         // Get shop owner
         $shop = Shop::findOrFail($validated['shop_id']);
@@ -167,6 +180,13 @@ class ProductController extends Controller
         // Handle images upload
         if ($request->hasFile('images')) {
             $this->uploadImages($product, $request->file('images'));
+        }
+
+        $this->syncVideo($product, $request);
+
+        // Publié directement par l'admin : annoncé comme une publication vendeur.
+        if ($product->status === 'active') {
+            app(ProductBroadcastService::class)->newProduct($product);
         }
 
         return redirect()->route('admin.products.index')->with('success', 'Produit créé avec succès!');
@@ -236,6 +256,11 @@ class ProductController extends Controller
             'tiers.*.unit_price'   => 'required_with:tiers|numeric|min:0',
             'tiers.*.min_quantity' => 'required_with:tiers|integer|min:1',
             'tiers.*.pack_size'    => 'nullable|integer|min:1',
+            'tiers.*.weight_kg'    => 'nullable|numeric|min:0',
+
+            // Vidéo déjà envoyée par morceaux (ProductVideoController) : on ne reçoit que son id.
+            'video_id'             => 'nullable|integer|exists:product_videos,id',
+            'remove_video'         => 'nullable|boolean',
         ] + ProductVariantService::rules());
 
         // Isole les données "gros" AVANT l'update — elles ne vont pas dans `products`
@@ -243,8 +268,13 @@ class ProductController extends Controller
         $variants = $validated['variants'] ?? [];
         $variantOptions = $validated['variant_options'] ?? null;
         $isWholesale = $request->boolean('is_wholesale');
-        unset($validated['tiers'], $validated['variants'], $validated['variant_options'], $validated['is_wholesale'], $validated['images']);
+        unset($validated['tiers'], $validated['variants'], $validated['variant_options'], $validated['is_wholesale'], $validated['images'], $validated['video_id'], $validated['remove_video']);
         $validated['currency'] = strtoupper($validated['currency'] ?? $product->currency ?? 'XAF');
+
+        // Produit en gros : toujours la boutique « ASSO Import Douala » (entrepôt de réception).
+        if ($isWholesale && ($hub = ImportHub::shop())) {
+            $validated['shop_id'] = $hub->id;
+        }
 
         // Get shop owner
         $shop = Shop::findOrFail($validated['shop_id']);
@@ -280,6 +310,8 @@ class ProductController extends Controller
             $this->uploadImages($product, $request->file('images'));
         }
 
+        $this->syncVideo($product, $request);
+
         return redirect()->route('admin.products.index')->with('success', 'Produit mis à jour avec succès!');
     }
 
@@ -294,9 +326,54 @@ class ProductController extends Controller
             }
         }
 
+        // La cascade SQL supprimerait les lignes sans leurs fichiers : on passe par le modèle.
+        ProductVideo::where('product_id', $product->id)->get()->each->delete();
+
         $product->delete();
 
         return redirect()->route('admin.products.index')->with('success', 'Produit supprimé avec succès!');
+    }
+
+    /**
+     * Rattache la vidéo envoyée au produit, ou retire l'ancienne.
+     *
+     * Réservé pour l'instant aux produits grossistes (pays d'import + vente en
+     * gros) : sur tout autre produit, une vidéo envoyée est supprimée plutôt
+     * que laissée orpheline.
+     */
+    private function syncVideo(Product $product, Request $request): void
+    {
+        $isImport = $product->is_wholesale && !empty($product->origin_country);
+        $newId = $request->integer('video_id') ?: null;
+
+        $current = ProductVideo::where('product_id', $product->id)->get();
+        $replaceOrRemove = !$isImport
+            || $request->boolean('remove_video')
+            || ($newId && !$current->contains('id', $newId));
+
+        if ($replaceOrRemove) {
+            $current->reject(fn (ProductVideo $v) => $v->id === $newId)->each->delete();
+        }
+
+        if (!$newId) {
+            return;
+        }
+
+        // Seule une vidéo encore libre (ou déjà la sienne) peut être rattachée.
+        $video = ProductVideo::whereKey($newId)
+            ->where(fn ($q) => $q->whereNull('product_id')->orWhere('product_id', $product->id))
+            ->first();
+
+        if (!$video) {
+            return;
+        }
+
+        // `remove_video` vise l'ancienne vidéo : une nouvelle envoyée en même temps la remplace.
+        if ($isImport) {
+            $video->update(['product_id' => $product->id]);
+        } elseif ($video->product_id === null) {
+            $video->delete();
+        }
     }
 
     /**
@@ -317,6 +394,8 @@ class ProductController extends Controller
                 'unit_price'   => $tier['unit_price'],
                 'min_quantity' => $tier['min_quantity'] ?? 1,
                 'pack_size'    => $tier['pack_size'] ?? 1,
+                // Poids d'une unité de ce palier (pack, bidon, pièce) : sert au prix au kg et à SOLEX.
+                'weight_kg'    => isset($tier['weight_kg']) && $tier['weight_kg'] !== '' ? (float) $tier['weight_kg'] : null,
                 'currency'     => $product->currency ?? 'XAF',
                 'is_active'    => true,
                 'sort_order'   => $i + 1,

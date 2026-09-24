@@ -7,6 +7,7 @@ use App\Models\ImportCountry;
 use App\Models\ImportShippingOption;
 use App\Models\Product;
 use App\Models\ProductImage;
+use App\Models\ProductVideo;
 use App\Services\OrderService;
 use App\Services\PaymentMethodService;
 use App\Services\ExchangeRateService;
@@ -22,9 +23,14 @@ use Illuminate\Support\Facades\Storage;
  */
 class ImportController extends Controller
 {
+    public const PER_PAGE = 20;
+    public const MAX_PER_PAGE = 50;
+
     /**
-     * Catalogue gros d'un pays d'import.
-     * GET /v1/import/{code}/products
+     * Catalogue gros d'un pays d'import, page par page.
+     * GET /v1/import/{code}/products?page=1&per_page=20
+     *
+     * Sans `page` (versions de l'app d'avant la pagination) : catalogue complet.
      */
     public function products(Request $request, string $code)
     {
@@ -32,12 +38,22 @@ class ImportController extends Controller
         $targetCurrency = $this->targetCurrency($request);
         $country = ImportCountry::where('code', $code)->where('is_active', true)->firstOrFail();
 
-        $products = $this->catalogQuery($request->input('q'))
+        $query = $this->catalogQuery($request->input('q'))
             ->where('origin_country', $code)
-            ->with(['priceTiers', 'primaryImage', 'images', 'variants'])
+            ->with(['priceTiers', 'primaryImage', 'images', 'variants', 'video'])
+            // Ordre stable d'une page à l'autre, même pour des produits créés à la même seconde.
             ->latest()
-            ->get()
-            ->map(fn (Product $p) => $this->serializeProduct($p, false, $targetCurrency));
+            ->orderByDesc('id');
+
+        $page = null;
+        if ($request->filled('page')) {
+            $perPage = min(self::MAX_PER_PAGE, max(1, (int) $request->input('per_page', self::PER_PAGE)));
+            $page = $query->paginate($perPage);
+            $items = $page->getCollection();
+        } else {
+            $items = $query->get();
+        }
+        $products = $items->map(fn (Product $p) => $this->serializeProduct($p, false, $targetCurrency))->values();
 
         $shippingOptions = ImportShippingOption::activeForCountry($code)
             ->get()
@@ -47,6 +63,13 @@ class ImportController extends Controller
             'success' => true,
             'country' => ['code' => $country->code, 'name' => $country->name, 'flag' => $country->flag],
             'products' => $products,
+            'pagination' => $page ? [
+                'current_page' => $page->currentPage(),
+                'last_page' => $page->lastPage(),
+                'per_page' => $page->perPage(),
+                'total' => $page->total(),
+                'has_more' => $page->hasMorePages(),
+            ] : null,
             'currency' => $targetCurrency,
             'shipping_options' => $shippingOptions,
         ]);
@@ -97,7 +120,7 @@ class ImportController extends Controller
         $product = Product::where('is_wholesale', true)
             ->where('status', 'active')
             ->whereHas('shop', fn ($query) => $query->where('status', 'active'))
-            ->with(['priceTiers', 'images', 'variants'])
+            ->with(['priceTiers', 'images', 'variants', 'video'])
             ->findOrFail($id);
 
         return response()->json([
@@ -154,6 +177,39 @@ class ImportController extends Controller
     }
 
     /**
+     * Fichiers d'une vidéo produit : `video` (fiche), `preview` (cartes), `poster`.
+     * GET /v1/import/videos/{video}/{kind}
+     *
+     * `response()->file()` répond aux requêtes partielles (206 + Content-Range) :
+     * le lecteur iOS n'ouvre pas une vidéo servie autrement, et Android s'en sert
+     * pour démarrer sans tout télécharger.
+     */
+    public function video(ProductVideo $video, string $kind)
+    {
+        $video->loadMissing('product');
+        abort_unless($video->product?->is_wholesale && $video->isReady(), 404);
+
+        $path = $video->absolutePath($kind);
+        abort_unless($path, 404);
+
+        $mime = match (strtolower(pathinfo($path, PATHINFO_EXTENSION))) {
+            'jpg', 'jpeg' => 'image/jpeg',
+            'mov' => 'video/quicktime',
+            'webm' => 'video/webm',
+            '3gp' => 'video/3gpp',
+            'mkv' => 'video/x-matroska',
+            default => 'video/mp4',
+        };
+
+        return response()->file($path, [
+            'Content-Type' => $mime,
+            'Access-Control-Allow-Origin' => '*',
+            // Chaque vidéo a sa propre URL (id) : la remplacer change l'URL.
+            'Cache-Control' => 'public, max-age=604800',
+        ]);
+    }
+
+    /**
      * Options d'expédition internationale d'un pays.
      * GET /v1/import/{code}/shipping
      */
@@ -183,8 +239,24 @@ class ImportController extends Controller
             'payment_mode' => 'nullable|in:wallet,kpay_direct,stripe_direct',
             'provider' => 'required_if:payment_mode,kpay_direct|string',
             'phone_number' => 'required_if:payment_mode,kpay_direct|string',
-            'delivery_address' => 'nullable|string',
+            // Livraison SOLEX de Douala jusqu'au client (offre de GET /v1/delivery/partners).
+            'delivery_company_id' => 'required|exists:deliverer_companies,id',
+            'delivery_zone_id' => 'nullable|exists:delivery_zones,id',
+            'delivery_route_id' => 'nullable|exists:delivery_routes,id',
+            'delivery_grid_id' => 'nullable|exists:delivery_city_grids,id',
+            'delivery_vehicle' => 'nullable|string|max:30',
+            'delivery_quarter' => 'nullable|string|max:120',
+            'delivery_city' => 'nullable|string|max:120',
+            'delivery_country' => 'nullable|string|max:60',
+            'delivery_address' => 'required|string',
+            'delivery_address_details' => 'nullable|string|max:500',
+            'customer_phone' => 'required|string|max:30',
+            'delivery_latitude' => 'nullable|numeric',
+            'delivery_longitude' => 'nullable|numeric',
             'notes' => 'nullable|string',
+        ], [
+            'delivery_company_id.required' => "Choisissez la livraison SOLEX : la commande arrive à Douala, puis SOLEX la livre jusqu'à vous.",
+            'delivery_address.required' => 'Indiquez votre adresse de livraison.',
         ]);
 
         $paymentMode = $validated['payment_mode'] ?? 'kpay_direct';
@@ -209,6 +281,20 @@ class ImportController extends Controller
                 kpayProvider: $validated['provider'] ?? null,
                 kpayPhone: $validated['phone_number'] ?? null,
                 notes: $validated['notes'] ?? null,
+                delivery: [
+                    'company_id' => (int) $validated['delivery_company_id'],
+                    'zone_id' => isset($validated['delivery_zone_id']) ? (int) $validated['delivery_zone_id'] : null,
+                    'route_id' => isset($validated['delivery_route_id']) ? (int) $validated['delivery_route_id'] : null,
+                    'grid_id' => isset($validated['delivery_grid_id']) ? (int) $validated['delivery_grid_id'] : null,
+                    'vehicle' => $validated['delivery_vehicle'] ?? null,
+                    'quarter' => $validated['delivery_quarter'] ?? null,
+                    'city' => $validated['delivery_city'] ?? null,
+                    'country' => $validated['delivery_country'] ?? null,
+                    'latitude' => isset($validated['delivery_latitude']) ? (float) $validated['delivery_latitude'] : null,
+                    'longitude' => isset($validated['delivery_longitude']) ? (float) $validated['delivery_longitude'] : null,
+                    'address_details' => $validated['delivery_address_details'] ?? null,
+                    'customer_phone' => $validated['customer_phone'],
+                ],
             );
 
             return response()->json([
@@ -244,7 +330,7 @@ class ImportController extends Controller
             'currency' => $p->currency,
             'min_order_quantity' => $minFromTiers ?? $p->min_order_quantity,
             // Le poids est renseigné par l'équipe/le vendeur, jamais par le client.
-            'unit_weight_kg' => is_numeric($p->weight) ? (float) $p->weight : null,
+            'unit_weight_kg' => $p->weightKg(),
             'stock' => $p->stock,
             'variants' => ($p->relationLoaded('variants') ? $p->variants : collect())
                 ->where('is_active', true)
@@ -258,6 +344,8 @@ class ImportController extends Controller
                 : null,
             'images' => ($p->relationLoaded('images') ? $p->images : collect())
                 ->map(fn ($i) => url('/api/v1/import/product-images/' . $i->id))->values(),
+            // Vidéo de présentation, seulement une fois prête (null sinon).
+            'video' => $p->relationLoaded('video') ? $p->video?->toApi() : null,
         ];
 
         if ($full) {

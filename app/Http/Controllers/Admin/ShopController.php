@@ -45,6 +45,11 @@ class ShopController extends Controller
             $query->where('user_id', $request->user_id);
         }
 
+        // Boutiques qui attendent la validation d'un changement d'emplacement.
+        if ($request->input('location_request') === 'pending') {
+            $query->whereHas('locationRequests', fn ($q) => $q->where('status', 'pending'));
+        }
+
         $shops = $query->latest()->paginate(15)->withQueryString();
         $users = User::all();
 
@@ -285,8 +290,9 @@ class ShopController extends Controller
                 'address' => $request->address ?: null,
             ], fn ($value) => $value !== null));
             if ($request->address) {
+                // Ville et pays lus sur la carte par l'app, sinon déduits de l'adresse.
                 [$city, $country] = \App\Support\LocationFormatter::parse($request->address);
-                $shop->update(['city' => $city, 'country' => $country]);
+                $shop->update(['city' => $request->city ?: $city, 'country' => $request->country ?: $country]);
             }
 
             // Update request status
@@ -340,6 +346,8 @@ class ShopController extends Controller
      */
     public function rejectLocationRequest(Shop $shop, ShopLocationRequest $request)
     {
+        $reason = request()->validate(['rejection_reason' => 'required|string|max:500'])['rejection_reason'];
+
         try {
             Log::info('[ADMIN-LOCATION-REQUEST-REJECT] Starting rejection', [
                 'shop_id' => $shop->id,
@@ -349,6 +357,7 @@ class ShopController extends Controller
             // Update request status
             $request->update([
                 'status' => 'rejected',
+                'rejection_reason' => $reason,
                 'reviewed_at' => now(),
                 'reviewed_by' => auth()->id(),
             ]);
@@ -361,7 +370,7 @@ class ShopController extends Controller
                 $fcmService->sendToUser(
                     $vendor,  // Pass the User object, not the ID
                     'Changement de localisation rejeté',
-                    "Votre demande de changement de localisation pour {$shop->name} a été rejetée par l'administrateur.",
+                    "Votre demande de changement d'emplacement pour {$shop->name} a été refusée : {$reason}",
                     [
                         'type' => 'location_request_rejected',
                         'shop_id' => $shop->id,

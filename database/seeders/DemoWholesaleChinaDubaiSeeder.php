@@ -33,17 +33,17 @@ class DemoWholesaleChinaDubaiSeeder extends Seeder
                         'name' => 'Chargeur rapide USB-C 20W',
                         'description' => 'Chargeur rapide USB-C, import Chine. Qualité contrôlée.',
                         'tiers' => [
-                            ['label' => 'Pack de 50', 'unit_price' => 45000, 'min_quantity' => 20, 'pack_size' => 50],
-                            ['label' => 'Pack de 100', 'unit_price' => 85000, 'min_quantity' => 10, 'pack_size' => 100],
-                            ['label' => 'Carton de 500', 'unit_price' => 400000, 'min_quantity' => 5, 'pack_size' => 500],
+                            ['label' => 'Pack de 50', 'unit_price' => 45000, 'min_quantity' => 20, 'pack_size' => 50, 'weight_kg' => 4],
+                            ['label' => 'Pack de 100', 'unit_price' => 85000, 'min_quantity' => 10, 'pack_size' => 100, 'weight_kg' => 8],
+                            ['label' => 'Carton de 500', 'unit_price' => 400000, 'min_quantity' => 5, 'pack_size' => 500, 'weight_kg' => 40],
                         ],
                     ],
                     [
                         'name' => 'Écouteurs Bluetooth TWS',
                         'description' => 'Écouteurs sans fil TWS en gros, import Chine.',
                         'tiers' => [
-                            ['label' => 'Pack de 20', 'unit_price' => 60000, 'min_quantity' => 10, 'pack_size' => 20],
-                            ['label' => 'Carton de 100', 'unit_price' => 280000, 'min_quantity' => 5, 'pack_size' => 100],
+                            ['label' => 'Pack de 20', 'unit_price' => 60000, 'min_quantity' => 10, 'pack_size' => 20, 'weight_kg' => 2],
+                            ['label' => 'Carton de 100', 'unit_price' => 280000, 'min_quantity' => 5, 'pack_size' => 100, 'weight_kg' => 10],
                         ],
                     ],
                 ],
@@ -63,15 +63,15 @@ class DemoWholesaleChinaDubaiSeeder extends Seeder
                         'name' => 'Parfum Oud 100ml',
                         'description' => 'Parfum Oud premium, import Dubaï.',
                         'tiers' => [
-                            ['label' => 'Pack de 12', 'unit_price' => 84000, 'min_quantity' => 10, 'pack_size' => 12],
-                            ['label' => 'Pack de 24', 'unit_price' => 156000, 'min_quantity' => 5, 'pack_size' => 24],
+                            ['label' => 'Pack de 12', 'unit_price' => 84000, 'min_quantity' => 10, 'pack_size' => 12, 'weight_kg' => 4.8],
+                            ['label' => 'Pack de 24', 'unit_price' => 156000, 'min_quantity' => 5, 'pack_size' => 24, 'weight_kg' => 9.6],
                         ],
                     ],
                     [
                         'name' => 'Montre homme acier',
                         'description' => 'Montres homme en acier, lot en gros, import Dubaï.',
                         'tiers' => [
-                            ['label' => 'Pack de 10', 'unit_price' => 120000, 'min_quantity' => 5, 'pack_size' => 10],
+                            ['label' => 'Pack de 10', 'unit_price' => 120000, 'min_quantity' => 5, 'pack_size' => 10, 'weight_kg' => 2.5],
                         ],
                     ],
                 ],

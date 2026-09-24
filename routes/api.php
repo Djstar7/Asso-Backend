@@ -114,6 +114,9 @@ Route::prefix('v1')->group(function () {
     // Module GROS (ASSO CHINA / DUBAÏ / TURQUIE) — catalogue par pays (public)
     Route::get('/import/products/{id}/image', [\App\Http\Controllers\Api\ImportController::class, 'image']);
     Route::get('/import/product-images/{image}', [\App\Http\Controllers\Api\ImportController::class, 'productImage']);
+    // Vidéo de présentation : réponses partielles (Range) exigées par le lecteur iOS.
+    Route::get('/import/videos/{video}/{kind}', [\App\Http\Controllers\Api\ImportController::class, 'video'])
+        ->whereIn('kind', ['video', 'preview', 'poster']);
     Route::get('/import/products/{id}', [\App\Http\Controllers\Api\ImportController::class, 'show']);
     Route::get('/import/search', [\App\Http\Controllers\Api\ImportController::class, 'searchCounts'])->middleware('throttle:60,1');
     Route::get('/import/{code}/products', [\App\Http\Controllers\Api\ImportController::class, 'products']);
@@ -274,6 +277,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/vendor/shop', [ShopController::class, 'update']);
         Route::get('/vendor/shops', [ShopController::class, 'index']);
         Route::get('/vendor/shop/location-requests', [ShopController::class, 'getLocationRequests']);
+        Route::post('/vendor/shop/location-requests', [ShopController::class, 'storeLocationRequest']);
 
         // Delivery process
         Route::post('/delivery/apply', [ProfileController::class, 'applyDelivery']);

@@ -106,11 +106,14 @@ class ShopLocationRequestController extends Controller
             $oldLatitude = $shop->latitude;
             $oldLongitude = $shop->longitude;
 
-            $shop->update([
+            $shop->update(array_filter([
                 'latitude' => $locationRequest->latitude,
                 'longitude' => $locationRequest->longitude,
                 'address' => $locationRequest->address ?? $shop->address,
-            ]);
+                // Ville et pays lus sur la carte par l'app (sinon inchangés).
+                'city' => $locationRequest->city,
+                'country' => $locationRequest->country,
+            ], fn ($value) => $value !== null));
 
             // Update request status
             $locationRequest->update([

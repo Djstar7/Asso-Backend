@@ -54,7 +54,7 @@ class ShipmentController extends Controller
         return view('admin.shipments.show', [
             'order' => $order,
             'steps' => array_intersect_key(OrderTrackingService::STEPS, array_flip(array_merge(
-                ['handed_to_carrier'], OrderTrackingService::CARRIER_UPDATE_STEPS, ['delivered']
+                ['handed_to_carrier'], OrderTrackingService::carrierUpdateSteps($order), ['delivered']
             ))),
         ]);
     }
@@ -64,7 +64,7 @@ class ShipmentController extends Controller
         abort_unless($order->isCarrierDelivery(), 404);
 
         $validated = $request->validate([
-            'step' => 'required|in:handed_to_carrier,delivered,' . implode(',', OrderTrackingService::CARRIER_UPDATE_STEPS),
+            'step' => 'required|in:handed_to_carrier,delivered,' . implode(',', OrderTrackingService::carrierUpdateSteps($order)),
             'carrier_tracking_number' => 'nullable|string|max:100',
             'location' => 'nullable|string|max:150',
             'note' => 'nullable|string|max:500',

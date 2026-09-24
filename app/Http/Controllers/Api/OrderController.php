@@ -443,6 +443,8 @@ class OrderController extends Controller
             'status' => $order->status,
             'subtotal' => (float) $order->subtotal,
             'delivery_fee' => (float) $order->delivery_fee,
+            // Import en gros : part du trajet jusqu'à Douala dans les frais de livraison.
+            'import_shipping_fee' => $order->import_shipping_fee !== null ? (float) $order->import_shipping_fee : null,
             'total' => (float) $order->total,
             'formatted_total' => $order->formatted_total,
             'payment_method' => $order->payment_method,

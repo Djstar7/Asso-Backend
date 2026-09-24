@@ -33,6 +33,21 @@
         </div>
     @endif
 
+    <!-- Changements d'emplacement à valider -->
+    @php $pendingLocationCount = \App\Models\ShopLocationRequest::pending()->count(); @endphp
+    @if(request('location_request') === 'pending')
+        <div class="mb-4 p-4 bg-yellow-900/20 border-l-4 border-yellow-500 rounded flex flex-wrap items-center justify-between gap-2">
+            <p class="text-yellow-300"><i class="fas fa-map-marker-alt mr-2"></i>Boutiques qui demandent un changement d'emplacement : ouvrez la boutique pour approuver ou refuser.</p>
+            <a href="{{ route('admin.shops.index') }}" class="text-sm text-gray-300 hover:text-white">Voir toutes les boutiques</a>
+        </div>
+    @elseif($pendingLocationCount > 0)
+        <a href="{{ route('admin.shops.index', ['location_request' => 'pending']) }}"
+           class="mb-4 p-4 bg-yellow-900/20 border-l-4 border-yellow-500 rounded flex items-center justify-between text-yellow-300 hover:bg-yellow-900/30">
+            <span><i class="fas fa-map-marker-alt mr-2"></i>{{ $pendingLocationCount }} demande{{ $pendingLocationCount > 1 ? 's' : '' }} de changement d'emplacement à valider</span>
+            <i class="fas fa-arrow-right"></i>
+        </a>
+    @endif
+
     <!-- View Toggle & Filters -->
     <div class="bg-dark-100 rounded-xl shadow-lg p-6 mb-6">
         <div class="flex justify-between items-center mb-4">
@@ -60,6 +75,9 @@
         </div>
 
         <form method="GET" action="{{ route('admin.shops.index') }}" class="space-y-4">
+            @if(request('location_request'))
+                <input type="hidden" name="location_request" value="{{ request('location_request') }}">
+            @endif
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <!-- Search -->
                 <div>

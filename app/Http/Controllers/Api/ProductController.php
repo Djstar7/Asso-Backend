@@ -7,7 +7,7 @@ use App\Models\Product;
 use App\Models\Category;
 use App\Models\DeliveryPricelist;
 use App\Models\Inventory;
-use App\Services\FirebaseMessagingService;
+use App\Services\ProductBroadcastService;
 use App\Services\ProductVariantService;
 use Illuminate\Http\Request;
 
@@ -532,33 +532,9 @@ class ProductController extends Controller
 
         \Log::info('[PRODUCT_STORE] Product loaded with relations');
 
-        // Envoyer une notification push à tous les utilisateurs si la boutique est vérifiée
-        if ($shop && $shop->is_certified) {
-            \Log::info('[PRODUCT_STORE] Shop is certified, sending push notification to all users');
-            try {
-                $fcmService = new FirebaseMessagingService();
-                $fcmService->sendToTopic(
-                    'all_users',
-                    'Nouveau produit disponible',
-                    "{$shop->name} a publié : {$product->name}",
-                    [
-                        'type' => 'new_product',
-                        'product_id' => (string) $product->id,
-                        'product_name' => $product->name,
-                        'shop_id' => (string) $shop->id,
-                        'shop_name' => $shop->name,
-                        'price' => (string) \App\Services\CommissionService::buyerPrice($product),
-                        'category_id' => (string) $product->category_id,
-                    ]
-                );
-                \Log::info('[PRODUCT_STORE] Push notification sent successfully');
-            } catch (\Exception $e) {
-                \Log::error('[PRODUCT_STORE] Error sending push notification: ' . $e->getMessage());
-                // On ne bloque pas la création du produit si la notification échoue
-            }
-        } else {
-            \Log::info('[PRODUCT_STORE] Shop is not certified, skipping push notification');
-        }
+        // Chaque publication est annoncée à tous les utilisateurs (topic Firebase),
+        // boutique certifiée ou non.
+        app(ProductBroadcastService::class)->newProduct($product);
 
         \Log::info('========== PRODUCT STORE SUCCESS ==========');
 
@@ -580,6 +556,7 @@ class ProductController extends Controller
     {
         // Prix PUBLICS : prix vendeur majoré de la commission ASSO (cf. CommissionService).
         $pricing = \App\Services\CommissionService::buyerPricing($product);
+        [$latitude, $longitude] = $product->publicCoordinates();
 
         $data = [
             'id' => $product->id,
@@ -605,8 +582,8 @@ class ProductController extends Controller
             'stock' => $product->stock,
             'weight' => $product->weight,
             'status' => $product->status,
-            'latitude' => $product->latitude ? (float) $product->latitude : null,
-            'longitude' => $product->longitude ? (float) $product->longitude : null,
+            'latitude' => $latitude,
+            'longitude' => $longitude,
             'is_favorite' => in_array($product->id, $favoriteIds),
             // Asso Ads : vrai uniquement sur les cartes servies via un slot sponsorisé.
             // Positionné par injectSponsored(), jamais déduit du produit lui-même —

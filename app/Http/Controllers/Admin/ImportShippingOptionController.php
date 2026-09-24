@@ -55,7 +55,7 @@ class ImportShippingOptionController extends Controller
                 'sort_order'      => $validated['sort_order'] ?? 0,
                 'currency'        => 'XAF',
                 'is_active'       => true,
-                'destinations'    => ['Afrique', 'Europe', 'Canada', 'USA'],
+                'destinations'    => [\App\Support\ImportHub::CITY],
             ]
         );
 

@@ -13,6 +13,8 @@ class ShopLocationRequest extends Model
         'latitude',
         'longitude',
         'address',
+        'city',
+        'country',
         'reason',
         'status',
         'reviewed_by',

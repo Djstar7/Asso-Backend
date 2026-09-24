@@ -68,4 +68,33 @@ class ImportCountriesTest extends TestCase
             ->assertJsonMissingPath('counts.AE');
         $this->getJson('/api/v1/import/search')->assertStatus(422);
     }
+
+    public function test_catalog_is_paginated_from_the_most_recent_product(): void
+    {
+        ImportCountry::create(['code' => 'CN', 'name' => 'Chine', 'flag' => '', 'sort_order' => 1, 'is_active' => true]);
+        $seller = \App\Models\User::factory()->create();
+        $shop = \App\Models\Shop::create(['user_id' => $seller->id, 'name' => 'Import', 'slug' => 'imp-' . uniqid(), 'status' => 'active']);
+        $category = \App\Models\Category::create(['name' => 'Tech', 'slug' => 'tech-' . uniqid()]);
+        // Même seconde de création : l'ordre reste stable d'une page à l'autre.
+        foreach (range(1, 5) as $i) {
+            \App\Models\Product::create([
+                'user_id' => $seller->id, 'shop_id' => $shop->id, 'category_id' => $category->id,
+                'name' => "Article {$i}", 'slug' => "article-{$i}-" . uniqid(), 'price' => 1000, 'currency' => 'XAF',
+                'stock' => 10, 'status' => 'active', 'is_wholesale' => true, 'origin_country' => 'CN',
+            ]);
+        }
+
+        $first = $this->getJson('/api/v1/import/CN/products?page=1&per_page=2')->assertOk()
+            ->assertJsonPath('pagination.total', 5)
+            ->assertJsonPath('pagination.last_page', 3)
+            ->assertJsonPath('pagination.has_more', true);
+        $this->assertSame(['Article 5', 'Article 4'], collect($first->json('products'))->pluck('name')->all());
+
+        $last = $this->getJson('/api/v1/import/CN/products?page=3&per_page=2')->assertJsonPath('pagination.has_more', false);
+        $this->assertSame(['Article 1'], collect($last->json('products'))->pluck('name')->all());
+
+        // Taille de page plafonnée ; sans `page`, anciennes versions : tout le catalogue.
+        $this->getJson('/api/v1/import/CN/products?page=1&per_page=500')->assertJsonPath('pagination.per_page', 50);
+        $this->getJson('/api/v1/import/CN/products')->assertJsonCount(5, 'products')->assertJsonPath('pagination', null);
+    }
 }

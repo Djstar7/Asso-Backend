@@ -50,8 +50,32 @@ class AppServiceProvider extends ServiceProvider
                 $openTicketsCount = 0;
             }
 
+            // Commandes en gros payées, en attente de validation par ASSO.
+            $wholesaleToValidateCount = \App\Support\WholesaleOrderStage::apply(
+                \App\Models\Order::where('is_wholesale', true), 'to_validate'
+            )->count();
+
+            // Changements d'emplacement de boutique à valider.
+            $pendingLocationRequests = \App\Models\ShopLocationRequest::pending()->count();
+
             // Construire la liste des notifications (tâches admin en attente)
             $notifications = [];
+            if ($pendingLocationRequests > 0) {
+                $notifications[] = [
+                    'icon'  => 'fa-map-marker-alt',
+                    'color' => 'text-yellow-400',
+                    'title' => $pendingLocationRequests . ' changement' . ($pendingLocationRequests > 1 ? 's' : '') . " d'emplacement de boutique à valider",
+                    'url'   => route('admin.shops.index', ['location_request' => 'pending']),
+                ];
+            }
+            if ($wholesaleToValidateCount > 0) {
+                $notifications[] = [
+                    'icon'  => 'fa-dolly',
+                    'color' => 'text-yellow-400',
+                    'title' => $wholesaleToValidateCount . ' commande' . ($wholesaleToValidateCount > 1 ? 's' : '') . ' en gros à valider',
+                    'url'   => route('admin.wholesale-orders.index', ['stage' => 'to_validate']),
+                ];
+            }
             if ($pendingShopsCount > 0) {
                 $notifications[] = [
                     'icon'  => 'fa-store',
@@ -72,7 +96,8 @@ class AppServiceProvider extends ServiceProvider
             $view->with('pendingShopsCount', $pendingShopsCount);
             $view->with('pendingDiaspoVerifications', $pendingDiaspoVerifications);
             $view->with('adminNotifications', $notifications);
-            $view->with('adminNotificationsCount', $pendingShopsCount + $openTicketsCount);
+            $view->with('wholesaleToValidateCount', $wholesaleToValidateCount);
+            $view->with('adminNotificationsCount', $pendingShopsCount + $openTicketsCount + $wholesaleToValidateCount + $pendingLocationRequests);
         });
     }
 }

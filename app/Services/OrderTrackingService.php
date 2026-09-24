@@ -21,6 +21,7 @@ class OrderTrackingService
         'handed_to_carrier' => 'Remis au transporteur',
         'in_transit' => 'En transit',
         'customs' => 'En dédouanement',
+        'arrived_hub' => "Arrivé à l'entrepôt ASSO de Douala",
         'arrived' => 'Arrivé dans la ville de destination',
         'ready_for_pickup' => 'Disponible au retrait en agence',
         'delivered' => 'Livré — réception confirmée',
@@ -29,6 +30,17 @@ class OrderTrackingService
 
     /** Étapes qu'un vendeur ou l'admin saisit pendant l'acheminement transporteur. */
     public const CARRIER_UPDATE_STEPS = ['in_transit', 'customs', 'arrived', 'ready_for_pickup'];
+
+    /** Import en gros : arrivée à Douala, où SOLEX prend le relais. */
+    public const IMPORT_HUB_STEP = 'arrived_hub';
+
+    /** Étapes proposées pour une commande (l'arrivée à Douala seulement pour un import). */
+    public static function carrierUpdateSteps(Order $order): array
+    {
+        return $order->is_wholesale
+            ? ['in_transit', 'customs', self::IMPORT_HUB_STEP, 'arrived', 'ready_for_pickup']
+            : self::CARRIER_UPDATE_STEPS;
+    }
 
     public function __construct(private FirebaseMessagingService $fcm)
     {
@@ -58,9 +70,10 @@ class OrderTrackingService
 
         $order->forceFill(['tracking_status' => $step])->saveQuietly();
 
-        // Transporteur à domicile : colis arrivé à l'agence → les coursiers du partenaire
-        // le voient dans l'app et l'un d'eux l'accepte (flux urbain, code à 6 chiffres).
-        if ($step === 'arrived' && $order->hasLastMileDelivery() && $order->delivery_person_id === null) {
+        // Transporteur à domicile : colis arrivé à l'agence (ou import arrivé à l'entrepôt
+        // de Douala) → les coursiers du partenaire le voient dans l'app et l'un d'eux
+        // l'accepte (flux urbain, code à 6 chiffres).
+        if ($step === $order->lastMileStep() && $order->delivery_person_id === null) {
             $this->notifyLastMileCouriers($order);
         }
 

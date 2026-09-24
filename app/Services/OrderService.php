@@ -7,6 +7,7 @@ use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\ProductPriceTier;
+use App\Models\ImportCountry;
 use App\Models\ImportShippingOption;
 use App\Models\User;
 use App\Models\WalletTransaction;
@@ -17,6 +18,8 @@ use App\Services\WalletService;
 use App\Services\DeliveryQuoteService;
 use App\Services\OrderTrackingService;
 use App\Services\FirebaseMessagingService;
+use App\Support\CountryCode;
+use App\Support\ImportHub;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -366,17 +369,31 @@ class OrderService
         string $paymentMode = 'kpay_direct',
         ?string $kpayProvider = null,
         ?string $kpayPhone = null,
-        ?string $notes = null
+        ?string $notes = null,
+        // Livraison SOLEX de Douala jusqu'au client : offre choisie dans l'app
+        // (company_id, zone_id, route_id, grid_id, vehicle, quarter, city, country,
+        // latitude, longitude, address_details, customer_phone).
+        array $delivery = []
     ): Order {
         return DB::transaction(function () use (
             $client, $items, $shippingOptionId, $shippingWeightKg, $shippingCbm,
-            $deliveryAddress, $paymentMode, $kpayProvider, $kpayPhone, $notes
+            $deliveryAddress, $paymentMode, $kpayProvider, $kpayPhone, $notes, $delivery
         ) {
             $subtotal = 0;
             $orderItems = [];
             $countryCode = null;
             $calculatedWeightKg = 0;
             $hasMissingWeight = false;
+
+            // Le minimum d'un palier porte sur le total commandé pour ce produit et
+            // ce palier, toutes variantes confondues : 300 rouges + 200 noires d'un
+            // palier « minimum 500 » l'atteignent, même si aucune couleur seule ne
+            // l'atteint. Une ligne par couleur ne doit pas multiplier le minimum.
+            $tierTotals = [];
+            foreach ($items as $item) {
+                $key = (int) $item['product_id'] . ':' . (int) $item['price_tier_id'];
+                $tierTotals[$key] = ($tierTotals[$key] ?? 0) + (int) $item['quantity'];
+            }
 
             foreach ($items as $item) {
                 $product = Product::lockForUpdate()->findOrFail($item['product_id']);
@@ -401,8 +418,9 @@ class OrderService
                 }
 
                 $quantity = (int) $item['quantity'];
-                if ($quantity < $tier->min_quantity) {
-                    throw new \Exception("Quantité minimale non atteinte pour '{$product->name}' ({$tier->label}) : minimum {$tier->min_quantity}.");
+                $tierTotal = $tierTotals[$product->id . ':' . $tier->id] ?? $quantity;
+                if ($tierTotal < $tier->min_quantity) {
+                    throw new \Exception("Quantité minimale non atteinte pour '{$product->name}' ({$tier->label}) : minimum {$tier->min_quantity} au total, toutes options confondues.");
                 }
 
                 // Prix du palier converti en XAF (devise pivot) au taux du moment.
@@ -419,8 +437,10 @@ class OrderService
                 $lineTotal = $unitPrice * $quantity;
                 $subtotal += $lineTotal;
                 $countryCode = $countryCode ?? $product->origin_country;
-                if (is_numeric($product->weight) && (float) $product->weight > 0) {
-                    $calculatedWeightKg += (float) $product->weight * $quantity;
+                // Poids d'une unité du palier (pack, bidon, pièce), sinon celui de la fiche.
+                $unitWeight = $tier->weight_kg > 0 ? (float) $tier->weight_kg : $product->weightKg();
+                if ($unitWeight) {
+                    $calculatedWeightKg += $unitWeight * $quantity;
                 } else {
                     $hasMissingWeight = true;
                 }
@@ -449,7 +469,32 @@ class OrderService
                 $shippingWeightKg = $calculatedWeightKg;
             }
             $shippingCost = $shipping->computeCost($shippingWeightKg, $shippingCbm);
-            $total = $subtotal + $shippingCost;
+
+            // Puis SOLEX, de l'entrepôt ASSO de Douala jusqu'au client : prix recalculé
+            // côté serveur (même calcul que l'offre affichée), payé avec la commande.
+            if (empty($delivery['company_id'])) {
+                throw new \Exception("Indiquez votre adresse de livraison : la commande arrive à Douala, puis SOLEX la livre jusqu'à vous.");
+            }
+            $quote = app(DeliveryQuoteService::class)->quoteFor(
+                array_map(fn ($item) => [
+                    'product_id' => (int) $item['product_id'],
+                    'quantity' => (int) $item['quantity'],
+                    'price_tier_id' => (int) $item['price_tier_id'],
+                ], $items),
+                (int) $delivery['company_id'],
+                $delivery['zone_id'] ?? null,
+                $delivery['route_id'] ?? null,
+                $delivery['latitude'] ?? null,
+                $delivery['longitude'] ?? null,
+                ($delivery['city'] ?? null) ?: $deliveryAddress,
+                $delivery['country'] ?? null,
+                $delivery['grid_id'] ?? null,
+                $delivery['vehicle'] ?? null,
+                $delivery['quarter'] ?? null,
+                $deliveryAddress,
+            );
+            $localDeliveryFee = (float) $quote['delivery_price'];
+            $total = $subtotal + $shippingCost + $localDeliveryFee;
 
             $isDirect = in_array($paymentMode, ['kpay_direct', 'stripe_direct']);
 
@@ -471,16 +516,32 @@ class OrderService
                 'shipping_mode' => $shipping->mode,
                 'shipping_option_id' => $shipping->id,
                 'delivery_mode' => Order::DELIVERY_CARRIER,
-                'shipping_weight_kg' => $calculatedWeightKg > 0 ? $calculatedWeightKg : null,
+                'shipping_weight_kg' => $calculatedWeightKg > 0 ? $calculatedWeightKg : $quote['weight_kg'],
                 'subtotal' => $subtotal,
-                'delivery_fee' => $shippingCost, // coût d'expédition internationale
-                'base_delivery_price' => $shippingCost,
-                'delivery_commission' => 0,
+                // Frais de livraison = trajet jusqu'à Douala (ASSO) + SOLEX jusqu'au client.
+                'delivery_fee' => $shippingCost + $localDeliveryFee,
+                'import_shipping_fee' => $shippingCost,
+                // Part SOLEX (TTC) et commission ASSO sur sa course, réglées comme une livraison.
+                'base_delivery_price' => (float) $quote['base_price'],
+                'delivery_commission' => (float) $quote['asso_commission'],
+                'delivery_company_id' => $quote['company_id'],
+                'delivery_zone_id' => $quote['zone_id'],
+                'delivery_route_id' => $quote['route_id'],
+                'delivery_city_grid_id' => $quote['grid_id'],
+                'delivery_vehicle' => $quote['vehicle'],
+                'delivery_vat_amount' => $quote['breakdown']['vat_amount'],
+                'delivery_breakdown' => $this->deliverySnapshot($quote) + [
+                    'import_leg' => $this->importLeg($shipping, $shippingCost, $countryCode),
+                ],
                 'sale_commission_rate' => $saleCommission['rate'],
                 'sale_commission' => $saleCommission['commission'],
                 'vendor_net_amount' => $saleCommission['vendor_net'],
                 'total' => $total,
                 'delivery_address' => $deliveryAddress,
+                'delivery_address_details' => $delivery['address_details'] ?? null,
+                'customer_phone' => $delivery['customer_phone'] ?? null,
+                'delivery_latitude' => $delivery['latitude'] ?? null,
+                'delivery_longitude' => $delivery['longitude'] ?? null,
                 'payment_method' => match (true) {
                     $paymentMode === 'kpay_direct' => 'kpay_direct',
                     $paymentMode === 'stripe_direct' => 'stripe_direct',
@@ -494,7 +555,12 @@ class OrderService
                 $order->items()->create($itemData);
             }
 
-            app(OrderTrackingService::class)->record($order, 'pending', null, 'Commande import — ' . ($shipping->carrier ?: (ImportShippingOption::MODE_LABELS[$shipping->mode] ?? $shipping->mode)), 'buyer', $client->id);
+            app(OrderTrackingService::class)->record(
+                $order, 'pending', null,
+                'Commande import — ' . ($shipping->carrier ?: (ImportShippingOption::MODE_LABELS[$shipping->mode] ?? $shipping->mode))
+                    . ' jusqu\'à ' . ImportHub::CITY . ", puis {$quote['company_name']} — {$quote['route_label']}",
+                'buyer', $client->id,
+            );
 
             // Paiement (réutilise la logique des rails directs). Pour la carte native,
             // pose les attributs transitoires client_secret / payment_intent_id sur $order.
@@ -972,6 +1038,93 @@ class OrderService
      * Calcule la distance entre deux points GPS (Haversine).
      */
     /**
+     * Validation d'une commande payée par son vendeur (ASSO pour un import en gros) :
+     * confirmée, réglée (vendeur, livreur, ASSO), puis l'acheteur est prévenu.
+     *
+     * @throws \Exception si le paiement n'est pas acquis ou la commande déjà traitée
+     */
+    public function confirmBySeller(Order $order, User $vendor, string $actorType, ?int $actorId): Order
+    {
+        // Le paiement doit être acquis : sinon le vendeur serait crédité sur de l'argent
+        // jamais encaissé (Mobile Money ou carte encore en attente).
+        if ($order->payment_status !== Order::PAYMENT_PAID) {
+            throw new \Exception("Le paiement de cette commande n'est pas encore confirmé.");
+        }
+
+        $confirmed = DB::transaction(function () use ($order, $vendor, $actorType, $actorId) {
+            // Verrou + re-contrôle : deux validations simultanées ne créditent pas deux fois.
+            $locked = Order::whereKey($order->id)->lockForUpdate()->first();
+            if (!$locked || $locked->status !== 'pending') {
+                throw new \Exception('Cette commande a déjà été traitée.');
+            }
+            $locked->update(['status' => 'confirmed', 'confirmed_at' => now()]);
+
+            // Encaissement direct (sans escrow) : prélèvement de l'acheteur (wallet), puis
+            // crédit du vendeur, de l'entreprise de livraison et d'ASSO. Idempotent.
+            $this->settleOrder($locked, $vendor);
+            app(OrderTrackingService::class)->record($locked, 'confirmed', null, null, $actorType, $actorId);
+
+            return $locked;
+        });
+
+        if ($client = $confirmed->user) {
+            $this->fcmService->sendToUser(
+                $client,
+                'Commande validée !',
+                $confirmed->isCarrierDelivery()
+                    ? "Votre commande #{$confirmed->order_number} a été acceptée par le vendeur. Le colis va être remis au transporteur."
+                    : "Votre commande #{$confirmed->order_number} a été acceptée par le vendeur. En attente du livreur.",
+                ['type' => 'order_confirmed', 'order_id' => (string) $confirmed->id, 'order_number' => $confirmed->order_number]
+            );
+        }
+
+        return $confirmed;
+    }
+
+    /**
+     * Refus d'une commande encore en attente : annulée, acheteur remboursé (wallet ou
+     * Wallet ASSO), stock restauré, acheteur prévenu. Renvoie le montant rendu.
+     *
+     * @throws \Exception si la commande a déjà été traitée
+     */
+    public function rejectBySeller(Order $order, string $reason, string $actorType, ?int $actorId): float
+    {
+        $refunded = DB::transaction(function () use ($order, $reason, $actorType, $actorId) {
+            // Verrou + re-contrôle : pas de refus après validation.
+            $locked = Order::whereKey($order->id)->lockForUpdate()->with('items')->first();
+            if (!$locked || $locked->status !== 'pending') {
+                throw new \Exception('Cette commande a déjà été traitée.');
+            }
+            $locked->update(['status' => 'cancelled', 'cancel_reason' => $reason, 'cancelled_at' => now()]);
+
+            $refunded = $this->refundBuyer(
+                $locked,
+                "Remboursement commande #{$locked->order_number} — refusée par le vendeur",
+                ['cancel_reason' => $reason]
+            );
+            foreach ($locked->items as $item) {
+                $item->restoreStock();
+            }
+            app(OrderTrackingService::class)->record($locked, 'cancelled', null, $reason, $actorType, $actorId);
+
+            return $refunded;
+        });
+
+        if ($client = $order->user) {
+            $this->fcmService->sendToUser(
+                $client,
+                'Commande refusée',
+                $refunded > 0
+                    ? "Votre commande #{$order->order_number} a été refusée. " . number_format($refunded, 0, ',', ' ') . " FCFA ont été rendus disponibles sur votre Wallet ASSO."
+                    : "Votre commande #{$order->order_number} a été refusée.",
+                ['type' => 'order_rejected', 'order_id' => (string) $order->id, 'order_number' => $order->order_number, 'reason' => $reason]
+            );
+        }
+
+        return $refunded;
+    }
+
+    /**
      * Rembourse l'acheteur d'une commande annulée/refusée (idempotent, à appeler DANS
      * une transaction DB).
      *
@@ -1048,6 +1201,21 @@ class OrderService
     }
 
     /** Prévient l'acheteur qu'un paiement tardif a été crédité sur son Wallet. */
+    /** Premier volet d'une commande en gros : pays d'origine → entrepôt ASSO de Douala. */
+    private function importLeg(ImportShippingOption $shipping, float $price, ?string $countryCode): array
+    {
+        $country = ImportCountry::where('code', $countryCode)->value('name') ?? CountryCode::name($countryCode) ?? $countryCode;
+        $mode = ImportShippingOption::MODE_LABELS[$shipping->mode] ?? $shipping->mode;
+
+        return [
+            'label' => "Expédition {$country} → " . ImportHub::CITY . " ({$mode})",
+            'mode' => $shipping->mode,
+            'carrier' => $shipping->carrier,
+            'lead_time_days' => $shipping->lead_time_days,
+            'price' => round($price),
+        ];
+    }
+
     /** Détail de la livraison figé sur la commande (affiché à l'acheteur, au vendeur, à l'admin). */
     private function deliverySnapshot(array $quote): array
     {

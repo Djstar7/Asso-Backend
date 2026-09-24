@@ -39,4 +39,14 @@ return [
         'api_key' => env('EXCHANGERATE_API_KEY', ''),
     ],
 
+    // Conversion des vidéos produits (ProcessProductVideo). Sans ffmpeg, la
+    // vidéo reçue est publiée telle quelle, sans affiche ni aperçu léger.
+    'ffmpeg' => [
+        'ffmpeg' => env('FFMPEG_BINARY', 'ffmpeg'),
+        'ffprobe' => env('FFPROBE_BINARY', 'ffprobe'),
+        // Doit rester sous le `retry_after` de la file (90 s par défaut) : au-delà,
+        // un autre worker reprendrait la même vidéo en parallèle.
+        'timeout' => (int) env('FFMPEG_TIMEOUT', 75),
+    ],
+
 ];

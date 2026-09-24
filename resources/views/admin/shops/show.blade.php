@@ -148,48 +148,53 @@
         @foreach($shop->locationRequests->where('status', 'pending') as $request)
         <div class="bg-orange-500/10 border border-orange-500/30 rounded-lg p-4 mb-4">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <!-- Current Location -->
+                <!-- Emplacement actuel -->
                 <div>
                     <h4 class="text-sm font-semibold text-white mb-2">
                         <i class="fas fa-map-marker text-gray-400 mr-1"></i>
-                        Position actuelle
+                        Emplacement actuel
                     </h4>
-                    <p class="text-gray-300 text-sm">
-                        Latitude: <span class="font-mono text-blue-300">{{ $shop->latitude }}</span><br>
-                        Longitude: <span class="font-mono text-blue-300">{{ $shop->longitude }}</span>
-                    </p>
+                    <p class="text-gray-300 text-sm">{{ $shop->location_label ?: '—' }}</p>
+                    <p class="text-gray-400 text-sm">{{ $shop->address }}</p>
+                    @if($shop->latitude && $shop->longitude)
+                        <a href="https://www.google.com/maps?q={{ $shop->latitude }},{{ $shop->longitude }}" target="_blank" rel="noopener"
+                           class="inline-block mt-1 text-xs text-primary-400 hover:text-primary-300"><i class="fas fa-external-link-alt mr-1"></i>Voir sur la carte</a>
+                    @endif
                 </div>
 
-                <!-- Requested Location -->
+                <!-- Emplacement demandé -->
                 <div>
                     <h4 class="text-sm font-semibold text-white mb-2">
                         <i class="fas fa-map-marker-alt text-orange-400 mr-1"></i>
-                        Position demandée
+                        Emplacement demandé
                     </h4>
-                    <p class="text-gray-300 text-sm">
-                        Latitude: <span class="font-mono text-orange-300">{{ $request->latitude }}</span><br>
-                        Longitude: <span class="font-mono text-orange-300">{{ $request->longitude }}</span>
-                    </p>
+                    <p class="text-gray-300 text-sm">{{ collect([$request->city, $request->country])->filter()->implode(', ') ?: '—' }}</p>
+                    <p class="text-gray-400 text-sm">{{ $request->address }}</p>
+                    <a href="https://www.google.com/maps?q={{ $request->latitude }},{{ $request->longitude }}" target="_blank" rel="noopener"
+                       class="inline-block mt-1 text-xs text-primary-400 hover:text-primary-300"><i class="fas fa-external-link-alt mr-1"></i>Voir sur la carte</a>
                 </div>
             </div>
 
-            <!-- Request Info -->
-            <div class="mt-3 pt-3 border-t border-orange-500/20">
+            <!-- Demande -->
+            <div class="mt-3 pt-3 border-t border-orange-500/20 space-y-1">
+                @if($request->reason)
+                    <p class="text-gray-300 text-sm"><i class="fas fa-comment-alt mr-1 text-gray-500"></i>« {{ $request->reason }} »</p>
+                @endif
                 <p class="text-gray-400 text-xs">
                     <i class="fas fa-clock mr-1"></i>
-                    Demandé le {{ $request->created_at->format('d/m/Y à H:i') }}
+                    Demandé le {{ $request->created_at->format('d/m/Y à H:i') }} par {{ $request->vendor?->name ?? 'le vendeur' }}
                 </p>
             </div>
 
-            <!-- Action Buttons -->
-            <div class="flex gap-3 mt-4">
+            <!-- Décision -->
+            <div class="flex flex-col md:flex-row gap-3 mt-4">
                 <form action="{{ route('admin.shops.location-requests.approve', ['shop' => $shop, 'request' => $request]) }}"
                       method="POST"
-                      class="flex-1"
-                      data-confirm="Voulez-vous approuver ce changement de localisation? Le vendeur sera notifié.">
+                      class="md:w-1/3"
+                      data-confirm="Approuver ce changement d'emplacement ? La boutique est déplacée et le vendeur est prévenu.">
                     @csrf
                     <button type="submit"
-                            class="w-full px-4 py-3 bg-gradient-to-r from-green-500 to-green-600 hover:shadow-lg text-white rounded-lg transition-all flex items-center justify-center gap-2 font-semibold">
+                            class="w-full px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-all flex items-center justify-center gap-2 font-semibold">
                         <i class="fas fa-check-circle"></i>
                         Approuver
                     </button>
@@ -197,13 +202,15 @@
 
                 <form action="{{ route('admin.shops.location-requests.reject', ['shop' => $shop, 'request' => $request]) }}"
                       method="POST"
-                      class="flex-1"
-                      data-confirm="Voulez-vous rejeter ce changement de localisation? Le vendeur sera notifié.">
+                      class="flex-1 flex gap-2"
+                      data-confirm="Refuser ce changement d'emplacement ? Le vendeur reçoit le motif.">
                     @csrf
+                    <input type="text" name="rejection_reason" required maxlength="500" placeholder="Motif du refus (envoyé au vendeur)"
+                           class="flex-1 px-3 py-2 bg-dark-50 border border-dark-200 rounded-lg text-white text-sm focus:border-primary-500 focus:outline-none">
                     <button type="submit"
-                            class="w-full px-4 py-3 bg-gradient-to-r from-red-500 to-red-600 hover:shadow-lg text-white rounded-lg transition-all flex items-center justify-center gap-2 font-semibold">
+                            class="px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-all flex items-center justify-center gap-2 font-semibold">
                         <i class="fas fa-times-circle"></i>
-                        Rejeter
+                        Refuser
                     </button>
                 </form>
             </div>

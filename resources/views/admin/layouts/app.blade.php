@@ -208,6 +208,19 @@
                         Pays importés
                     </a>
 
+                    <a href="{{ route('admin.wholesale-orders.index') }}"
+                       class="flex items-center justify-between px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.wholesale-orders.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
+                        <span class="flex items-center">
+                            <i class="fas fa-dolly w-5 mr-3"></i>
+                            Commandes en gros
+                        </span>
+                        @if(!empty($wholesaleToValidateCount))
+                            <span class="flex items-center justify-center min-w-[1.5rem] h-6 px-2 bg-yellow-500 text-dark-100 text-xs font-bold rounded-full">
+                                {{ $wholesaleToValidateCount }}
+                            </span>
+                        @endif
+                    </a>
+
                     <a href="{{ route('admin.settings.categories') }}"
                        class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.settings.categories*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <i class="fas fa-th-large w-5 mr-3"></i>

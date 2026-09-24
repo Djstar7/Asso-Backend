@@ -126,6 +126,12 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/shipments/{order}', [\App\Http\Controllers\Admin\ShipmentController::class, 'show'])->name('shipments.show');
         Route::post('/shipments/{order}/steps', [\App\Http\Controllers\Admin\ShipmentController::class, 'addStep'])->name('shipments.step');
 
+        // Commandes en gros (Chine, Dubaï, Turquie → Douala → SOLEX)
+        Route::get('/wholesale-orders', [\App\Http\Controllers\Admin\WholesaleOrderController::class, 'index'])->name('wholesale-orders.index');
+        Route::get('/wholesale-orders/{order}', [\App\Http\Controllers\Admin\WholesaleOrderController::class, 'show'])->name('wholesale-orders.show');
+        Route::post('/wholesale-orders/{order}/confirm', [\App\Http\Controllers\Admin\WholesaleOrderController::class, 'confirm'])->name('wholesale-orders.confirm');
+        Route::post('/wholesale-orders/{order}/reject', [\App\Http\Controllers\Admin\WholesaleOrderController::class, 'reject'])->name('wholesale-orders.reject');
+
         // Deliverers (Livreurs partenaires)
         Route::resource('deliverers', DelivererController::class)->except(['store']);
         Route::post('deliverers/{deliverer}/sync-code', [DelivererController::class, 'generateSyncCode'])->name('deliverers.sync-code');
@@ -173,6 +179,14 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::delete('/products/{product}/images/{image}', [ProductController::class, 'deleteImage'])->name('products.images.delete');
         Route::post('/products/{product}/images/{image}/primary', [ProductController::class, 'setPrimaryImage'])->name('products.images.setPrimary');
         Route::post('/products/{product}/images/reorder', [ProductController::class, 'reorderImages'])->name('products.images.reorder');
+
+        // Vidéos produits grossistes : envoi par morceaux avant l'enregistrement du produit
+        Route::post('/product-videos/chunks', [\App\Http\Controllers\Admin\ProductVideoController::class, 'chunk'])->name('product-videos.chunk');
+        Route::get('/product-videos/{video}', [\App\Http\Controllers\Admin\ProductVideoController::class, 'show'])->name('product-videos.show');
+        Route::delete('/product-videos/{video}', [\App\Http\Controllers\Admin\ProductVideoController::class, 'destroy'])->name('product-videos.destroy');
+        Route::get('/product-videos/{video}/media/{kind}', [\App\Http\Controllers\Admin\ProductVideoController::class, 'media'])
+            ->whereIn('kind', ['video', 'preview', 'poster'])
+            ->name('product-videos.media');
 
         // Settings
         Route::prefix('settings')->name('settings.')->group(function () {
@@ -226,6 +240,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
 
         // Pays importés (Chine, Turquie, Dubaï…) — alimente la section "Produits importés" de l'app
         Route::get('/import-countries', [ImportCountryController::class, 'index'])->name('import-countries.index');
+        Route::post('/import-countries/hub', [ImportCountryController::class, 'createHub'])->name('import-countries.hub');
         Route::post('/import-countries', [ImportCountryController::class, 'store'])->name('import-countries.store');
         Route::put('/import-countries/{importCountry}', [ImportCountryController::class, 'update'])->name('import-countries.update');
         Route::patch('/import-countries/{importCountry}/toggle-status', [ImportCountryController::class, 'toggleStatus'])->name('import-countries.toggle-status');

@@ -53,7 +53,13 @@ class Shop extends Model
     {
         // Position ou adresse modifiée : on recalcule le quartier de livraison.
         static::saving(function (Shop $shop) {
-            if ($shop->isDirty(['latitude', 'longitude', 'address', 'city']) || blank($shop->quarter)) {
+            if ($shop->isDirty(['latitude', 'longitude', 'address', 'city'])) {
+                // L'ancien quartier ne vaut plus, même quand la nouvelle ville n'a pas de
+                // grille : il restait accolé au nouveau lieu (« Essengué, Bafoussam ») sur
+                // la boutique, ses produits et le départ des devis de livraison.
+                $shop->quarter = null;
+                $shop->assignDeliveryQuarter();
+            } elseif (blank($shop->quarter)) {
                 $shop->assignDeliveryQuarter();
             }
         });
@@ -167,6 +173,16 @@ class Shop extends Model
     public function locationRequests(): HasMany
     {
         return $this->hasMany(ShopLocationRequest::class);
+    }
+
+    /**
+     * Boutique déjà placée sur la carte : son emplacement ne change plus que par
+     * une demande validée par l'admin (le premier placement reste libre).
+     */
+    public function hasLocation(): bool
+    {
+        return $this->latitude !== null && $this->longitude !== null
+            && ((float) $this->latitude != 0 || (float) $this->longitude != 0);
     }
 
     /**

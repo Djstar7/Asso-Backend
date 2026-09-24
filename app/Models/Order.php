@@ -24,7 +24,7 @@ class Order extends Model
     public const DIRECT_PAYMENT_METHODS = ['kpay_direct', 'paypal_direct', 'stripe_direct'];
 
     protected $fillable = [
-        'order_number', 'user_id', 'status', 'subtotal', 'delivery_fee', 'base_delivery_price', 'delivery_commission', 'total',
+        'order_number', 'user_id', 'status', 'subtotal', 'delivery_fee', 'import_shipping_fee', 'base_delivery_price', 'delivery_commission', 'total',
         'sale_commission_rate', 'sale_commission', 'vendor_net_amount', 'settled_at', 'refunded_at',
         'is_wholesale', 'import_country_code', 'shipping_mode', 'shipping_option_id',
         'delivery_address',
@@ -45,6 +45,7 @@ class Order extends Model
     protected $casts = [
         'subtotal' => 'decimal:2',
         'delivery_fee' => 'decimal:2',
+        'import_shipping_fee' => 'decimal:2',
         'base_delivery_price' => 'decimal:2',
         'delivery_commission' => 'decimal:2',
         'total' => 'decimal:2',
@@ -82,6 +83,39 @@ class Order extends Model
     {
         return $this->isCarrierDelivery()
             && ($this->delivery_zone_id !== null || $this->delivery_city_grid_id !== null);
+    }
+
+    /**
+     * Import en gros livré dans Douala : SOLEX part de l'entrepôt ASSO, sans trajet
+     * interurbain. Ailleurs au Cameroun, le colis passe d'abord par un trajet SOLEX.
+     */
+    public function leavesFromImportHub(): bool
+    {
+        return $this->is_wholesale && $this->delivery_route_id === null;
+    }
+
+    /** Étape qui met le colis à disposition des coursiers du partenaire. */
+    public function lastMileStep(): ?string
+    {
+        if (!$this->hasLastMileDelivery()) {
+            return null;
+        }
+
+        return $this->leavesFromImportHub() ? 'arrived_hub' : 'arrived';
+    }
+
+    /**
+     * Commandes transporteur dont le dernier kilomètre peut partir : colis arrivé à
+     * l'agence de la ville d'arrivée, ou import arrivé à l'entrepôt ASSO de Douala.
+     */
+    public function scopeReadyForLastMile($query)
+    {
+        return $query->where('delivery_mode', self::DELIVERY_CARRIER)
+            ->where(fn ($z) => $z->whereNotNull('delivery_zone_id')->orWhereNotNull('delivery_city_grid_id'))
+            ->where('status', 'shipped')
+            ->where(fn ($t) => $t->whereIn('tracking_status', ['arrived', 'ready_for_pickup'])
+                ->orWhere(fn ($h) => $h->where('is_wholesale', true)->whereNull('delivery_route_id')
+                    ->where('tracking_status', 'arrived_hub')));
     }
 
     protected static function boot()

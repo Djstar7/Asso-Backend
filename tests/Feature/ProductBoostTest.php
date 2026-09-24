@@ -32,6 +32,8 @@ class ProductBoostTest extends TestCase
 
         $this->mock(FirebaseMessagingService::class, function ($mock) {
             $mock->shouldReceive('sendToUser')->andReturn([]);
+            // Annonce du produit sponsorisé à tous (voir ProductBroadcastTest).
+            $mock->shouldReceive('sendToTopic')->andReturn(['success' => true]);
         });
         $this->mock(FcmService::class, function ($mock) {
             $mock->shouldIgnoreMissing();
