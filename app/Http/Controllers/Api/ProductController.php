@@ -201,6 +201,10 @@ class ProductController extends Controller
         // TODO: Implement actual location-based filtering when location data is available
         $products = Product::with(['images', 'primaryImage', 'category', 'subcategory', 'shop', 'user', 'variants'])
             ->where('status', 'active')
+            ->where(function ($q) {
+                $q->whereNull('origin_country')
+                    ->orWhere('origin_country', '');
+            })
             ->whereHas('shop', function ($q) {
                 $q->where('status', 'active');
             })

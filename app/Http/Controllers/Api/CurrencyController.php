@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Currency;
+use App\Support\CountryFlag;
 use Illuminate\Http\Request;
 
 class CurrencyController extends Controller
@@ -168,6 +169,13 @@ class CurrencyController extends Controller
             'name' => $c->name,
             'symbol' => $c->symbol,
             'countries' => $c->countries ?? [],
+            // Même liste enrichie du code ISO et du drapeau emoji (null si le nom
+            // n'est pas reconnu) : `countries` reste inchangé pour les clients existants.
+            'countries_detailed' => array_map(fn ($name) => [
+                'name' => $name,
+                'code' => CountryFlag::code($name),
+                'flag' => CountryFlag::flag($name),
+            ], array_values($c->countries ?? [])),
             'is_active' => $c->is_active,
         ];
     }

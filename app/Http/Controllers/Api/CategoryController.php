@@ -13,9 +13,16 @@ class CategoryController extends Controller
      */
     public function index(Request $request)
     {
-        $categories = Category::withCount('products')
-            ->with(['subcategories' => function ($q) {
-                $q->withCount('products');
+        // Compteurs de l'accueil : catalogue local uniquement. Les produits gros
+        // (ASSO CHINA / DUBAÏ / TURQUIE) ont leur propre catalogue (/v1/import/{code}/products).
+        $localOnly = fn ($q) => $q->where(function ($p) {
+            $p->whereNull('origin_country')
+                ->orWhere('origin_country', '');
+        });
+
+        $categories = Category::withCount(['products' => $localOnly])
+            ->with(['subcategories' => function ($q) use ($localOnly) {
+                $q->withCount(['products' => $localOnly]);
             }])
             ->orderBy('name')
             ->get();
