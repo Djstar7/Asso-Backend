@@ -121,7 +121,7 @@ class ProductController extends Controller
             'images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:5120',
 
             'is_wholesale' => 'nullable|boolean',
-            // Livraison gratuite : vide = suit la boutique, 1 = offerte, 0 = payée par le client.
+            // Livraison gratuite : 1 = offerte, 0 = non.
             'free_delivery' => 'nullable|boolean',
             'tiers' => 'nullable|array',
             'tiers.*.label' => 'required_with:tiers|string|max:255',
@@ -168,7 +168,10 @@ class ProductController extends Controller
 
         // Vente en gros
         $validated['is_wholesale'] = $isWholesale;
-        $validated['free_delivery'] = $request->filled('free_delivery') ? $request->boolean('free_delivery') : null;
+        // Livraison gratuite : le produit ne garde un réglage propre que s'il
+        // diffère de celui de sa boutique ; sinon il la suit.
+        $freeDelivery = $request->boolean('free_delivery');
+        $validated['free_delivery'] = $freeDelivery === (bool) $shop->free_delivery ? null : $freeDelivery;
 
         // Create product
         $product = Product::create($validated);
@@ -251,7 +254,7 @@ class ProductController extends Controller
             'images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:5120',
 
             'is_wholesale' => 'nullable|boolean',
-            // Livraison gratuite : vide = suit la boutique, 1 = offerte, 0 = payée par le client.
+            // Livraison gratuite : 1 = offerte, 0 = non.
             'free_delivery' => 'nullable|boolean',
             'tiers' => 'nullable|array',
             'tiers.*.label' => 'required_with:tiers|string|max:255',
@@ -299,7 +302,10 @@ class ProductController extends Controller
 
         // Vente en gros
         $validated['is_wholesale'] = $isWholesale;
-        $validated['free_delivery'] = $request->filled('free_delivery') ? $request->boolean('free_delivery') : null;
+        // Livraison gratuite : le produit ne garde un réglage propre que s'il
+        // diffère de celui de sa boutique ; sinon il la suit.
+        $freeDelivery = $request->boolean('free_delivery');
+        $validated['free_delivery'] = $freeDelivery === (bool) $shop->free_delivery ? null : $freeDelivery;
 
         // Masquer / afficher est une permission distincte de la modification.
         if (! $request->user()->hasAdminPermission('products.toggle_visibility')) {

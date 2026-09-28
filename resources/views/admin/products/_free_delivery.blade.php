@@ -1,40 +1,26 @@
 {{--
-    Livraison gratuite du produit : suit la boutique (vide), offerte (1) ou
-    payée par le client (0). L'acheteur voit alors les prix de livraison barrés ;
-    la course est retenue sur la part du vendeur.
+    Livraison gratuite du produit : un seul interrupteur, offerte ou non.
+    L'acheteur voit alors les prix de livraison barrés ; la course est retenue
+    sur la part du vendeur.
 --}}
 @php
-    $current = old('free_delivery', isset($product) && $product->free_delivery !== null ? ($product->free_delivery ? '1' : '0') : '');
-    $shopFree = isset($product) && $product->shop?->free_delivery;
-    $choices = [
-        '' => ['Suivre la boutique', isset($product) && $product->shop
-            ? ($shopFree ? 'La boutique offre la livraison' : 'La boutique ne l\'offre pas')
-            : 'Réglage de la boutique choisie', 'fa-store'],
-        '1' => ['Offerte', 'Le client ne paie pas la livraison', 'fa-gift'],
-        '0' => ['Payée par le client', 'Même si la boutique l\'offre', 'fa-receipt'],
-    ];
+    $checked = (bool) old('free_delivery', isset($product) ? $product->hasFreeDelivery() : false);
 @endphp
 <div class="bg-dark-100 rounded-xl shadow-lg p-6">
-    <h2 class="text-lg font-semibold text-white mb-1 flex items-center">
-        <i class="fas fa-truck text-green-500 mr-2"></i>
-        Livraison gratuite
-    </h2>
-    <p class="text-xs text-gray-400 mb-4">
-        Le prix de la course est retenu sur la vente. Si elle coûte plus que la vente, le client la paie.
-        Pour un produit en gros, seule la livraison depuis Douala est offerte.
-    </p>
-
-    <div class="space-y-2">
-        @foreach($choices as $value => [$label, $hint, $icon])
-            <label class="flex items-center p-3 border border-dark-200 rounded-lg cursor-pointer hover:bg-dark-50 has-[:checked]:border-green-500 has-[:checked]:bg-green-900/10">
-                <input type="radio" name="free_delivery" value="{{ $value }}" {{ (string) $current === (string) $value ? 'checked' : '' }}
-                       class="mr-3 text-green-500 focus:ring-green-500">
-                <div>
-                    <div class="font-medium text-white"><i class="fas {{ $icon }} mr-2 text-green-500"></i>{{ $label }}</div>
-                    <div class="text-xs text-gray-400">{{ $hint }}</div>
-                </div>
-            </label>
-        @endforeach
-    </div>
+    <label for="free_delivery" class="flex items-center justify-between gap-4 cursor-pointer">
+        <div>
+            <h2 class="text-lg font-semibold text-white flex items-center">
+                <i class="fas fa-truck text-green-500 mr-2"></i>
+                Livraison gratuite
+            </h2>
+            <p class="text-xs text-gray-400 mt-1">Offerte au client, retenue sur la vente.</p>
+        </div>
+        <span class="relative inline-flex flex-shrink-0">
+            <input type="hidden" name="free_delivery" value="0">
+            <input type="checkbox" name="free_delivery" id="free_delivery" value="1" {{ $checked ? 'checked' : '' }} class="peer sr-only">
+            <span class="h-8 w-14 rounded-full bg-gray-600 transition-colors peer-checked:bg-green-600 peer-focus-visible:ring-2 peer-focus-visible:ring-green-400"></span>
+            <span class="absolute left-1 top-1 h-6 w-6 rounded-full bg-white shadow transition-transform peer-checked:translate-x-6"></span>
+        </span>
+    </label>
     @error('free_delivery')<p class="mt-2 text-sm text-red-400">{{ $message }}</p>@enderror
 </div>

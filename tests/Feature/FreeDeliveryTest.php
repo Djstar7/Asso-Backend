@@ -243,14 +243,18 @@ class FreeDeliveryTest extends TestCase
         $this->assertTrue($product->free_delivery);
         $this->assertTrue($product->hasFreeDelivery());
 
-        // Retour au réglage de la boutique (vide).
-        $this->actingAs($pm)->put("/admin/products/{$product->id}", $payload + ['free_delivery' => ''])
+        // Désactivée, comme sa boutique : le produit la suit de nouveau.
+        $this->actingAs($pm)->put("/admin/products/{$product->id}", $payload + ['free_delivery' => '0'])
             ->assertRedirect(route('admin.products.index'));
         $this->assertNull($product->fresh()->free_delivery);
+        $this->assertFalse($product->fresh()->hasFreeDelivery());
 
+        // Boutique en livraison gratuite : désactiver exclut ce produit.
+        $product->shop->update(['free_delivery' => true]);
         $this->actingAs($pm)->put("/admin/products/{$product->id}", $payload + ['free_delivery' => '0'])
             ->assertRedirect(route('admin.products.index'));
         $this->assertFalse($product->fresh()->free_delivery);
+        $this->assertFalse($product->fresh()->hasFreeDelivery());
     }
 
     public function test_admin_and_shops_managers_toggle_shop_free_delivery(): void
