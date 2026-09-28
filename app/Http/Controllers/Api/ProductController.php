@@ -10,6 +10,7 @@ use App\Models\Inventory;
 use App\Services\ProductBroadcastService;
 use App\Services\ProductVariantService;
 use Illuminate\Http\Request;
+use Illuminate\Database\UniqueConstraintViolationException;
 
 class ProductController extends Controller
 {
@@ -365,6 +366,21 @@ class ProductController extends Controller
             'count' => $request->hasFile('images') ? count($request->file('images')) : 0,
         ]);
 
+        // Renvoi d'un produit saisi hors ligne : s'il a déjà été créé (réponse
+        // perdue en route), on le rend tel quel plutôt que d'en créer un second.
+        $request->validate(['client_reference' => 'nullable|string|max:64']);
+        $clientReference = $request->filled('client_reference')
+            ? (string) $request->input('client_reference')
+            : null;
+        if ($clientReference !== null) {
+            $existing = Product::where('user_id', $request->user()->id)
+                ->where('client_reference', $clientReference)
+                ->first();
+            if ($existing) {
+                return $this->replayedProductResponse($existing, $request);
+            }
+        }
+
         // Poids en kg : accepte la virgule décimale (« 1,5 »).
         if (is_string($request->input('weight'))) {
             $request->merge(['weight' => str_replace(',', '.', trim($request->input('weight')))]);
@@ -475,7 +491,26 @@ class ProductController extends Controller
             $productData['free_delivery'] = (bool) $validated['free_delivery'];
         }
 
-        $product = Product::create($productData);
+        if ($clientReference !== null) {
+            $productData['client_reference'] = $clientReference;
+        }
+
+        try {
+            $product = Product::create($productData);
+        } catch (UniqueConstraintViolationException $e) {
+            // Deux envois simultanés de la même référence : le premier a créé
+            // le produit, le second le rend. Rien n'a encore été stocké ni débité.
+            $existing = $clientReference !== null
+                ? Product::where('user_id', $request->user()->id)
+                    ->where('client_reference', $clientReference)
+                    ->first()
+                : null;
+            if (!$existing) {
+                throw $e;
+            }
+
+            return $this->replayedProductResponse($existing, $request);
+        }
         if (!empty($validated['variants'])) {
             app(ProductVariantService::class)->sync($product, $validated['variants'], $validated['variant_options'] ?? null);
         }
@@ -548,6 +583,32 @@ class ProductController extends Controller
                 'remaining_mb' => round($vendorPackage->storage_remaining_mb, 2),
             ],
         ], 201);
+    }
+
+    /**
+     * Réponse à un renvoi : le produit déjà créé pour cette référence, sans
+     * nouvelle écriture ni nouveau débit de stockage.
+     */
+    private function replayedProductResponse(Product $product, Request $request)
+    {
+        \Log::info('[PRODUCT_STORE] Replay of client reference', [
+            'product_id' => $product->id,
+            'client_reference' => $product->client_reference,
+        ]);
+
+        $product->load(['images', 'primaryImage', 'category', 'subcategory', 'user', 'shop']);
+        $vendorPackage = $request->user()->activeVendorPackage;
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Product already created',
+            'replayed' => true,
+            'product' => $this->formatProduct($product, []),
+            'storage_info' => [
+                'used_mb' => 0,
+                'remaining_mb' => $vendorPackage ? round($vendorPackage->storage_remaining_mb, 2) : 0,
+            ],
+        ], 200);
     }
 
     /**

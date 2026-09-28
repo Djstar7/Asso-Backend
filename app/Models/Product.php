@@ -109,6 +109,8 @@ class Product extends Model
         'status',
         'is_wholesale',
         'free_delivery',
+        // Référence de l'application pour un produit saisi hors ligne (idempotence).
+        'client_reference',
     ];
 
     protected $casts = [
