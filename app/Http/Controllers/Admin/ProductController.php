@@ -121,6 +121,8 @@ class ProductController extends Controller
             'images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:5120',
 
             'is_wholesale' => 'nullable|boolean',
+            // Livraison gratuite : vide = suit la boutique, 1 = offerte, 0 = payée par le client.
+            'free_delivery' => 'nullable|boolean',
             'tiers' => 'nullable|array',
             'tiers.*.label' => 'required_with:tiers|string|max:255',
             'tiers.*.unit_price' => 'required_with:tiers|numeric|min:0',
@@ -166,6 +168,7 @@ class ProductController extends Controller
 
         // Vente en gros
         $validated['is_wholesale'] = $isWholesale;
+        $validated['free_delivery'] = $request->filled('free_delivery') ? $request->boolean('free_delivery') : null;
 
         // Create product
         $product = Product::create($validated);
@@ -248,6 +251,8 @@ class ProductController extends Controller
             'images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:5120',
 
             'is_wholesale' => 'nullable|boolean',
+            // Livraison gratuite : vide = suit la boutique, 1 = offerte, 0 = payée par le client.
+            'free_delivery' => 'nullable|boolean',
             'tiers' => 'nullable|array',
             'tiers.*.label' => 'required_with:tiers|string|max:255',
             'tiers.*.unit_price' => 'required_with:tiers|numeric|min:0',
@@ -294,6 +299,7 @@ class ProductController extends Controller
 
         // Vente en gros
         $validated['is_wholesale'] = $isWholesale;
+        $validated['free_delivery'] = $request->filled('free_delivery') ? $request->boolean('free_delivery') : null;
 
         // Masquer / afficher est une permission distincte de la modification.
         if (! $request->user()->hasAdminPermission('products.toggle_visibility')) {

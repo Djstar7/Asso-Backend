@@ -201,12 +201,12 @@ class VendorOrderController extends Controller
         $this->fcmService->sendToUser(
             $deliveryPerson,
             'Nouvelle livraison assignée',
-            "Commande #{$order->order_number} — Livraison vers {$order->delivery_address}" . ($order->delivery_address_details ? " ({$order->delivery_address_details})" : '') . ". Contact: {$order->customer_phone}. Frais: " . number_format($order->delivery_fee, 0, ',', ' ') . " FCFA",
+            "Commande #{$order->order_number} — Livraison vers {$order->delivery_address}" . ($order->delivery_address_details ? " ({$order->delivery_address_details})" : '') . ". Contact: {$order->customer_phone}. Frais: " . number_format($order->deliveryPriceShown(), 0, ',', ' ') . " FCFA",
             [
                 'type' => 'delivery_assigned',
                 'order_id' => (string) $order->id,
                 'order_number' => $order->order_number,
-                'delivery_fee' => (string) $order->delivery_fee,
+                'delivery_fee' => (string) $order->deliveryPriceShown(),
                 'delivery_address' => $order->delivery_address,
                 'delivery_address_details' => $order->delivery_address_details,
                 'customer_phone' => $order->customer_phone,
@@ -397,12 +397,12 @@ class VendorOrderController extends Controller
                 $this->fcmService->sendToUser(
                     $sync->user,
                     'Nouvelle livraison disponible',
-                    "Commande #{$order->order_number} — Livraison vers {$order->delivery_address}. Commission: " . number_format($order->delivery_fee, 0, ',', ' ') . " FCFA",
+                    "Commande #{$order->order_number} — Livraison vers {$order->delivery_address}. Commission: " . number_format($order->deliveryPriceShown(), 0, ',', ' ') . " FCFA",
                     [
                         'type' => 'new_delivery_request',
                         'order_id' => (string) $order->id,
                         'order_number' => $order->order_number,
-                        'delivery_fee' => (string) $order->delivery_fee,
+                        'delivery_fee' => (string) $order->deliveryPriceShown(),
                         'delivery_address' => $order->delivery_address,
                         'delivery_latitude' => (string) ($order->delivery_latitude ?? ''),
                         'delivery_longitude' => (string) ($order->delivery_longitude ?? ''),
@@ -476,7 +476,11 @@ class VendorOrderController extends Controller
             'subtotal' => (float) $order->subtotal,
             'delivery_fee' => (float) $order->delivery_fee,
             // Montant dû au vendeur : SES prix (hors majoration ASSO payée par le client).
-            'vendor_amount' => (float) $order->items->sum(fn ($i) => $i->seller_total_price ?? $i->total_price),
+            'vendor_amount' => (float) $order->items->sum(fn ($i) => $i->seller_total_price ?? $i->total_price)
+                - (float) $order->free_delivery_amount,
+            // Livraison gratuite offerte : course retenue sur le montant du vendeur.
+            'free_delivery' => (bool) $order->free_delivery,
+            'free_delivery_amount' => (float) $order->free_delivery_amount,
             'delivery_address' => $order->delivery_address,
             'delivery_address_details' => $order->delivery_address_details,
             'delivery_latitude' => $order->delivery_latitude !== null ? (float) $order->delivery_latitude : null,

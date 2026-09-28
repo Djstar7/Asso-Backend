@@ -102,6 +102,11 @@
                             <i class="fas fa-boxes mr-1"></i>Gros
                         </span>
                     @endif
+                    @if($product->hasFreeDelivery())
+                        <span class="px-2 py-1 text-xs rounded-full backdrop-blur-sm bg-green-500/20 text-green-300 border border-green-500/50">
+                            <i class="fas fa-truck mr-1"></i>Livraison gratuite
+                        </span>
+                    @endif
                 </div>
                 </div>
                 <div class="p-4">
@@ -241,6 +246,11 @@
                                     @if($product->is_wholesale)
                                         <span class="px-2 py-1 text-xs rounded-full bg-orange-500/20 text-orange-300 border border-orange-500/50">
                                             <i class="fas fa-boxes mr-1"></i>Gros
+                                        </span>
+                                    @endif
+                                    @if($product->hasFreeDelivery())
+                                        <span class="px-2 py-1 text-xs rounded-full bg-green-500/20 text-green-300 border border-green-500/50">
+                                            <i class="fas fa-truck mr-1"></i>Livraison gratuite
                                         </span>
                                     @endif
                                     @if($product->origin_country)

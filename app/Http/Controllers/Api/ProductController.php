@@ -390,6 +390,8 @@ class ProductController extends Controller
             'sizes.*' => 'string|in:' . implode(',', Product::AVAILABLE_SIZES),
             'images' => 'required|array|min:1',
             'images.*' => 'file|image|mimes:jpeg,png,jpg,gif,webp|max:5120',
+            // Livraison gratuite : absent/null = suit la boutique.
+            'free_delivery' => 'nullable|boolean',
         ] + ProductVariantService::rules());
 
         \Log::info('[PRODUCT_STORE] Validation passed');
@@ -468,6 +470,9 @@ class ProductController extends Controller
         }
         if (!empty($validated['weight'])) {
             $productData['weight'] = $validated['weight'];
+        }
+        if (isset($validated['free_delivery'])) {
+            $productData['free_delivery'] = (bool) $validated['free_delivery'];
         }
 
         $product = Product::create($productData);
@@ -585,6 +590,8 @@ class ProductController extends Controller
             // Positionné par injectSponsored(), jamais déduit du produit lui-même —
             // une même fiche n'est « Sponsorisé » que là où l'annonce est diffusée.
             'is_sponsored' => false,
+            // Livraison gratuite offerte par le vendeur (produit, sinon boutique).
+            'free_delivery' => $product->hasFreeDelivery(),
             'primary_image' => $product->primaryImage ? $this->getImageUrl($product->primaryImage->image_path) : null,
             'images' => $product->images->map(fn($img) => [
                 'id' => $img->id,
@@ -613,6 +620,7 @@ class ProductController extends Controller
                 'slug' => $product->shop->slug,
                 'logo' => $product->shop->logo ? $this->getImageUrl($product->shop->logo) : null,
                 'is_certified' => (bool) $product->shop->is_certified,
+                'free_delivery' => (bool) $product->shop->free_delivery,
                 'latitude' => $product->shop->latitude ? (float) $product->shop->latitude : null,
                 'longitude' => $product->shop->longitude ? (float) $product->shop->longitude : null,
                 'address' => $product->shop->address,
@@ -630,6 +638,8 @@ class ProductController extends Controller
         if (auth('sanctum')->id() && auth('sanctum')->id() === $product->user_id) {
             $data['seller_price'] = (float) $product->price;
             $data['asso_commission_rate'] = $pricing['rate'];
+            // Choix propre au produit : null = suit la boutique.
+            $data['free_delivery_setting'] = $product->free_delivery;
         }
 
         if ($detailed) {

@@ -116,6 +116,8 @@ class VendorProductController extends Controller
             'deleted_image_ids.*' => 'integer|exists:product_images,id',
             // Multipart ne sait pas envoyer une liste vide : ce drapeau permet de retirer toutes les variantes.
             'replace_variants' => 'sometimes|boolean',
+            // Livraison gratuite : null = suit la boutique.
+            'free_delivery' => 'sometimes|nullable|boolean',
         ] + ProductVariantService::rules());
 
         \Log::info('[VENDOR_PRODUCT_UPDATE] Received data:', [
@@ -411,6 +413,29 @@ class VendorProductController extends Controller
     }
 
     /**
+     * Livraison gratuite d'un produit du vendeur : true/false force le choix,
+     * null le fait suivre la boutique.
+     */
+    public function updateFreeDelivery(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'free_delivery' => 'present|nullable|boolean',
+        ]);
+
+        $product = Product::where('user_id', $request->user()->id)->findOrFail($id);
+        $product->update(['free_delivery' => $validated['free_delivery'] === null ? null : (bool) $validated['free_delivery']]);
+        $product->load(['images', 'primaryImage', 'category', 'subcategory', 'shop', 'variants']);
+
+        return response()->json([
+            'success' => true,
+            'message' => $product->hasFreeDelivery()
+                ? 'Livraison gratuite activée pour ce produit'
+                : 'Livraison gratuite désactivée pour ce produit',
+            'product' => $this->formatProduct($product),
+        ]);
+    }
+
+    /**
      * Format product for API response
      */
     private function formatProduct($product): array
@@ -463,10 +488,14 @@ class VendorProductController extends Controller
                 'slug' => $product->shop->slug,
                 'logo' => $product->shop->logo,
                 'is_certified' => (bool) $product->shop->is_certified,
+                'free_delivery' => (bool) $product->shop->free_delivery,
                 'latitude' => $product->shop->latitude ? (float) $product->shop->latitude : null,
                 'longitude' => $product->shop->longitude ? (float) $product->shop->longitude : null,
                 'address' => $product->shop->address,
             ] : null,
+            // Effectif (produit, sinon boutique) et choix propre au produit (null = suit la boutique).
+            'free_delivery' => $product->hasFreeDelivery(),
+            'free_delivery_setting' => $product->free_delivery,
             'created_at' => $product->created_at->toIso8601String(),
             'updated_at' => $product->updated_at->toIso8601String(),
         ];

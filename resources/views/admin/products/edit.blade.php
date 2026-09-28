@@ -339,6 +339,8 @@
                     </div>
                 </div>
 
+                @include('admin.products._free_delivery')
+
                 <!-- Status -->
                 <div class="bg-dark-100 rounded-xl shadow-lg p-6">
                     <h2 class="text-lg font-semibold text-white mb-4 flex items-center">

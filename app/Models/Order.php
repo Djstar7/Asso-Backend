@@ -24,7 +24,7 @@ class Order extends Model
     public const DIRECT_PAYMENT_METHODS = ['kpay_direct', 'paypal_direct', 'stripe_direct'];
 
     protected $fillable = [
-        'order_number', 'user_id', 'status', 'subtotal', 'delivery_fee', 'import_shipping_fee', 'base_delivery_price', 'delivery_commission', 'total',
+        'order_number', 'user_id', 'status', 'subtotal', 'delivery_fee', 'import_shipping_fee', 'base_delivery_price', 'delivery_commission', 'free_delivery', 'free_delivery_amount', 'total',
         'sale_commission_rate', 'sale_commission', 'vendor_net_amount', 'settled_at', 'refunded_at',
         'is_wholesale', 'import_country_code', 'shipping_mode', 'shipping_option_id',
         'delivery_address',
@@ -48,6 +48,8 @@ class Order extends Model
         'import_shipping_fee' => 'decimal:2',
         'base_delivery_price' => 'decimal:2',
         'delivery_commission' => 'decimal:2',
+        'free_delivery' => 'boolean',
+        'free_delivery_amount' => 'decimal:2',
         'total' => 'decimal:2',
         'sale_commission_rate' => 'decimal:2',
         'sale_commission' => 'decimal:2',
@@ -154,6 +156,15 @@ class Order extends Model
     public function isDirectPayment(): bool
     {
         return in_array($this->payment_method, self::DIRECT_PAYMENT_METHODS, true);
+    }
+
+    /**
+     * Prix de la course tel qu'affiché à l'acheteur, qu'il l'ait payé ou que le
+     * vendeur l'offre (livraison gratuite) : c'est ce que voit le livreur.
+     */
+    public function deliveryPriceShown(): float
+    {
+        return (float) $this->delivery_fee + (float) $this->free_delivery_amount;
     }
 
     /** Payée depuis le solde Wallet ASSO (fonds bloqués en escrow à la création) ? */

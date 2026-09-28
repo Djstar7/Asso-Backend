@@ -565,6 +565,8 @@ class DeliveryController extends Controller
                         'quantity' => max(1, (int) ($i['quantity'] ?? 1)),
                         // Gros : palier choisi, dont l'unité a son propre poids.
                         'price_tier_id' => isset($i['price_tier_id']) ? (int) $i['price_tier_id'] : null,
+                        // Variante choisie : son prix fixe la part du vendeur (livraison gratuite).
+                        'variant_id' => isset($i['variant_id']) ? (int) $i['variant_id'] : null,
                     ])->all(),
                     $latitude ? (float) $latitude : null,
                     $longitude ? (float) $longitude : null,
@@ -712,7 +714,7 @@ class DeliveryController extends Controller
             'order_number' => $order->order_number,
             'status' => $order->status,
             'total' => (float) $order->total,
-            'delivery_fee' => (float) $order->delivery_fee,
+            'delivery_fee' => $order->deliveryPriceShown(),
             'delivery_address' => $order->delivery_address,
             'delivery_address_details' => $order->delivery_address_details,
             'delivery_latitude' => $order->delivery_latitude,

@@ -402,6 +402,19 @@
                 </div>
             </div>
 
+            <!-- Livraison gratuite -->
+            <div class="bg-dark-100 rounded-xl shadow-lg p-6">
+                <h2 class="text-lg font-semibold text-white mb-2 flex items-center">
+                    <i class="fas fa-truck text-green-500 mr-2"></i>
+                    Livraison gratuite
+                </h2>
+                <p class="text-sm {{ $product->hasFreeDelivery() ? 'text-green-300' : 'text-gray-400' }}">
+                    {{ $product->hasFreeDelivery() ? 'Offerte au client' : 'Payée par le client' }}
+                    <span class="text-gray-500">—
+                        {{ $product->free_delivery === null ? 'réglage de la boutique' : 'réglage propre au produit' }}</span>
+                </p>
+            </div>
+
             <!-- Statut -->
             <div class="bg-dark-100 rounded-xl shadow-lg p-6">
                 <h2 class="text-lg font-semibold text-white mb-4 flex items-center">

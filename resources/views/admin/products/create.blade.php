@@ -337,6 +337,8 @@
                     </div>
                 </div>
 
+                @include('admin.products._free_delivery')
+
                 <!-- Submit Button -->
                 <div class="bg-gradient-to-r from-primary-500 to-primary-600 rounded-xl shadow-lg p-6 text-white">
                     <button type="submit" class="w-full px-6 py-3 bg-dark-100 text-primary-600 rounded-lg hover:bg-dark-50 transition-all font-semibold">

@@ -60,7 +60,8 @@ class WholesaleOrderController extends Controller
                 'orders' => (clone $paid)->count(),
                 'products' => (float) (clone $paid)->sum('subtotal'),
                 'import' => $importFees,
-                'local' => (float) (clone $paid)->sum('delivery_fee') - $importFees,
+                // Courses SOLEX, y compris celles offertes par le vendeur.
+                'local' => (float) (clone $paid)->sum('delivery_fee') + (float) (clone $paid)->sum('free_delivery_amount') - $importFees,
                 'total' => (float) (clone $paid)->sum('total'),
             ],
             'countries' => ImportCountry::orderBy('sort_order')->orderBy('name')->get()->keyBy('code'),

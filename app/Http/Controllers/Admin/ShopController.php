@@ -114,6 +114,19 @@ class ShopController extends Controller
     }
 
     /**
+     * Livraison gratuite sur toute la boutique (financée par le vendeur). Les
+     * produits réglés un à un gardent leur choix.
+     */
+    public function toggleFreeDelivery(Shop $shop)
+    {
+        $shop->update(['free_delivery' => ! $shop->free_delivery]);
+
+        return back()->with('success', $shop->free_delivery
+            ? 'Livraison gratuite activée sur toute la boutique.'
+            : 'Livraison gratuite désactivée sur la boutique.');
+    }
+
+    /**
      * Show the form for editing the specified shop
      */
     public function edit(Shop $shop)

@@ -207,6 +207,19 @@ class OrderService
             $assoCommission = (float) $quote['asso_commission'];
             $deliveryFee = (float) $quote['delivery_price'];
 
+            // Livraison gratuite : le vendeur finance la course affichée (transporteur +
+            // commission ASSO), sauf si elle dépasse sa part — l'acheteur la paie alors.
+            $freeDeliveryAmount = 0.0;
+            $freeDelivery = FreeDeliveryService::applies(
+                FreeDeliveryService::cartEligible(Product::with('shop')->whereIn('id', array_column($orderItems, 'product_id'))->get()),
+                $deliveryFee,
+                round($sellerSubtotal, 2),
+            );
+            if ($freeDelivery) {
+                $freeDeliveryAmount = $deliveryFee;
+                $deliveryFee = 0.0;
+            }
+
             Log::info("[OrderService] Frais de livraison calculés", [
                 'mode' => $quote['delivery_mode'],
                 'weight_kg' => $quote['weight_kg'],
@@ -241,7 +254,7 @@ class OrderService
             $saleCommission = [
                 'rate' => count($uniqueRates) === 1 ? $uniqueRates[0] : null,
                 'commission' => round($subtotal - $sellerSubtotal, 2),
-                'vendor_net' => round($sellerSubtotal, 2),
+                'vendor_net' => round($sellerSubtotal - $freeDeliveryAmount, 2),
             ];
             $order = Order::create([
                 'user_id' => $client->id,
@@ -250,6 +263,8 @@ class OrderService
                 'delivery_fee' => $deliveryFee,
                 'base_delivery_price' => $baseDeliveryPrice,
                 'delivery_commission' => $assoCommission,
+                'free_delivery' => $freeDelivery,
+                'free_delivery_amount' => $freeDeliveryAmount,
                 // Commission ASSO sur la vente, figée à la création (cf. CommissionService).
                 'sale_commission_rate' => $saleCommission['rate'],
                 'sale_commission' => $saleCommission['commission'],
@@ -494,6 +509,20 @@ class OrderService
                 $deliveryAddress,
             );
             $localDeliveryFee = (float) $quote['delivery_price'];
+
+            // Livraison gratuite : la course SOLEX est retenue sur la part du vendeur ;
+            // l'expédition jusqu'à Douala reste payée par l'acheteur.
+            $freeDeliveryAmount = 0.0;
+            $freeDelivery = FreeDeliveryService::applies(
+                FreeDeliveryService::cartEligible(Product::with('shop')->whereIn('id', array_column($orderItems, 'product_id'))->get()),
+                $localDeliveryFee,
+                round($subtotal, 2),
+            );
+            if ($freeDelivery) {
+                $freeDeliveryAmount = $localDeliveryFee;
+                $localDeliveryFee = 0.0;
+            }
+
             $total = $subtotal + $shippingCost + $localDeliveryFee;
 
             $isDirect = in_array($paymentMode, ['kpay_direct', 'stripe_direct']);
@@ -507,7 +536,7 @@ class OrderService
             }
 
             // Catalogue import (prix fixés par ASSO) : aucune majoration.
-            $saleCommission = ['rate' => 0.0, 'commission' => 0.0, 'vendor_net' => (float) $subtotal];
+            $saleCommission = ['rate' => 0.0, 'commission' => 0.0, 'vendor_net' => round($subtotal - $freeDeliveryAmount, 2)];
             $order = Order::create([
                 'user_id' => $client->id,
                 'status' => 'pending',
@@ -524,6 +553,8 @@ class OrderService
                 // Part SOLEX (TTC) et commission ASSO sur sa course, réglées comme une livraison.
                 'base_delivery_price' => (float) $quote['base_price'],
                 'delivery_commission' => (float) $quote['asso_commission'],
+                'free_delivery' => $freeDelivery,
+                'free_delivery_amount' => $freeDeliveryAmount,
                 'delivery_company_id' => $quote['company_id'],
                 'delivery_zone_id' => $quote['zone_id'],
                 'delivery_route_id' => $quote['route_id'],
@@ -1300,6 +1331,8 @@ class OrderService
                     'subtotal' => $subtotal,
                     'sale_commission' => $saleCommission,
                     'sale_commission_rate' => (float) $order->sale_commission_rate,
+                    // Livraison gratuite offerte : course retenue sur la vente.
+                    'free_delivery_amount' => (float) $order->free_delivery_amount,
                 ],
                 'kpay'
             );

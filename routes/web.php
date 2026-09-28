@@ -160,6 +160,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/shops/{shop}/verify', [\App\Http\Controllers\Admin\ShopVerificationController::class, 'verify'])->name('shops.verify');
         Route::post('/shops/{shop}/reject', [\App\Http\Controllers\Admin\ShopVerificationController::class, 'reject'])->name('shops.reject');
         Route::post('/shops/{shop}/toggle-status', [\App\Http\Controllers\Admin\ShopVerificationController::class, 'toggleStatus'])->name('shops.toggleStatus');
+        Route::post('/shops/{shop}/free-delivery', [ShopController::class, 'toggleFreeDelivery'])->name('shops.free-delivery');
 
         // Statistiques boutiques (P8)
         Route::prefix('statistics')->name('statistics.')->group(function () {

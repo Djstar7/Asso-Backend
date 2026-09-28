@@ -107,7 +107,8 @@ class Product extends Model
         'latitude',
         'longitude',
         'status',
-        'is_wholesale'
+        'is_wholesale',
+        'free_delivery',
     ];
 
     protected $casts = [
@@ -118,6 +119,7 @@ class Product extends Model
         'latitude' => 'decimal:8',
         'longitude' => 'decimal:8',
         'is_wholesale' => 'boolean',
+        'free_delivery' => 'boolean',
         'min_order_quantity' => 'integer',
         'sizes' => 'array',
         'variant_options' => 'array',
@@ -180,6 +182,15 @@ class Product extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Livraison gratuite offerte par le vendeur : le choix du produit prime, sinon
+     * celui de la boutique (null = suit la boutique).
+     */
+    public function hasFreeDelivery(): bool
+    {
+        return $this->free_delivery ?? (bool) $this->shop?->free_delivery;
     }
 
     /**

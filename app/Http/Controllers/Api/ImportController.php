@@ -40,7 +40,7 @@ class ImportController extends Controller
 
         $query = $this->catalogQuery($request->input('q'))
             ->where('origin_country', $code)
-            ->with(['priceTiers', 'primaryImage', 'images', 'variants', 'video'])
+            ->with(['priceTiers', 'primaryImage', 'images', 'variants', 'video', 'shop'])
             // Ordre stable d'une page à l'autre, même pour des produits créés à la même seconde.
             ->latest()
             ->orderByDesc('id');
@@ -120,7 +120,7 @@ class ImportController extends Controller
         $product = Product::where('is_wholesale', true)
             ->where('status', 'active')
             ->whereHas('shop', fn ($query) => $query->where('status', 'active'))
-            ->with(['priceTiers', 'images', 'variants', 'video'])
+            ->with(['priceTiers', 'images', 'variants', 'video', 'shop'])
             ->findOrFail($id);
 
         return response()->json([
@@ -332,6 +332,8 @@ class ImportController extends Controller
             // Le poids est renseigné par l'équipe/le vendeur, jamais par le client.
             'unit_weight_kg' => $p->weightKg(),
             'stock' => $p->stock,
+            // Livraison gratuite offerte par le vendeur : course SOLEX offerte.
+            'free_delivery' => $p->hasFreeDelivery(),
             'variants' => ($p->relationLoaded('variants') ? $p->variants : collect())
                 ->where('is_active', true)
                 ->map(fn ($variant) => app(ProductVariantService::class)->presentVariant($variant, $p))->values(),
