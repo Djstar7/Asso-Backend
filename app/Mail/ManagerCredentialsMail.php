@@ -40,7 +40,7 @@ class ManagerCredentialsMail extends Mailable
         return new Content(
             view: 'emails.manager-credentials',
             with: [
-                'loginUrl' => route('admin.login'),
+                'loginUrl' => route('admin.manager.login'),
                 'roleLabel' => $this->manager->backofficeRoleLabel(),
             ],
         );

@@ -107,8 +107,48 @@ class ProductManagerAccessTest extends TestCase
             'roles' => ['product_manager'],
         ]);
 
-        $this->post('/admin/login', ['email' => 'pm@example.com', 'password' => 'secret-pass'])
+        $this->post('/admin/gestionnaire/login', ['email' => 'pm@example.com', 'password' => 'secret-pass'])
             ->assertRedirect(route('admin.products.index'));
+    }
+
+    public function test_manager_login_page_is_personalised(): void
+    {
+        $this->get('/admin/gestionnaire/login')
+            ->assertOk()
+            ->assertSee('Espace gestionnaire')
+            ->assertSee(route('admin.manager.login.submit'), false)
+            ->assertDontSee('admin@asso.com');
+    }
+
+    public function test_product_manager_on_admin_page_is_sent_to_manager_page(): void
+    {
+        User::factory()->create([
+            'email' => 'pm@example.com',
+            'password' => 'secret-pass',
+            'role' => 'product_manager',
+            'roles' => ['product_manager'],
+        ]);
+
+        $this->post('/admin/login', ['email' => 'pm@example.com', 'password' => 'secret-pass'])
+            ->assertRedirect(route('admin.manager.login'))
+            ->assertSessionHas('portal_notice');
+        $this->assertGuest();
+    }
+
+    public function test_admin_on_manager_page_is_sent_to_admin_page(): void
+    {
+        User::factory()->create(['email' => 'root@example.com', 'password' => 'secret-pass', 'role' => 'admin']);
+
+        $this->post('/admin/gestionnaire/login', ['email' => 'root@example.com', 'password' => 'secret-pass'])
+            ->assertRedirect(route('admin.login'))
+            ->assertSessionHas('portal_notice');
+        $this->assertGuest();
+    }
+
+    public function test_manager_logout_returns_to_manager_page(): void
+    {
+        $this->actingAs($this->productManager())->post(route('admin.logout'))
+            ->assertRedirect(route('admin.manager.login'));
     }
 
     public function test_app_user_cannot_log_in_to_backoffice(): void

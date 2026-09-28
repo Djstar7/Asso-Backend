@@ -96,6 +96,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
     // Login routes (no guest middleware to avoid redirect loops)
     Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
     Route::post('/login', [AuthController::class, 'login'])->name('login.submit');
+    Route::get('/gestionnaire/login', [AuthController::class, 'showManagerLogin'])->name('manager.login');
+    Route::post('/gestionnaire/login', [AuthController::class, 'managerLogin'])->name('manager.login.submit');
 
     // Authenticated routes — accès filtré par rôle / permission (config/admin_access.php)
     Route::middleware(['auth', 'backoffice'])->group(function () {
