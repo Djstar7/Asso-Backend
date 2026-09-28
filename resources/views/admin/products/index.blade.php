@@ -22,11 +22,13 @@
                     <i class="fas fa-list"></i>
                 </button>
             </div>
+@adminCan('admin.products.create')
             <a href="{{ route('admin.products.create') }}"
                class="px-4 py-2 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-lg hover:shadow-lg transition-all">
                 <i class="fas fa-plus mr-2"></i>
                 Nouveau Produit
             </a>
+            @endadminCan
         </div>
     </div>
 
@@ -147,9 +149,21 @@
                         <a href="{{ route('admin.products.show', $product) }}" class="flex-1 px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 text-center transition-colors">
                             <i class="fas fa-eye"></i>
                         </a>
+                        @adminCan('admin.products.edit')
                         <a href="{{ route('admin.products.edit', $product) }}" class="flex-1 px-3 py-2 bg-gradient-to-r from-primary-500 to-primary-600 text-white text-sm rounded-lg hover:shadow-lg text-center transition-all">
                             <i class="fas fa-edit"></i>
                         </a>
+                        @endadminCan
+                        @adminCan('admin.products.toggle-status')
+                        <form action="{{ route('admin.products.toggle-status', $product) }}" method="POST" class="flex-1">
+                            @csrf
+                            @method('PATCH')
+                            <button type="submit" class="w-full px-3 py-2 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-700 transition-colors" title="{{ $product->status === 'active' ? 'Masquer' : 'Afficher' }}">
+                                <i class="fas {{ $product->status === 'active' ? 'fa-eye-slash' : 'fa-eye' }}"></i>
+                            </button>
+                        </form>
+                        @endadminCan
+                        @adminCan('admin.products.destroy')
                         <form action="{{ route('admin.products.destroy', $product) }}" method="POST" data-confirm="Supprimer ce produit ?" class="flex-1">
                             @csrf
                             @method('DELETE')
@@ -157,6 +171,7 @@
                                 <i class="fas fa-trash"></i>
                             </button>
                         </form>
+                        @endadminCan
                     </div>
                 </div>
             </div>
@@ -246,9 +261,21 @@
                                     <a href="{{ route('admin.products.show', $product) }}" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors" title="Voir">
                                         <i class="fas fa-eye"></i>
                                     </a>
+                                    @adminCan('admin.products.edit')
                                     <a href="{{ route('admin.products.edit', $product) }}" class="px-3 py-1.5 bg-gradient-to-r from-primary-500 to-primary-600 text-white text-sm rounded-lg hover:shadow-lg transition-all" title="Modifier">
                                         <i class="fas fa-edit"></i>
                                     </a>
+                                    @endadminCan
+                                    @adminCan('admin.products.toggle-status')
+                                    <form action="{{ route('admin.products.toggle-status', $product) }}" method="POST" class="inline">
+                                        @csrf
+                                        @method('PATCH')
+                                        <button type="submit" class="px-3 py-1.5 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-700 transition-colors" title="{{ $product->status === 'active' ? 'Masquer' : 'Afficher' }}">
+                                            <i class="fas {{ $product->status === 'active' ? 'fa-eye-slash' : 'fa-eye' }}"></i>
+                                        </button>
+                                    </form>
+                                    @endadminCan
+                                    @adminCan('admin.products.destroy')
                                     <form action="{{ route('admin.products.destroy', $product) }}" method="POST" data-confirm="Supprimer ce produit ?" class="inline">
                                         @csrf
                                         @method('DELETE')
@@ -256,6 +283,7 @@
                                             <i class="fas fa-trash"></i>
                                         </button>
                                     </form>
+                                    @endadminCan
                                 </div>
                             </div>
                         </div>

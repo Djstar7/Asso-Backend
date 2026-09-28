@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
 use App\Models\User;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 
@@ -15,16 +15,17 @@ class UserController extends Controller
      */
     public function index(Request $request)
     {
-        $query = User::query()->where('role', '!=', 'admin');
+        // Admin et gestionnaires se gèrent dans la section Gestionnaires.
+        $query = User::query()->whereNotIn('role', config('admin_access.staff_roles'));
 
         // Search filter
         if ($request->filled('search')) {
             $search = $request->search;
-            $query->where(function($q) use ($search) {
+            $query->where(function ($q) use ($search) {
                 $q->where('first_name', 'like', "%{$search}%")
-                  ->orWhere('last_name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%")
-                  ->orWhere('phone', 'like', "%{$search}%");
+                    ->orWhere('last_name', 'like', "%{$search}%")
+                    ->orWhere('email', 'like', "%{$search}%")
+                    ->orWhere('phone', 'like', "%{$search}%");
             });
         }
 
@@ -119,6 +120,8 @@ class UserController extends Controller
      */
     public function edit(User $user)
     {
+        $this->ensureCanManage($user);
+
         return view('admin.users.edit', compact('user'));
     }
 
@@ -127,11 +130,17 @@ class UserController extends Controller
      */
     public function update(Request $request, User $user)
     {
+        $this->ensureCanManage($user);
+
+        // Seul l'admin peut nommer un autre admin (un gestionnaire ayant la
+        // section Utilisateurs ne doit pas pouvoir élever ses propres droits).
+        $roles = $request->user()->isAdmin() ? 'client,vendeur,livreur,admin' : 'client,vendeur,livreur';
+
         $validated = $request->validate([
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
             'email' => ['required', 'email', Rule::unique('users')->ignore($user->id)],
-            'role' => 'required|in:client,vendeur,livreur,admin',
+            'role' => 'required|in:'.$roles,
             'gender' => 'nullable|in:male,female,other',
             'birth_date' => 'nullable|date',
             'phone' => 'nullable|string|max:20',
@@ -160,6 +169,8 @@ class UserController extends Controller
      */
     public function destroy(User $user)
     {
+        $this->ensureCanManage($user);
+
         if ($user->role === 'admin') {
             return redirect()->route('admin.users.index')
                 ->with('error', 'Impossible de supprimer un administrateur!');
@@ -169,5 +180,18 @@ class UserController extends Controller
 
         return redirect()->route('admin.users.index')
             ->with('success', 'Utilisateur supprimé avec succès!');
+    }
+
+    /**
+     * Les comptes du back-office (hors admin connecté) ne se modifient pas
+     * depuis la section Utilisateurs : ils relèvent de la section Gestionnaires.
+     */
+    private function ensureCanManage(User $user): void
+    {
+        abort_if(
+            $user->isBackofficeStaff() && ! request()->user()->isAdmin(),
+            403,
+            'Ce compte se gère depuis la section Gestionnaires.'
+        );
     }
 }

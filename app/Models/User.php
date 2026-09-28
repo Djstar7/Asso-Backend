@@ -4,17 +4,17 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Foundation\Auth\User as Authenticatable;
-use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable, HasApiTokens;
+    use HasApiTokens, HasFactory, Notifiable;
 
     /**
      * The attributes that are mass assignable.
@@ -28,6 +28,8 @@ class User extends Authenticatable
         'password',
         'role',
         'roles',
+        'admin_permissions',
+        'created_by_admin_id',
         'gender',
         'birth_date',
         'phone',
@@ -89,6 +91,7 @@ class User extends Authenticatable
             'password' => 'hashed',
             'preferences' => 'array',
             'roles' => 'array',
+            'admin_permissions' => 'array',
             'is_profile_complete' => 'boolean',
             'otp_expires_at' => 'datetime',
             'diaspo_verified_at' => 'datetime',
@@ -323,7 +326,7 @@ class User extends Authenticatable
             ->where('is_used', false)
             ->where(function ($query) {
                 $query->whereNull('expires_at')
-                      ->orWhere('expires_at', '>', now());
+                    ->orWhere('expires_at', '>', now());
             })
             ->latest();
     }
@@ -381,7 +384,7 @@ class User extends Authenticatable
      */
     public function getTotalWalletBalanceAttribute(): float
     {
-        return ($this->kpay_wallet_balance ?? 0);
+        return $this->kpay_wallet_balance ?? 0;
     }
 
     /**
@@ -389,7 +392,7 @@ class User extends Authenticatable
      */
     public function getFormattedWalletBalanceAttribute(): string
     {
-        return number_format($this->total_wallet_balance, 0, ',', ' ') . ' FCFA';
+        return number_format($this->total_wallet_balance, 0, ',', ' ').' FCFA';
     }
 
     /**
@@ -397,7 +400,7 @@ class User extends Authenticatable
      */
     public function getFormattedKpayBalanceAttribute(): string
     {
-        return number_format($this->kpay_wallet_balance ?? 0, 0, ',', ' ') . ' FCFA';
+        return number_format($this->kpay_wallet_balance ?? 0, 0, ',', ' ').' FCFA';
     }
 
     /**
@@ -421,7 +424,7 @@ class User extends Authenticatable
      */
     public function getTotalLockedBalanceAttribute(): float
     {
-        return ($this->locked_kpay_balance ?? 0);
+        return $this->locked_kpay_balance ?? 0;
     }
 
     // ==================== Soldes wallet multi-devise (KPay) ====================
@@ -436,6 +439,7 @@ class User extends Authenticatable
     public function kpayBalanceFor(string $currency): float
     {
         $wb = $this->walletBalances()->where('currency', $currency)->first();
+
         return $wb ? (float) $wb->balance : 0.0;
     }
 
@@ -443,6 +447,7 @@ class User extends Authenticatable
     public function kpayAvailableFor(string $currency): float
     {
         $wb = $this->walletBalances()->where('currency', $currency)->first();
+
         return $wb ? ((float) $wb->balance - (float) $wb->locked_balance) : 0.0;
     }
 
@@ -454,6 +459,7 @@ class User extends Authenticatable
             ['balance' => 0, 'locked_balance' => 0]
         );
         $wb->increment('balance', $amount);
+
         return $wb->fresh();
     }
 
@@ -465,6 +471,7 @@ class User extends Authenticatable
             ['balance' => 0, 'locked_balance' => 0]
         );
         $wb->decrement('balance', $amount);
+
         return $wb->fresh();
     }
 
@@ -477,7 +484,7 @@ class User extends Authenticatable
 
         static::creating(function ($user) {
             if (empty($user->referral_code)) {
-                $user->referral_code = strtoupper(substr($user->first_name, 0, 3) . substr($user->last_name, 0, 3) . rand(1000, 9999));
+                $user->referral_code = strtoupper(substr($user->first_name, 0, 3).substr($user->last_name, 0, 3).rand(1000, 9999));
             }
         });
     }
@@ -532,6 +539,7 @@ class User extends Authenticatable
         if (is_array($this->roles)) {
             return in_array($role, $this->roles);
         }
+
         // Fallback to old role column
         return $this->role === $role;
     }
@@ -546,6 +554,7 @@ class User extends Authenticatable
                 return true;
             }
         }
+
         return false;
     }
 
@@ -556,7 +565,7 @@ class User extends Authenticatable
     {
         $roles = is_array($this->roles) ? $this->roles : [$this->role];
 
-        if (!in_array($role, $roles)) {
+        if (! in_array($role, $roles)) {
             $roles[] = $role;
             $this->roles = $roles;
             // Keep role column updated with primary role
@@ -572,7 +581,7 @@ class User extends Authenticatable
     {
         $roles = is_array($this->roles) ? $this->roles : [$this->role];
 
-        $roles = array_filter($roles, fn($r) => $r !== $role);
+        $roles = array_filter($roles, fn ($r) => $r !== $role);
 
         if (empty($roles)) {
             $roles = ['client']; // Default role
@@ -590,5 +599,108 @@ class User extends Authenticatable
     {
         return is_array($this->roles) ? $this->roles : [$this->role];
     }
-}
 
+    // ================================
+    // BACK-OFFICE ACCESS (config/admin_access.php)
+    // ================================
+
+    public function isAdmin(): bool
+    {
+        return $this->role === 'admin';
+    }
+
+    /**
+     * Compte autorisé à se connecter au back-office (admin ou gestionnaire).
+     */
+    public function isBackofficeStaff(): bool
+    {
+        return $this->isAdmin() || $this->hasAnyRole(config('admin_access.staff_roles', []));
+    }
+
+    /**
+     * Permissions effectives : celles du rôle + celles accordées par l'admin.
+     */
+    public function adminPermissions(): array
+    {
+        if (! $this->isBackofficeStaff()) {
+            return [];
+        }
+
+        $fromRoles = [];
+        foreach ($this->getRoles() as $role) {
+            $fromRoles = array_merge($fromRoles, config("admin_access.role_permissions.{$role}", []));
+        }
+
+        return array_values(array_unique(array_merge($fromRoles, $this->admin_permissions ?? [])));
+    }
+
+    public function hasAdminPermission(string $permission): bool
+    {
+        return $this->isAdmin() || in_array($permission, $this->adminPermissions(), true);
+    }
+
+    /**
+     * Une route admin nommée est-elle accessible à ce compte ?
+     * Route non déclarée dans admin_access.routes => admin uniquement.
+     */
+    public function canAccessAdminRoute(string $routeName): bool
+    {
+        if (! $this->isBackofficeStaff()) {
+            return false;
+        }
+        if ($this->isAdmin() || in_array($routeName, config('admin_access.open_routes', []), true)) {
+            return true;
+        }
+
+        foreach (config('admin_access.routes', []) as $pattern => $permissions) {
+            if (\Illuminate\Support\Str::is($pattern, $routeName)) {
+                foreach ((array) $permissions as $permission) {
+                    if ($this->hasAdminPermission($permission)) {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Page d'arrivée après connexion : Dashboard pour l'admin, sinon la
+     * première section ouverte au gestionnaire.
+     */
+    public function adminHomeRoute(): ?string
+    {
+        $candidates = config('admin_access.home_routes', []);
+        foreach (array_keys(config('admin_access.routes', [])) as $pattern) {
+            $candidates[] = str_replace('*', 'index', $pattern);
+        }
+
+        foreach ($candidates as $name) {
+            if (\Illuminate\Support\Facades\Route::has($name) && $this->canAccessAdminRoute($name)) {
+                return $name;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Libellé affiché dans le back-office (pied du menu, liste des gestionnaires).
+     */
+    public function backofficeRoleLabel(): string
+    {
+        if ($this->isAdmin()) {
+            return 'Administrateur';
+        }
+        foreach (config('admin_access.manager_roles', []) as $role => $label) {
+            if ($this->hasRole($role)) {
+                return $label;
+            }
+        }
+
+        return 'Gestionnaire';
+    }
+}
