@@ -358,12 +358,54 @@ class ShopController extends Controller
             'categories' => $shop->categories ?? [],
             'status' => $shop->status,
             'is_certified' => (bool) $shop->is_certified,
+            'free_delivery' => (bool) $shop->free_delivery,
             'phone' => $shop->phone ?? $shop->user->phone,
             'email' => $shop->email ?? $shop->user->email,
             'products_count' => $shop->products()->count(),
             'created_at' => $shop->created_at->toIso8601String(),
             'updated_at' => $shop->updated_at->toIso8601String(),
         ];
+    }
+
+    /**
+     * Livraison gratuite sur toute la boutique. Les produits réglés un à un gardent
+     * leur choix ; les autres suivent la boutique.
+     * PUT /vendor/shop/free-delivery
+     */
+    public function updateFreeDelivery(Request $request)
+    {
+        $validated = $request->validate([
+            'free_delivery' => 'required|boolean',
+        ]);
+
+        $user = $request->user();
+        if (!$user->hasAnyRole(['vendeur', 'vendor'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous n\'êtes pas vendeur',
+            ], 403);
+        }
+
+        $shop = $user->primaryShop;
+        if (!$shop) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Aucune boutique trouvée',
+            ], 404);
+        }
+
+        $shop->update(['free_delivery' => (bool) $validated['free_delivery']]);
+
+        return response()->json([
+            'success' => true,
+            'message' => $shop->free_delivery
+                ? 'Livraison gratuite activée sur toute la boutique'
+                : 'Livraison gratuite désactivée sur la boutique',
+            'free_delivery' => (bool) $shop->free_delivery,
+            // Produits qui ne suivent pas la boutique (réglés un à un).
+            'overridden_products' => $shop->products()->whereNotNull('free_delivery')
+                ->where('free_delivery', '!=', $shop->free_delivery)->count(),
+        ]);
     }
 
     /**
@@ -385,6 +427,7 @@ class ShopController extends Controller
             'longitude' => $shop->longitude,
             'categories' => $shop->categories ?? [],
             'is_certified' => (bool) $shop->is_certified,
+            'free_delivery' => (bool) $shop->free_delivery,
             'phone' => $shop->phone ?? $shop->user->phone,
             'products_count' => $shop->products()->count(),
         ];
@@ -432,6 +475,7 @@ class ShopController extends Controller
                 'latitude' => $latitude,
                 'longitude' => $longitude,
                 'location' => $shop->location_label ?? $product->address,
+                'free_delivery' => $product->hasFreeDelivery(),
                 'created_at' => $product->created_at->toIso8601String(),
             ];
         });
@@ -450,6 +494,7 @@ class ShopController extends Controller
             'longitude' => $shop->longitude,
             'categories' => $shop->categories ?? [],
             'is_certified' => (bool) $shop->is_certified,
+            'free_delivery' => (bool) $shop->free_delivery,
             'phone' => $shop->phone ?? $shop->user->phone,
             'email' => $shop->email ?? $shop->user->email,
             'products' => $products,

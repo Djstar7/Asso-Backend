@@ -275,6 +275,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // Vendor shop management
         Route::get('/vendor/shop', [ShopController::class, 'show']);
         Route::put('/vendor/shop', [ShopController::class, 'update']);
+        Route::put('/vendor/shop/free-delivery', [ShopController::class, 'updateFreeDelivery']);
         Route::get('/vendor/shops', [ShopController::class, 'index']);
         Route::get('/vendor/shop/location-requests', [ShopController::class, 'getLocationRequests']);
         Route::post('/vendor/shop/location-requests', [ShopController::class, 'storeLocationRequest']);
@@ -348,6 +349,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::put('/{id}', [VendorProductController::class, 'update']);
             Route::post('/{id}', [VendorProductController::class, 'update']); // Support POST avec _method=PUT pour multipart
             Route::put('/{id}/status', [VendorProductController::class, 'updateStatus']);
+            Route::put('/{id}/free-delivery', [VendorProductController::class, 'updateFreeDelivery']);
             Route::delete('/{id}', [VendorProductController::class, 'destroy']);
 
             // Stock management

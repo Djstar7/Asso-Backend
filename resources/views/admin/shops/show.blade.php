@@ -343,6 +343,44 @@
 
         <!-- Details & Products -->
         <div class="lg:col-span-2 space-y-6">
+            <!-- Livraison gratuite (toute la boutique) -->
+            @php
+                $overridden = $shop->products->whereNotNull('free_delivery')
+                    ->filter(fn ($p) => $p->free_delivery !== (bool) $shop->free_delivery)->count();
+            @endphp
+            <div class="bg-dark-100 rounded-xl shadow-lg p-6 border {{ $shop->free_delivery ? 'border-green-500/60' : 'border-transparent' }}">
+                <div class="flex items-center justify-between gap-4">
+                    <div class="flex items-start">
+                        <div class="h-11 w-11 rounded-lg flex items-center justify-center mr-4 {{ $shop->free_delivery ? 'bg-green-600 text-white' : 'bg-dark-50 text-gray-400' }}">
+                            <i class="fas fa-truck"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-bold text-white">Livraison gratuite sur toute la boutique</h3>
+                            <p class="text-sm text-gray-400">
+                                @if($shop->free_delivery)
+                                    Active : les clients ne paient pas la course, son prix est retenu sur les ventes du vendeur.
+                                @else
+                                    Désactivée : les clients paient la livraison.
+                                @endif
+                                @if($overridden > 0)
+                                    {{ $overridden }} produit{{ $overridden > 1 ? 's ont' : ' a' }} son propre réglage.
+                                @endif
+                            </p>
+                        </div>
+                    </div>
+                    <form action="{{ route('admin.shops.free-delivery', $shop) }}" method="POST">
+                        @csrf
+                        <button type="submit" role="switch" aria-checked="{{ $shop->free_delivery ? 'true' : 'false' }}"
+                                title="{{ $shop->free_delivery ? 'Désactiver' : 'Activer' }} la livraison gratuite"
+                                class="relative inline-flex h-8 w-14 flex-shrink-0 items-center rounded-full transition-colors {{ $shop->free_delivery ? 'bg-green-600' : 'bg-gray-600' }}">
+                            <span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-white shadow transition-transform {{ $shop->free_delivery ? 'translate-x-7' : 'translate-x-1' }}">
+                                @if($shop->free_delivery)<i class="fas fa-check text-xs text-green-600"></i>@endif
+                            </span>
+                        </button>
+                    </form>
+                </div>
+            </div>
+
             <!-- Shop Information -->
             <div class="bg-dark-100 rounded-xl shadow-lg p-6">
                 <h3 class="text-xl font-bold text-white mb-4 flex items-center">

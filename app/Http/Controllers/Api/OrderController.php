@@ -445,6 +445,9 @@ class OrderController extends Controller
             'delivery_fee' => (float) $order->delivery_fee,
             // Import en gros : part du trajet jusqu'à Douala dans les frais de livraison.
             'import_shipping_fee' => $order->import_shipping_fee !== null ? (float) $order->import_shipping_fee : null,
+            // Livraison gratuite offerte par le vendeur : prix de la course, affiché barré.
+            'free_delivery' => (bool) $order->free_delivery,
+            'free_delivery_amount' => (float) $order->free_delivery_amount,
             'total' => (float) $order->total,
             'formatted_total' => $order->formatted_total,
             'payment_method' => $order->payment_method,

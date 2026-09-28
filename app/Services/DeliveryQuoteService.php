@@ -89,6 +89,7 @@ class DeliveryQuoteService
             'vat_rate' => self::vatRate(),
             // Grille zone à zone dans la ville de l'acheteur : quartier à choisir.
             'city_grid' => $gridContext['public'],
+            'free_delivery' => false,
             'partners' => [],
         ];
 
@@ -99,6 +100,18 @@ class DeliveryQuoteService
         );
 
         usort($partners, fn ($a, $b) => [$a['sort_group'], $a['delivery_price']] <=> [$b['sort_group'], $b['delivery_price']]);
+
+        // Livraison gratuite offerte par le vendeur : chaque offre dit si elle est
+        // offerte (prix affiché barré) ou si elle coûte plus que la part du vendeur.
+        $vendorNet = $cart['free_delivery'] ? FreeDeliveryService::vendorNetXaf($items) : null;
+        foreach ($partners as &$partner) {
+            $partner['free_delivery'] = FreeDeliveryService::applies(
+                $cart['free_delivery'], (float) $partner['delivery_price'], $vendorNet
+            );
+        }
+        unset($partner);
+        $result['free_delivery'] = $cart['free_delivery'];
+
         $result['partners'] = array_map(fn ($p) => array_diff_key($p, ['sort_group' => 1]), $partners);
         $result['available'] = $result['partners'] !== [];
 
@@ -387,6 +400,10 @@ class DeliveryQuoteService
             'origin_lat' => $originLat,
             'origin_lng' => $originLng,
             'weight_category' => $category ?? 'X-small',
+            // Tous les articles offrent la livraison (cf. FreeDeliveryService).
+            'free_delivery' => FreeDeliveryService::cartEligible(
+                collect($items)->map(fn ($item) => $products->get((int) $item['product_id']))->filter()
+            ),
         ];
     }
 

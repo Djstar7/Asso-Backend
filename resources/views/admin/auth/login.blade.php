@@ -1,3 +1,8 @@
+@php
+    $isManager = ($portal ?? 'admin') === 'manager';
+    // Identifiants de démonstration : seulement en local, jamais en production.
+    $showDemo = ! $isManager && app()->isLocal();
+@endphp
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -22,7 +27,7 @@
     <link rel="icon" type="image/png" href="{{ asset('logo/Asso.png') }}">
     <link rel="apple-touch-icon" href="{{ asset('logo/Asso.png') }}">
 
-    <title>Connexion - ASSO Admin</title>
+    <title>{{ $isManager ? 'Espace gestionnaire - ASSO' : 'Connexion - ASSO Admin' }}</title>
 
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -50,6 +55,16 @@
             --dark-700: #d4d4d8;
             --dark-800: #e4e4e7;
             --dark-900: #f4f4f5;
+            --primary-rgb: 255, 115, 68;
+        }
+
+        /* Espace gestionnaire : teinte distincte pour savoir où l'on est. */
+        body.portal-manager {
+            --primary: #14b8a6;
+            --primary-dark: #0d9488;
+            --tertiary: #0f766e;
+            --accent: #5eead4;
+            --primary-rgb: 20, 184, 166;
         }
 
         body {
@@ -72,8 +87,8 @@
             width: 200%;
             height: 200%;
             background:
-                radial-gradient(circle at 30% 50%, rgba(255, 115, 68, 0.1), transparent 50%),
-                radial-gradient(circle at 70% 50%, rgba(255, 87, 34, 0.08), transparent 50%);
+                radial-gradient(circle at 30% 50%, rgba(var(--primary-rgb), 0.1), transparent 50%),
+                radial-gradient(circle at 70% 50%, rgba(var(--primary-rgb), 0.06), transparent 50%);
             animation: float 20s ease-in-out infinite;
         }
 
@@ -100,7 +115,7 @@
         }
 
         .login-left {
-            background: linear-gradient(135deg, rgba(255, 115, 68, 0.15) 0%, rgba(191, 62, 21, 0.15) 100%);
+            background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.15) 0%, rgba(var(--primary-rgb), 0.05) 100%);
             padding: 60px 50px;
             color: white;
             display: flex;
@@ -118,7 +133,7 @@
             right: -100px;
             width: 300px;
             height: 300px;
-            background: radial-gradient(circle, rgba(255, 115, 68, 0.2) 0%, transparent 70%);
+            background: radial-gradient(circle, rgba(var(--primary-rgb), 0.2) 0%, transparent 70%);
             border-radius: 50%;
         }
 
@@ -129,7 +144,7 @@
             left: -100px;
             width: 400px;
             height: 400px;
-            background: radial-gradient(circle, rgba(255, 87, 34, 0.15) 0%, transparent 70%);
+            background: radial-gradient(circle, rgba(var(--primary-rgb), 0.12) 0%, transparent 70%);
             border-radius: 50%;
         }
 
@@ -156,7 +171,7 @@
             justify-content: center;
             box-shadow:
                 0 10px 25px rgba(0, 0, 0, 0.3),
-                0 0 0 4px rgba(255, 115, 68, 0.2);
+                0 0 0 4px rgba(var(--primary-rgb), 0.2);
             position: relative;
         }
 
@@ -176,7 +191,7 @@
         .logo-circle img {
             width: 100%;
             height: 100%;
-            object-cover;
+            object-fit: cover;
             border-radius: 50%;
         }
 
@@ -240,7 +255,7 @@
 
         .feature:hover {
             background: rgba(39, 39, 42, 0.8);
-            border-color: rgba(255, 115, 68, 0.3);
+            border-color: rgba(var(--primary-rgb), 0.3);
             transform: translateX(8px);
         }
 
@@ -253,7 +268,7 @@
             align-items: center;
             justify-content: center;
             flex-shrink: 0;
-            box-shadow: 0 4px 12px rgba(255, 115, 68, 0.3);
+            box-shadow: 0 4px 12px rgba(var(--primary-rgb), 0.3);
         }
 
         .feature-icon i {
@@ -373,7 +388,7 @@
             outline: none;
             border-color: var(--primary);
             background: var(--dark-100);
-            box-shadow: 0 0 0 4px rgba(255, 115, 68, 0.1);
+            box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.1);
         }
 
         input[type="email"]:focus + .input-icon,
@@ -420,7 +435,7 @@
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s ease;
-            box-shadow: 0 4px 16px rgba(255, 115, 68, 0.4);
+            box-shadow: 0 4px 16px rgba(var(--primary-rgb), 0.4);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -430,7 +445,7 @@
 
         .btn-login:hover {
             transform: translateY(-2px);
-            box-shadow: 0 6px 24px rgba(255, 115, 68, 0.5);
+            box-shadow: 0 6px 24px rgba(var(--primary-rgb), 0.5);
         }
 
         .btn-login:active {
@@ -444,9 +459,9 @@
         .credentials-info {
             margin-top: 24px;
             padding: 16px;
-            background: rgba(255, 115, 68, 0.05);
+            background: rgba(var(--primary-rgb), 0.05);
             border-radius: 12px;
-            border: 1px solid rgba(255, 115, 68, 0.2);
+            border: 1px solid rgba(var(--primary-rgb), 0.2);
         }
 
         .credentials-info p {
@@ -458,6 +473,52 @@
         .credentials-info span {
             color: var(--primary);
             font-weight: 600;
+        }
+
+        .portal-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            margin-bottom: 16px;
+            border-radius: 999px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            color: var(--accent);
+            background: rgba(var(--primary-rgb), 0.1);
+            border: 1px solid rgba(var(--primary-rgb), 0.3);
+        }
+
+        .alert-info {
+            background: rgba(var(--primary-rgb), 0.08);
+            color: var(--dark-800);
+            border: 1px solid rgba(var(--primary-rgb), 0.3);
+        }
+
+        .help-text {
+            margin-top: 20px;
+            color: var(--dark-500);
+            font-size: 0.85rem;
+            line-height: 1.6;
+            text-align: center;
+        }
+
+        .switch-portal {
+            margin-top: 24px;
+            text-align: center;
+            font-size: 0.9rem;
+            color: var(--dark-600);
+        }
+
+        .switch-portal a {
+            color: var(--primary);
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .switch-portal a:hover {
+            text-decoration: underline;
         }
 
         .footer {
@@ -531,7 +592,7 @@
         }
     </style>
 </head>
-<body>
+<body class="{{ $isManager ? 'portal-manager' : 'portal-admin' }}">
     <div class="login-container">
         <div class="login-left">
             <div class="logo-container">
@@ -541,55 +602,98 @@
                     </div>
                     <div class="logo-text">
                         <h1>ASSO</h1>
-                        <p>Administration</p>
+                        <p>{{ $isManager ? 'Espace gestionnaire' : 'Administration' }}</p>
                     </div>
                 </div>
             </div>
 
             <div class="welcome-section">
-                <h1 class="welcome-text">Bienvenue sur votre espace administrateur</h1>
-                <p class="welcome-description">
-                    Gérez efficacement votre plateforme e-commerce avec des outils puissants et intuitifs.
-                </p>
+                @if ($isManager)
+                    <h1 class="welcome-text">Bienvenue dans votre espace gestionnaire</h1>
+                    <p class="welcome-description">
+                        Retrouvez les sections que l'administrateur vous a confiées et faites vivre le catalogue ASSO au quotidien.
+                    </p>
 
-                <div class="features">
-                    <div class="feature">
-                        <div class="feature-icon">
-                            <i class="fas fa-chart-line"></i>
+                    <div class="features">
+                        <div class="feature">
+                            <div class="feature-icon">
+                                <i class="fas fa-boxes-stacked"></i>
+                            </div>
+                            <div class="feature-content">
+                                <h3>Catalogue produits</h3>
+                                <p>Ajoutez, modifiez et masquez les produits</p>
+                            </div>
                         </div>
-                        <div class="feature-content">
-                            <h3>Tableau de bord analytique</h3>
-                            <p>Visualisez toutes vos données en temps réel</p>
+
+                        <div class="feature">
+                            <div class="feature-icon">
+                                <i class="fas fa-user-shield"></i>
+                            </div>
+                            <div class="feature-content">
+                                <h3>Accès sur mesure</h3>
+                                <p>Seules les sections ouvertes par l'administrateur s'affichent</p>
+                            </div>
+                        </div>
+
+                        <div class="feature">
+                            <div class="feature-icon">
+                                <i class="fas fa-envelope-open-text"></i>
+                            </div>
+                            <div class="feature-content">
+                                <h3>Identifiants par e-mail</h3>
+                                <p>Votre mot de passe vous a été envoyé à la création du compte</p>
+                            </div>
                         </div>
                     </div>
+                @else
+                    <h1 class="welcome-text">Bienvenue sur votre espace administrateur</h1>
+                    <p class="welcome-description">
+                        Gérez efficacement votre plateforme e-commerce avec des outils puissants et intuitifs.
+                    </p>
 
-                    <div class="feature">
-                        <div class="feature-icon">
-                            <i class="fas fa-store"></i>
+                    <div class="features">
+                        <div class="feature">
+                            <div class="feature-icon">
+                                <i class="fas fa-chart-line"></i>
+                            </div>
+                            <div class="feature-content">
+                                <h3>Tableau de bord analytique</h3>
+                                <p>Visualisez toutes vos données en temps réel</p>
+                            </div>
                         </div>
-                        <div class="feature-content">
-                            <h3>Gestion des boutiques</h3>
-                            <p>Contrôlez et validez les vendeurs</p>
+
+                        <div class="feature">
+                            <div class="feature-icon">
+                                <i class="fas fa-store"></i>
+                            </div>
+                            <div class="feature-content">
+                                <h3>Gestion des boutiques</h3>
+                                <p>Contrôlez et validez les vendeurs</p>
+                            </div>
+                        </div>
+
+                        <div class="feature">
+                            <div class="feature-icon">
+                                <i class="fas fa-users-gear"></i>
+                            </div>
+                            <div class="feature-content">
+                                <h3>Gestionnaires</h3>
+                                <p>Créez les comptes et attribuez les accès</p>
+                            </div>
                         </div>
                     </div>
-
-                    <div class="feature">
-                        <div class="feature-icon">
-                            <i class="fas fa-box"></i>
-                        </div>
-                        <div class="feature-content">
-                            <h3>Gestion des produits</h3>
-                            <p>Modérez les produits et catégories</p>
-                        </div>
-                    </div>
-                </div>
+                @endif
             </div>
         </div>
 
         <div class="login-right">
             <div class="login-header">
+                <span class="portal-badge">
+                    <i class="fas {{ $isManager ? 'fa-id-badge' : 'fa-shield-halved' }}"></i>
+                    {{ $isManager ? 'Gestionnaire' : 'Administrateur' }}
+                </span>
                 <h2>Connexion</h2>
-                <p>Accédez au panneau d'administration</p>
+                <p>{{ $isManager ? 'Accédez à votre espace de gestion' : "Accédez au panneau d'administration" }}</p>
             </div>
 
             @if ($errors->any())
@@ -603,6 +707,13 @@
                 </div>
             @endif
 
+            @if (session('portal_notice'))
+                <div class="alert alert-info">
+                    <i class="fas fa-circle-info"></i>
+                    <div>{{ session('portal_notice') }}</div>
+                </div>
+            @endif
+
             @if (session('success'))
                 <div class="alert alert-success">
                     <i class="fas fa-check-circle"></i>
@@ -610,7 +721,7 @@
                 </div>
             @endif
 
-            <form method="POST" action="{{ route('admin.login.submit') }}">
+            <form method="POST" action="{{ route($isManager ? 'admin.manager.login.submit' : 'admin.login.submit') }}">
                 @csrf
 
                 <div class="form-group">
@@ -619,8 +730,8 @@
                         <input type="email"
                                id="email"
                                name="email"
-                               value="{{ old('email', 'admin@asso.com') }}"
-                               placeholder="admin@example.com"
+                               value="{{ old('email', $showDemo ? 'admin@asso.com' : '') }}"
+                               placeholder="{{ $isManager ? 'prenom.nom@example.com' : 'admin@example.com' }}"
                                required
                                autofocus>
                         <i class="fas fa-envelope input-icon"></i>
@@ -633,7 +744,7 @@
                         <input type="password"
                                id="password"
                                name="password"
-                               value="password"
+                               @if ($showDemo) value="password" @endif
                                placeholder="Entrez votre mot de passe"
                                required>
                         <i class="fas fa-lock input-icon"></i>
@@ -649,15 +760,24 @@
 
                 <button type="submit" class="btn-login">
                     <i class="fas fa-sign-in-alt"></i>
-                    Se connecter
+                    {{ $isManager ? 'Accéder à mon espace' : 'Se connecter' }}
                 </button>
 
-                <div class="credentials-info">
-                    <p>
-                        <i class="fas fa-info-circle"></i>
-                        Utilisez <span>admin@asso.com</span> / <span>password</span>
+                @if ($showDemo)
+                    <div class="credentials-info">
+                        <p>
+                            <i class="fas fa-info-circle"></i>
+                            Utilisez <span>admin@asso.com</span> / <span>password</span>
+                        </p>
+                    </div>
+                @endif
+
+                @if ($isManager)
+                    <p class="help-text">
+                        <i class="fas fa-key"></i>
+                        Mot de passe oublié ? Demandez à l'administrateur de le réinitialiser : vous recevrez le nouveau par e-mail.
                     </p>
-                </div>
+                @endif
             </form>
 
             <div class="footer">

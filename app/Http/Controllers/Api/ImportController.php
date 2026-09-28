@@ -40,7 +40,7 @@ class ImportController extends Controller
 
         $query = $this->catalogQuery($request->input('q'))
             ->where('origin_country', $code)
-            ->with(['priceTiers', 'primaryImage', 'images', 'variants', 'video'])
+            ->with(['priceTiers', 'primaryImage', 'images', 'variants', 'video', 'shop'])
             // Ordre stable d'une page à l'autre, même pour des produits créés à la même seconde.
             ->latest()
             ->orderByDesc('id');
@@ -120,7 +120,7 @@ class ImportController extends Controller
         $product = Product::where('is_wholesale', true)
             ->where('status', 'active')
             ->whereHas('shop', fn ($query) => $query->where('status', 'active'))
-            ->with(['priceTiers', 'images', 'variants', 'video'])
+            ->with(['priceTiers', 'images', 'variants', 'video', 'shop'])
             ->findOrFail($id);
 
         return response()->json([
@@ -230,7 +230,8 @@ class ImportController extends Controller
         $validated = $request->validate([
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
-            'items.*.price_tier_id' => 'required|exists:product_price_tiers,id',
+            // Indicatif : le serveur applique le palier que la quantité atteint.
+            'items.*.price_tier_id' => 'nullable|exists:product_price_tiers,id',
             'items.*.variant_id' => 'nullable|integer|exists:product_variants,id',
             'items.*.quantity' => 'required|integer|min:1',
             'shipping_option_id' => 'required|exists:import_shipping_options,id',
@@ -332,13 +333,17 @@ class ImportController extends Controller
             // Le poids est renseigné par l'équipe/le vendeur, jamais par le client.
             'unit_weight_kg' => $p->weightKg(),
             'stock' => $p->stock,
+            // Livraison gratuite offerte par le vendeur : course SOLEX offerte.
+            'free_delivery' => $p->hasFreeDelivery(),
             'variants' => ($p->relationLoaded('variants') ? $p->variants : collect())
                 ->where('is_active', true)
                 ->map(fn ($variant) => app(ProductVariantService::class)->presentVariant($variant, $p))->values(),
             'variant_options' => $p->relationLoaded('variants')
                 ? app(ProductVariantService::class)->presentOptions($p)
                 : [],
-            'price_tiers' => $tiers->map(fn ($tier) => $this->serializeTier($tier, $targetCurrency))->values(),
+            // Les options se cumulent-elles pour atteindre un palier ?
+            'tier_mix_variants' => (bool) ($p->tier_mix_variants ?? true),
+            'price_tiers' => $tiers->sortBy('min_quantity')->map(fn ($tier) => $this->serializeTier($tier, $targetCurrency))->values(),
             'image' => $p->id
                 ? url('/api/v1/import/products/' . $p->id . '/image')
                 : null,

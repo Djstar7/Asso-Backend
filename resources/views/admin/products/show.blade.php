@@ -13,10 +13,23 @@
                 <i class="fas fa-arrow-left mr-2"></i>
                 Retour
             </a>
+            @adminCan('admin.products.edit')
             <a href="{{ route('admin.products.edit', $product) }}" class="px-4 py-2 bg-gradient-to-r from-primary-500 to-primary-600 hover:shadow-lg text-white rounded-lg transition-all">
                 <i class="fas fa-edit mr-2"></i>
                 Modifier
             </a>
+            @endadminCan
+            @adminCan('admin.products.toggle-status')
+            <form action="{{ route('admin.products.toggle-status', $product) }}" method="POST">
+                @csrf
+                @method('PATCH')
+                <button type="submit" class="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-all">
+                    <i class="fas {{ $product->status === 'active' ? 'fa-eye-slash' : 'fa-eye' }} mr-2"></i>
+                    {{ $product->status === 'active' ? 'Masquer' : 'Afficher' }}
+                </button>
+            </form>
+            @endadminCan
+            @adminCan('admin.products.destroy')
             <form action="{{ route('admin.products.destroy', $product) }}" method="POST" data-confirm="Êtes-vous sûr de vouloir supprimer ce produit ?">
                 @csrf
                 @method('DELETE')
@@ -25,6 +38,7 @@
                     Supprimer
                 </button>
             </form>
+            @endadminCan
         </div>
     </div>
 
@@ -386,6 +400,19 @@
                         @endif
                     </div>
                 </div>
+            </div>
+
+            <!-- Livraison gratuite -->
+            <div class="bg-dark-100 rounded-xl shadow-lg p-6">
+                <h2 class="text-lg font-semibold text-white mb-2 flex items-center">
+                    <i class="fas fa-truck text-green-500 mr-2"></i>
+                    Livraison gratuite
+                </h2>
+                <p class="text-sm {{ $product->hasFreeDelivery() ? 'text-green-300' : 'text-gray-400' }}">
+                    {{ $product->hasFreeDelivery() ? 'Offerte au client' : 'Payée par le client' }}
+                    <span class="text-gray-500">—
+                        {{ $product->free_delivery === null ? 'réglage de la boutique' : 'réglage propre au produit' }}</span>
+                </p>
             </div>
 
             <!-- Statut -->

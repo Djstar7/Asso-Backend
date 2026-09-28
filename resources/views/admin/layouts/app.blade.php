@@ -121,7 +121,7 @@
 
             <!-- Logo -->
             <div class="flex items-center justify-between h-16 px-6 bg-dark-50 flex-shrink-0 border-b border-dark-200">
-                <a href="{{ route('admin.dashboard') }}" class="flex items-center space-x-3">
+                <a href="{{ route(auth()->user()->adminHomeRoute() ?? 'admin.dashboard') }}" class="flex items-center space-x-3">
                     <div class="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-lg overflow-hidden p-0.5">
                         <img src="{{ asset('logo/Asso.png') }}" alt="ASSO Logo" class="w-full h-full object-cover rounded-full">
                     </div>
@@ -135,48 +135,64 @@
             <!-- Navigation -->
             <nav class="flex-1 mt-6 px-3 overflow-y-auto">
                 <!-- Dashboard -->
+                @if(collect(['admin.dashboard'])->contains(fn ($r) => auth()->user()->canAccessAdminRoute($r)))
                 <div class="space-y-1">
+                    @adminCan('admin.dashboard')
                     <a href="{{ route('admin.dashboard') }}"
                        class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.dashboard') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <i class="fas fa-chart-pie w-5 mr-3"></i>
                         Dashboard
                     </a>
+                    @endadminCan
                 </div>
+                @endif
 
                 <!-- Section Gestion -->
+                @if(collect(['admin.users.index', 'admin.preferences.index', 'admin.deliverers.index', 'admin.delivery-partners.index', 'admin.shipments.index', 'admin.shops.index', 'admin.statistics.index', 'admin.products.index', 'admin.import-countries.index', 'admin.wholesale-orders.index', 'admin.settings.categories', 'admin.packages.index', 'admin.ads.index', 'admin.transactions.index', 'admin.exchanges.index', 'admin.map.index', 'admin.support.index', 'admin.messages.index'])->contains(fn ($r) => auth()->user()->canAccessAdminRoute($r)))
                 <div class="mt-8 pt-6 border-t border-dark-200">
                     <p class="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Gestion</p>
 
+                    @adminCan('admin.users.index')
                     <a href="{{ route('admin.users.index') }}"
                        class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.users.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <i class="fas fa-users w-5 mr-3"></i>
                         Utilisateurs
                     </a>
+                    @endadminCan
 
+                    @adminCan('admin.preferences.index')
                     <a href="{{ route('admin.preferences.index') }}"
                        class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.preferences.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <i class="fas fa-heart w-5 mr-3"></i>
                         Préférences
                     </a>
+                    @endadminCan
 
+                    @adminCan('admin.deliverers.index')
                     <a href="{{ route('admin.deliverers.index') }}"
                        class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.deliverers.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <i class="fas fa-truck w-5 mr-3"></i>
                         Livreurs
                     </a>
+                    @endadminCan
 
+                    @adminCan('admin.delivery-partners.index')
                     <a href="{{ route('admin.delivery-partners.index') }}"
                        class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.delivery-partners.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <i class="fas fa-route w-5 mr-3"></i>
                         Partenaires logistiques
                     </a>
+                    @endadminCan
 
+                    @adminCan('admin.shipments.index')
                     <a href="{{ route('admin.shipments.index') }}"
                        class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.shipments.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <i class="fas fa-shipping-fast w-5 mr-3"></i>
                         Expéditions
                     </a>
+                    @endadminCan
 
+                    @adminCan('admin.shops.index')
                     <a href="{{ route('admin.shops.index') }}"
                        class="flex items-center justify-between px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.shops.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <span class="flex items-center">
@@ -189,25 +205,33 @@
                             </span>
                         @endif
                     </a>
+                    @endadminCan
 
+                    @adminCan('admin.statistics.index')
                     <a href="{{ route('admin.statistics.index') }}"
                        class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.statistics.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <i class="fas fa-chart-line w-5 mr-3"></i>
                         Statistiques boutiques
                     </a>
+                    @endadminCan
 
+                    @adminCan('admin.products.index')
                     <a href="{{ route('admin.products.index') }}"
                        class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.products.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <i class="fas fa-box w-5 mr-3"></i>
                         Produits
                     </a>
+                    @endadminCan
 
+                    @adminCan('admin.import-countries.index')
                     <a href="{{ route('admin.import-countries.index') }}"
                        class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.import-countries.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <i class="fas fa-globe w-5 mr-3"></i>
                         Pays importés
                     </a>
+                    @endadminCan
 
+                    @adminCan('admin.wholesale-orders.index')
                     <a href="{{ route('admin.wholesale-orders.index') }}"
                        class="flex items-center justify-between px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.wholesale-orders.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <span class="flex items-center">
@@ -220,60 +244,80 @@
                             </span>
                         @endif
                     </a>
+                    @endadminCan
 
+                    @adminCan('admin.settings.categories')
                     <a href="{{ route('admin.settings.categories') }}"
                        class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.settings.categories*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <i class="fas fa-th-large w-5 mr-3"></i>
                         Catégories
                     </a>
+                    @endadminCan
 
+                    @adminCan('admin.packages.index')
                     <a href="{{ route('admin.packages.index') }}"
                        class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.packages.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <i class="fas fa-cube w-5 mr-3"></i>
                         Packages
                     </a>
+                    @endadminCan
 
+                    @adminCan('admin.ads.index')
                     <a href="{{ route('admin.ads.index') }}"
                        class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.ads.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <i class="fas fa-bullhorn w-5 mr-3"></i>
                         Asso Ads
                     </a>
+                    @endadminCan
 
+                    @adminCan('admin.transactions.index')
                     <a href="{{ route('admin.transactions.index') }}"
                        class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.transactions.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <i class="fas fa-exchange-alt w-5 mr-3"></i>
                         Transactions
                     </a>
+                    @endadminCan
 
+                    @adminCan('admin.exchanges.index')
                     <a href="{{ route('admin.exchanges.index') }}"
                        class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.exchanges.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <i class="fas fa-sync-alt w-5 mr-3"></i>
                         Échanges
                     </a>
+                    @endadminCan
 
+                    @adminCan('admin.map.index')
                     <a href="{{ route('admin.map.index') }}"
                        class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.map.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <i class="fas fa-map-marked-alt w-5 mr-3"></i>
                         Carte
                     </a>
+                    @endadminCan
 
+                    @adminCan('admin.support.index')
                     <a href="{{ route('admin.support.index') }}"
                        class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.support.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <i class="fas fa-life-ring w-5 mr-3"></i>
                         Support
                     </a>
+                    @endadminCan
 
+                    @adminCan('admin.messages.index')
                     <a href="{{ route('admin.messages.index') }}"
                        class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.messages.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <i class="fas fa-comments w-5 mr-3"></i>
                         Messagerie
                     </a>
+                    @endadminCan
                 </div>
+                @endif
 
                 <!-- Section DIASPO -->
+                @if(collect(['admin.diaspo.verifications.index', 'admin.diaspo.posts.index', 'admin.diaspo.offers.index'])->contains(fn ($r) => auth()->user()->canAccessAdminRoute($r)))
                 <div class="mt-8 pt-6 border-t border-dark-200">
                     <p class="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">DIASPO Exchange</p>
 
+                    @adminCan('admin.diaspo.verifications.index')
                     <a href="{{ route('admin.diaspo.verifications.index') }}"
                        class="flex items-center justify-between px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.diaspo.verifications.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <span class="flex items-center">
@@ -286,128 +330,180 @@
                             </span>
                         @endif
                     </a>
+                    @endadminCan
 
+                    @adminCan('admin.diaspo.posts.index')
                     <a href="{{ route('admin.diaspo.posts.index') }}"
                        class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.diaspo.posts.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <i class="fas fa-comments w-5 mr-3"></i>
                         Voice of Customer
                     </a>
+                    @endadminCan
 
+                    @adminCan('admin.diaspo.offers.index')
                     <a href="{{ route('admin.diaspo.offers.index') }}"
                        class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.diaspo.offers.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <i class="fas fa-plane-departure w-5 mr-3"></i>
                         Offres (Kilos)
                     </a>
+                    @endadminCan
                 </div>
+                @endif
 
                 <!-- Section Affiliation -->
+                @if(collect(['admin.affiliate.settings', 'admin.affiliate.tree', 'admin.affiliate.commissions'])->contains(fn ($r) => auth()->user()->canAccessAdminRoute($r)))
                 <div class="mt-8 pt-6 border-t border-dark-200">
                     <p class="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Affiliation</p>
 
+                    @adminCan('admin.affiliate.settings')
                     <a href="{{ route('admin.affiliate.settings') }}"
                        class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.affiliate.settings') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <i class="fas fa-cog w-5 mr-3"></i>
                         Configuration
                     </a>
+                    @endadminCan
 
+                    @adminCan('admin.affiliate.tree')
                     <a href="{{ route('admin.affiliate.tree') }}"
                        class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.affiliate.tree') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <i class="fas fa-sitemap w-5 mr-3"></i>
                         Arbre Réseau
                     </a>
+                    @endadminCan
 
+                    @adminCan('admin.affiliate.commissions')
                     <a href="{{ route('admin.affiliate.commissions') }}"
                        class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.affiliate.commissions') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <i class="fas fa-money-bill-wave w-5 mr-3"></i>
                         Commissions
                     </a>
+                    @endadminCan
                 </div>
+                @endif
 
                 <!-- Section Commerciaux (P6) -->
+                @if(collect(['admin.sales.agents.index', 'admin.sales.commissions.index'])->contains(fn ($r) => auth()->user()->canAccessAdminRoute($r)))
                 <div class="mt-8 pt-6 border-t border-dark-200">
                     <p class="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Commerciaux</p>
 
+                    @adminCan('admin.sales.agents.index')
                     <a href="{{ route('admin.sales.agents.index') }}"
                        class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.sales.agents.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <i class="fas fa-user-tie w-5 mr-3"></i>
                         Commerciaux & codes
                     </a>
+                    @endadminCan
 
+                    @adminCan('admin.sales.commissions.index')
                     <a href="{{ route('admin.sales.commissions.index') }}"
                        class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.sales.commissions.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <i class="fas fa-hand-holding-usd w-5 mr-3"></i>
                         Commissions commerciaux
                     </a>
+                    @endadminCan
                 </div>
+                @endif
 
                 <!-- Section Annonce -->
+                @if(collect(['admin.banners.index', 'admin.announcements.index'])->contains(fn ($r) => auth()->user()->canAccessAdminRoute($r)))
                 <div class="mt-8 pt-6 border-t border-dark-200">
                     <p class="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Annonce</p>
 
+                    @adminCan('admin.banners.index')
                     <a href="{{ route('admin.banners.index') }}"
                        class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.banners.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <i class="fas fa-ad w-5 mr-3"></i>
                         Bannières
                     </a>
+                    @endadminCan
 
+                    @adminCan('admin.announcements.index')
                     <a href="{{ route('admin.announcements.index') }}"
                        class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.announcements.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <i class="fas fa-bullhorn w-5 mr-3"></i>
                         Annonce Générale
                     </a>
+                    @endadminCan
                 </div>
+                @endif
 
                 <!-- Section Outils -->
+                @if(collect(['admin.documents.index', 'admin.database.index', 'admin.vault.index', 'admin.fcm-tokens.index'])->contains(fn ($r) => auth()->user()->canAccessAdminRoute($r)))
                 <div class="mt-8 pt-6 border-t border-dark-200">
                     <p class="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Outils</p>
 
+                    @adminCan('admin.documents.index')
                     <a href="{{ route('admin.documents.index') }}"
                        class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.documents.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <i class="fas fa-folder-open w-5 mr-3"></i>
                         Documents
                     </a>
+                    @endadminCan
 
+                    @adminCan('admin.database.index')
                     <a href="{{ route('admin.database.index') }}"
                        class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.database.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <i class="fas fa-database w-5 mr-3"></i>
                         Database SQL
                     </a>
+                    @endadminCan
 
+                    @adminCan('admin.vault.index')
                     <a href="{{ route('admin.vault.index') }}"
                        class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.vault.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <i class="fas fa-lock w-5 mr-3"></i>
                         Vault (Credentials)
                     </a>
+                    @endadminCan
 
+                    @adminCan('admin.fcm-tokens.index')
                     <a href="{{ route('admin.fcm-tokens.index') }}"
                        class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.fcm-tokens.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <i class="fas fa-bell w-5 mr-3"></i>
                         FCM Tokens
                     </a>
+                    @endadminCan
                 </div>
+                @endif
 
                 <!-- Section Administration -->
+                @if(collect(['admin.managers.index', 'admin.settings.maintenance', 'admin.settings.index', 'admin.settings.payments', 'admin.stripe.accounts.index', 'admin.settings.services', 'admin.otp-bypass.index', 'admin.legal-pages.index'])->contains(fn ($r) => auth()->user()->canAccessAdminRoute($r)))
                 <div class="mt-8 pt-6 border-t border-dark-200">
                     <p class="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Administration</p>
 
+                    @adminCan('admin.managers.index')
+                    <a href="{{ route('admin.managers.index') }}"
+                       class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.managers.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
+                        <i class="fas fa-user-shield w-5 mr-3"></i>
+                        Gestionnaires
+                    </a>
+                    @endadminCan
+
+                    @adminCan('admin.settings.maintenance')
                     <a href="{{ route('admin.settings.maintenance') }}"
                        class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.settings.maintenance*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <i class="fas fa-tools w-5 mr-3"></i>
                         Maintenance
                     </a>
+                    @endadminCan
 
+                    @adminCan('admin.settings.index')
                     <a href="{{ route('admin.settings.index') }}"
                        class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.settings.index') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <i class="fas fa-cog w-5 mr-3"></i>
                         Paramètres
                     </a>
+                    @endadminCan
 
+                    @adminCan('admin.settings.payments')
                     <a href="{{ route('admin.settings.payments') }}"
                        class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.settings.payments*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <i class="fas fa-credit-card w-5 mr-3"></i>
                         Paiements
                     </a>
+                    @endadminCan
 
+                    @adminCan('admin.stripe.accounts.index')
                     <a href="{{ route('admin.stripe.accounts.index') }}"
                        class="flex items-center justify-between px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.stripe.accounts.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <span class="flex items-center">
@@ -420,25 +516,33 @@
                             </span>
                         @endif
                     </a>
+                    @endadminCan
 
+                    @adminCan('admin.settings.services')
                     <a href="{{ route('admin.settings.services') }}"
                        class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.settings.services*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <i class="fas fa-plug w-5 mr-3"></i>
                         Services
                     </a>
+                    @endadminCan
 
+                    @adminCan('admin.otp-bypass.index')
                     <a href="{{ route('admin.otp-bypass.index') }}"
                        class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.otp-bypass.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <i class="fas fa-mobile-alt w-5 mr-3"></i>
                         Bypass OTP
                     </a>
+                    @endadminCan
 
+                    @adminCan('admin.legal-pages.index')
                     <a href="{{ route('admin.legal-pages.index') }}"
                        class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.legal-pages.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <i class="fas fa-file-contract w-5 mr-3"></i>
                         Pages Légales
                     </a>
+                    @endadminCan
                 </div>
+                @endif
             </nav>
 
             <!-- User Info at bottom -->
@@ -449,7 +553,7 @@
                     </div>
                     <div class="ml-3 flex-1">
                         <p class="text-sm font-medium text-white">{{ auth()->user()->name ?? 'Admin' }}</p>
-                        <p class="text-xs text-gray-400">Administrateur</p>
+                        <p class="text-xs text-gray-400">{{ auth()->user()->backofficeRoleLabel() }}</p>
                     </div>
                     <form action="{{ route('admin.logout') }}" method="POST">
                         @csrf

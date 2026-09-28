@@ -207,6 +207,19 @@ class OrderService
             $assoCommission = (float) $quote['asso_commission'];
             $deliveryFee = (float) $quote['delivery_price'];
 
+            // Livraison gratuite : le vendeur finance la course affichée (transporteur +
+            // commission ASSO), sauf si elle dépasse sa part — l'acheteur la paie alors.
+            $freeDeliveryAmount = 0.0;
+            $freeDelivery = FreeDeliveryService::applies(
+                FreeDeliveryService::cartEligible(Product::with('shop')->whereIn('id', array_column($orderItems, 'product_id'))->get()),
+                $deliveryFee,
+                round($sellerSubtotal, 2),
+            );
+            if ($freeDelivery) {
+                $freeDeliveryAmount = $deliveryFee;
+                $deliveryFee = 0.0;
+            }
+
             Log::info("[OrderService] Frais de livraison calculés", [
                 'mode' => $quote['delivery_mode'],
                 'weight_kg' => $quote['weight_kg'],
@@ -241,7 +254,7 @@ class OrderService
             $saleCommission = [
                 'rate' => count($uniqueRates) === 1 ? $uniqueRates[0] : null,
                 'commission' => round($subtotal - $sellerSubtotal, 2),
-                'vendor_net' => round($sellerSubtotal, 2),
+                'vendor_net' => round($sellerSubtotal - $freeDeliveryAmount, 2),
             ];
             $order = Order::create([
                 'user_id' => $client->id,
@@ -250,6 +263,8 @@ class OrderService
                 'delivery_fee' => $deliveryFee,
                 'base_delivery_price' => $baseDeliveryPrice,
                 'delivery_commission' => $assoCommission,
+                'free_delivery' => $freeDelivery,
+                'free_delivery_amount' => $freeDeliveryAmount,
                 // Commission ASSO sur la vente, figée à la création (cf. CommissionService).
                 'sale_commission_rate' => $saleCommission['rate'],
                 'sale_commission' => $saleCommission['commission'],
@@ -385,26 +400,28 @@ class OrderService
             $calculatedWeightKg = 0;
             $hasMissingWeight = false;
 
-            // Le minimum d'un palier porte sur le total commandé pour ce produit et
-            // ce palier, toutes variantes confondues : 300 rouges + 200 noires d'un
-            // palier « minimum 500 » l'atteignent, même si aucune couleur seule ne
-            // l'atteint. Une ligne par couleur ne doit pas multiplier le minimum.
-            $tierTotals = [];
+            // Le palier suit la quantité (le prix du palier choisi par l'app n'est
+            // qu'indicatif) : 30 ou 60 unités d'un produit à paliers 50 et 100 paient le
+            // prix du palier 50, 100 unités celui du palier 100. Si le produit
+            // cumule ses options, le palier se lit sur le total du produit, toutes
+            // couleurs confondues (300 rouges + 200 noires = 500) ; sinon chaque
+            // option atteint son palier seule.
+            $productTotals = [];
             foreach ($items as $item) {
-                $key = (int) $item['product_id'] . ':' . (int) $item['price_tier_id'];
-                $tierTotals[$key] = ($tierTotals[$key] ?? 0) + (int) $item['quantity'];
+                $productId = (int) $item['product_id'];
+                $productTotals[$productId] = ($productTotals[$productId] ?? 0) + (int) $item['quantity'];
             }
 
-            foreach ($items as $item) {
+            foreach ($items as $index => $item) {
                 $product = Product::lockForUpdate()->findOrFail($item['product_id']);
                 if (!$product->is_wholesale || $product->status !== 'active') {
                     throw new \Exception("Le produit '{$product->name}' n'est pas disponible en gros.");
                 }
 
-                $tier = ProductPriceTier::where('product_id', $product->id)
-                    ->where('id', $item['price_tier_id'])
-                    ->where('is_active', true)
-                    ->firstOrFail();
+                $tiers = ProductPriceTier::where('product_id', $product->id)->where('is_active', true)->get();
+                if ($tiers->isEmpty()) {
+                    throw new \Exception("Le produit '{$product->name}' n'a pas encore de prix de gros.");
+                }
 
                 // Variante choisie (couleur, taille…) : conservée sur la ligne pour le fournisseur.
                 $variant = null;
@@ -418,10 +435,12 @@ class OrderService
                 }
 
                 $quantity = (int) $item['quantity'];
-                $tierTotal = $tierTotals[$product->id . ':' . $tier->id] ?? $quantity;
-                if ($tierTotal < $tier->min_quantity) {
-                    throw new \Exception("Quantité minimale non atteinte pour '{$product->name}' ({$tier->label}) : minimum {$tier->min_quantity} au total, toutes options confondues.");
-                }
+                $mixVariants = $product->tier_mix_variants ?? true;
+                $tierQuantity = $mixVariants ? $productTotals[$product->id] : $quantity;
+                // Pas de minimum : sous le premier seuil, le prix du premier palier.
+                $tier = ProductPriceTier::forQuantity($tiers, $tierQuantity);
+                // Le devis de livraison lit le poids du palier réellement appliqué.
+                $items[$index]['price_tier_id'] = $tier->id;
 
                 // Prix du palier converti en XAF (devise pivot) au taux du moment.
                 $tierCurrency = strtoupper($tier->currency ?? 'XAF');
@@ -494,6 +513,20 @@ class OrderService
                 $deliveryAddress,
             );
             $localDeliveryFee = (float) $quote['delivery_price'];
+
+            // Livraison gratuite : la course SOLEX est retenue sur la part du vendeur ;
+            // l'expédition jusqu'à Douala reste payée par l'acheteur.
+            $freeDeliveryAmount = 0.0;
+            $freeDelivery = FreeDeliveryService::applies(
+                FreeDeliveryService::cartEligible(Product::with('shop')->whereIn('id', array_column($orderItems, 'product_id'))->get()),
+                $localDeliveryFee,
+                round($subtotal, 2),
+            );
+            if ($freeDelivery) {
+                $freeDeliveryAmount = $localDeliveryFee;
+                $localDeliveryFee = 0.0;
+            }
+
             $total = $subtotal + $shippingCost + $localDeliveryFee;
 
             $isDirect = in_array($paymentMode, ['kpay_direct', 'stripe_direct']);
@@ -507,7 +540,7 @@ class OrderService
             }
 
             // Catalogue import (prix fixés par ASSO) : aucune majoration.
-            $saleCommission = ['rate' => 0.0, 'commission' => 0.0, 'vendor_net' => (float) $subtotal];
+            $saleCommission = ['rate' => 0.0, 'commission' => 0.0, 'vendor_net' => round($subtotal - $freeDeliveryAmount, 2)];
             $order = Order::create([
                 'user_id' => $client->id,
                 'status' => 'pending',
@@ -524,6 +557,8 @@ class OrderService
                 // Part SOLEX (TTC) et commission ASSO sur sa course, réglées comme une livraison.
                 'base_delivery_price' => (float) $quote['base_price'],
                 'delivery_commission' => (float) $quote['asso_commission'],
+                'free_delivery' => $freeDelivery,
+                'free_delivery_amount' => $freeDeliveryAmount,
                 'delivery_company_id' => $quote['company_id'],
                 'delivery_zone_id' => $quote['zone_id'],
                 'delivery_route_id' => $quote['route_id'],
@@ -1300,6 +1335,8 @@ class OrderService
                     'subtotal' => $subtotal,
                     'sale_commission' => $saleCommission,
                     'sale_commission_rate' => (float) $order->sale_commission_rate,
+                    // Livraison gratuite offerte : course retenue sur la vente.
+                    'free_delivery_amount' => (float) $order->free_delivery_amount,
                 ],
                 'kpay'
             );

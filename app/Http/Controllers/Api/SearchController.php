@@ -396,6 +396,7 @@ class SearchController extends Controller
                 'is_certified' => (bool) $product->shop->is_certified,
                 'address' => $product->shop->address,
             ] : null,
+            'free_delivery' => $product->hasFreeDelivery(),
             'created_at' => $product->created_at->toIso8601String(),
         ];
 

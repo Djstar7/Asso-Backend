@@ -37,6 +37,20 @@ class ProductPriceTier extends Model
         return $this->belongsTo(Product::class);
     }
 
+    /**
+     * Palier applicable à une quantité : le plus haut dont le seuil est atteint.
+     * Sous le premier seuil, le prix du premier palier s'applique : il n'y a
+     * pas de minimum de commande.
+     *
+     * @param  iterable<ProductPriceTier>  $tiers  paliers actifs du produit
+     */
+    public static function forQuantity(iterable $tiers, int $quantity): ?self
+    {
+        $sorted = collect($tiers)->sortBy([['min_quantity', 'asc'], ['id', 'asc']])->values();
+
+        return $sorted->last(fn (self $tier) => $tier->min_quantity <= $quantity) ?? $sorted->first();
+    }
+
     public function toApi(): array
     {
         return [

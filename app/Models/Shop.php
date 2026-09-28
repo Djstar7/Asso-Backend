@@ -35,6 +35,7 @@ class Shop extends Model
         'certified_at',
         'certification_expires_at',
         'certified_by',
+        'free_delivery',
     ];
 
     protected $casts = [
@@ -42,6 +43,7 @@ class Shop extends Model
         'verified_at' => 'datetime',
         'rejected_at' => 'datetime',
         'is_certified' => 'boolean',
+        'free_delivery' => 'boolean',
         'certified_at' => 'datetime',
         'certification_expires_at' => 'datetime',
     ];

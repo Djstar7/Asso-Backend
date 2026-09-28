@@ -2,16 +2,17 @@
 
 namespace App\Providers;
 
-use Illuminate\Support\Facades\View;
+use App\Models\Conversation;
+use App\Models\DeviceToken;
+use App\Models\DiaspoOffer;
 use App\Models\Shop;
 use App\Models\SupportTicket;
 use App\Models\User;
-use App\Models\DeviceToken;
-use App\Models\DiaspoOffer;
-use App\Models\Conversation;
+use App\Observers\ConversationObserver;
 use App\Observers\DeviceTokenObserver;
 use App\Observers\DiaspoOfferObserver;
-use App\Observers\ConversationObserver;
+use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -38,8 +39,28 @@ class AppServiceProvider extends ServiceProvider
         // Register Conversation observer for automatic security message
         Conversation::observe(ConversationObserver::class);
 
+        // Back-office : @adminCan('admin.products.index') … @endadminCan
+        // n'affiche un lien que si la route est ouverte au compte connecté.
+        Blade::if('adminCan', fn (string $routeName) => (bool) auth()->user()?->canAccessAdminRoute($routeName));
+
         // Partage avec le layout admin : compteur boutiques + notifications réelles
         View::composer('admin.layouts.app', function ($view) {
+            // Un gestionnaire ne voit pas les tâches des sections qui lui sont fermées.
+            if (! auth()->user()?->isAdmin()) {
+                $user = auth()->user();
+                $canSee = fn (string $route) => (bool) $user?->canAccessAdminRoute($route);
+
+                $view->with('pendingShopsCount', $canSee('admin.shops.index') ? Shop::pending()->count() : 0);
+                $view->with('pendingDiaspoVerifications', $canSee('admin.diaspo.verifications.index')
+                    ? User::where('diaspo_verification_status', 'pending')->count() : 0);
+                $view->with('wholesaleToValidateCount', $canSee('admin.wholesale-orders.index')
+                    ? \App\Support\WholesaleOrderStage::apply(\App\Models\Order::where('is_wholesale', true), 'to_validate')->count() : 0);
+                $view->with('adminNotifications', []);
+                $view->with('adminNotificationsCount', 0);
+
+                return;
+            }
+
             $pendingShopsCount = Shop::pending()->count();
             $pendingDiaspoVerifications = User::where('diaspo_verification_status', 'pending')->count();
 
@@ -62,34 +83,34 @@ class AppServiceProvider extends ServiceProvider
             $notifications = [];
             if ($pendingLocationRequests > 0) {
                 $notifications[] = [
-                    'icon'  => 'fa-map-marker-alt',
+                    'icon' => 'fa-map-marker-alt',
                     'color' => 'text-yellow-400',
-                    'title' => $pendingLocationRequests . ' changement' . ($pendingLocationRequests > 1 ? 's' : '') . " d'emplacement de boutique à valider",
-                    'url'   => route('admin.shops.index', ['location_request' => 'pending']),
+                    'title' => $pendingLocationRequests.' changement'.($pendingLocationRequests > 1 ? 's' : '')." d'emplacement de boutique à valider",
+                    'url' => route('admin.shops.index', ['location_request' => 'pending']),
                 ];
             }
             if ($wholesaleToValidateCount > 0) {
                 $notifications[] = [
-                    'icon'  => 'fa-dolly',
+                    'icon' => 'fa-dolly',
                     'color' => 'text-yellow-400',
-                    'title' => $wholesaleToValidateCount . ' commande' . ($wholesaleToValidateCount > 1 ? 's' : '') . ' en gros à valider',
-                    'url'   => route('admin.wholesale-orders.index', ['stage' => 'to_validate']),
+                    'title' => $wholesaleToValidateCount.' commande'.($wholesaleToValidateCount > 1 ? 's' : '').' en gros à valider',
+                    'url' => route('admin.wholesale-orders.index', ['stage' => 'to_validate']),
                 ];
             }
             if ($pendingShopsCount > 0) {
                 $notifications[] = [
-                    'icon'  => 'fa-store',
+                    'icon' => 'fa-store',
                     'color' => 'text-yellow-400',
-                    'title' => $pendingShopsCount . ' boutique' . ($pendingShopsCount > 1 ? 's' : '') . ' en attente de vérification',
-                    'url'   => route('admin.shops.index'),
+                    'title' => $pendingShopsCount.' boutique'.($pendingShopsCount > 1 ? 's' : '').' en attente de vérification',
+                    'url' => route('admin.shops.index'),
                 ];
             }
             if ($openTicketsCount > 0) {
                 $notifications[] = [
-                    'icon'  => 'fa-headset',
+                    'icon' => 'fa-headset',
                     'color' => 'text-blue-400',
-                    'title' => $openTicketsCount . ' ticket' . ($openTicketsCount > 1 ? 's' : '') . ' de support ouvert' . ($openTicketsCount > 1 ? 's' : ''),
-                    'url'   => route('admin.support.index'),
+                    'title' => $openTicketsCount.' ticket'.($openTicketsCount > 1 ? 's' : '').' de support ouvert'.($openTicketsCount > 1 ? 's' : ''),
+                    'url' => route('admin.support.index'),
                 ];
             }
 
