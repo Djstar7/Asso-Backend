@@ -230,7 +230,8 @@ class ImportController extends Controller
         $validated = $request->validate([
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
-            'items.*.price_tier_id' => 'required|exists:product_price_tiers,id',
+            // Indicatif : le serveur applique le palier que la quantité atteint.
+            'items.*.price_tier_id' => 'nullable|exists:product_price_tiers,id',
             'items.*.variant_id' => 'nullable|integer|exists:product_variants,id',
             'items.*.quantity' => 'required|integer|min:1',
             'shipping_option_id' => 'required|exists:import_shipping_options,id',
@@ -340,7 +341,9 @@ class ImportController extends Controller
             'variant_options' => $p->relationLoaded('variants')
                 ? app(ProductVariantService::class)->presentOptions($p)
                 : [],
-            'price_tiers' => $tiers->map(fn ($tier) => $this->serializeTier($tier, $targetCurrency))->values(),
+            // Les options se cumulent-elles pour atteindre un palier ?
+            'tier_mix_variants' => (bool) ($p->tier_mix_variants ?? true),
+            'price_tiers' => $tiers->sortBy('min_quantity')->map(fn ($tier) => $this->serializeTier($tier, $targetCurrency))->values(),
             'image' => $p->id
                 ? url('/api/v1/import/products/' . $p->id . '/image')
                 : null,
