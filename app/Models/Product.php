@@ -109,6 +109,7 @@ class Product extends Model
         'status',
         'is_wholesale',
         'free_delivery',
+        'tier_mix_variants',
         // Référence de l'application pour un produit saisi hors ligne (idempotence).
         'client_reference',
     ];
@@ -122,6 +123,7 @@ class Product extends Model
         'longitude' => 'decimal:8',
         'is_wholesale' => 'boolean',
         'free_delivery' => 'boolean',
+        'tier_mix_variants' => 'boolean',
         'min_order_quantity' => 'integer',
         'sizes' => 'array',
         'variant_options' => 'array',

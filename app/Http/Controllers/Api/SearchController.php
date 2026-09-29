@@ -26,8 +26,8 @@ class SearchController extends Controller
         $request->validate([
             'q' => 'required|string|min:1',
             'per_page' => 'nullable|integer|min:1|max:100',
-            'category_id' => 'nullable|exists:categories,id',
-            'subcategory_id' => 'nullable|exists:subcategories,id',
+            'category_id' => 'bail|nullable|integer|exists:categories,id',
+            'subcategory_id' => 'bail|nullable|integer|exists:subcategories,id',
             'min_price' => 'nullable|numeric|min:0',
             'max_price' => 'nullable|numeric|min:0',
             'type' => 'nullable|in:article,service',

@@ -18,6 +18,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class ProductController extends Controller
 {
@@ -94,8 +95,8 @@ class ProductController extends Controller
     {
         $validated = $request->validate([
             'shop_id' => 'required|exists:shops,id',
-            'category_id' => 'required|exists:categories,id',
-            'subcategory_id' => 'nullable|exists:subcategories,id',
+            'category_id' => 'bail|required|integer|exists:categories,id',
+            'subcategory_id' => 'bail|nullable|integer|exists:subcategories,id',
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'characteristics' => 'nullable|string|max:10000',
@@ -129,11 +130,15 @@ class ProductController extends Controller
             'tiers.*.min_quantity' => 'required_with:tiers|integer|min:1',
             'tiers.*.pack_size' => 'nullable|integer|min:1',
             'tiers.*.weight_kg' => 'nullable|numeric|min:0',
+            // Les options (couleurs, tailles) se cumulent pour atteindre un palier.
+            'tier_mix_variants' => 'nullable|boolean',
 
             // Vidéo déjà envoyée par morceaux (ProductVideoController) : on ne reçoit que son id.
             'video_id' => 'nullable|integer|exists:product_videos,id',
             'remove_video' => 'nullable|boolean',
         ] + ProductVariantService::rules());
+
+        $this->assertDistinctTierThresholds($validated['tiers'] ?? []);
 
         // Isole les données "gros" AVANT toute insertion — elles ne vont pas dans `products`
         $tiers = $validated['tiers'] ?? [];
@@ -168,6 +173,7 @@ class ProductController extends Controller
 
         // Vente en gros
         $validated['is_wholesale'] = $isWholesale;
+        $validated['tier_mix_variants'] = $request->boolean('tier_mix_variants', true);
         // Livraison gratuite : le produit ne garde un réglage propre que s'il
         // diffère de celui de sa boutique ; sinon il la suit.
         $freeDelivery = $request->boolean('free_delivery');
@@ -227,8 +233,8 @@ class ProductController extends Controller
     {
         $validated = $request->validate([
             'shop_id' => 'required|exists:shops,id',
-            'category_id' => 'required|exists:categories,id',
-            'subcategory_id' => 'nullable|exists:subcategories,id',
+            'category_id' => 'bail|required|integer|exists:categories,id',
+            'subcategory_id' => 'bail|nullable|integer|exists:subcategories,id',
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'characteristics' => 'nullable|string|max:10000',
@@ -262,11 +268,15 @@ class ProductController extends Controller
             'tiers.*.min_quantity' => 'required_with:tiers|integer|min:1',
             'tiers.*.pack_size' => 'nullable|integer|min:1',
             'tiers.*.weight_kg' => 'nullable|numeric|min:0',
+            // Les options (couleurs, tailles) se cumulent pour atteindre un palier.
+            'tier_mix_variants' => 'nullable|boolean',
 
             // Vidéo déjà envoyée par morceaux (ProductVideoController) : on ne reçoit que son id.
             'video_id' => 'nullable|integer|exists:product_videos,id',
             'remove_video' => 'nullable|boolean',
         ] + ProductVariantService::rules());
+
+        $this->assertDistinctTierThresholds($validated['tiers'] ?? []);
 
         // Isole les données "gros" AVANT l'update — elles ne vont pas dans `products`
         $tiers = $validated['tiers'] ?? [];
@@ -302,6 +312,7 @@ class ProductController extends Controller
 
         // Vente en gros
         $validated['is_wholesale'] = $isWholesale;
+        $validated['tier_mix_variants'] = $request->boolean('tier_mix_variants', true);
         // Livraison gratuite : le produit ne garde un réglage propre que s'il
         // diffère de celui de sa boutique ; sinon il la suit.
         $freeDelivery = $request->boolean('free_delivery');
@@ -399,6 +410,23 @@ class ProductController extends Controller
             $video->update(['product_id' => $product->id]);
         } elseif ($video->product_id === null) {
             $video->delete();
+        }
+    }
+
+    /**
+     * Le palier appliqué se déduit de la quantité : deux paliers au même seuil
+     * rendraient le prix ambigu.
+     */
+    private function assertDistinctTierThresholds(array $tiers): void
+    {
+        $thresholds = collect($tiers)
+            ->filter(fn ($tier) => ! empty($tier['label']) && isset($tier['unit_price']))
+            ->map(fn ($tier) => (int) ($tier['min_quantity'] ?? 1));
+
+        if ($thresholds->count() !== $thresholds->unique()->count()) {
+            throw ValidationException::withMessages([
+                'tiers' => 'Deux paliers ne peuvent pas partir de la même quantité : le prix appliqué serait ambigu.',
+            ]);
         }
     }
 

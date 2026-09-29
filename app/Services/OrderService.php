@@ -400,26 +400,28 @@ class OrderService
             $calculatedWeightKg = 0;
             $hasMissingWeight = false;
 
-            // Le minimum d'un palier porte sur le total commandé pour ce produit et
-            // ce palier, toutes variantes confondues : 300 rouges + 200 noires d'un
-            // palier « minimum 500 » l'atteignent, même si aucune couleur seule ne
-            // l'atteint. Une ligne par couleur ne doit pas multiplier le minimum.
-            $tierTotals = [];
+            // Le palier suit la quantité (le prix du palier choisi par l'app n'est
+            // qu'indicatif) : 30 ou 60 unités d'un produit à paliers 50 et 100 paient le
+            // prix du palier 50, 100 unités celui du palier 100. Si le produit
+            // cumule ses options, le palier se lit sur le total du produit, toutes
+            // couleurs confondues (300 rouges + 200 noires = 500) ; sinon chaque
+            // option atteint son palier seule.
+            $productTotals = [];
             foreach ($items as $item) {
-                $key = (int) $item['product_id'] . ':' . (int) $item['price_tier_id'];
-                $tierTotals[$key] = ($tierTotals[$key] ?? 0) + (int) $item['quantity'];
+                $productId = (int) $item['product_id'];
+                $productTotals[$productId] = ($productTotals[$productId] ?? 0) + (int) $item['quantity'];
             }
 
-            foreach ($items as $item) {
+            foreach ($items as $index => $item) {
                 $product = Product::lockForUpdate()->findOrFail($item['product_id']);
                 if (!$product->is_wholesale || $product->status !== 'active') {
                     throw new \Exception("Le produit '{$product->name}' n'est pas disponible en gros.");
                 }
 
-                $tier = ProductPriceTier::where('product_id', $product->id)
-                    ->where('id', $item['price_tier_id'])
-                    ->where('is_active', true)
-                    ->firstOrFail();
+                $tiers = ProductPriceTier::where('product_id', $product->id)->where('is_active', true)->get();
+                if ($tiers->isEmpty()) {
+                    throw new \Exception("Le produit '{$product->name}' n'a pas encore de prix de gros.");
+                }
 
                 // Variante choisie (couleur, taille…) : conservée sur la ligne pour le fournisseur.
                 $variant = null;
@@ -433,10 +435,12 @@ class OrderService
                 }
 
                 $quantity = (int) $item['quantity'];
-                $tierTotal = $tierTotals[$product->id . ':' . $tier->id] ?? $quantity;
-                if ($tierTotal < $tier->min_quantity) {
-                    throw new \Exception("Quantité minimale non atteinte pour '{$product->name}' ({$tier->label}) : minimum {$tier->min_quantity} au total, toutes options confondues.");
-                }
+                $mixVariants = $product->tier_mix_variants ?? true;
+                $tierQuantity = $mixVariants ? $productTotals[$product->id] : $quantity;
+                // Pas de minimum : sous le premier seuil, le prix du premier palier.
+                $tier = ProductPriceTier::forQuantity($tiers, $tierQuantity);
+                // Le devis de livraison lit le poids du palier réellement appliqué.
+                $items[$index]['price_tier_id'] = $tier->id;
 
                 // Prix du palier converti en XAF (devise pivot) au taux du moment.
                 $tierCurrency = strtoupper($tier->currency ?? 'XAF');

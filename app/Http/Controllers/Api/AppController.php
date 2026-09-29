@@ -38,6 +38,10 @@ class AppController extends Controller
                 'legal' => [
                     'company' => 'ASSO SARL',
                     'copyright' => '© 2026 ASSO. Tous droits réservés.',
+                    // Documents rédigés dans le back-office (Pages légales).
+                    'pages' => \App\Models\LegalPage::getAllActive()
+                        ->map(fn ($page) => \App\Http\Controllers\PublicLegalPageController::summary($page))
+                        ->values(),
                 ],
             ],
         ]);
