@@ -132,8 +132,9 @@ npm install && npm run build
 | Redis    | Cache / queues alternatifs  | `brew services start redis`, puis `CACHE_STORE=redis`              |
 | Reverb   | Websockets temps réel       | `php artisan reverb:start` (port 8080)                             |
 | Firebase | Notifications push (FCM)    | Déposer le service account dans `storage/app/private/firebase/service-account.json` |
+| Asso-Lookup | Fiche produit pré-remplie par scan (sans LLM) | Lancer `../Asso-Lookup` (voir son README), puis `PRODUCT_LOOKUP_URL` et `PRODUCT_LOOKUP_TOKEN` |
 
-Les intégrations tierces (Stripe, KPay, Gemini, Firebase) sont **laissées vides** dans le
+Les intégrations tierces (Stripe, KPay, Firebase, Asso-Lookup) sont **laissées vides** dans le
 `.env` local : les services concernés dégradent proprement. Renseignez uniquement les clés
 de **test/sandbox** si vous devez tester ces parcours.
 

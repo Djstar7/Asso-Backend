@@ -35,6 +35,15 @@ return [
         ],
     ],
 
+    // Micro-service Asso-Lookup (Python) : fiche produit pré-remplie depuis un
+    // scan, sans LLM. Service interne, jamais exposé au mobile.
+    'product_lookup' => [
+        'url' => env('PRODUCT_LOOKUP_URL', 'http://127.0.0.1:8001'),
+        'token' => env('PRODUCT_LOOKUP_TOKEN', ''),
+        // Le service s'accorde 8 s de recherche ; marge pour le réseau.
+        'timeout' => (int) env('PRODUCT_LOOKUP_TIMEOUT', 12),
+    ],
+
     'exchangerate' => [
         'api_key' => env('EXCHANGERATE_API_KEY', ''),
     ],

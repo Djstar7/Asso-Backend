@@ -112,6 +112,9 @@ class Product extends Model
         'tier_mix_variants',
         // Référence de l'application pour un produit saisi hors ligne (idempotence).
         'client_reference',
+        // Lus au scan de l'étiquette (fonctionnalité 3), modifiables par le vendeur.
+        'barcode',
+        'brand',
     ];
 
     protected $casts = [

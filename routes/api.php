@@ -28,7 +28,7 @@ use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\DelivererSyncController;
 use App\Http\Controllers\Api\ShopController;
 use App\Http\Controllers\Api\SearchController;
-use App\Http\Controllers\Api\AnalyzeProductController;
+use App\Http\Controllers\Api\ProductScanController;
 use Illuminate\Support\Facades\Broadcast;
 
 /*
@@ -127,11 +127,6 @@ Route::prefix('v1')->group(function () {
     Route::get('/app/version', [AppController::class, 'version']);
     // Compte support ASSO (id à utiliser par le mobile pour démarrer une conversation).
     Route::get('/app/support', [AppController::class, 'support']);
-
-    // AI Product Analysis (Gemini Vision) — collab upstream
-    Route::post('/products/analyze', [AnalyzeProductController::class, 'analyze']);
-    Route::get('/products/categories', [AnalyzeProductController::class, 'categories']);
-    Route::get('/products/analyze/health', [AnalyzeProductController::class, 'health']);
 
     // Intelligent Search (Public) — collab upstream
     Route::get('/search', [SearchController::class, 'search']);
@@ -342,6 +337,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Product creation (for vendors)
         Route::post('/products', [ProductController::class, 'store']);
+        // Fiche pré-remplie depuis un scan ML Kit (fonctionnalité 3, sans LLM).
+        Route::post('/products/scan-lookup', [ProductScanController::class, 'lookup'])
+            ->middleware('throttle:30,1');
 
         // Vendor product management
         Route::prefix('vendor/products')->group(function () {

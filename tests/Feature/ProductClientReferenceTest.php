@@ -156,4 +156,16 @@ class ProductClientReferenceTest extends TestCase
 
         $this->assertSame(0, Product::count());
     }
+
+    public function test_code_barres_et_marque_enregistres_a_la_creation(): void
+    {
+        $this->publish($this->vendor(), null, ['barcode' => '3017620422003', 'brand' => ' Nutella '])
+            ->assertCreated()
+            ->assertJsonPath('product.barcode', '3017620422003')
+            ->assertJsonPath('product.brand', 'Nutella');
+
+        $this->publish($this->vendor(), null, ['barcode' => '12-34'])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('barcode');
+    }
 }

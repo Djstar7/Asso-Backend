@@ -54,6 +54,26 @@ class VendorProductManagementTest extends TestCase
             ->assertJsonPath('product.status', 'active');
     }
 
+    public function test_vendor_can_set_and_clear_barcode_and_brand(): void
+    {
+        $vendor = User::factory()->create(['role' => 'vendeur']);
+        $product = $this->productFor($vendor);
+        Sanctum::actingAs($vendor);
+
+        $this->putJson("/api/v1/vendor/products/{$product->id}", ['barcode' => '3017620422003', 'brand' => 'Nutella'])
+            ->assertOk();
+        $this->assertSame(['3017620422003', 'Nutella'], [$product->fresh()->barcode, $product->fresh()->brand]);
+
+        $this->putJson("/api/v1/vendor/products/{$product->id}", ['barcode' => 'ABC123'])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('barcode');
+
+        $this->putJson("/api/v1/vendor/products/{$product->id}", ['barcode' => null, 'brand' => null])
+            ->assertOk();
+        $this->assertNull($product->fresh()->barcode);
+        $this->assertNull($product->fresh()->brand);
+    }
+
     public function test_vendor_cannot_change_another_vendors_product_status(): void
     {
         $owner = User::factory()->create(['role' => 'vendeur']);

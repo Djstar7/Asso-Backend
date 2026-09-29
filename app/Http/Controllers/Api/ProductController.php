@@ -408,6 +408,9 @@ class ProductController extends Controller
             'images.*' => 'file|image|mimes:jpeg,png,jpg,gif,webp|max:5120',
             // Livraison gratuite : absent/null = suit la boutique.
             'free_delivery' => 'nullable|boolean',
+            // Lus au scan de l'étiquette (EAN-8 à GTIN-14).
+            'barcode' => ['nullable', 'string', 'regex:/^\d{8,14}$/'],
+            'brand' => 'nullable|string|max:120',
         ] + ProductVariantService::rules());
 
         \Log::info('[PRODUCT_STORE] Validation passed');
@@ -489,6 +492,11 @@ class ProductController extends Controller
         }
         if (isset($validated['free_delivery'])) {
             $productData['free_delivery'] = (bool) $validated['free_delivery'];
+        }
+        foreach (['barcode', 'brand'] as $field) {
+            if (!empty($validated[$field])) {
+                $productData[$field] = trim($validated[$field]);
+            }
         }
 
         if ($clientReference !== null) {
@@ -627,6 +635,8 @@ class ProductController extends Controller
             'description' => $product->description,
             'characteristics' => $product->characteristics,
             'commercial_information' => $product->commercial_information,
+            'barcode' => $product->barcode,
+            'brand' => $product->brand,
             'price' => $pricing['price'],
             'currency' => $product->currency ?? 'XAF',
             'price_xaf' => $pricing['price_xaf'],

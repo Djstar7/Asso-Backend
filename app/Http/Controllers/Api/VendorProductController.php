@@ -118,6 +118,9 @@ class VendorProductController extends Controller
             'replace_variants' => 'sometimes|boolean',
             // Livraison gratuite : null = suit la boutique.
             'free_delivery' => 'sometimes|nullable|boolean',
+            // Lus au scan de l'étiquette (EAN-8 à GTIN-14).
+            'barcode' => ['sometimes', 'nullable', 'string', 'regex:/^\d{8,14}$/'],
+            'brand' => 'sometimes|nullable|string|max:120',
         ] + ProductVariantService::rules());
 
         \Log::info('[VENDOR_PRODUCT_UPDATE] Received data:', [
@@ -449,6 +452,8 @@ class VendorProductController extends Controller
             'description' => $product->description,
             'characteristics' => $product->characteristics,
             'commercial_information' => $product->commercial_information,
+            'barcode' => $product->barcode,
+            'brand' => $product->brand,
             'price' => (float) $product->price,
             'currency' => $product->currency ?? 'XAF',
             'price_xaf' => $product->price_xaf !== null ? (float) $product->price_xaf : (float) $product->price,
