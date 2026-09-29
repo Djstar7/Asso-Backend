@@ -25,9 +25,8 @@ class SetLocale
 
     private function resolve(Request $request): string
     {
-        $header = $request->getPreferredLanguage(self::SUPPORTED);
-        if ($request->headers->has('Accept-Language') && $header !== null) {
-            return $header;
+        if (filled($request->headers->get('Accept-Language'))) {
+            return $request->getPreferredLanguage(self::SUPPORTED) ?? 'fr';
         }
 
         $user = $request->user('sanctum');

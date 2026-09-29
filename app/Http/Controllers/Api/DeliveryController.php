@@ -116,14 +116,13 @@ class DeliveryController extends Controller
 
                 if ($activeRuns >= self::MAX_ACTIVE_RUNS) {
                     throw new \Exception(
-                        'Vous transportez déjà ' . self::MAX_ACTIVE_RUNS . ' commandes. '
-                        . "Livrez-en une pour pouvoir en accepter une autre."
+                        __('delivery.max_active_runs', ['count' => self::MAX_ACTIVE_RUNS])
                     );
                 }
 
                 // Double-check : si un autre livreur a pris entre-temps
                 if ($order->delivery_person_id !== null && $order->delivery_person_id !== $user->id) {
-                    throw new \Exception("Cette livraison a déjà été prise par un autre livreur.");
+                    throw new \Exception(__('delivery.already_taken'));
                 }
 
                 $order->update([
@@ -140,9 +139,10 @@ class DeliveryController extends Controller
                 return $order;
             });
 
-            $order->notifySellers(
-                'Commande en cours de livraison',
-                "Le livreur {$user->first_name} a pris en charge la commande #{$order->order_number}.",
+            $order->notifySellersTranslated(
+                'notifications.order_shipped_vendor.title',
+                'notifications.order_shipped_vendor.body',
+                ['deliverer' => $user->first_name, 'order_number' => $order->order_number],
                 ['type' => 'order_shipped_vendor', 'deliverer_name' => trim($user->first_name . ' ' . $user->last_name), 'deliverer_phone' => $user->phone],
             );
 
@@ -151,8 +151,12 @@ class DeliveryController extends Controller
             if ($client) {
                 $this->fcmService->sendToUser(
                     $client,
-                    'Livraison en cours !',
-                    "Votre commande #{$order->order_number} est en cours de livraison par {$user->first_name}. Votre code de confirmation : {$order->confirmation_code}",
+                    $client->translate('notifications.order_shipped.title'),
+                    $client->translate('notifications.order_shipped.body', [
+                        'order_number' => $order->order_number,
+                        'deliverer' => $user->first_name,
+                        'code' => $order->confirmation_code,
+                    ]),
                     [
                         'type' => 'order_shipped',
                         'order_id' => (string) $order->id,
@@ -174,7 +178,7 @@ class DeliveryController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Livraison acceptée — course démarrée',
+                'message' => __('delivery.accepted_run_started'),
                 'order' => $this->formatDeliveryRequest($order->fresh(['items.product.primaryImage', 'user', 'deliveryCompany'])),
             ]);
 
@@ -214,7 +218,7 @@ class DeliveryController extends Controller
         if ($order->confirmation_code !== $request->confirmation_code) {
             return response()->json([
                 'success' => false,
-                'message' => 'Code de confirmation incorrect.',
+                'message' => __('delivery.confirmation_code_incorrect'),
             ], 422);
         }
 
@@ -249,8 +253,8 @@ class DeliveryController extends Controller
                         if ($companyUser) {
                             $this->fcmService->sendToUser(
                                 $companyUser,
-                                'Livraison confirmée',
-                                "Livraison #{$order->order_number} confirmée.",
+                                $companyUser->translate('notifications.delivery_completed.title'),
+                                $companyUser->translate('notifications.delivery_completed.body', ['order_number' => $order->order_number]),
                                 [
                                     'type' => 'delivery_completed',
                                     'order_id' => (string) $order->id,
@@ -285,8 +289,8 @@ class DeliveryController extends Controller
                 if ($client) {
                     $this->fcmService->sendToUser(
                         $client,
-                        'Livraison confirmée !',
-                        "Votre commande #{$order->order_number} a été livrée avec succès. Notez votre expérience !",
+                        $client->translate('notifications.order_delivered.title'),
+                        $client->translate('notifications.order_delivered.body', ['order_number' => $order->order_number]),
                         [
                             'type' => 'order_delivered',
                             'order_id' => (string) $order->id,
@@ -301,8 +305,8 @@ class DeliveryController extends Controller
                     if ($seller) {
                         $this->fcmService->sendToUser(
                             $seller,
-                            'Livraison confirmée',
-                            "La commande #{$order->order_number} a été livrée avec succès.",
+                            $seller->translate('notifications.order_delivered_vendor.title'),
+                            $seller->translate('notifications.order_delivered_vendor.body', ['order_number' => $order->order_number]),
                             [
                                 'type' => 'order_delivered_vendor',
                                 'order_id' => (string) $order->id,
@@ -323,7 +327,7 @@ class DeliveryController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Livraison confirmée !',
+                'message' => __('delivery.confirmed'),
             ]);
 
         } catch (\Exception $e) {
@@ -387,7 +391,7 @@ class DeliveryController extends Controller
             return response()->json([
                 'success' => false,
                 'available' => false,
-                'message' => 'Aucune zone de livraison disponible pour le moment',
+                'message' => __('delivery.no_zone_available'),
             ]);
         }
 
@@ -491,7 +495,7 @@ class DeliveryController extends Controller
             return response()->json([
                 'success' => false,
                 'available' => false,
-                'message' => 'Désolé, aucune zone de livraison ne couvre cette position. Veuillez choisir un emplacement dans une zone desservie.',
+                'message' => __('delivery.position_not_covered'),
             ]);
         }
 
@@ -510,7 +514,7 @@ class DeliveryController extends Controller
         return response()->json([
             'success' => true,
             'available' => true,
-            'message' => 'Zone de livraison disponible',
+            'message' => __('delivery.zone_available'),
             'zones' => $nearbyZones,
             'nearest_zone' => $nearbyZones[0] ?? null,
         ]);
@@ -630,7 +634,7 @@ class DeliveryController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la récupération des partenaires de livraison',
+                'message' => __('delivery.partners_fetch_error'),
             ], 500);
         }
     }
@@ -672,8 +676,8 @@ class DeliveryController extends Controller
             if ($sync->user) {
                 $this->fcmService->sendToUser(
                     $sync->user,
-                    'Commande prise',
-                    "La commande #{$order->order_number} a été acceptée par un autre livreur.",
+                    $sync->user->translate('notifications.delivery_taken.title'),
+                    $sync->user->translate('notifications.delivery_taken.body', ['order_number' => $order->order_number]),
                     [
                         'type' => 'delivery_taken',
                         'order_id' => (string) $order->id,
@@ -695,7 +699,7 @@ class DeliveryController extends Controller
             // Où récupérer le colis : boutique (quartier, ville), entrepôt ASSO de Douala
             // pour un import, ou agence du partenaire.
             'pickup_address' => $pickup['kind'] === 'agency'
-                ? "Agence {$delivery['company_name']}"
+                ? __('delivery.agency_label', ['company' => $delivery['company_name']])
                 : trim(implode(' — ', array_filter([$pickup['name'], $pickup['address']]))),
             'pickup_latitude' => $pickup['latitude'],
             'pickup_longitude' => $pickup['longitude'],
@@ -703,7 +707,7 @@ class DeliveryController extends Controller
             'notes' => trim(implode(' · ', array_filter([
                 $delivery['vehicle_label'],
                 $delivery['route_label'],
-                $delivery['lead_time'] ? 'Délai annoncé : ' . $delivery['lead_time'] : null,
+                $delivery['lead_time'] ? __('delivery.announced_lead_time', ['lead_time' => $delivery['lead_time']]) : null,
                 $order->notes,
             ]))),
             'delivery' => $delivery,
@@ -727,7 +731,7 @@ class DeliveryController extends Controller
                 'address' => $order->user->address,
             ] : null,
             'items' => $order->items->map(fn($item) => [
-                'product_name' => $item->product->name ?? 'Produit',
+                'product_name' => $item->product->name ?? __('products.default_name'),
                 'quantity' => $item->quantity,
             ]),
             'items_count' => $order->items->count(),

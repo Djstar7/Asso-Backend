@@ -28,7 +28,8 @@ class ApiLocaleTest extends TestCase
     {
         Sanctum::actingAs(User::factory()->create(['locale' => 'en']));
 
-        $this->putJson('/api/v1/auth/locale', [])
+        $this->withHeader('Accept-Language', '')
+            ->putJson('/api/v1/auth/locale', [])
             ->assertJsonPath('errors.locale.0', 'The language field is required.');
     }
 
@@ -61,6 +62,34 @@ class ApiLocaleTest extends TestCase
         $this->assertSame(
             'The phone number field is required.',
             $english->translate('validation.required', ['attribute' => 'phone number']),
+        );
+    }
+
+    public function test_api_messages_follow_accept_language(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+
+        $this->postJson('/api/v1/posts', ['content' => ''], ['Accept-Language' => 'fr'])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Le message ne peut pas être vide.');
+
+        $this->postJson('/api/v1/posts', ['content' => ''], ['Accept-Language' => 'en'])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'The message cannot be empty.');
+    }
+
+    public function test_push_texts_use_the_recipient_language(): void
+    {
+        app()->setLocale('en');
+        $french = User::factory()->make(['locale' => 'fr']);
+
+        $this->assertSame(
+            __('notifications.order_rated.title', [], 'fr'),
+            $french->translate('notifications.order_rated.title'),
+        );
+        $this->assertNotSame(
+            __('notifications.order_rated.title', [], 'en'),
+            $french->translate('notifications.order_rated.title'),
         );
     }
 }

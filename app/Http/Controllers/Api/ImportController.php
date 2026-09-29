@@ -256,8 +256,8 @@ class ImportController extends Controller
             'delivery_longitude' => 'nullable|numeric',
             'notes' => 'nullable|string',
         ], [
-            'delivery_company_id.required' => "Choisissez la livraison SOLEX : la commande arrive à Douala, puis SOLEX la livre jusqu'à vous.",
-            'delivery_address.required' => 'Indiquez votre adresse de livraison.',
+            'delivery_company_id.required' => __('orders.wholesale.solex_delivery_required'),
+            'delivery_address.required' => __('orders.wholesale.delivery_address_required'),
         ]);
 
         $paymentMode = $validated['payment_mode'] ?? 'kpay_direct';
@@ -266,7 +266,7 @@ class ImportController extends Controller
         if ($paymentMode === 'stripe_direct' && !PaymentMethodService::isEnabled('stripe')) {
             return response()->json([
                 'success' => false,
-                'message' => "Le paiement par carte (Stripe) n'est pas disponible pour le moment.",
+                'message' => __('payments.stripe_unavailable'),
             ], 422);
         }
 
@@ -300,7 +300,7 @@ class ImportController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Commande en gros créée.',
+                'message' => __('orders.wholesale.created'),
                 'order_id' => $order->id,
                 'order_number' => $order->order_number,
                 'payment_reference' => $order->payment_reference,

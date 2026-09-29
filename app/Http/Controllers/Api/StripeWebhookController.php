@@ -256,9 +256,8 @@ class StripeWebhookController extends Controller
 
             $this->notifyUser(
                 $user,
-                'Compte de virement à mettre à jour',
-                'Notre partenaire bancaire demande des informations complémentaires avant '
-                    . "d'autoriser vos virements. Mettez à jour votre compte de virement.",
+                $user->translate('notifications.stripe_account_requirements.title'),
+                $user->translate('notifications.stripe_account_requirements.body'),
                 ['type' => 'stripe_account_requirements', 'action' => 'open_stripe_connect'],
             );
         }

@@ -343,8 +343,8 @@ class ShopController extends Controller
             if ($vendor) {
                 $fcmService->sendToUser(
                     $vendor,  // Pass the User object, not the ID
-                    'Changement de localisation approuvé',
-                    "Votre demande de changement de localisation pour {$shop->name} a été approuvée par l'administrateur.",
+                    $vendor->translate('notifications.location_request_approved.title'),
+                    $vendor->translate('notifications.location_request_approved.body', ['shop' => $shop->name]),
                     [
                         'type' => 'location_request_approved',
                         'shop_id' => $shop->id,
@@ -403,8 +403,8 @@ class ShopController extends Controller
             if ($vendor) {
                 $fcmService->sendToUser(
                     $vendor,  // Pass the User object, not the ID
-                    'Changement de localisation rejeté',
-                    "Votre demande de changement d'emplacement pour {$shop->name} a été refusée : {$reason}",
+                    $vendor->translate('notifications.location_request_rejected.title'),
+                    $vendor->translate('notifications.location_request_rejected.body', ['shop' => $shop->name, 'reason' => $reason]),
                     [
                         'type' => 'location_request_rejected',
                         'shop_id' => $shop->id,

@@ -79,10 +79,14 @@ class OrderTrackingService
 
         if ($notifyBuyer && $order->user) {
             try {
+                $buyer = $order->user;
+                $buyerLabel = array_key_exists($step, self::STEPS)
+                    ? $buyer->translate("tracking.steps.{$step}")
+                    : $label;
                 $this->fcm->sendToUser(
-                    $order->user,
-                    "Commande #{$order->order_number}",
-                    $label . ($location ? " — {$location}" : '') . ($note ? ". {$note}" : '.'),
+                    $buyer,
+                    $buyer->translate('notifications.order_tracking.title', ['order_number' => $order->order_number]),
+                    $buyerLabel . ($location ? " — {$location}" : '') . ($note ? ". {$note}" : '.'),
                     [
                         'type' => 'order_tracking',
                         'order_id' => (string) $order->id,
@@ -112,8 +116,11 @@ class OrderTrackingService
             try {
                 $this->fcm->sendToUser(
                     $sync->user,
-                    'Colis à livrer depuis l\'agence',
-                    "Commande #{$order->order_number} — livraison vers {$order->delivery_address}.",
+                    $sync->user->translate('notifications.agency_delivery_request.title'),
+                    $sync->user->translate('notifications.agency_delivery_request.body', [
+                        'order_number' => $order->order_number,
+                        'address' => $order->delivery_address,
+                    ]),
                     [
                         'type' => 'new_delivery_request',
                         'order_id' => (string) $order->id,

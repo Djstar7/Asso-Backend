@@ -104,7 +104,7 @@ class OrderService
                 $product = Product::lockForUpdate()->findOrFail($item['product_id']);
 
                 if (!in_array($product->status, ['published', 'active'])) {
-                    throw new \Exception("Le produit '{$product->name}' n'est plus disponible.");
+                    throw new \Exception(__('orders.product_unavailable', ['product' => $product->name]));
                 }
 
                 $variant = null;
@@ -115,18 +115,18 @@ class OrderService
                         ->lockForUpdate()
                         ->find($item['variant_id']);
                     if (!$variant) {
-                        throw new \Exception("La variante sélectionnée pour '{$product->name}' n'existe pas.");
+                        throw new \Exception(__('orders.variant_not_found', ['product' => $product->name]));
                     }
                     if (!$variant->is_active) {
-                        throw new \Exception("La variante sélectionnée pour '{$product->name}' n'est plus disponible.");
+                        throw new \Exception(__('orders.variant_unavailable', ['product' => $product->name]));
                     }
                 } elseif ($product->variants()->exists()) {
-                    throw new \Exception("Veuillez sélectionner une variante pour '{$product->name}'.");
+                    throw new \Exception(__('orders.variant_required', ['product' => $product->name]));
                 }
 
                 $availableStock = $variant?->stock ?? $product->stock;
                 if ($availableStock !== null && $availableStock < $item['quantity']) {
-                    throw new \Exception("Stock insuffisant pour '{$product->name}'. Disponible: {$availableStock}");
+                    throw new \Exception(__('orders.insufficient_stock', ['product' => $product->name, 'available' => $availableStock]));
                 }
 
                 // Prix du produit converti en XAF (devise pivot) au taux du MOMENT de la
@@ -148,7 +148,7 @@ class OrderService
                     $conv = \App\Services\ExchangeRateService::convert($sourceCurrency, 'XAF', $buyerSourceUnit);
                     $sellerConv = \App\Services\ExchangeRateService::convert($sourceCurrency, 'XAF', $sellerSourceUnit);
                     if (empty($conv['success']) || $conv['amount'] === null || empty($sellerConv['success']) || $sellerConv['amount'] === null) {
-                        throw new \Exception("Conversion {$sourceCurrency} → XAF indisponible pour '{$product->name}'. Réessayez plus tard.");
+                        throw new \Exception(__('orders.product_conversion_unavailable_retry', ['currency' => $sourceCurrency, 'product' => $product->name]));
                     }
                     $unitPrice = round((float) $conv['amount'], 2);
                     $sellerUnitPrice = min($unitPrice, round((float) $sellerConv['amount'], 2));
@@ -312,8 +312,8 @@ class OrderService
             // Notification client
             $this->fcmService->sendToUser(
                 $client,
-                'Commande en attente',
-                "Votre commande #{$order->order_number} a été créée. En attente de validation du vendeur.",
+                $client->translate('notifications.order_created.title'),
+                $client->translate('notifications.order_created.body', ['order_number' => $order->order_number]),
                 [
                     'type' => 'order_created',
                     'order_id' => (string) $order->id,
@@ -333,8 +333,12 @@ class OrderService
                     if ($seller) {
                         $this->fcmService->sendToUser(
                             $seller,
-                            'Nouvelle commande reçue',
-                            "Vous avez reçu une nouvelle commande #{$order->order_number} de {$client->first_name} ({$order->formatted_total}).",
+                            $seller->translate('notifications.new_order_vendor.title'),
+                            $seller->translate('notifications.new_order_vendor.body', [
+                                'order_number' => $order->order_number,
+                                'client' => $client->first_name,
+                                'total' => $order->formatted_total,
+                            ]),
                             [
                                 'type' => 'new_order_vendor',
                                 'order_id' => (string) $order->id,
@@ -415,12 +419,12 @@ class OrderService
             foreach ($items as $index => $item) {
                 $product = Product::lockForUpdate()->findOrFail($item['product_id']);
                 if (!$product->is_wholesale || $product->status !== 'active') {
-                    throw new \Exception("Le produit '{$product->name}' n'est pas disponible en gros.");
+                    throw new \Exception(__('orders.wholesale_unavailable', ['product' => $product->name]));
                 }
 
                 $tiers = ProductPriceTier::where('product_id', $product->id)->where('is_active', true)->get();
                 if ($tiers->isEmpty()) {
-                    throw new \Exception("Le produit '{$product->name}' n'a pas encore de prix de gros.");
+                    throw new \Exception(__('orders.wholesale_price_missing', ['product' => $product->name]));
                 }
 
                 // Variante choisie (couleur, taille…) : conservée sur la ligne pour le fournisseur.
@@ -430,7 +434,7 @@ class OrderService
                         ->where('is_active', true)
                         ->find($item['variant_id']);
                     if (!$variant) {
-                        throw new \Exception("La variante sélectionnée pour '{$product->name}' n'est plus disponible.");
+                        throw new \Exception(__('orders.variant_unavailable', ['product' => $product->name]));
                     }
                 }
 
@@ -448,7 +452,7 @@ class OrderService
                 if ($tierCurrency !== 'XAF') {
                     $conv = \App\Services\ExchangeRateService::convert($tierCurrency, 'XAF', $unitPrice);
                     if (empty($conv['success']) || $conv['amount'] === null) {
-                        throw new \Exception("Conversion {$tierCurrency} → XAF indisponible pour '{$product->name}'.");
+                        throw new \Exception(__('orders.product_conversion_unavailable', ['currency' => $tierCurrency, 'product' => $product->name]));
                     }
                     $unitPrice = round((float) $conv['amount'], 2);
                 }
@@ -481,7 +485,7 @@ class OrderService
             $shipping = ImportShippingOption::where('id', $shippingOptionId)->where('is_active', true)->firstOrFail();
             if ($shipping->rate_type === 'per_kg') {
                 if ($hasMissingWeight || $calculatedWeightKg <= 0) {
-                    throw new \Exception("Le poids du colis doit d'abord être renseigné par ASSO avant le paiement.");
+                    throw new \Exception(__('orders.parcel_weight_required'));
                 }
                 // Calcul autoritaire côté serveur : ne jamais faire saisir ni faire
                 // confiance au poids envoyé par le client.
@@ -492,7 +496,7 @@ class OrderService
             // Puis SOLEX, de l'entrepôt ASSO de Douala jusqu'au client : prix recalculé
             // côté serveur (même calcul que l'offre affichée), payé avec la commande.
             if (empty($delivery['company_id'])) {
-                throw new \Exception("Indiquez votre adresse de livraison : la commande arrive à Douala, puis SOLEX la livre jusqu'à vous.");
+                throw new \Exception(__('orders.delivery_address_required_solex'));
             }
             $quote = app(DeliveryQuoteService::class)->quoteFor(
                 array_map(fn ($item) => [
@@ -603,17 +607,18 @@ class OrderService
 
             $this->fcmService->sendToUser(
                 $client,
-                'Commande en gros créée',
-                "Votre commande gros #{$order->order_number} a été créée. En attente de paiement/validation.",
+                $client->translate('notifications.wholesale_order_created.title'),
+                $client->translate('notifications.wholesale_order_created.body', ['order_number' => $order->order_number]),
                 ['type' => 'wholesale_order_created', 'order_id' => (string) $order->id, 'order_number' => $order->order_number]
             );
 
             // Payée tout de suite via le portefeuille : le vendeur peut préparer.
             // (En paiement direct, il est prévenu à la confirmation du paiement.)
             if (!$isDirect) {
-                $order->notifySellers(
-                    'Nouvelle commande en gros',
-                    "Commande gros #{$order->order_number} payée : {$order->items()->sum('quantity')} article(s) à préparer.",
+                $order->notifySellersTranslated(
+                    'notifications.new_wholesale_order_vendor.title',
+                    'notifications.new_wholesale_order_vendor.body',
+                    ['order_number' => $order->order_number, 'count' => $order->items()->sum('quantity')],
                     ['type' => 'new_order_vendor'],
                 );
             }
@@ -710,8 +715,8 @@ class OrderService
         try {
             $this->fcmService->sendToUser(
                 $order->user,
-                'Paiement confirmé',
-                "Votre paiement pour la commande #{$order->order_number} a été confirmé. En attente de validation du vendeur.",
+                $order->user->translate('notifications.order_paid.title'),
+                $order->user->translate('notifications.order_paid.body', ['order_number' => $order->order_number]),
                 ['type' => 'order_paid', 'order_id' => (string) $order->id, 'order_number' => $order->order_number]
             );
         } catch (\Exception $e) {
@@ -730,10 +735,17 @@ class OrderService
             try {
                 $this->fcmService->sendToUser(
                     $seller,
-                    'Nouvelle commande reçue',
-                    "Vous avez reçu une nouvelle commande #{$order->order_number}"
-                        . ($client ? " de {$client->first_name}" : '')
-                        . " ({$order->formatted_total}).",
+                    $seller->translate('notifications.new_order_vendor.title'),
+                    $client
+                        ? $seller->translate('notifications.new_order_vendor.body', [
+                            'order_number' => $order->order_number,
+                            'client' => $client->first_name,
+                            'total' => $order->formatted_total,
+                        ])
+                        : $seller->translate('notifications.new_order_vendor.body_no_client', [
+                            'order_number' => $order->order_number,
+                            'total' => $order->formatted_total,
+                        ]),
                     [
                         'type' => 'new_order_vendor',
                         'order_id' => (string) $order->id,
@@ -789,8 +801,8 @@ class OrderService
         try {
             $this->fcmService->sendToUser(
                 $order->user,
-                'Paiement échoué',
-                "Le paiement de la commande #{$order->order_number} n'a pas abouti. La commande a été annulée.",
+                $order->user->translate('notifications.order_payment_failed.title'),
+                $order->user->translate('notifications.order_payment_failed.body', ['order_number' => $order->order_number]),
                 ['type' => 'order_payment_failed', 'order_id' => (string) $order->id, 'order_number' => $order->order_number]
             );
         } catch (\Exception $e) {
@@ -821,7 +833,7 @@ class OrderService
             if ($payCurrency !== 'XAF') {
                 $converted = \App\Services\ExchangeRateService::convertAmount('XAF', $payCurrency, $total);
                 if ($converted === null) {
-                    throw new \Exception("Conversion XAF → {$payCurrency} indisponible. Réessayez plus tard.");
+                    throw new \Exception(__('payments.conversion_unavailable_retry', ['currency' => $payCurrency]));
                 }
                 $payAmount = (float) round($converted);
             }
@@ -837,7 +849,7 @@ class OrderService
             ]);
 
             if (empty($kpayResult['success'])) {
-                throw new \Exception($kpayResult['message'] ?? "Échec de l'initiation du paiement KPay.");
+                throw new \Exception($kpayResult['message'] ?? __('payments.kpay_init_failed'));
             }
 
             $order->update(['payment_reference' => $kpayResult['id'] ?? null]);
@@ -852,7 +864,7 @@ class OrderService
         if ($paymentMode === 'stripe_direct') {
             $stripe = app(\App\Services\StripeService::class);
             if (!$stripe->isConfigured()) {
-                throw new \Exception('Le paiement par carte est momentanément indisponible.');
+                throw new \Exception(__('payments.card_temporarily_unavailable'));
             }
 
             $stripeCurrency = \App\Services\PaymentMethodService::currencyFor('stripe') ?? 'USD';
@@ -860,7 +872,7 @@ class OrderService
                 ? (float) round($total)
                 : \App\Services\ExchangeRateService::convertAmount('XAF', $stripeCurrency, $total);
             if ($stripeAmount === null) {
-                throw new \Exception("Conversion XAF → {$stripeCurrency} indisponible pour le paiement carte.");
+                throw new \Exception(__('payments.card_conversion_unavailable', ['currency' => $stripeCurrency]));
             }
 
             $intent = $stripe->createPaymentIntent(
@@ -870,7 +882,7 @@ class OrderService
             );
 
             if (empty($intent['id']) || empty($intent['client_secret'])) {
-                throw new \Exception("Échec de l'initiation du paiement carte (Stripe).");
+                throw new \Exception(__('payments.stripe_init_failed'));
             }
 
             $order->update([
@@ -990,8 +1002,8 @@ class OrderService
         try {
             $this->fcmService->sendToUser(
                 $order->user,
-                'Paiement confirmé',
-                "Votre paiement pour la commande #{$order->order_number} a été confirmé. En attente de validation du vendeur.",
+                $order->user->translate('notifications.order_paid.title'),
+                $order->user->translate('notifications.order_paid.body', ['order_number' => $order->order_number]),
                 ['type' => 'order_paid', 'order_id' => (string) $order->id, 'order_number' => $order->order_number]
             );
         } catch (\Exception $e) {
@@ -1007,10 +1019,17 @@ class OrderService
             try {
                 $this->fcmService->sendToUser(
                     $seller,
-                    'Nouvelle commande reçue',
-                    "Vous avez reçu une nouvelle commande #{$order->order_number}"
-                        . ($client ? " de {$client->first_name}" : '')
-                        . " ({$order->formatted_total}).",
+                    $seller->translate('notifications.new_order_vendor.title'),
+                    $client
+                        ? $seller->translate('notifications.new_order_vendor.body', [
+                            'order_number' => $order->order_number,
+                            'client' => $client->first_name,
+                            'total' => $order->formatted_total,
+                        ])
+                        : $seller->translate('notifications.new_order_vendor.body_no_client', [
+                            'order_number' => $order->order_number,
+                            'total' => $order->formatted_total,
+                        ]),
                     [
                         'type' => 'new_order_vendor',
                         'order_id' => (string) $order->id,
@@ -1060,8 +1079,8 @@ class OrderService
         try {
             $this->fcmService->sendToUser(
                 $order->user,
-                'Paiement échoué',
-                "Le paiement de la commande #{$order->order_number} n'a pas abouti. La commande a été annulée.",
+                $order->user->translate('notifications.order_payment_failed.title'),
+                $order->user->translate('notifications.order_payment_failed.body', ['order_number' => $order->order_number]),
                 ['type' => 'order_payment_failed', 'order_id' => (string) $order->id, 'order_number' => $order->order_number]
             );
         } catch (\Exception $e) {
@@ -1083,14 +1102,14 @@ class OrderService
         // Le paiement doit être acquis : sinon le vendeur serait crédité sur de l'argent
         // jamais encaissé (Mobile Money ou carte encore en attente).
         if ($order->payment_status !== Order::PAYMENT_PAID) {
-            throw new \Exception("Le paiement de cette commande n'est pas encore confirmé.");
+            throw new \Exception(__('orders.payment_not_confirmed'));
         }
 
         $confirmed = DB::transaction(function () use ($order, $vendor, $actorType, $actorId) {
             // Verrou + re-contrôle : deux validations simultanées ne créditent pas deux fois.
             $locked = Order::whereKey($order->id)->lockForUpdate()->first();
             if (!$locked || $locked->status !== 'pending') {
-                throw new \Exception('Cette commande a déjà été traitée.');
+                throw new \Exception(__('orders.already_processed'));
             }
             $locked->update(['status' => 'confirmed', 'confirmed_at' => now()]);
 
@@ -1105,10 +1124,13 @@ class OrderService
         if ($client = $confirmed->user) {
             $this->fcmService->sendToUser(
                 $client,
-                'Commande validée !',
-                $confirmed->isCarrierDelivery()
-                    ? "Votre commande #{$confirmed->order_number} a été acceptée par le vendeur. Le colis va être remis au transporteur."
-                    : "Votre commande #{$confirmed->order_number} a été acceptée par le vendeur. En attente du livreur.",
+                $client->translate('notifications.order_confirmed.title'),
+                $client->translate(
+                    $confirmed->isCarrierDelivery()
+                        ? 'notifications.order_confirmed.body_carrier'
+                        : 'notifications.order_confirmed.body_courier',
+                    ['order_number' => $confirmed->order_number]
+                ),
                 ['type' => 'order_confirmed', 'order_id' => (string) $confirmed->id, 'order_number' => $confirmed->order_number]
             );
         }
@@ -1128,7 +1150,7 @@ class OrderService
             // Verrou + re-contrôle : pas de refus après validation.
             $locked = Order::whereKey($order->id)->lockForUpdate()->with('items')->first();
             if (!$locked || $locked->status !== 'pending') {
-                throw new \Exception('Cette commande a déjà été traitée.');
+                throw new \Exception(__('orders.already_processed'));
             }
             $locked->update(['status' => 'cancelled', 'cancel_reason' => $reason, 'cancelled_at' => now()]);
 
@@ -1148,10 +1170,13 @@ class OrderService
         if ($client = $order->user) {
             $this->fcmService->sendToUser(
                 $client,
-                'Commande refusée',
+                $client->translate('notifications.order_rejected.title'),
                 $refunded > 0
-                    ? "Votre commande #{$order->order_number} a été refusée. " . number_format($refunded, 0, ',', ' ') . " FCFA ont été rendus disponibles sur votre Wallet ASSO."
-                    : "Votre commande #{$order->order_number} a été refusée.",
+                    ? $client->translate('notifications.order_rejected.body_refunded', [
+                        'order_number' => $order->order_number,
+                        'amount' => number_format($refunded, 0, ',', ' '),
+                    ])
+                    : $client->translate('notifications.order_rejected.body', ['order_number' => $order->order_number]),
                 ['type' => 'order_rejected', 'order_id' => (string) $order->id, 'order_number' => $order->order_number, 'reason' => $reason]
             );
         }
@@ -1275,8 +1300,8 @@ class OrderService
         try {
             $this->fcmService->sendToUser(
                 $order->user,
-                'Paiement remboursé',
-                "Votre paiement pour la commande annulée #{$order->order_number} a été crédité sur votre Wallet ASSO.",
+                $order->user->translate('notifications.wallet_refund.title'),
+                $order->user->translate('notifications.wallet_refund.body', ['order_number' => $order->order_number]),
                 ['type' => 'wallet_refund', 'order_id' => (string) $order->id, 'order_number' => $order->order_number]
             );
         } catch (\Exception $e) {
@@ -1296,7 +1321,7 @@ class OrderService
             return; // déjà réglée
         }
         if ($order->payment_status !== Order::PAYMENT_PAID) {
-            throw new \Exception("Le paiement de cette commande n'est pas encore confirmé.");
+            throw new \Exception(__('orders.payment_not_confirmed'));
         }
 
         // a) Mode wallet : prélèvement définitif des fonds bloqués depuis la création.

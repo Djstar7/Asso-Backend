@@ -116,7 +116,7 @@ class PackageSubscriptionService
             if ($payCurrency !== 'XAF') {
                 $converted = ExchangeRateService::convertAmount('XAF', $payCurrency, $total);
                 if ($converted === null) {
-                    throw new \Exception("Conversion XAF → {$payCurrency} indisponible. Réessayez plus tard.");
+                    throw new \Exception(__('payments.conversion_unavailable_retry', ['currency' => $payCurrency]));
                 }
                 $payAmount = (float) round($converted);
             }
@@ -130,7 +130,7 @@ class PackageSubscriptionService
             ]);
 
             if (empty($result['success'])) {
-                throw new \Exception($result['message'] ?? "Échec de l'initiation du paiement KPay.");
+                throw new \Exception($result['message'] ?? __('payments.kpay_init_failed'));
             }
 
             $subscription->update([
@@ -146,7 +146,7 @@ class PackageSubscriptionService
         if ($paymentMode === 'stripe_direct') {
             $stripe = app(StripeService::class);
             if (!$stripe->isConfigured()) {
-                throw new \Exception('Le paiement par carte est momentanément indisponible.');
+                throw new \Exception(__('payments.card_temporarily_unavailable'));
             }
 
             $stripeCurrency = PaymentMethodService::currencyFor('stripe') ?? 'USD';
@@ -154,7 +154,7 @@ class PackageSubscriptionService
                 ? (float) round($total)
                 : ExchangeRateService::convertAmount('XAF', $stripeCurrency, $total);
             if ($stripeAmount === null) {
-                throw new \Exception("Conversion XAF → {$stripeCurrency} indisponible pour le paiement carte.");
+                throw new \Exception(__('payments.card_conversion_unavailable', ['currency' => $stripeCurrency]));
             }
 
             // Carte NATIVE : PaymentIntent → client_secret confirmé par la Payment Sheet.
@@ -165,7 +165,7 @@ class PackageSubscriptionService
             );
 
             if (empty($intent['id']) || empty($intent['client_secret'])) {
-                throw new \Exception("Échec de l'initiation du paiement carte (Stripe).");
+                throw new \Exception(__('payments.stripe_init_failed'));
             }
 
             $subscription->update([
@@ -369,8 +369,8 @@ class PackageSubscriptionService
             if ($user) {
                 $this->fcmService->sendToUser(
                     $user,
-                    'Sponsoring non activé',
-                    "L'article à sponsoriser n'existe plus. Le montant a été recrédité sur votre portefeuille.",
+                    $user->translate('notifications.boost_refunded.title'),
+                    $user->translate('notifications.boost_refunded.body'),
                     ['type' => 'boost_refunded', 'subscription_id' => (string) $subscription->id]
                 );
             }
@@ -404,23 +404,23 @@ class PackageSubscriptionService
     public function assertSubscribable(User $user, Package $package, ?Product $product = null): void
     {
         if (!in_array($package->type, ['storage', 'certification', 'boost'], true)) {
-            throw new \Exception('Type de forfait non supporté.');
+            throw new \Exception(__('packages.unsupported_type'));
         }
         if (!$package->is_active) {
-            throw new \Exception("Ce forfait n'est plus disponible.");
+            throw new \Exception(__('packages.no_longer_available'));
         }
         if ($package->type === 'storage' && (int) $package->storage_size_mb <= 0) {
-            throw new \Exception("Ce forfait de stockage est mal configuré. Contactez le support.");
+            throw new \Exception(__('packages.storage_misconfigured'));
         }
         if ($package->type === 'certification' && !$user->shops()->exists()) {
-            throw new \Exception('Créez votre boutique avant de souscrire à une certification.');
+            throw new \Exception(__('packages.shop_required_for_certification'));
         }
         if ($package->type === 'boost') {
             if (!$product) {
-                throw new \Exception('Choisissez le produit à sponsoriser.');
+                throw new \Exception(__('packages.boost_product_required'));
             }
             if ((int) $package->reach_users <= 0) {
-                throw new \Exception('Ce forfait de sponsoring est mal configuré. Contactez le support.');
+                throw new \Exception(__('packages.boost_misconfigured'));
             }
             app(ProductBoostService::class)->assertBoostable($user, $product);
         }
@@ -525,7 +525,7 @@ class PackageSubscriptionService
     ): array {
         if ($package->type === 'boost') {
             if (!$product) {
-                throw new \Exception('Produit à sponsoriser introuvable.');
+                throw new \Exception(__('packages.boost_product_not_found'));
             }
 
             $boost = app(ProductBoostService::class)->startCampaign($user, $product, $package, $subscription);
@@ -540,7 +540,7 @@ class PackageSubscriptionService
         if ($package->type === 'certification') {
             $shop = $user->primaryShop;
             if (!$shop) {
-                throw new \Exception('Aucune boutique à certifier.');
+                throw new \Exception(__('packages.no_shop_to_certify'));
             }
 
             // Renouvellement : on prolonge à partir de l'échéance en cours si encore valide.
@@ -564,7 +564,7 @@ class PackageSubscriptionService
         }
 
         if ($package->type !== 'storage') {
-            throw new \Exception('Type de forfait non supporté.');
+            throw new \Exception(__('packages.unsupported_type'));
         }
 
         $existingPackage = VendorPackage::where('user_id', $user->id)
@@ -622,8 +622,13 @@ class PackageSubscriptionService
                 $until = $subscription->metadata['certification_expires_at'] ?? null;
                 $this->fcmService->sendToUser(
                     $user,
-                    'Boutique certifiée ✅',
-                    "Votre {$package->name} est active" . ($until ? ' jusqu\'au ' . \Carbon\Carbon::parse($until)->format('d/m/Y') : '') . '.',
+                    $user->translate('notifications.certification_activated.title'),
+                    $until
+                        ? $user->translate('notifications.certification_activated.body_until', [
+                            'package' => $package->name,
+                            'date' => \Carbon\Carbon::parse($until)->format('d/m/Y'),
+                        ])
+                        : $user->translate('notifications.certification_activated.body', ['package' => $package->name]),
                     ['type' => 'certification_activated', 'subscription_id' => (string) $subscription->id]
                 );
                 return;
@@ -637,9 +642,10 @@ class PackageSubscriptionService
 
                 $this->fcmService->sendToUser(
                     $user,
-                    'Sponsoring activé 🚀',
-                    ($name ? "« {$name} » est sponsorisé" : 'Votre produit est sponsorisé')
-                        . " : jusqu'à {$reach} personnes vont le voir.",
+                    $user->translate('notifications.boost_activated.title'),
+                    $name
+                        ? $user->translate('notifications.boost_activated.body_named', ['product' => $name, 'reach' => $reach])
+                        : $user->translate('notifications.boost_activated.body', ['reach' => $reach]),
                     [
                         'type' => 'boost_activated',
                         'subscription_id' => (string) $subscription->id,
