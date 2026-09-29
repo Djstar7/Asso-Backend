@@ -99,8 +99,8 @@ class VendorProductController extends Controller
             'description' => 'sometimes|string',
             'price' => 'sometimes|numeric|min:0',
             'currency' => 'sometimes|string|size:3|exists:currencies,code', // price_xaf recalculé auto
-            'category_id' => 'sometimes|exists:categories,id',
-            'subcategory_id' => 'sometimes|nullable|exists:subcategories,id',
+            'category_id' => 'sometimes|bail|integer|exists:categories,id',
+            'subcategory_id' => 'sometimes|bail|nullable|integer|exists:subcategories,id',
             'type' => 'sometimes|in:article,service',
             'origin_country' => 'sometimes|nullable|string|max:2',
             'condition' => 'sometimes|in:new,used,refurbished',

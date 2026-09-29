@@ -393,8 +393,8 @@ class ProductController extends Controller
             'price' => 'required|numeric|min:0',
             // Devise dans laquelle le vendeur fixe le prix (défaut XAF). Doit être active.
             'currency' => 'nullable|string|size:3|exists:currencies,code',
-            'category_id' => 'required|exists:categories,id',
-            'subcategory_id' => 'nullable|exists:subcategories,id',
+            'category_id' => 'bail|required|integer|exists:categories,id',
+            'subcategory_id' => 'bail|nullable|integer|exists:subcategories,id',
             'type' => 'required|in:article,service',
             'origin_country' => 'nullable|string|size:2',
             'condition' => 'required|in:new,used,refurbished',

@@ -95,8 +95,8 @@ class ProductController extends Controller
     {
         $validated = $request->validate([
             'shop_id' => 'required|exists:shops,id',
-            'category_id' => 'required|exists:categories,id',
-            'subcategory_id' => 'nullable|exists:subcategories,id',
+            'category_id' => 'bail|required|integer|exists:categories,id',
+            'subcategory_id' => 'bail|nullable|integer|exists:subcategories,id',
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'characteristics' => 'nullable|string|max:10000',
@@ -233,8 +233,8 @@ class ProductController extends Controller
     {
         $validated = $request->validate([
             'shop_id' => 'required|exists:shops,id',
-            'category_id' => 'required|exists:categories,id',
-            'subcategory_id' => 'nullable|exists:subcategories,id',
+            'category_id' => 'bail|required|integer|exists:categories,id',
+            'subcategory_id' => 'bail|nullable|integer|exists:subcategories,id',
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'characteristics' => 'nullable|string|max:10000',
