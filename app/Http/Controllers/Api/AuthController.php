@@ -730,6 +730,24 @@ class AuthController extends Controller
     }
 
     /**
+     * Langue du compte (fr, en), choisie dans l'application : les
+     * notifications push lui parviennent ensuite dans cette langue.
+     */
+    public function updateLocale(Request $request)
+    {
+        $validated = $request->validate([
+            'locale' => 'required|string|in:fr,en',
+        ]);
+
+        $request->user()->update(['locale' => $validated['locale']]);
+
+        return response()->json([
+            'success' => true,
+            'locale' => $validated['locale'],
+        ]);
+    }
+
+    /**
      * Logout (revoke current token)
      */
     public function logout(Request $request)
