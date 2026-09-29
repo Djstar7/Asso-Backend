@@ -1,16 +1,16 @@
-<div style="background-color: #f8f9fa; padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem;">
-    <h4 class="text-lg font-semibold text-gray-800 mb-3 flex items-center gap-2">
+<div class="{{ $wrapperClass ?? 'bg-dark-200 border border-dark-300 rounded-lg p-6 mb-6' }}">
+    <h4 class="text-lg font-semibold text-white mb-3 flex items-center gap-2">
         <i class="fas fa-map-marker-alt text-orange-500"></i>
         {{ $label ?? 'Localisation GPS (Optionnel)' }}
     </h4>
-    <p class="text-sm text-gray-600 mb-4">
+    <p class="text-sm text-gray-400 mb-4">
         <i class="fas fa-info-circle text-blue-500 mr-1"></i>
         Renseignez les coordonnées GPS pour afficher la localisation sur la carte.
     </p>
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
         <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">
+            <label class="block text-sm font-medium text-gray-200 mb-2">
                 <i class="fas fa-location-arrow text-orange-500 mr-1"></i>
                 Latitude
             </label>
@@ -18,14 +18,14 @@
                    step="any"
                    name="latitude"
                    id="{{ $id }}_latitude"
-                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                   class="w-full px-4 py-2 bg-dark-50 border border-dark-400 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-white placeholder-gray-500"
                    value="{{ $latitude ?? '' }}"
                    placeholder="Ex: 6.3703"
                    onchange="updateMapPreview_{{ str_replace('-', '_', $id) }}()">
         </div>
 
         <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">
+            <label class="block text-sm font-medium text-gray-200 mb-2">
                 <i class="fas fa-location-arrow text-orange-500 mr-1"></i>
                 Longitude
             </label>
@@ -33,14 +33,14 @@
                    step="any"
                    name="longitude"
                    id="{{ $id }}_longitude"
-                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                   class="w-full px-4 py-2 bg-dark-50 border border-dark-400 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-white placeholder-gray-500"
                    value="{{ $longitude ?? '' }}"
                    placeholder="Ex: 2.3912"
                    onchange="updateMapPreview_{{ str_replace('-', '_', $id) }}()">
         </div>
 
         <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">
+            <label class="block text-sm font-medium text-gray-200 mb-2">
                 <i class="fas fa-crosshairs text-orange-500 mr-1"></i>
                 Action
             </label>
@@ -54,17 +54,17 @@
     </div>
 
     <div>
-        <label class="block text-sm font-medium text-gray-700 mb-2">
+        <label class="block text-sm font-medium text-gray-200 mb-2">
             <i class="fas fa-map-pin text-orange-500 mr-1"></i>
             Adresse
         </label>
         <input type="text"
                name="address"
                id="{{ $id }}_address"
-               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+               class="w-full px-4 py-2 bg-dark-50 border border-dark-400 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-white placeholder-gray-500"
                value="{{ $address ?? '' }}"
                placeholder="123 Rue Principale, Cotonou, Bénin">
-        <p class="mt-1 text-xs text-gray-500">
+        <p class="mt-1 text-xs text-gray-400">
             <i class="fas fa-lightbulb text-yellow-500 mr-1"></i>
             Vous pouvez saisir l'adresse manuellement ou elle sera détectée automatiquement.
         </p>
@@ -72,11 +72,11 @@
 
     <!-- Map Preview -->
     <div id="{{ $id }}_map_preview" style="display: {{ (!empty($latitude) && !empty($longitude)) ? 'block' : 'none' }}; margin-top: 1.5rem;">
-        <h5 class="text-md font-semibold text-gray-800 mb-3">
+        <h5 class="text-md font-semibold text-white mb-3">
             <i class="fas fa-map text-orange-500 mr-2"></i>
             Aperçu de la localisation
         </h5>
-        <div class="border-2 border-gray-300 rounded-lg overflow-hidden shadow-md">
+        <div class="border-2 border-dark-400 rounded-lg overflow-hidden shadow-md">
             <iframe
                 id="{{ $id }}_map_iframe"
                 width="100%"
@@ -90,7 +90,7 @@
                 @endif
             ></iframe>
         </div>
-        <p class="mt-2 text-xs text-gray-500">
+        <p class="mt-2 text-xs text-gray-400">
             <i class="fas fa-map-marker-alt text-orange-500 mr-1"></i>
             <span id="{{ $id }}_coordinates_display">
                 @if(!empty($latitude) && !empty($longitude))
