@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
@@ -98,6 +99,30 @@ class User extends Authenticatable
             'stripe_submitted_at' => 'datetime',
             'stripe_verified_at' => 'datetime',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        // Une nouvelle photo de profil remplace l'ancienne : le fichier
+        // précédent ne sert plus à personne, on le retire du disque.
+        static::updated(function (User $user) {
+            if ($user->wasChanged('avatar')) {
+                self::deleteStoredAvatar($user->getRawOriginal('avatar'));
+            }
+        });
+    }
+
+    /**
+     * Supprime une photo déposée par l'application (disque public,
+     * dossier avatars/). Les URL externes et autres chemins sont laissés.
+     */
+    public static function deleteStoredAvatar(?string $path): void
+    {
+        if (! $path || ! str_starts_with($path, 'avatars/')) {
+            return;
+        }
+
+        Storage::disk('public')->delete($path);
     }
 
     /**
