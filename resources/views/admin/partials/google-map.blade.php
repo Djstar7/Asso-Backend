@@ -64,13 +64,22 @@
             Adresse
         </label>
         <div class="flex gap-2">
-            <input type="text"
-                   name="address"
-                   id="{{ $id }}_address"
-                   class="flex-1 min-w-0 px-4 py-2 bg-dark-50 border border-dark-400 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-white placeholder-gray-500"
-                   value="{{ $address ?? '' }}"
-                   placeholder="123 Rue Principale, Cotonou, Bénin"
-                   onkeydown="if (event.key === 'Enter') { event.preventDefault(); searchAddress_{{ $fn }}(); }">
+            <div class="relative flex-1 min-w-0">
+                <input type="text"
+                       name="address"
+                       id="{{ $id }}_address"
+                       autocomplete="off"
+                       role="combobox"
+                       aria-autocomplete="list"
+                       aria-expanded="false"
+                       aria-controls="{{ $id }}_suggestions"
+                       class="w-full px-4 py-2 bg-dark-50 border border-dark-400 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-white placeholder-gray-500"
+                       value="{{ $address ?? '' }}"
+                       placeholder="Ex: Bonabéri, Douala">
+                <ul id="{{ $id }}_suggestions"
+                    role="listbox"
+                    class="hidden absolute z-30 left-0 right-0 mt-1 max-h-72 overflow-y-auto bg-dark-100 border border-dark-400 rounded-lg shadow-xl"></ul>
+            </div>
             <button type="button"
                     onclick="searchAddress_{{ $fn }}()"
                     title="Placer l'adresse sur la carte"
@@ -80,7 +89,7 @@
         </div>
         <p id="{{ $id }}_status" class="mt-1 text-xs text-gray-400">
             <i class="fas fa-lightbulb text-yellow-500 mr-1"></i>
-            Saisissez une adresse puis la loupe pour la placer sur la carte, ou laissez-la se remplir depuis la position.
+            Commencez à taper (quartier, rue, lieu) et choisissez une suggestion, ou laissez l'adresse se remplir depuis la position.
         </p>
     </div>
 
@@ -137,6 +146,8 @@
         const form = el('address').form;
         const field = form ? form.querySelector(`[name="${name}"]`) : null;
         if (!field || !value) return;
+        // "Douala IV" (arrondissement) -> "Douala".
+        if (name === 'city') value = value.replace(/\s+[IVX]+$/, '');
         if (field.tagName === 'SELECT') {
             const option = Array.from(field.options).find(o => o.value && normalize(o.value) === normalize(value));
             if (option) field.value = option.value;
@@ -249,7 +260,124 @@
         }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
     };
 
-    document.addEventListener('DOMContentLoaded', () => window['updateMapPreview_{{ $fn }}'](false));
+    // Autocomplétion de l'adresse (Photon, index OpenStreetMap prévu pour la saisie au fil de l'eau).
+    function setupAutocomplete() {
+        const input = el('address');
+        const list = el('suggestions');
+        let items = [];
+        let active = -1;
+        let timer = null;
+        let controller = null;
+
+        const close = () => {
+            list.classList.add('hidden');
+            list.innerHTML = '';
+            input.setAttribute('aria-expanded', 'false');
+            items = [];
+            active = -1;
+        };
+
+        const describe = p => {
+            const parts = [p.name, [p.housenumber, p.street].filter(Boolean).join(' '), p.district || p.locality, p.city, p.state, p.country];
+            return parts.filter((part, i) => part && parts.indexOf(part) === i).join(', ');
+        };
+
+        const highlight = index => {
+            active = index;
+            Array.from(list.children).forEach((li, i) => {
+                li.classList.toggle('bg-dark-300', i === active);
+                li.setAttribute('aria-selected', i === active ? 'true' : 'false');
+            });
+            if (list.children[active]) list.children[active].scrollIntoView({ block: 'nearest' });
+        };
+
+        const choose = index => {
+            const feature = items[index];
+            if (!feature) return;
+            const p = feature.properties;
+            const [lon, lat] = feature.geometry.coordinates;
+            input.value = describe(p);
+            el('latitude').value = lat.toFixed(6);
+            el('longitude').value = lon.toFixed(6);
+            renderMap(el('latitude').value, el('longitude').value);
+            fillField('city', p.city || p.county || p.state);
+            fillField('country', p.country);
+            setStatus('Adresse placée sur la carte, ville et pays mis à jour.', 'ok');
+            close();
+        };
+
+        const render = features => {
+            items = features;
+            active = -1;
+            list.innerHTML = '';
+            if (!features.length) {
+                list.innerHTML = '<li class="px-4 py-2 text-sm text-gray-400">Aucune suggestion — précisez la recherche.</li>';
+            }
+            features.forEach((feature, index) => {
+                const p = feature.properties;
+                const li = document.createElement('li');
+                li.setAttribute('role', 'option');
+                li.className = 'px-4 py-2 cursor-pointer hover:bg-dark-300 border-b border-dark-300 last:border-0';
+                const title = document.createElement('div');
+                title.className = 'text-sm text-white';
+                title.textContent = p.name || [p.housenumber, p.street].filter(Boolean).join(' ') || p.city;
+                const detail = document.createElement('div');
+                detail.className = 'text-xs text-gray-400';
+                detail.textContent = describe(p);
+                li.append(title, detail);
+                // mousedown : sélection avant que le champ ne perde le focus.
+                li.addEventListener('mousedown', event => { event.preventDefault(); choose(index); });
+                list.appendChild(li);
+            });
+            list.classList.remove('hidden');
+            input.setAttribute('aria-expanded', 'true');
+        };
+
+        const search = query => {
+            if (controller) controller.abort();
+            controller = new AbortController();
+            let url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=6&lang=fr`;
+            // Favorise les résultats proches de la position déjà connue.
+            const lat = el('latitude').value, lon = el('longitude').value;
+            if (lat && lon) url += `&lat=${lat}&lon=${lon}`;
+            fetch(url, { signal: controller.signal })
+                .then(response => response.ok ? response.json() : Promise.reject(response.status))
+                .then(data => render((data && data.features) || []))
+                .catch(error => { if (error.name !== 'AbortError') console.log('Autocomplete error:', error); });
+        };
+
+        input.addEventListener('input', () => {
+            clearTimeout(timer);
+            const query = input.value.trim();
+            if (query.length < 3) return close();
+            timer = setTimeout(() => search(query), 300);
+        });
+
+        input.addEventListener('keydown', event => {
+            const open = !list.classList.contains('hidden') && items.length;
+            if (event.key === 'ArrowDown' && open) {
+                event.preventDefault();
+                highlight((active + 1) % items.length);
+            } else if (event.key === 'ArrowUp' && open) {
+                event.preventDefault();
+                highlight((active - 1 + items.length) % items.length);
+            } else if (event.key === 'Enter') {
+                // Jamais de soumission du formulaire depuis ce champ.
+                event.preventDefault();
+                if (open && active >= 0) choose(active);
+                else { close(); window['searchAddress_{{ $fn }}'](); }
+            } else if (event.key === 'Escape') {
+                close();
+            }
+        });
+
+        input.addEventListener('blur', () => setTimeout(close, 150));
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        setupAutocomplete();
+        window['updateMapPreview_{{ $fn }}'](false);
+    });
 })();
 </script>
 @endpush
