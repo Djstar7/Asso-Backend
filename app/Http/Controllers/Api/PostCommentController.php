@@ -67,17 +67,17 @@ class PostCommentController extends Controller
         return PostComment::where('post_id', $postId)->find($commentId);
     }
 
-    private function notFound(string $message = 'Commentaire introuvable'): JsonResponse
+    private function notFound(?string $message = null): JsonResponse
     {
-        return response()->json(['success' => false, 'message' => $message], 404);
+        return response()->json(['success' => false, 'message' => $message ?? __('posts.comment_not_found')], 404);
     }
 
     private function validateInput(Request $request, array $rules): ?JsonResponse
     {
         $validator = Validator::make($request->all(), $rules, [
-            'content.required' => 'Le commentaire ne peut pas être vide.',
-            'content.max' => 'Le commentaire ne doit pas dépasser ' . self::MAX_CONTENT_LENGTH . ' caractères.',
-            'parent_id.exists' => 'Le commentaire auquel vous répondez n\'existe plus.',
+            'content.required' => __('posts.comment_required'),
+            'content.max' => __('posts.comment_max', ['max' => self::MAX_CONTENT_LENGTH]),
+            'parent_id.exists' => __('posts.comment_parent_missing'),
         ]);
 
         if ($validator->fails()) {
@@ -95,7 +95,7 @@ class PostCommentController extends Controller
     public function index(int $postId): JsonResponse
     {
         if (!Post::whereKey($postId)->exists()) {
-            return $this->notFound('Publication introuvable');
+            return $this->notFound(__('posts.not_found'));
         }
 
         $userId = Auth::id();
@@ -114,7 +114,7 @@ class PostCommentController extends Controller
     public function store(Request $request, int $postId): JsonResponse
     {
         if (!Post::whereKey($postId)->exists()) {
-            return $this->notFound('Publication introuvable');
+            return $this->notFound(__('posts.not_found'));
         }
 
         if ($error = $this->validateInput($request, [
@@ -131,7 +131,7 @@ class PostCommentController extends Controller
             if ((int) $parent->post_id !== $postId) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Le commentaire parent n\'appartient pas à cette publication',
+                    'message' => __('posts.comment_parent_mismatch'),
                 ], 422);
             }
             // Un seul niveau de réponses : répondre à une réponse la rattache au fil.
@@ -140,7 +140,7 @@ class PostCommentController extends Controller
 
         $content = trim((string) $request->input('content'));
         if ($content === '') {
-            return response()->json(['success' => false, 'message' => 'Le commentaire ne peut pas être vide.'], 422);
+            return response()->json(['success' => false, 'message' => __('posts.comment_required')], 422);
         }
 
         $comment = PostComment::create([
@@ -153,7 +153,7 @@ class PostCommentController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Commentaire ajouté',
+            'message' => __('posts.comment_added'),
             'data' => $this->payload($comment, Auth::id()),
             'comments_count' => (int) Post::whereKey($postId)->value('comments_count'),
         ], 201);
@@ -167,7 +167,7 @@ class PostCommentController extends Controller
             return $this->notFound();
         }
         if ((int) $comment->user_id !== (int) Auth::id()) {
-            return response()->json(['success' => false, 'message' => 'Non autorisé'], 403);
+            return response()->json(['success' => false, 'message' => __('common.unauthorized')], 403);
         }
         if ($error = $this->validateInput($request, ['content' => 'required|string|max:' . self::MAX_CONTENT_LENGTH])) {
             return $error;
@@ -177,7 +177,7 @@ class PostCommentController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Commentaire modifié',
+            'message' => __('posts.comment_updated'),
             'data' => $this->payload($comment->load('user:id,first_name,last_name,avatar', 'replies.user'), Auth::id()),
         ]);
     }
@@ -190,14 +190,14 @@ class PostCommentController extends Controller
             return $this->notFound();
         }
         if ((int) $comment->user_id !== (int) Auth::id()) {
-            return response()->json(['success' => false, 'message' => 'Non autorisé'], 403);
+            return response()->json(['success' => false, 'message' => __('common.unauthorized')], 403);
         }
 
         $comment->deleteWithReplies();
 
         return response()->json([
             'success' => true,
-            'message' => 'Commentaire supprimé',
+            'message' => __('posts.comment_deleted'),
             'comments_count' => (int) Post::whereKey($postId)->value('comments_count'),
         ]);
     }

@@ -127,6 +127,9 @@ Route::prefix('v1')->group(function () {
     Route::get('/app/version', [AppController::class, 'version']);
     // Compte support ASSO (id à utiliser par le mobile pour démarrer une conversation).
     Route::get('/app/support', [AppController::class, 'support']);
+    // Pages légales actives (CGU, CGV, confidentialité…), rédigées dans le back-office.
+    Route::get('/legal-pages', [\App\Http\Controllers\PublicLegalPageController::class, 'index']);
+    Route::get('/legal-pages/{slug}', [\App\Http\Controllers\PublicLegalPageController::class, 'showJson']);
 
     // AI Product Analysis (Gemini Vision) — collab upstream
     Route::post('/products/analyze', [AnalyzeProductController::class, 'analyze']);
@@ -184,6 +187,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/profile', [AuthController::class, 'updateProfile']);
         Route::get('/preferences', [AuthController::class, 'getPreferences']);
         Route::put('/preferences', [AuthController::class, 'updatePreferences']);
+        Route::put('/locale', [AuthController::class, 'updateLocale']);
         Route::post('/request-phone-change', [AuthController::class, 'requestPhoneChange']);
         Route::post('/confirm-phone-change', [AuthController::class, 'confirmPhoneChange']);
         Route::post('/delete-account', [AuthController::class, 'deleteAccount']);

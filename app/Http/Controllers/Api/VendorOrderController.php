@@ -77,7 +77,7 @@ class VendorOrderController extends Controller
         $order = $this->getVendorOrder($vendor, $id);
 
         if ($order->status !== 'pending') {
-            return response()->json(['success' => false, 'message' => 'Cette commande ne peut plus être validée'], 422);
+            return response()->json(['success' => false, 'message' => __('orders.cannot_be_validated')], 422);
         }
 
         // Le paiement doit être acquis avant toute validation. En mode wallet les fonds
@@ -85,7 +85,7 @@ class VendorOrderController extends Controller
         // commande reste 'pending'/'pending' tant que le PayIn Mobile Money n'a pas abouti.
         // Sans ce garde-fou, le vendeur crédite un escrow sur de l'argent jamais encaissé.
         if ($order->payment_status !== 'paid') {
-            return response()->json(['success' => false, 'message' => "Le paiement de cette commande n'est pas encore confirmé."], 422);
+            return response()->json(['success' => false, 'message' => __('orders.payment_not_confirmed')], 422);
         }
 
         try {
@@ -103,7 +103,7 @@ class VendorOrderController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Commande validée. Fonds crédités et disponibles immédiatement.',
+                'message' => __('orders.validated_funds_credited'),
                 'order' => $this->formatVendorOrder(
                     $order->fresh(['items.product.primaryImage', 'user', 'deliveryPerson', 'deliveryCompany', 'trackingEvents']),
                     $vendor->id
@@ -135,7 +135,7 @@ class VendorOrderController extends Controller
         $order = $this->getVendorOrder($vendor, $id);
 
         if (!in_array($order->status, ['pending'])) {
-            return response()->json(['success' => false, 'message' => 'Cette commande ne peut plus être refusée'], 422);
+            return response()->json(['success' => false, 'message' => __('orders.cannot_be_rejected')], 422);
         }
 
         try {
@@ -150,8 +150,8 @@ class VendorOrderController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => $refunded > 0
-                    ? 'Commande refusée. Le client a été remboursé sur son Wallet ASSO.'
-                    : 'Commande refusée.',
+                    ? __('orders.rejected_refunded')
+                    : __('orders.rejected'),
             ]);
 
         } catch (\Exception $e) {
@@ -176,10 +176,10 @@ class VendorOrderController extends Controller
         $order = $this->getVendorOrder($user, $id);
 
         if (!in_array($order->status, ['confirmed', 'preparing'])) {
-            return response()->json(['success' => false, 'message' => 'La commande doit être confirmée avant d\'assigner un livreur'], 422);
+            return response()->json(['success' => false, 'message' => __('orders.must_be_confirmed_before_assign')], 422);
         }
         if ($order->isCarrierDelivery()) {
-            return response()->json(['success' => false, 'message' => 'Cette commande part par transporteur : remettez le colis en agence et saisissez son numéro de suivi.'], 422);
+            return response()->json(['success' => false, 'message' => __('orders.carrier_order_hand_over')], 422);
         }
 
         // Verify the delivery person has livreur role
@@ -188,7 +188,7 @@ class VendorOrderController extends Controller
             ->first();
 
         if (!$deliveryPerson) {
-            return response()->json(['success' => false, 'message' => 'Livreur non trouvé'], 404);
+            return response()->json(['success' => false, 'message' => __('delivery.deliverer_not_found')], 404);
         }
 
         $order->update([
@@ -200,8 +200,14 @@ class VendorOrderController extends Controller
         // Notification au livreur
         $this->fcmService->sendToUser(
             $deliveryPerson,
-            'Nouvelle livraison assignée',
-            "Commande #{$order->order_number} — Livraison vers {$order->delivery_address}" . ($order->delivery_address_details ? " ({$order->delivery_address_details})" : '') . ". Contact: {$order->customer_phone}. Frais: " . number_format($order->deliveryPriceShown(), 0, ',', ' ') . " FCFA",
+            $deliveryPerson->translate('notifications.delivery_assigned.title'),
+            $deliveryPerson->translate('notifications.delivery_assigned.body', [
+                'order_number' => $order->order_number,
+                'address' => $order->delivery_address,
+                'details' => $order->delivery_address_details ? " ({$order->delivery_address_details})" : '',
+                'phone' => $order->customer_phone,
+                'fee' => number_format($order->deliveryPriceShown(), 0, ',', ' '),
+            ]),
             [
                 'type' => 'delivery_assigned',
                 'order_id' => (string) $order->id,
@@ -215,7 +221,7 @@ class VendorOrderController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Livreur assigné et notifié',
+            'message' => __('orders.deliverer_assigned'),
             'delivery_person' => [
                 'id' => $deliveryPerson->id,
                 'name' => $deliveryPerson->name,
@@ -242,10 +248,10 @@ class VendorOrderController extends Controller
         $order = $this->getVendorOrder($vendor, $id);
 
         if (!$order->isCarrierDelivery()) {
-            return response()->json(['success' => false, 'message' => 'Cette commande est livrée par un livreur urbain.'], 422);
+            return response()->json(['success' => false, 'message' => __('orders.delivered_by_urban_deliverer')], 422);
         }
         if (!in_array($order->status, ['confirmed', 'preparing'])) {
-            return response()->json(['success' => false, 'message' => 'La commande doit être validée avant la remise au transporteur.'], 422);
+            return response()->json(['success' => false, 'message' => __('orders.must_be_validated_before_carrier')], 422);
         }
 
         DB::transaction(function () use ($order, $validated, $vendor) {
@@ -267,7 +273,7 @@ class VendorOrderController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Colis remis au transporteur. L\'acheteur a été prévenu.',
+            'message' => __('orders.handed_to_carrier'),
             'order' => $this->formatVendorOrder($order->fresh(['items.product.primaryImage', 'user', 'deliveryPerson', 'deliveryCompany', 'trackingEvents']), $vendor->id),
         ]);
     }
@@ -291,11 +297,11 @@ class VendorOrderController extends Controller
 
         // Import en gros : « arrivé à l'entrepôt de Douala » en plus des étapes transporteur.
         if (!in_array($validated['step'], \App\Services\OrderTrackingService::carrierUpdateSteps($order), true)) {
-            throw \Illuminate\Validation\ValidationException::withMessages(['step' => 'Étape de suivi inconnue.']);
+            throw \Illuminate\Validation\ValidationException::withMessages(['step' => __('orders.unknown_tracking_step')]);
         }
 
         if (!$order->isCarrierDelivery() || $order->status !== 'shipped') {
-            return response()->json(['success' => false, 'message' => 'Le suivi transporteur commence après la remise du colis.'], 422);
+            return response()->json(['success' => false, 'message' => __('orders.carrier_tracking_after_handover')], 422);
         }
 
         app(\App\Services\OrderTrackingService::class)->record(
@@ -305,7 +311,7 @@ class VendorOrderController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Étape ajoutée. L\'acheteur a été prévenu.',
+            'message' => __('orders.tracking_step_added'),
             'order' => $this->formatVendorOrder($order->fresh(['items.product.primaryImage', 'user', 'deliveryPerson', 'deliveryCompany', 'trackingEvents']), $vendor->id),
         ]);
     }
@@ -332,7 +338,7 @@ class VendorOrderController extends Controller
         if (!$companyId) {
             return response()->json([
                 'success' => false,
-                'message' => 'Veuillez fournir order_id ou company_id',
+                'message' => __('delivery.order_or_company_required'),
             ], 422);
         }
 
@@ -341,7 +347,7 @@ class VendorOrderController extends Controller
         if (!$company) {
             return response()->json([
                 'success' => false,
-                'message' => 'Entreprise de livraison non trouvée',
+                'message' => __('delivery.company_not_found'),
             ], 404);
         }
 
@@ -396,8 +402,12 @@ class VendorOrderController extends Controller
             if ($sync->user) {
                 $this->fcmService->sendToUser(
                     $sync->user,
-                    'Nouvelle livraison disponible',
-                    "Commande #{$order->order_number} — Livraison vers {$order->delivery_address}. Commission: " . number_format($order->deliveryPriceShown(), 0, ',', ' ') . " FCFA",
+                    $sync->user->translate('notifications.new_delivery_request.title'),
+                    $sync->user->translate('notifications.new_delivery_request.body', [
+                        'order_number' => $order->order_number,
+                        'address' => $order->delivery_address,
+                        'fee' => number_format($order->deliveryPriceShown(), 0, ',', ' '),
+                    ]),
                     [
                         'type' => 'new_delivery_request',
                         'order_id' => (string) $order->id,

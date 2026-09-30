@@ -46,7 +46,7 @@ class ShopStatisticsController extends Controller
             : ($request->filled('shop_id') ? Shop::find($request->integer('shop_id')) : null);
 
         if (!$shop) {
-            return response()->json(['success' => false, 'message' => 'Boutique introuvable'], 404);
+            return response()->json(['success' => false, 'message' => __('shops.not_found_short')], 404);
         }
 
         // Route publique : l'utilisateur connecté est identifié s'il envoie son jeton.
@@ -61,12 +61,12 @@ class ShopStatisticsController extends Controller
     {
         $user = $request->user();
         if (!$user->hasAnyRole(['vendeur', 'vendor'])) {
-            return response()->json(['success' => false, 'message' => 'Vous n\'êtes pas vendeur'], 403);
+            return response()->json(['success' => false, 'message' => __('shops.not_a_vendor')], 403);
         }
 
         $shop = $user->primaryShop;
         if (!$shop) {
-            return response()->json(['success' => false, 'message' => 'Aucune boutique trouvée'], 404);
+            return response()->json(['success' => false, 'message' => __('shops.no_shop_found')], 404);
         }
 
         return response()->json([
@@ -95,7 +95,7 @@ class ShopStatisticsController extends Controller
         if (!in_array($format, ['csv', 'pdf'], true)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Format non supporté (csv ou pdf).',
+                'message' => __('shops.statistics.unsupported_format'),
             ], 422);
         }
 
@@ -113,12 +113,12 @@ class ShopStatisticsController extends Controller
     {
         $user = $request->user();
         if (!$user->hasAnyRole(['vendeur', 'vendor'])) {
-            return response()->json(['success' => false, 'message' => 'Vous n\'êtes pas vendeur'], 403);
+            return response()->json(['success' => false, 'message' => __('shops.not_a_vendor')], 403);
         }
 
         $shop = $user->primaryShop;
         if (!$shop) {
-            return response()->json(['success' => false, 'message' => 'Aucune boutique trouvée'], 404);
+            return response()->json(['success' => false, 'message' => __('shops.no_shop_found')], 404);
         }
 
         return $shop;
@@ -138,22 +138,31 @@ class ShopStatisticsController extends Controller
 
             $line = fn (array $cells) => fputcsv($out, $cells, ';');
 
-            $line(['Boutique', $shop->name]);
-            $line(['Période', $summary['period']['label'] ?? '']);
-            $line(['Du', $this->humanDate($summary['period']['from'] ?? null)]);
-            $line(['Au', $this->humanDate($summary['period']['to'] ?? null)]);
-            $line(['Édité le', now()->format('d/m/Y H:i')]);
+            $line([__('shops.statistics.export.shop'), $shop->name]);
+            $line([__('shops.statistics.export.period'), $summary['period']['label'] ?? '']);
+            $line([__('shops.statistics.export.from'), $this->humanDate($summary['period']['from'] ?? null)]);
+            $line([__('shops.statistics.export.to'), $this->humanDate($summary['period']['to'] ?? null)]);
+            $line([__('shops.statistics.export.generated_at'), now()->format('d/m/Y H:i')]);
             $line([]);
 
             $totals = $summary['totals'] ?? [];
-            $line(['Indicateur', 'Valeur']);
+            $line([__('shops.statistics.export.indicator'), __('shops.statistics.export.value')]);
             foreach ($this->totalLabels() as $key => $label) {
                 $line([$label, $this->number($totals[$key] ?? 0)]);
             }
             $line([]);
 
-            $line(['Détail par ' . (($summary['period']['granularity'] ?? 'day') === 'month' ? 'mois' : 'jour')]);
-            $line(['Date', 'Visites', 'Produits consultés', 'Contacts', 'Commandes', 'Chiffre d\'affaires']);
+            $line([(($summary['period']['granularity'] ?? 'day') === 'month')
+                ? __('shops.statistics.export.detail_by_month')
+                : __('shops.statistics.export.detail_by_day')]);
+            $line([
+                __('shops.statistics.export.date'),
+                __('shops.statistics.export.visits'),
+                __('shops.statistics.export.product_views'),
+                __('shops.statistics.export.contacts'),
+                __('shops.statistics.export.orders'),
+                __('shops.statistics.export.revenue'),
+            ]);
             foreach ($summary['series'] ?? [] as $point) {
                 $line([
                     $point['date'] ?? '',
@@ -167,8 +176,14 @@ class ShopStatisticsController extends Controller
 
             if (!empty($summary['top_products'])) {
                 $line([]);
-                $line(['Produits les plus consultés']);
-                $line(['Produit', 'Vues', 'Vendus', 'Chiffre d\'affaires', 'Taux de conversion (%)']);
+                $line([__('shops.statistics.export.top_products')]);
+                $line([
+                    __('shops.statistics.export.product'),
+                    __('shops.statistics.export.views'),
+                    __('shops.statistics.export.sold'),
+                    __('shops.statistics.export.revenue'),
+                    __('shops.statistics.labels.conversion_rate'),
+                ]);
                 foreach ($summary['top_products'] as $product) {
                     $line([
                         $product['name'] ?? '',
@@ -207,20 +222,20 @@ class ShopStatisticsController extends Controller
     private function totalLabels(): array
     {
         return [
-            'visits' => 'Visites de la boutique',
-            'unique_visitors' => 'Visiteurs uniques',
-            'product_views' => 'Produits consultés',
-            'contacts' => 'Prises de contact',
-            'orders' => 'Commandes',
-            'validated_orders' => 'Commandes validées',
-            'pending_orders' => 'Commandes en attente',
-            'cancelled_orders' => 'Commandes annulées',
-            'items_sold' => 'Articles vendus',
-            'revenue' => 'Chiffre d\'affaires (XAF)',
-            'gross_sales' => 'Volume client (XAF)',
-            'commission' => 'Commission ASSO (XAF)',
-            'average_basket' => 'Panier moyen (XAF)',
-            'conversion_rate' => 'Taux de conversion (%)',
+            'visits' => __('shops.statistics.labels.visits'),
+            'unique_visitors' => __('shops.statistics.labels.unique_visitors'),
+            'product_views' => __('shops.statistics.labels.product_views'),
+            'contacts' => __('shops.statistics.labels.contacts'),
+            'orders' => __('shops.statistics.labels.orders'),
+            'validated_orders' => __('shops.statistics.labels.validated_orders'),
+            'pending_orders' => __('shops.statistics.labels.pending_orders'),
+            'cancelled_orders' => __('shops.statistics.labels.cancelled_orders'),
+            'items_sold' => __('shops.statistics.labels.items_sold'),
+            'revenue' => __('shops.statistics.labels.revenue'),
+            'gross_sales' => __('shops.statistics.labels.gross_sales'),
+            'commission' => __('shops.statistics.labels.commission'),
+            'average_basket' => __('shops.statistics.labels.average_basket'),
+            'conversion_rate' => __('shops.statistics.labels.conversion_rate'),
         ];
     }
 

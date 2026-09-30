@@ -69,7 +69,7 @@ class PostController extends Controller
 
     private function notFound(): JsonResponse
     {
-        return response()->json(['success' => false, 'message' => 'Publication introuvable'], 404);
+        return response()->json(['success' => false, 'message' => __('posts.not_found')], 404);
     }
 
     private function validationError($validator): JsonResponse
@@ -89,9 +89,9 @@ class PostController extends Controller
     private function messages(): array
     {
         return [
-            'content.required' => 'Le message ne peut pas être vide.',
-            'content.min' => 'Le message est trop court.',
-            'content.max' => 'Le message ne doit pas dépasser ' . self::MAX_CONTENT_LENGTH . ' caractères.',
+            'content.required' => __('posts.content_required'),
+            'content.min' => __('posts.content_too_short'),
+            'content.max' => __('posts.content_max', ['max' => self::MAX_CONTENT_LENGTH]),
         ];
     }
 
@@ -152,7 +152,7 @@ class PostController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Publication créée',
+            'message' => __('posts.created'),
             'data' => self::payload($post, $request->user()->id),
         ], 201);
     }
@@ -165,7 +165,7 @@ class PostController extends Controller
             return $this->notFound();
         }
         if ((int) $post->user_id !== (int) $request->user()->id) {
-            return response()->json(['success' => false, 'message' => 'Non autorisé'], 403);
+            return response()->json(['success' => false, 'message' => __('common.unauthorized')], 403);
         }
 
         $validator = Validator::make($request->all(), ['content' => $this->contentRules()], $this->messages());
@@ -177,7 +177,7 @@ class PostController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Publication mise à jour',
+            'message' => __('posts.updated'),
             'data' => self::payload($post->fresh('user'), $request->user()->id),
         ]);
     }
@@ -190,12 +190,12 @@ class PostController extends Controller
             return $this->notFound();
         }
         if ((int) $post->user_id !== (int) $request->user()->id) {
-            return response()->json(['success' => false, 'message' => 'Non autorisé'], 403);
+            return response()->json(['success' => false, 'message' => __('common.unauthorized')], 403);
         }
 
         $post->delete();
 
-        return response()->json(['success' => true, 'message' => 'Publication supprimée']);
+        return response()->json(['success' => true, 'message' => __('posts.deleted')]);
     }
 
     /**

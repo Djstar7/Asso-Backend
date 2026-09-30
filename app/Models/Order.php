@@ -189,6 +189,26 @@ class Order extends Model
         }
     }
 
+    /**
+     * Comme notifySellers, mais chaque vendeur reçoit le titre et le texte dans
+     * sa propre langue (clés de traduction + paramètres).
+     */
+    public function notifySellersTranslated(string $titleKey, string $bodyKey, array $replace = [], array $data = []): void
+    {
+        $sellerIds = $this->items()->pluck('seller_id')->filter()->unique();
+        foreach (User::whereIn('id', $sellerIds)->get() as $seller) {
+            app(\App\Services\FirebaseMessagingService::class)->sendToUser(
+                $seller,
+                $seller->translate($titleKey, $replace),
+                $seller->translate($bodyKey, $replace),
+                $data + [
+                    'order_id' => (string) $this->id,
+                    'order_number' => (string) $this->order_number,
+                ]
+            );
+        }
+    }
+
     public function user(): BelongsTo { return $this->belongsTo(User::class); }
     public function deliveryPerson(): BelongsTo { return $this->belongsTo(User::class, 'delivery_person_id'); }
     public function deliveryCompany(): BelongsTo { return $this->belongsTo(DelivererCompany::class, 'delivery_company_id'); }

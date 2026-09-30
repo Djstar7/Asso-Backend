@@ -35,8 +35,8 @@ class ShopVerificationController extends Controller
             $fcmService = app(FirebaseMessagingService::class);
             $fcmService->sendToUser(
                 $shop->user,
-                'Boutique vérifiée !',
-                "Félicitations ! Votre boutique \"{$shop->name}\" a été vérifiée et activée.",
+                $shop->user->translate('notifications.shop_verified.title'),
+                $shop->user->translate('notifications.shop_verified.body', ['shop' => $shop->name]),
                 [
                     'type' => 'shop_verified',
                     'shop_id' => (string) $shop->id,
@@ -85,8 +85,8 @@ class ShopVerificationController extends Controller
             $fcmService = app(FirebaseMessagingService::class);
             $fcmService->sendToUser(
                 $shop->user,
-                'Boutique non approuvée',
-                "Votre boutique \"{$shop->name}\" n'a pas été approuvée. Raison: {$request->reason}",
+                $shop->user->translate('notifications.shop_rejected.title'),
+                $shop->user->translate('notifications.shop_rejected.body', ['shop' => $shop->name, 'reason' => $request->reason]),
                 [
                     'type' => 'shop_rejected',
                     'shop_id' => (string) $shop->id,
@@ -131,8 +131,8 @@ class ShopVerificationController extends Controller
             if ($newStatus === 'active') {
                 $fcmService->sendToUser(
                     $shop->user,
-                    'Boutique activée',
-                    "Votre boutique \"{$shop->name}\" a été activée par l'administrateur.",
+                    $shop->user->translate('notifications.shop_activated.title'),
+                    $shop->user->translate('notifications.shop_activated.body', ['shop' => $shop->name]),
                     [
                         'type' => 'shop_activated',
                         'shop_id' => (string) $shop->id,
@@ -142,8 +142,8 @@ class ShopVerificationController extends Controller
             } else {
                 $fcmService->sendToUser(
                     $shop->user,
-                    'Boutique désactivée',
-                    "Votre boutique \"{$shop->name}\" a été désactivée par l'administrateur.",
+                    $shop->user->translate('notifications.shop_deactivated.title'),
+                    $shop->user->translate('notifications.shop_deactivated.body', ['shop' => $shop->name]),
                     [
                         'type' => 'shop_deactivated',
                         'shop_id' => (string) $shop->id,

@@ -137,7 +137,7 @@ class PaymentController extends Controller
 
                 return response()->json([
                     'success' => true,
-                    'message' => 'Paiement initié. Veuillez valider sur votre téléphone.',
+                    'message' => __('payments.initiated_confirm_on_phone'),
                     'payment_reference' => $result['reference'],
                     'kpay_id' => $result['id'],
                     'transaction_id' => $transaction->id,
@@ -158,13 +158,13 @@ class PaymentController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Commande confirmée. Paiement à la livraison.',
+                'message' => __('payments.cash_on_delivery_confirmed'),
             ]);
         }
 
         return response()->json([
             'success' => false,
-            'message' => 'Méthode de paiement non supportée',
+            'message' => __('payments.method_not_supported'),
         ], 422);
     }
 

@@ -38,7 +38,7 @@ class NotificationController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => __('common.validation_failed'),
                 'errors' => $validator->errors(),
             ], 422);
         }
@@ -75,7 +75,7 @@ class NotificationController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => __('common.validation_failed'),
                 'errors' => $validator->errors(),
             ], 422);
         }
@@ -107,7 +107,7 @@ class NotificationController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => __('common.validation_failed'),
                 'errors' => $validator->errors(),
             ], 422);
         }
@@ -139,7 +139,7 @@ class NotificationController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => __('common.validation_failed'),
                 'errors' => $validator->errors(),
             ], 422);
         }
@@ -166,8 +166,8 @@ class NotificationController extends Controller
 
         $result = $this->fcmService->sendToUser(
             $user,
-            'Test Notification',
-            'Ceci est une notification de test depuis Asso!',
+            $user->translate('notifications.test.title'),
+            $user->translate('notifications.test.body'),
             [
                 'type' => 'test',
                 'timestamp' => now()->toIso8601String(),
@@ -243,7 +243,7 @@ class NotificationController extends Controller
         if (!$notification) {
             return response()->json([
                 'success' => false,
-                'message' => 'Notification not found',
+                'message' => __('notifications.api.not_found'),
             ], 404);
         }
 
@@ -251,7 +251,7 @@ class NotificationController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Notification marked as read',
+            'message' => __('notifications.api.marked_as_read'),
             'notification' => $notification,
         ]);
     }
@@ -275,7 +275,7 @@ class NotificationController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'All notifications marked as read',
+            'message' => __('notifications.api.all_marked_as_read'),
             'updated_count' => $updated,
         ]);
     }
@@ -298,7 +298,7 @@ class NotificationController extends Controller
         if (!$notification) {
             return response()->json([
                 'success' => false,
-                'message' => 'Notification not found',
+                'message' => __('notifications.api.not_found'),
             ], 404);
         }
 
@@ -306,7 +306,7 @@ class NotificationController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Notification deleted',
+            'message' => __('notifications.api.deleted'),
         ]);
     }
 
@@ -324,7 +324,7 @@ class NotificationController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'All notifications deleted',
+            'message' => __('notifications.api.all_deleted'),
             'deleted_count' => $deleted,
         ]);
     }

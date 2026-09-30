@@ -78,6 +78,9 @@ Route::get('/.well-known/apple-app-site-association', function () {
 // Pages de retour des paiements par redirection (PayPal, Stripe Checkout).
 // La WebView mobile intercepte ces URLs pour clôturer le parcours ; la confirmation
 // réelle du paiement se fait côté serveur (webhook + polling), pas sur ces pages.
+// Pages légales publiques (CGU, CGV, confidentialité…), lues aussi par l'application.
+Route::get('/legal/{slug}', [\App\Http\Controllers\PublicLegalPageController::class, 'show'])->name('legal.show');
+
 Route::get('/payment/success', function () {
     return response('<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Paiement effectué</title></head><body style="font-family:sans-serif;text-align:center;padding:40px"><h2>Paiement effectué</h2><p>Vous pouvez fermer cette page et revenir à l\'application.</p></body></html>');
 })->name('payment.success');

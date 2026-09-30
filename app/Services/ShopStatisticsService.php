@@ -143,7 +143,7 @@ class ShopStatisticsService
 
         return [
             'key' => $key,
-            'label' => self::PERIODS[$key]['label'],
+            'label' => __("shops.statistics.periods.{$key}"),
             'from' => $from,
             'to' => $to,
             'previous_from' => $previousFrom,
@@ -289,7 +289,7 @@ class ShopStatisticsService
             'from' => $period['from']?->toIso8601String(),
             'to' => $period['to']->toIso8601String(),
             'granularity' => $period['granularity'],
-            'available' => collect(self::PERIODS)->map(fn ($p, $k) => ['key' => $k, 'label' => $p['label']])->values()->all(),
+            'available' => collect(self::PERIODS)->map(fn ($p, $k) => ['key' => $k, 'label' => __("shops.statistics.periods.{$k}")])->values()->all(),
         ];
     }
 

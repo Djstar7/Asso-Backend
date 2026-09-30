@@ -52,7 +52,7 @@ class ProfileController extends Controller
                     ]);
                     return response()->json([
                         'success' => false,
-                        'message' => 'L\'adresse fournie est invalide. Veuillez réessayer.',
+                        'message' => __('shops.invalid_address'),
                     ], 422);
                 }
             }
@@ -77,7 +77,7 @@ class ProfileController extends Controller
             ]);
             return response()->json([
                 'success' => false,
-                'message' => 'Vous êtes déjà vendeur',
+                'message' => __('profile.already_vendor'),
             ], 422);
         }
 
@@ -149,7 +149,7 @@ class ProfileController extends Controller
                 ]);
                 return response()->json([
                     'success' => false,
-                    'message' => 'Erreur lors de l\'upload du logo',
+                    'message' => __('profile.logo_upload_error'),
                 ], 500);
             }
         }
@@ -195,7 +195,7 @@ class ProfileController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Vous êtes maintenant vendeur !',
+                'message' => __('profile.now_vendor'),
                 'shop' => [
                     'id' => $shop->id,
                     'name' => $shop->name,
@@ -233,7 +233,7 @@ class ProfileController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la création de la boutique',
+                'message' => __('shops.create_error'),
                 'error' => app()->environment('local') ? $e->getMessage() : null,
             ], 500);
         }
@@ -256,7 +256,7 @@ class ProfileController extends Controller
         if ($user->role === 'livreur') {
             return response()->json([
                 'success' => false,
-                'message' => 'Vous êtes déjà livreur',
+                'message' => __('profile.already_deliverer'),
             ], 422);
         }
 
@@ -269,7 +269,7 @@ class ProfileController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Vous êtes maintenant livreur !',
+            'message' => __('profile.now_deliverer'),
             'user' => [
                 'id' => $user->id,
                 'role' => $user->role,
@@ -300,7 +300,7 @@ class ProfileController extends Controller
             ]);
             return response()->json([
                 'success' => false,
-                'message' => 'Vous n\'êtes pas vendeur',
+                'message' => __('shops.not_a_vendor'),
             ], 403);
         }
 
@@ -318,7 +318,7 @@ class ProfileController extends Controller
                 ]);
                 return response()->json([
                     'success' => false,
-                    'message' => 'Aucune boutique trouvée',
+                    'message' => __('shops.no_shop_found'),
                 ], 404);
             }
 
@@ -498,7 +498,7 @@ class ProfileController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors du chargement du tableau de bord',
+                'message' => __('profile.dashboard_load_error'),
                 'error' => app()->environment('local') ? $e->getMessage() : null,
             ], 500);
         }
@@ -712,13 +712,13 @@ class ProfileController extends Controller
     private function getVerificationMessage(string $status, ?string $rejectionReason = null): string
     {
         return match($status) {
-            'active' => 'Votre boutique est vérifiée et active',
-            'pending' => 'Votre boutique est en cours de vérification par notre équipe',
+            'active' => __('shops.verification.active'),
+            'pending' => __('shops.verification.pending'),
             'rejected' => $rejectionReason
-                ? "Votre boutique a été rejetée. Raison: {$rejectionReason}"
-                : 'Votre boutique a été rejetée',
-            'inactive' => 'Votre boutique est désactivée',
-            default => 'Statut inconnu',
+                ? __('shops.verification.rejected_with_reason', ['reason' => $rejectionReason])
+                : __('shops.verification.rejected'),
+            'inactive' => __('shops.verification.inactive'),
+            default => __('shops.verification.unknown'),
         };
     }
 }

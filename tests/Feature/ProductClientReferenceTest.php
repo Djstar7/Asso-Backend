@@ -76,9 +76,9 @@ class ProductClientReferenceTest extends TestCase
         return $vendor;
     }
 
-    private function publish(User $vendor, ?string $reference)
+    private function publish(User $vendor, ?string $reference, array $overrides = [])
     {
-        $payload = [
+        $payload = $overrides + [
             'name' => 'Pagne wax',
             'description' => 'Six yards',
             'price' => 15000,
@@ -140,5 +140,20 @@ class ProductClientReferenceTest extends TestCase
         $this->publish($this->vendor(), str_repeat('x', 65))
             ->assertStatus(422)
             ->assertJsonValidationErrors('client_reference');
+    }
+
+    public function test_une_categorie_non_numerique_est_refusee_sans_erreur_sql(): void
+    {
+        // Anciennes fiches hors ligne : le nom de la catégorie à la place de
+        // son identifiant. PostgreSQL rejetait la requête (500) et la fiche
+        // restait bloquée en file.
+        $this->publish($this->vendor(), 'offline-cat', [
+            'category_id' => 'Électronique',
+            'subcategory_id' => 'Ordinateurs',
+        ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['category_id', 'subcategory_id']);
+
+        $this->assertSame(0, Product::count());
     }
 }

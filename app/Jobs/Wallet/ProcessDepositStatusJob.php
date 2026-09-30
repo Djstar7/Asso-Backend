@@ -136,8 +136,8 @@ class ProcessDepositStatusJob implements ShouldQueue
                     try {
                         $fcmResult = $fcmService->sendToUser(
                             $user,
-                            'Dépôt réussi',
-                            "Votre dépôt de {$deposit->amount} FCFA a été confirmé avec succès.",
+                            $user->translate('notifications.wallet_credit.title'),
+                            $user->translate('notifications.wallet_credit.body', ['amount' => $deposit->amount]),
                             [
                                 'type' => 'wallet_credit',
                                 'wallet_transaction_id' => (string) $deposit->id,
@@ -187,8 +187,11 @@ class ProcessDepositStatusJob implements ShouldQueue
                         $user = $deposit->user;
                         $fcmResult = $fcmService->sendToUser(
                             $user,
-                            'Dépôt échoué',
-                            "Votre dépôt de {$deposit->amount} FCFA a échoué. Raison: " . ($reason ?? 'Erreur inconnue'),
+                            $user->translate('notifications.wallet_credit_failed.title'),
+                            $user->translate('notifications.wallet_credit_failed.body', [
+                                'amount' => $deposit->amount,
+                                'reason' => $reason ?? $user->translate('notifications.wallet_credit_failed.unknown_reason'),
+                            ]),
                             [
                                 'type' => 'wallet_credit_failed',
                                 'wallet_transaction_id' => (string) $deposit->id,

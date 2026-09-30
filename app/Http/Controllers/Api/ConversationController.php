@@ -91,7 +91,7 @@ class ConversationController extends Controller
         $otherUserId = $request->user_id;
 
         if ($userId == $otherUserId) {
-            return response()->json(['success' => false, 'message' => 'Vous ne pouvez pas vous envoyer un message'], 422);
+            return response()->json(['success' => false, 'message' => __('conversations.cannot_message_self')], 422);
         }
 
         // Find existing conversation (including hidden ones)
@@ -306,7 +306,7 @@ class ConversationController extends Controller
         if (!$request->message && !$request->hasFile('image')) {
             return response()->json([
                 'success' => false,
-                'message' => 'Vous devez envoyer un message ou une image'
+                'message' => __('conversations.message_or_image_required')
             ], 422);
         }
 
@@ -405,7 +405,7 @@ class ConversationController extends Controller
                 $notificationTitle = $sender->name;
                 $notificationBody = $message->message
                     ? (strlen($message->message) > 100 ? substr($message->message, 0, 100) . '...' : $message->message)
-                    : ($message->image_path ? 'Photo' : 'Message');
+                    : ($message->image_path ? $recipient->translate('notifications.new_message.photo_body') : $recipient->translate('notifications.new_message.text_body'));
 
                 // Données supplémentaires pour la navigation
                 $notificationData = [
@@ -545,7 +545,7 @@ class ConversationController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Conversation masquée avec succès',
+            'message' => __('conversations.hidden'),
         ]);
     }
 }

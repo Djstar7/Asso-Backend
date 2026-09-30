@@ -124,7 +124,7 @@ class WalletService
 
             // Vérifier le solde disponible (non bloqué)
             if ($available < $amount) {
-                throw new \Exception("Solde KPay disponible insuffisant. Disponible: {$available} FCFA, Montant requis: {$amount} FCFA");
+                throw new \Exception(__('wallet.insufficient_available_balance', ['available' => $available, 'amount' => $amount]));
             }
 
             $balanceAfter = $balanceBefore - $amount;
@@ -412,7 +412,7 @@ class WalletService
             $available = $balance - $lockedBefore;
 
             if ($available < $amount) {
-                throw new \Exception("Solde KPay disponible insuffisant. Disponible: {$available} FCFA, Requis: {$amount} FCFA");
+                throw new \Exception(__('wallet.insufficient_available_balance_to_lock', ['available' => $available, 'amount' => $amount]));
             }
 
             $lockedAfter = $lockedBefore + $amount;
@@ -591,8 +591,8 @@ class WalletService
             'missing_amount' => $canPay ? 0 : ($amount - $available),
             'provider' => $provider ?? 'kpay',
             'message' => $canPay
-                ? "Paiement possible avec wallet KPay"
-                : "Solde KPay disponible insuffisant. Il vous manque " . number_format($amount - $available, 0, ',', ' ') . " FCFA",
+                ? __('wallet.can_pay')
+                : __('wallet.insufficient_balance_missing', ['missing' => number_format($amount - $available, 0, ',', ' ')]),
         ];
     }
 }

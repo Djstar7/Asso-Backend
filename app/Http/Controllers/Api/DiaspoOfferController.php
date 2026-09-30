@@ -130,10 +130,10 @@ class DiaspoOfferController extends Controller
         $offer->refresh();
 
         $message = $isVerified
-            ? 'Offre créée et publiée avec succès!'
-            : 'Offre publiée avec la mention « Profil non vérifié ». Faites vérifier votre identité avant le '
-                . $offer->verification_deadline_at->format('d/m/Y')
-                . ' : sans validation, elle sera retirée. Les réservations ouvriront dès la validation.';
+            ? __('diaspo.offer_created_published')
+            : __('diaspo.offer_published_unverified', [
+                'date' => $offer->verification_deadline_at->format('d/m/Y'),
+            ]);
 
         return response()->json([
             'success' => true,
@@ -153,7 +153,7 @@ class DiaspoOfferController extends Controller
         if ($offer->user_id !== auth()->id()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Non autorisé',
+                'message' => __('common.unauthorized'),
             ], 403);
         }
 
@@ -161,7 +161,7 @@ class DiaspoOfferController extends Controller
         if ($offer->status === 'completed') {
             return response()->json([
                 'success' => false,
-                'message' => 'Cette offre est terminée et ne peut plus être modifiée',
+                'message' => __('diaspo.offer_completed_cannot_update'),
             ], 400);
         }
 
@@ -169,7 +169,7 @@ class DiaspoOfferController extends Controller
         if ($offer->bookings()->whereIn('status', ['paid', 'completed'])->exists()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Cette offre ne peut pas être modifiée car elle a des réservations actives',
+                'message' => __('diaspo.offer_update_has_bookings'),
             ], 400);
         }
 
@@ -188,7 +188,7 @@ class DiaspoOfferController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Offre mise à jour',
+            'message' => __('diaspo.offer_updated'),
             'data' => $offer,
         ]);
     }
@@ -204,7 +204,7 @@ class DiaspoOfferController extends Controller
         if ($offer->user_id !== auth()->id()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Non autorisé',
+                'message' => __('common.unauthorized'),
             ], 403);
         }
 
@@ -212,7 +212,7 @@ class DiaspoOfferController extends Controller
         if ($offer->bookings()->whereIn('status', ['paid', 'completed'])->exists()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Cette offre ne peut pas être supprimée car elle a des réservations actives',
+                'message' => __('diaspo.offer_delete_has_active_bookings'),
             ], 400);
         }
 
@@ -220,7 +220,7 @@ class DiaspoOfferController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Offre supprimée',
+            'message' => __('diaspo.offer_deleted'),
         ]);
     }
 
@@ -240,7 +240,7 @@ class DiaspoOfferController extends Controller
         if ($user->isDiaspoVerified()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Votre identité est déjà vérifiée.',
+                'message' => __('diaspo.identity_already_verified'),
             ], 422);
         }
         $previousStatus = $user->diaspo_verification_status ?? 'unverified';
@@ -297,7 +297,7 @@ class DiaspoOfferController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Documents uploadés avec succès. Votre profil sera vérifié sous 24-48h.',
+                'message' => __('diaspo.documents_uploaded'),
                 'data' => [
                     'document_front' => $frontDocument,
                     'document_back' => $backDocument,
@@ -309,7 +309,7 @@ class DiaspoOfferController extends Controller
             DB::rollBack();
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de l\'upload des documents: ' . $e->getMessage(),
+                'message' => __('diaspo.documents_upload_error', ['error' => $e->getMessage()]),
             ], 500);
         }
     }

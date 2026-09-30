@@ -168,7 +168,7 @@ class ProductController extends Controller
 
             $card = $this->formatProduct($boost->product, $favoriteIds);
             $card['is_sponsored'] = true;
-            $card['sponsored_label'] = 'Sponsorisé';
+            $card['sponsored_label'] = __('products.sponsored_label');
             $card['boost_id'] = $boost->id;
 
             // Position prévue, ou à la suite si la page est plus courte que le slot.
@@ -318,7 +318,7 @@ class ProductController extends Controller
         return response()->json([
             'success' => true,
             'is_favorite' => $isFavorite,
-            'message' => $isFavorite ? 'Ajouté aux favoris' : 'Retiré des favoris',
+            'message' => $isFavorite ? __('products.added_to_favorites') : __('products.removed_from_favorites'),
         ]);
     }
 
@@ -397,8 +397,8 @@ class ProductController extends Controller
             'price' => 'required|numeric|min:0',
             // Devise dans laquelle le vendeur fixe le prix (défaut XAF). Doit être active.
             'currency' => 'nullable|string|size:3|exists:currencies,code',
-            'category_id' => 'required|exists:categories,id',
-            'subcategory_id' => 'nullable|exists:subcategories,id',
+            'category_id' => 'bail|required|integer|exists:categories,id',
+            'subcategory_id' => 'bail|nullable|integer|exists:subcategories,id',
             'type' => 'required|in:article,service',
             'origin_country' => 'nullable|string|size:2',
             'condition' => 'required|in:new,used,refurbished',
@@ -421,7 +421,7 @@ class ProductController extends Controller
         if (!$vendorPackage) {
             return response()->json([
                 'success' => false,
-                'message' => 'Vous devez souscrire à un package de stockage pour ajouter des produits',
+                'message' => __('products.storage_package_required'),
                 'error_code' => 'NO_ACTIVE_PACKAGE',
             ], 403);
         }
@@ -438,7 +438,7 @@ class ProductController extends Controller
         if (!$vendorPackage->hasEnoughStorage($totalImageSizeMb)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Espace de stockage insuffisant. Veuillez souscrire à un package supplémentaire.',
+                'message' => __('products.storage_insufficient_subscribe'),
                 'error_code' => 'INSUFFICIENT_STORAGE',
                 'required_mb' => round($totalImageSizeMb, 2),
                 'available_mb' => round($vendorPackage->storage_remaining_mb, 2),
@@ -453,7 +453,7 @@ class ProductController extends Controller
             \Log::warning('[PRODUCT_STORE] User has no shop');
             return response()->json([
                 'success' => false,
-                'message' => 'Vous devez créer une boutique avant d\'ajouter des produits',
+                'message' => __('products.shop_required'),
                 'error_code' => 'NO_SHOP',
             ], 403);
         }
@@ -580,7 +580,7 @@ class ProductController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Product created successfully',
+            'message' => __('products.created'),
             'product' => $this->formatProduct($product, []),
             'storage_info' => [
                 'used_mb' => round($totalImageSizeMb, 2),
@@ -605,7 +605,7 @@ class ProductController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Product already created',
+            'message' => __('products.already_created'),
             'replayed' => true,
             'product' => $this->formatProduct($product, []),
             'storage_info' => [

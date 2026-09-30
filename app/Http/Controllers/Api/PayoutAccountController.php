@@ -39,8 +39,8 @@ class PayoutAccountController extends Controller
             'phone_number' => ['required', 'string', 'regex:/^\d{8,15}$/'],
             'account_holder' => ['nullable', 'string', 'max:120'],
         ], [
-            'provider.in' => 'Opérateur Mobile Money non pris en charge.',
-            'phone_number.regex' => 'Numéro invalide : saisissez uniquement des chiffres, indicatif pays inclus.',
+            'provider.in' => __('wallet.payout_account.provider_unsupported'),
+            'phone_number.regex' => __('wallet.payout_account.phone_invalid'),
         ]);
 
         $account = PayoutAccount::updateOrCreate(
@@ -55,7 +55,7 @@ class PayoutAccountController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Coordonnées de retrait enregistrées.',
+            'message' => __('wallet.payout_account.saved'),
             'data' => $account->toApiArray(),
         ]);
     }
@@ -68,7 +68,7 @@ class PayoutAccountController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Coordonnées de retrait supprimées.',
+            'message' => __('wallet.payout_account.deleted'),
             'data' => null,
         ]);
     }

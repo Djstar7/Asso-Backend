@@ -52,7 +52,7 @@ class CurrencyController extends Controller
         if ($country === '') {
             return response()->json([
                 'success' => false,
-                'message' => 'Le paramètre "country" est requis.',
+                'message' => __('currency.country_required'),
             ], 422);
         }
 
@@ -68,7 +68,7 @@ class CurrencyController extends Controller
         if (!$currency) {
             return response()->json([
                 'success' => false,
-                'message' => "Aucune devise trouvée pour le pays: {$country}",
+                'message' => __('currency.not_found_for_country', ['country' => $country]),
             ], 404);
         }
 
@@ -92,7 +92,7 @@ class CurrencyController extends Controller
         if ($from === '' || $to === '' || $amount <= 0) {
             return response()->json([
                 'success' => false,
-                'message' => 'Paramètres "from", "to" et "amount" requis.',
+                'message' => __('currency.convert_params_required'),
             ], 422);
         }
 
@@ -103,7 +103,7 @@ class CurrencyController extends Controller
         if (empty($result['success'])) {
             return response()->json([
                 'success' => false,
-                'message' => "Conversion $from → $to indisponible.",
+                'message' => __('currency.conversion_unavailable', ['from' => $from, 'to' => $to]),
             ], 400);
         }
 
@@ -131,7 +131,7 @@ class CurrencyController extends Controller
         if ($from === '' || $to === '') {
             return response()->json([
                 'success' => false,
-                'message' => 'Les paramètres "from" et "to" sont requis.',
+                'message' => __('currency.rate_params_required'),
             ], 422);
         }
 
@@ -148,7 +148,7 @@ class CurrencyController extends Controller
         if ($rate === null) {
             return response()->json([
                 'success' => false,
-                'message' => "Taux de change $from → $to indisponible.",
+                'message' => __('currency.rate_unavailable', ['from' => $from, 'to' => $to]),
             ], 400);
         }
 

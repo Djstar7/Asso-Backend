@@ -230,9 +230,8 @@ class StripeDoctor extends Command
             try {
                 $fcm->sendToUser(
                     $vendor,
-                    'Compte de virement à compléter',
-                    'Renvoyez vos informations bancaires (identité, adresse, date de naissance) '
-                        . 'pour activer vos virements.',
+                    $vendor->translate('notifications.stripe_account_incomplete.title'),
+                    $vendor->translate('notifications.stripe_account_incomplete.body'),
                     ['type' => 'stripe_account_requirements', 'action' => 'open_stripe_connect'],
                 );
             } catch (\Throwable $e) {

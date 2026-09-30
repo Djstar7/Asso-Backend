@@ -131,8 +131,11 @@ class FcmService
         $storageTotal = $packageData['storage_total'] ?? '0';
         $expiresAt = $packageData['expires_at'] ?? '';
 
-        $title = 'Achat confirmé !';
-        $body = "Votre package {$packageName} ({$storageTotal} MB) a été activé avec succès.";
+        $title = $user->translate('notifications.package_purchase.title');
+        $body = $user->translate('notifications.package_purchase.body', [
+            'package' => $packageName,
+            'storage' => $storageTotal,
+        ]);
 
         return $this->sendAndStore(
             $user,
@@ -154,8 +157,11 @@ class FcmService
      */
     public function sendPackageExpiringNotification(User $user, int $daysRemaining): ?Notification
     {
-        $title = 'Package bientôt expiré';
-        $body = "Votre package expire dans {$daysRemaining} jour" . ($daysRemaining > 1 ? 's' : '') . '. Renouvelez-le pour continuer à publier vos produits.';
+        $title = $user->translate('notifications.package_expiring.title');
+        $body = $user->translate(
+            $daysRemaining > 1 ? 'notifications.package_expiring.body_plural' : 'notifications.package_expiring.body_singular',
+            ['days' => $daysRemaining]
+        );
 
         return $this->sendAndStore(
             $user,
@@ -177,15 +183,12 @@ class FcmService
     {
         $orderNumber = $orderData['order_number'] ?? 'N/A';
 
-        $statusMessages = [
-            'pending' => ['Nouvelle commande', "Commande #{$orderNumber} reçue !"],
-            'confirmed' => ['Commande confirmée', "Commande #{$orderNumber} confirmée"],
-            'shipped' => ['Commande expédiée', "Commande #{$orderNumber} en cours de livraison"],
-            'delivered' => ['Commande livrée', "Commande #{$orderNumber} livrée avec succès"],
-            'cancelled' => ['Commande annulée', "Commande #{$orderNumber} annulée"],
-        ];
+        $event = in_array($orderStatus, ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'], true)
+            ? 'order_status_' . $orderStatus
+            : 'order_status_update';
 
-        [$title, $body] = $statusMessages[$orderStatus] ?? ['Mise à jour commande', "Commande #{$orderNumber}"];
+        $title = $user->translate("notifications.{$event}.title");
+        $body = $user->translate("notifications.{$event}.body", ['order_number' => $orderNumber]);
 
         return $this->sendAndStore(
             $user,

@@ -60,8 +60,9 @@ class StripePayoutSettlementService
 
             $this->notify(
                 $withdrawal,
-                'Virement effectué',
-                "Votre virement de {$amount} {$currency} a bien été versé sur votre compte bancaire.",
+                'notifications.wallet_withdrawal_completed_bank.title',
+                'notifications.wallet_withdrawal_completed_bank.body',
+                ['amount' => $amount, 'currency' => $currency],
                 'wallet_withdrawal_completed',
             );
 
@@ -136,8 +137,9 @@ class StripePayoutSettlementService
 
             $this->notify(
                 $withdrawal,
-                'Virement échoué',
-                "Votre virement de {$amount} {$currency} a échoué. Le montant a été recrédité sur votre portefeuille.",
+                'notifications.wallet_withdrawal_failed_bank.title',
+                'notifications.wallet_withdrawal_failed_bank.body',
+                ['amount' => $amount, 'currency' => $currency],
                 'wallet_withdrawal_failed',
             );
 
@@ -185,13 +187,16 @@ class StripePayoutSettlementService
     }
 
     /** Notification FCM best-effort (jamais bloquante). */
-    private function notify(PlatformWithdrawal $withdrawal, string $title, string $body, string $type): void
+    private function notify(PlatformWithdrawal $withdrawal, string $titleKey, string $bodyKey, array $replace, string $type): void
     {
         try {
             $user = $withdrawal->user;
             if (!$user) {
                 return;
             }
+            // Textes dans la langue du destinataire.
+            $title = $user->translate($titleKey, $replace);
+            $body = $user->translate($bodyKey, $replace);
             $this->fcm->sendToUser($user, $title, $body, [
                 'type' => $type,
                 'provider' => 'stripe',

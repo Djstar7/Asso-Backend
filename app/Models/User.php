@@ -3,15 +3,17 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Contracts\Translation\HasLocalePreference;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\HasApiTokens;
 
-class User extends Authenticatable
+class User extends Authenticatable implements HasLocalePreference
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasApiTokens, HasFactory, Notifiable;
@@ -34,6 +36,7 @@ class User extends Authenticatable
         'birth_date',
         'phone',
         'country',
+        'locale',
         'address',
         'latitude',
         'longitude',
@@ -100,9 +103,52 @@ class User extends Authenticatable
         ];
     }
 
+    protected static function booted(): void
+    {
+        // Une nouvelle photo de profil remplace l'ancienne : le fichier
+        // précédent ne sert plus à personne, on le retire du disque.
+        static::updated(function (User $user) {
+            if ($user->wasChanged('avatar')) {
+                self::deleteStoredAvatar($user->getRawOriginal('avatar'));
+            }
+        });
+    }
+
+    /**
+     * Supprime une photo déposée par l'application (disque public,
+     * dossier avatars/). Les URL externes et autres chemins sont laissés.
+     */
+    public static function deleteStoredAvatar(?string $path): void
+    {
+        if (! $path || ! str_starts_with($path, 'avatars/')) {
+            return;
+        }
+
+        Storage::disk('public')->delete($path);
+    }
+
     /**
      * Get the full name attribute
      */
+    /**
+     * Langue du compte : notifications Laravel et e-mails partent dans
+     * cette langue.
+     */
+    public function preferredLocale(): string
+    {
+        return in_array($this->locale, ['fr', 'en'], true) ? $this->locale : 'fr';
+    }
+
+    /**
+     * Traduit un texte dans la langue de cet utilisateur, et non dans celle
+     * de la requête en cours : une notification push déclenchée par un
+     * acheteur anglophone doit parvenir en français à un vendeur francophone.
+     */
+    public function translate(string $key, array $replace = []): string
+    {
+        return __($key, $replace, $this->preferredLocale());
+    }
+
     public function getNameAttribute(): string
     {
         return "{$this->first_name} {$this->last_name}";

@@ -55,15 +55,15 @@ class StripeConnectController extends Controller
     private function verificationLabel(array $state): string
     {
         if ($state['ready']) {
-            return 'Compte vérifié par Stripe.';
+            return __('payments.stripe_connect.verified');
         }
 
         return match ($state['transfers']) {
-            'pending' => 'Vérification en cours chez Stripe (quelques minutes).',
+            'pending' => __('payments.stripe_connect.pending'),
             'inactive' => empty($state['requirements_due'])
-                ? "Compte pas encore activé par Stripe."
-                : 'Informations complémentaires demandées par Stripe.',
-            default => "État du compte indisponible pour le moment.",
+                ? __('payments.stripe_connect.not_activated')
+                : __('payments.stripe_connect.requirements_due'),
+            default => __('payments.stripe_connect.status_unavailable'),
         };
     }
 
@@ -76,7 +76,7 @@ class StripeConnectController extends Controller
         if (!$this->stripe->isConfigured()) {
             return response()->json([
                 'success' => false,
-                'message' => "Le paiement par virement (Stripe) n'est pas encore disponible.",
+                'message' => __('wallet.stripe_withdrawal_unavailable'),
             ], 503);
         }
 
@@ -104,7 +104,7 @@ class StripeConnectController extends Controller
         if ($user->stripe_account_status === 'approved') {
             return response()->json([
                 'success' => false,
-                'message' => 'Votre compte de virement est déjà validé. Contactez le support pour modifier votre IBAN.',
+                'message' => __('payments.stripe_connect.already_validated'),
             ], 422);
         }
 
@@ -162,7 +162,7 @@ class StripeConnectController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Informations bancaires enregistrées. Votre compte de virement sera vérifié sous 24-48h.',
+                'message' => __('payments.stripe_connect.saved'),
                 'data' => $this->formatStatus($user->fresh()),
             ]);
         } catch (\Throwable $e) {
@@ -187,40 +187,36 @@ class StripeConnectController extends Controller
     {
         // Problème de connexion entre notre serveur et Stripe (DNS, réseau, timeout).
         if ($e instanceof \Stripe\Exception\ApiConnectionException) {
-            return "Le service de virement bancaire est momentanément indisponible. "
-                . "Veuillez réessayer dans quelques instants.";
+            return __('payments.stripe_connect.error_connection');
         }
 
         // Paramètres refusés par Stripe : le plus souvent un IBAN ou un pays invalide.
         if ($e instanceof \Stripe\Exception\InvalidRequestException) {
             $raw = strtolower($e->getMessage());
             if (str_contains($raw, 'iban') || str_contains($raw, 'bank') || str_contains($raw, 'account_number')) {
-                return "L'IBAN saisi semble invalide. Vérifiez-le puis réessayez.";
+                return __('payments.stripe_connect.error_invalid_iban');
             }
             // Stripe formule le pays non supporté sans le mot « country »
             // (ex. « CM is not currently supported by Stripe. ») : sans ce test, le
             // vendeur recevait un message générique parlant d'informations invalides.
             if (str_contains($raw, 'country') || str_contains($raw, 'not currently supported')) {
-                return "Le pays du compte bancaire n'est pas pris en charge pour les virements.";
+                return __('payments.stripe_connect.error_country_unsupported');
             }
-            return "Certaines informations bancaires sont invalides. Vérifiez vos données puis réessayez.";
+            return __('payments.stripe_connect.error_invalid_details');
         }
 
         // Clés API absentes / invalides côté plateforme : ce n'est pas la faute du vendeur.
         if ($e instanceof \Stripe\Exception\AuthenticationException
             || $e instanceof \RuntimeException) {
-            return "Le paiement par virement (Stripe) n'est pas encore disponible. "
-                . "Veuillez réessayer plus tard.";
+            return __('payments.stripe_connect.error_unavailable');
         }
 
         // Toute autre erreur Stripe : message générique, sans détail technique.
         if ($e instanceof \Stripe\Exception\ApiErrorException) {
-            return "Impossible d'enregistrer vos informations bancaires pour le moment. "
-                . "Veuillez réessayer plus tard.";
+            return __('payments.stripe_connect.error_save_failed');
         }
 
-        return "Une erreur est survenue lors de l'enregistrement de vos informations bancaires. "
-            . "Veuillez réessayer.";
+        return __('payments.stripe_connect.error_generic');
     }
 
     /** Représentation publique du statut d'onboarding (jamais l'IBAN complet). */

@@ -35,7 +35,7 @@ class SettingController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la récupération des paramètres',
+                'message' => __('settings.fetch_error'),
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -56,7 +56,7 @@ class SettingController extends Controller
             if (!in_array($group, $publicGroups)) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Accès non autorisé à ce groupe de paramètres',
+                    'message' => __('settings.group_access_denied'),
                 ], 403);
             }
 
@@ -70,7 +70,7 @@ class SettingController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la récupération des paramètres',
+                'message' => __('settings.fetch_error'),
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -105,7 +105,7 @@ class SettingController extends Controller
             if (!in_array($key, $publicKeys)) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Accès non autorisé à ce paramètre',
+                    'message' => __('settings.access_denied'),
                 ], 403);
             }
 
@@ -114,7 +114,7 @@ class SettingController extends Controller
             if ($value === null) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Paramètre non trouvé',
+                    'message' => __('settings.not_found'),
                 ], 404);
             }
 
@@ -128,7 +128,7 @@ class SettingController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la récupération du paramètre',
+                'message' => __('settings.fetch_one_error'),
                 'error' => $e->getMessage(),
             ], 500);
         }

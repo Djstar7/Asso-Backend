@@ -73,7 +73,7 @@ class OtpController extends Controller
         // Vérifier si le numéro est déjà utilisé
         if (User::where('phone', $phone)->exists()) {
             return response()->json([
-                'message' => 'Ce numéro de téléphone est déjà associé à un compte.',
+                'message' => __('auth.phone_already_registered'),
             ], 422);
         }
 
@@ -88,7 +88,7 @@ class OtpController extends Controller
 
             // Return special response indicating bypass is active
             return response()->json([
-                'message' => 'Connexion directe autorisée via WhatsApp',
+                'message' => __('auth.whatsapp_direct_login_allowed'),
                 'bypass_enabled' => true,
                 'channel' => 'whatsapp',
             ], 200);
@@ -115,7 +115,7 @@ class OtpController extends Controller
             if (!$otpService->isServiceAvailable()) {
                 Log::error("[OTP] Aucun service d'envoi d'OTP n'est configuré");
                 return response()->json([
-                    'message' => 'Service d\'envoi d\'OTP non disponible. Contactez l\'administrateur.',
+                    'message' => __('auth.otp_service_unavailable'),
                 ], 500);
             }
 
@@ -151,7 +151,7 @@ class OtpController extends Controller
         } catch (\Exception $e) {
             Log::error("[OTP] Erreur envoi OTP : " . $e->getMessage());
             return response()->json([
-                'message' => 'Erreur lors de l\'envoi de l\'OTP. Veuillez réessayer.',
+                'message' => __('auth.otp_send_error'),
                 'error'   => config('app.debug') ? $e->getMessage() : null,
             ], 500);
         }
@@ -176,7 +176,7 @@ class OtpController extends Controller
                 ->update(['verified' => true]);
 
             return response()->json([
-                'message' => 'Numéro vérifié avec succès (bypass).',
+                'message' => __('auth.phone_verified_bypass'),
                 'bypass_mode' => true,
             ], 200);
         }
@@ -189,14 +189,14 @@ class OtpController extends Controller
 
         if (!$record) {
             return response()->json([
-                'message' => 'Code invalide ou expiré.',
+                'message' => __('auth.code_invalid_or_expired'),
             ], 422);
         }
 
         $record->update(['verified' => true]);
 
         return response()->json([
-            'message' => 'Numéro vérifié avec succès.',
+            'message' => __('auth.phone_verified'),
         ], 200);
     }
 }

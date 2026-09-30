@@ -124,7 +124,7 @@ class DiaspoVerificationService
             }
         });
 
-        $this->notify($user, 'Identité vérifiée !', 'Votre identité a été validée : la mention « Profil non vérifié » est retirée de vos offres DIASPO.', [
+        $this->notify($user, $user->translate('notifications.diaspo_verified.title'), $user->translate('notifications.diaspo_verified.body'), [
             'type' => 'diaspo_verified',
             'action' => 'open_diaspo',
         ]);
@@ -147,12 +147,14 @@ class DiaspoVerificationService
         });
 
         $deadline = self::nextDeadlineFor($user);
-        $body = 'Vos pièces d\'identité n\'ont pas été acceptées. Raison : ' . $reason;
-        if ($deadline) {
-            $body .= ' Renvoyez des pièces conformes avant le ' . $deadline->format('d/m/Y') . ', sinon vos offres seront retirées.';
-        }
+        $body = $deadline
+            ? $user->translate('notifications.diaspo_rejected.body_with_deadline', [
+                'reason' => $reason,
+                'date' => $deadline->format('d/m/Y'),
+            ])
+            : $user->translate('notifications.diaspo_rejected.body', ['reason' => $reason]);
 
-        $this->notify($user, 'Vérification DIASPO non approuvée', $body, [
+        $this->notify($user, $user->translate('notifications.diaspo_rejected.title'), $body, [
             'type' => 'diaspo_rejected',
             'action' => 'open_diaspo',
             'reason' => $reason,
@@ -199,10 +201,13 @@ class DiaspoVerificationService
             if ($offer->user) {
                 $this->notify(
                     $offer->user,
-                    'Vérifiez votre identité',
-                    "Votre offre {$offer->departure_city} → {$offer->arrival_city} sera retirée le "
-                        . $offer->verification_deadline_at->format('d/m/Y à H:i')
-                        . ' si votre identité n\'est pas validée d\'ici là.',
+                    $offer->user->translate('notifications.diaspo_verification_deadline.title'),
+                    $offer->user->translate('notifications.diaspo_verification_deadline.body', [
+                        'from' => $offer->departure_city,
+                        'to' => $offer->arrival_city,
+                        'date' => $offer->verification_deadline_at->format('d/m/Y'),
+                        'time' => $offer->verification_deadline_at->format('H:i'),
+                    ]),
                     ['type' => 'diaspo_verification_deadline', 'action' => 'open_diaspo', 'offer_id' => (string) $offer->id],
                 );
             }
@@ -261,8 +266,11 @@ class DiaspoVerificationService
             if ($offer->user) {
                 $this->notify(
                     $offer->user,
-                    'Offre DIASPO retirée',
-                    "Votre offre {$offer->departure_city} → {$offer->arrival_city} a été retirée : votre identité n'a pas été validée dans le délai.",
+                    $offer->user->translate('notifications.diaspo_offer_removed.title'),
+                    $offer->user->translate('notifications.diaspo_offer_removed.body', [
+                        'from' => $offer->departure_city,
+                        'to' => $offer->arrival_city,
+                    ]),
                     ['type' => 'diaspo_offer_removed', 'action' => 'open_diaspo', 'offer_id' => (string) $offer->id],
                 );
             }

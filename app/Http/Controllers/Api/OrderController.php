@@ -120,7 +120,7 @@ class OrderController extends Controller
                 && !\App\Services\PaymentMethodService::isEnabled('stripe')) {
                 return response()->json([
                     'success' => false,
-                    'message' => "Le paiement par carte bancaire (Stripe) n'est pas disponible pour le moment. Veuillez choisir un autre moyen de paiement.",
+                    'message' => __('payments.stripe_unavailable_choose_other'),
                 ], 422);
             }
 
@@ -150,9 +150,9 @@ class OrderController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => match ($paymentMode) {
-                    'kpay_direct' => 'Commande créée. Validez le paiement sur votre téléphone (USSD).',
-                    'stripe_direct' => 'Commande créée. Finalisez le paiement par carte.',
-                    default => 'Commande créée avec succès. Fonds bloqués en attente de validation.',
+                    'kpay_direct' => __('orders.created_confirm_on_phone'),
+                    'stripe_direct' => __('orders.created_complete_card'),
+                    default => __('orders.created_funds_held'),
                 },
                 'order' => $this->formatOrder($order),
                 // Pour le polling du statut de paiement (modes directs)
@@ -234,7 +234,7 @@ class OrderController extends Controller
                 // Verrou + re-contrôle : le vendeur a pu valider entre-temps.
                 $locked = Order::whereKey($order->id)->lockForUpdate()->first();
                 if (!$locked || $locked->status !== 'pending') {
-                    throw new \Exception('Cette commande a déjà été prise en charge par le vendeur et ne peut plus être annulée.');
+                    throw new \Exception(__('orders.already_handled_cannot_cancel'));
                 }
 
                 // Remboursement : déblocage de l'escrow (wallet) ou crédit du Wallet ASSO
@@ -261,17 +261,21 @@ class OrderController extends Controller
                 );
             });
 
-            $order->notifySellers(
-                'Commande annulée par le client',
-                "La commande #{$order->order_number} a été annulée" . ($request->reason ? " : {$request->reason}" : '.') . ' Le stock a été remis en vente.',
+            $this->notifySellersLocalized(
+                $order,
+                'notifications.order_cancelled_by_buyer.title',
+                $request->reason
+                    ? 'notifications.order_cancelled_by_buyer.body_with_reason'
+                    : 'notifications.order_cancelled_by_buyer.body',
+                ['order_number' => $order->order_number, 'reason' => $request->reason],
                 ['type' => 'order_cancelled_vendor', 'cancel_reason' => $request->reason],
             );
 
             return response()->json([
                 'success' => true,
                 'message' => $refunded > 0
-                    ? 'Commande annulée. ' . number_format($refunded, 0, ',', ' ') . ' FCFA sont disponibles sur votre Wallet ASSO.'
-                    : 'Commande annulée.',
+                    ? __('orders.cancelled_refunded', ['amount' => number_format($refunded, 0, ',', ' ')])
+                    : __('orders.cancelled'),
                 'refunded_amount' => $refunded,
                 'order' => $this->formatOrder($order->fresh()),
             ]);
@@ -310,15 +314,17 @@ class OrderController extends Controller
             );
         });
 
-        $order->notifySellers(
-            'Colis reçu',
-            "L'acheteur a confirmé la réception de la commande #{$order->order_number}.",
+        $this->notifySellersLocalized(
+            $order,
+            'notifications.order_received_by_buyer.title',
+            'notifications.order_received_by_buyer.body',
+            ['order_number' => $order->order_number],
             ['type' => 'order_delivered_vendor'],
         );
 
         return response()->json([
             'success' => true,
-            'message' => 'Réception confirmée. Merci !',
+            'message' => __('orders.reception_confirmed'),
             'order' => $this->formatOrder($order->fresh(['items.product.primaryImage', 'items.seller', 'deliveryCompany', 'trackingEvents']), true),
         ]);
     }
@@ -334,11 +340,11 @@ class OrderController extends Controller
             'rating' => 'required|integer|min:1|max:5',
             'comment' => 'nullable|string|max:1000',
         ], [
-            'rating.required' => 'Merci d’attribuer une note.',
-            'rating.integer' => 'La note doit être un nombre entier.',
-            'rating.min' => 'La note doit être comprise entre 1 et 5 étoiles.',
-            'rating.max' => 'La note doit être comprise entre 1 et 5 étoiles.',
-            'comment.max' => 'Votre commentaire ne doit pas dépasser 1000 caractères.',
+            'rating.required' => __('orders.rating_required'),
+            'rating.integer' => __('orders.rating_integer'),
+            'rating.min' => __('orders.rating_range'),
+            'rating.max' => __('orders.rating_range'),
+            'comment.max' => __('orders.rating_comment_max'),
         ]);
 
         // Diagnostic précis : sans cela une commande déjà notée renvoie une
@@ -348,21 +354,21 @@ class OrderController extends Controller
         if (!$order) {
             return response()->json([
                 'success' => false,
-                'message' => 'Commande introuvable.',
+                'message' => __('orders.not_found'),
             ], 404);
         }
 
         if ($order->status !== 'delivered') {
             return response()->json([
                 'success' => false,
-                'message' => 'Vous pourrez noter cette commande une fois qu’elle sera livrée.',
+                'message' => __('orders.rate_after_delivery'),
             ], 422);
         }
 
         if ($order->rated_at !== null) {
             return response()->json([
                 'success' => false,
-                'message' => 'Vous avez déjà noté cette commande.',
+                'message' => __('orders.already_rated'),
             ], 422);
         }
 
@@ -408,8 +414,8 @@ class OrderController extends Controller
                         $stars = str_repeat('★', $request->rating) . str_repeat('☆', 5 - $request->rating);
                         $fcm->sendToUser(
                             $seller,
-                            'Nouvelle note reçue',
-                            "Commande #{$order->order_number} notée {$stars}",
+                            $seller->translate('notifications.order_rated.title'),
+                            $seller->translate('notifications.order_rated.body', ['order_number' => $order->order_number, 'stars' => $stars]),
                             [
                                 'type' => 'order_rated',
                                 'order_id' => (string) $order->id,
@@ -422,13 +428,33 @@ class OrderController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Merci pour votre note !',
+                'message' => __('orders.rating_thanks'),
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
             ], 422);
+        }
+    }
+
+    /**
+     * Même envoi que Order::notifySellers, mais chaque vendeur reçoit la
+     * notification dans sa propre langue.
+     */
+    private function notifySellersLocalized(Order $order, string $titleKey, string $bodyKey, array $replace = [], array $data = []): void
+    {
+        $sellerIds = $order->items()->pluck('seller_id')->filter()->unique();
+        foreach (\App\Models\User::whereIn('id', $sellerIds)->get() as $seller) {
+            app(\App\Services\FirebaseMessagingService::class)->sendToUser(
+                $seller,
+                $seller->translate($titleKey, $replace),
+                $seller->translate($bodyKey, $replace),
+                $data + [
+                    'order_id' => (string) $order->id,
+                    'order_number' => (string) $order->order_number,
+                ],
+            );
         }
     }
 
