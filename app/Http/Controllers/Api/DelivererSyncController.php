@@ -30,7 +30,7 @@ class DelivererSyncController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Données de validation invalides',
+                'message' => __('delivery.sync.invalid_data'),
                 'errors' => $validator->errors()
             ], 422);
         }
@@ -41,7 +41,7 @@ class DelivererSyncController extends Controller
         if (!$user) {
             return response()->json([
                 'success' => false,
-                'message' => 'Utilisateur non authentifié'
+                'message' => __('auth.unauthenticated')
             ], 401);
         }
 
@@ -53,7 +53,7 @@ class DelivererSyncController extends Controller
         if (!$syncCode) {
             return response()->json([
                 'success' => false,
-                'message' => 'Code de synchronisation invalide ou non trouvé'
+                'message' => __('delivery.sync.code_invalid')
             ], 404);
         }
 
@@ -61,7 +61,7 @@ class DelivererSyncController extends Controller
         if ($syncCode->isExpired()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Ce code de synchronisation a expiré',
+                'message' => __('delivery.sync.code_expired'),
                 'expired_at' => $syncCode->expires_at
             ], 400);
         }
@@ -75,7 +75,7 @@ class DelivererSyncController extends Controller
         if ($bannedSync) {
             return response()->json([
                 'success' => false,
-                'message' => 'Vous avez été banni de ce code de synchronisation',
+                'message' => __('delivery.sync.banned'),
                 'banned_at' => $bannedSync->banned_at,
                 'ban_reason' => $bannedSync->ban_reason
             ], 403);
@@ -90,7 +90,9 @@ class DelivererSyncController extends Controller
         if ($existingActiveSync) {
             return response()->json([
                 'success' => false,
-                'message' => 'Vous êtes déjà synchronisé avec ce code',
+                'message' => __('delivery.sync.already_synced'),
+                // Code stable : le message suit la langue de l'utilisateur.
+                'code' => 'already_synced',
                 'synced_at' => $existingActiveSync->synced_at
             ], 400);
         }
@@ -101,7 +103,7 @@ class DelivererSyncController extends Controller
         if (!$company) {
             return response()->json([
                 'success' => false,
-                'message' => 'Entreprise de livraison non trouvée pour ce code'
+                'message' => __('delivery.sync.company_not_found')
             ], 404);
         }
 
@@ -165,7 +167,7 @@ class DelivererSyncController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la synchronisation: ' . $e->getMessage()
+                'message' => __('delivery.sync.error', ['error' => $e->getMessage()])
             ], 500);
         }
 
@@ -174,7 +176,7 @@ class DelivererSyncController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Profil synchronisé avec succès! Vous êtes maintenant livreur pour ' . $company->name,
+            'message' => __('delivery.sync.success', ['company' => $company->name]),
             'data' => [
                 'user' => [
                     'id' => $user->id,
@@ -230,7 +232,7 @@ class DelivererSyncController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Données de validation invalides',
+                'message' => __('delivery.sync.invalid_data'),
                 'errors' => $validator->errors()
             ], 422);
         }
@@ -240,7 +242,7 @@ class DelivererSyncController extends Controller
         if (!$syncCode) {
             return response()->json([
                 'success' => false,
-                'message' => 'Code de synchronisation non trouvé',
+                'message' => __('delivery.sync.code_not_found'),
                 'is_valid' => false
             ], 404);
         }
@@ -274,7 +276,7 @@ class DelivererSyncController extends Controller
         if (!$user) {
             return response()->json([
                 'success' => false,
-                'message' => 'Utilisateur non authentifié'
+                'message' => __('auth.unauthenticated')
             ], 401);
         }
 
@@ -283,7 +285,7 @@ class DelivererSyncController extends Controller
         if (!in_array('livreur', $roles)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Vous n\'êtes pas un livreur actif'
+                'message' => __('delivery.sync.not_active_deliverer')
             ], 400);
         }
 
@@ -329,7 +331,7 @@ class DelivererSyncController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Désynchronisation réussie. Vous n\'êtes plus livreur.',
+            'message' => __('delivery.sync.unsynced'),
             'data' => [
                 'user' => [
                     'id' => $user->id,
@@ -357,7 +359,7 @@ class DelivererSyncController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Données de validation invalides',
+                'message' => __('delivery.sync.invalid_data'),
                 'errors' => $validator->errors()
             ], 422);
         }
@@ -367,7 +369,7 @@ class DelivererSyncController extends Controller
         if (!$user || !$user->hasRole('livreur')) {
             return response()->json([
                 'success' => false,
-                'message' => 'Utilisateur non trouvé ou n\'est pas un livreur'
+                'message' => __('delivery.sync.user_not_deliverer')
             ], 404);
         }
 
@@ -388,7 +390,7 @@ class DelivererSyncController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Nouveau code de synchronisation généré avec succès',
+            'message' => __('delivery.sync.code_generated'),
             'data' => [
                 'sync_code' => $syncCode,
                 'expires_at' => $expiresAt,

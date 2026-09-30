@@ -68,7 +68,7 @@ class AuthController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Connexion directe autorisée via WhatsApp',
+                'message' => __('auth.whatsapp_direct_login_allowed'),
                 'bypass_enabled' => true,
                 'channel' => 'whatsapp',
                 'is_new_user' => !$user->is_profile_complete,
@@ -152,7 +152,7 @@ class AuthController extends Controller
             Log::warning('[AUTH] User not found for OTP verification', ['phone' => $request->phone]);
             return response()->json([
                 'success' => false,
-                'message' => 'Utilisateur non trouvé',
+                'message' => __('auth.user_not_found'),
             ], 404);
         }
 
@@ -181,7 +181,7 @@ class AuthController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Connexion réussie via WhatsApp',
+                'message' => __('auth.login_success_whatsapp'),
                 'token' => $token,
                 'user' => [
                     'id' => $user->id,
@@ -238,7 +238,7 @@ class AuthController extends Controller
                 ]);
                 return response()->json([
                     'success' => false,
-                    'message' => 'Code OTP expiré. Veuillez en demander un nouveau.',
+                    'message' => __('auth.otp_expired'),
                 ], 422);
             }
         } else {
@@ -255,7 +255,7 @@ class AuthController extends Controller
             ]);
             return response()->json([
                 'success' => false,
-                'message' => 'Code OTP incorrect',
+                'message' => __('auth.otp_incorrect'),
             ], 422);
         }
 
@@ -281,7 +281,7 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Connexion réussie',
+            'message' => __('auth.login_success'),
             'token' => $token,
             'user' => [
                 'id' => $user->id,
@@ -322,7 +322,7 @@ class AuthController extends Controller
             Log::warning('[AUTH] User not found for login', ['phone' => $request->phone]);
             return response()->json([
                 'success' => false,
-                'message' => 'Numéro de téléphone ou mot de passe incorrect',
+                'message' => __('auth.invalid_phone_or_password'),
             ], 401);
         }
 
@@ -334,7 +334,7 @@ class AuthController extends Controller
             ]);
             return response()->json([
                 'success' => false,
-                'message' => 'Numéro de téléphone ou mot de passe incorrect',
+                'message' => __('auth.invalid_phone_or_password'),
             ], 401);
         }
 
@@ -349,7 +349,7 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Connexion réussie',
+            'message' => __('auth.login_success'),
             'token' => $token,
             'user' => [
                 'id' => $user->id,
@@ -397,7 +397,7 @@ class AuthController extends Controller
         if ($existing) {
             return response()->json([
                 'success' => false,
-                'message' => 'Un compte existe déjà avec cette adresse email.',
+                'message' => __('auth.email_already_registered'),
             ], 422);
         }
 
@@ -421,12 +421,12 @@ class AuthController extends Controller
         } catch (\Throwable $exception) {
             Log::error('[AUTH] Unable to send registration OTP email', ['user_id' => $user->id, 'error' => $exception->getMessage()]);
             $user->delete();
-            return response()->json(['success' => false, 'message' => "Le code de vérification n'a pas pu être envoyé. Vérifiez l'adresse ou réessayez plus tard."], 503);
+            return response()->json(['success' => false, 'message' => __('auth.verification_code_send_failed')], 503);
         }
 
         $response = [
             'success' => true,
-            'message' => 'Compte créé. Un code de vérification a été envoyé à votre email.',
+            'message' => __('auth.account_created_code_sent'),
         ];
 
         // In development, return the code so the flow can be tested without a mail server.
@@ -455,7 +455,7 @@ class AuthController extends Controller
             Log::warning('[AUTH] Email login failed', ['email' => $request->email]);
             return response()->json([
                 'success' => false,
-                'message' => 'Email ou mot de passe incorrect',
+                'message' => __('auth.invalid_email_or_password'),
             ], 401);
         }
 
@@ -464,7 +464,7 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Connexion réussie',
+            'message' => __('auth.login_success'),
             'token' => $token,
             'user' => $this->userPayload($user),
         ]);
@@ -487,21 +487,21 @@ class AuthController extends Controller
         if (!$user) {
             return response()->json([
                 'success' => false,
-                'message' => 'Utilisateur non trouvé',
+                'message' => __('auth.user_not_found'),
             ], 404);
         }
 
         if ($user->otp_code !== $request->otp_code) {
             return response()->json([
                 'success' => false,
-                'message' => 'Code de vérification incorrect',
+                'message' => __('auth.verification_code_incorrect'),
             ], 422);
         }
 
         if (!$user->otp_expires_at || Carbon::parse($user->otp_expires_at)->isPast()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Code de vérification expiré. Veuillez en demander un nouveau.',
+                'message' => __('auth.verification_code_expired_request_new'),
             ], 422);
         }
 
@@ -518,7 +518,7 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Email vérifié avec succès',
+            'message' => __('auth.email_verified'),
             'token' => $token,
             'user' => $this->userPayload($user),
             'is_new_user' => $isNewUser,
@@ -530,7 +530,7 @@ class AuthController extends Controller
         $request->validate(['email' => 'required|email']);
         $user = User::where('email', $request->email)->first();
         if (!$user) {
-            return response()->json(['success' => true, 'message' => 'Si ce compte existe, un code a été envoyé.']);
+            return response()->json(['success' => true, 'message' => __('auth.reset_code_sent_if_exists')]);
         }
 
         $code = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
@@ -539,9 +539,9 @@ class AuthController extends Controller
             Mail::to($user->email)->send(new OtpCodeMail($code));
         } catch (\Throwable $exception) {
             Log::error('[AUTH] Unable to send password reset OTP', ['user_id' => $user->id, 'error' => $exception->getMessage()]);
-            return response()->json(['success' => false, 'message' => "Le code n'a pas pu être envoyé. Réessayez plus tard."], 503);
+            return response()->json(['success' => false, 'message' => __('auth.code_send_failed')], 503);
         }
-        return response()->json(['success' => true, 'message' => 'Un code de réinitialisation a été envoyé.']);
+        return response()->json(['success' => true, 'message' => __('auth.reset_code_sent')]);
     }
 
     public function resetPassword(Request $request)
@@ -552,11 +552,11 @@ class AuthController extends Controller
         ]);
         $user = User::where('email', $validated['email'])->first();
         if (!$user || !hash_equals((string) $user->otp_code, $validated['otp_code']) || !$user->otp_expires_at || Carbon::parse($user->otp_expires_at)->isPast()) {
-            return response()->json(['success' => false, 'message' => 'Code invalide ou expiré.'], 422);
+            return response()->json(['success' => false, 'message' => __('auth.code_invalid_or_expired')], 422);
         }
         $user->update(['password' => Hash::make($validated['password']), 'otp_code' => null, 'otp_expires_at' => null]);
         $user->tokens()->delete();
-        return response()->json(['success' => true, 'message' => 'Mot de passe modifié avec succès.']);
+        return response()->json(['success' => true, 'message' => __('auth.password_changed')]);
     }
 
     /**
@@ -674,7 +674,7 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Profil mis à jour avec succès',
+            'message' => __('profile.updated'),
             'user' => [
                 'id' => $user->id,
                 'first_name' => $user->first_name,
@@ -724,8 +724,26 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Préférences mises à jour',
+            'message' => __('profile.preferences_updated'),
             'preferences' => $user->preferences,
+        ]);
+    }
+
+    /**
+     * Langue du compte (fr, en), choisie dans l'application : les
+     * notifications push lui parviennent ensuite dans cette langue.
+     */
+    public function updateLocale(Request $request)
+    {
+        $validated = $request->validate([
+            'locale' => 'required|string|in:fr,en',
+        ]);
+
+        $request->user()->update(['locale' => $validated['locale']]);
+
+        return response()->json([
+            'success' => true,
+            'locale' => $validated['locale'],
         ]);
     }
 
@@ -759,7 +777,7 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Déconnexion réussie',
+            'message' => __('auth.logout_success'),
         ]);
     }
 
@@ -781,7 +799,7 @@ class AuthController extends Controller
         if (User::where('phone', $fullPhone)->where('id', '!=', $user->id)->exists()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Ce numéro est déjà utilisé par un autre compte.',
+                'message' => __('auth.phone_already_used'),
             ], 422);
         }
 
@@ -795,7 +813,7 @@ class AuthController extends Controller
 
         $response = [
             'success' => true,
-            'message' => 'Un code de vérification a été envoyé au nouveau numéro.',
+            'message' => __('auth.phone_change_code_sent'),
         ];
         if (app()->environment('local')) {
             $response['otp_code'] = $otpCode;
@@ -821,10 +839,10 @@ class AuthController extends Controller
         $fullPhone = $countryCode . $request->new_phone;
 
         if ($user->otp_code !== $request->otp_code) {
-            return response()->json(['success' => false, 'message' => 'Code de vérification incorrect'], 422);
+            return response()->json(['success' => false, 'message' => __('auth.verification_code_incorrect')], 422);
         }
         if (!$user->otp_expires_at || Carbon::parse($user->otp_expires_at)->isPast()) {
-            return response()->json(['success' => false, 'message' => 'Code de vérification expiré'], 422);
+            return response()->json(['success' => false, 'message' => __('auth.verification_code_expired')], 422);
         }
 
         $user->update([
@@ -841,7 +859,7 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Numéro de téléphone mis à jour',
+            'message' => __('auth.phone_updated'),
             'token' => $token,
             'user' => $this->userPayload($user->fresh()),
         ]);
@@ -866,7 +884,7 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Compte supprimé avec succès',
+            'message' => __('auth.account_deleted'),
         ]);
     }
 }

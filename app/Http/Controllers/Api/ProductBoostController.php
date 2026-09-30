@@ -45,7 +45,7 @@ class ProductBoostController extends Controller
         $boost = ProductBoost::with(['product.primaryImage', 'package'])->find($id);
 
         if (!$boost || (int) $boost->user_id !== (int) $request->user()->id) {
-            return response()->json(['success' => false, 'message' => 'Campagne introuvable.'], 404);
+            return response()->json(['success' => false, 'message' => __('packages.boost_campaign_not_found')], 404);
         }
 
         return response()->json([
@@ -63,7 +63,7 @@ class ProductBoostController extends Controller
         $product = Product::find($id);
 
         if (!$product || (int) $product->user_id !== (int) $request->user()->id) {
-            return response()->json(['success' => false, 'message' => 'Produit introuvable.'], 404);
+            return response()->json(['success' => false, 'message' => __('products.not_found_short')], 404);
         }
 
         $active = $this->boostService->activeBoostFor($product);
@@ -86,18 +86,18 @@ class ProductBoostController extends Controller
         $boost = ProductBoost::find($id);
 
         if (!$boost || (int) $boost->user_id !== (int) $request->user()->id) {
-            return response()->json(['success' => false, 'message' => 'Campagne introuvable.'], 404);
+            return response()->json(['success' => false, 'message' => __('packages.boost_campaign_not_found')], 404);
         }
 
         if ($boost->status !== ProductBoost::ACTIVE) {
-            return response()->json(['success' => false, 'message' => "Cette campagne n'est plus en cours."], 422);
+            return response()->json(['success' => false, 'message' => __('packages.boost_campaign_not_running')], 422);
         }
 
         $this->boostService->cancel($boost);
 
         return response()->json([
             'success' => true,
-            'message' => 'Campagne arrêtée.',
+            'message' => __('packages.boost_campaign_stopped'),
             'boost' => $this->boostService->campaignSummary($boost->fresh()),
         ]);
     }

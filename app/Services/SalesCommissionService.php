@@ -66,10 +66,10 @@ class SalesCommissionService
 
         $agent = $this->findActiveByCode($code);
         if (! $agent) {
-            throw new InvalidSalesCodeException("Ce code commercial n'existe pas ou n'est plus actif. Vérifiez-le ou laissez le champ vide.");
+            throw new InvalidSalesCodeException(__('packages.sales_code_invalid'));
         }
         if ($agent->user_id && $agent->user_id === $vendor->id) {
-            throw new InvalidSalesCodeException('Vous ne pouvez pas utiliser votre propre code commercial.');
+            throw new InvalidSalesCodeException(__('packages.sales_code_own'));
         }
 
         return $agent;

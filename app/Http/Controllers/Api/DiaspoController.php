@@ -79,7 +79,7 @@ class DiaspoController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Documents reçus. Votre vérification est en cours de traitement.',
+            'message' => __('diaspo.documents_received'),
             'data' => ['verification_status' => 'pending', 'can_create_offers' => false],
         ]);
     }
@@ -126,7 +126,7 @@ class DiaspoController extends Controller
         $user = $request->user();
         $verified = DiaspoVerification::where('user_id', $user->id)->where('status', 'verified')->exists();
         if (!$verified) {
-            return response()->json(['success' => false, 'message' => 'Votre identité doit être vérifiée pour créer une offre.'], 403);
+            return response()->json(['success' => false, 'message' => __('diaspo.identity_required_to_create_offer')], 403);
         }
 
         $data = $request->validate([
@@ -150,7 +150,7 @@ class DiaspoController extends Controller
             'currency' => strtoupper($data['currency'] ?? 'XAF'),
         ]));
 
-        return response()->json(['success' => true, 'message' => 'Offre créée', 'data' => $offer->load('user')->toApi()], 201);
+        return response()->json(['success' => true, 'message' => __('diaspo.offer_created'), 'data' => $offer->load('user')->toApi()], 201);
     }
 
     public function updateOffer(Request $request, $id)
@@ -166,17 +166,17 @@ class DiaspoController extends Controller
             $data['remaining_kg'] = max(0, $data['available_kg'] - $booked);
         }
         $offer->update($data);
-        return response()->json(['success' => true, 'message' => 'Offre mise à jour', 'data' => $offer->fresh()->load('user')->toApi()]);
+        return response()->json(['success' => true, 'message' => __('diaspo.offer_updated'), 'data' => $offer->fresh()->load('user')->toApi()]);
     }
 
     public function destroyOffer(Request $request, $id)
     {
         $offer = DiaspoOffer::where('user_id', $request->user()->id)->findOrFail($id);
         if ($offer->bookings()->whereIn('status', ['paid', 'confirmed'])->exists()) {
-            return response()->json(['success' => false, 'message' => 'Impossible de supprimer : des réservations sont en cours.'], 422);
+            return response()->json(['success' => false, 'message' => __('diaspo.offer_delete_has_bookings')], 422);
         }
         $offer->delete();
-        return response()->json(['success' => true, 'message' => 'Offre supprimée']);
+        return response()->json(['success' => true, 'message' => __('diaspo.offer_deleted')]);
     }
 
     // ==================== RÉSERVATIONS ====================
@@ -205,24 +205,24 @@ class DiaspoController extends Controller
         $method = $data['payment_method'];
 
         if (!PaymentMethodService::isEnabled($method)) {
-            return response()->json(['success' => false, 'message' => 'Ce moyen de paiement est actuellement indisponible.'], 422);
+            return response()->json(['success' => false, 'message' => __('payments.method_unavailable')], 422);
         }
 
         return DB::transaction(function () use ($id, $data, $buyer, $method) {
             $offer = DiaspoOffer::lockForUpdate()->findOrFail($id);
 
             if ($offer->user_id === $buyer->id) {
-                return response()->json(['success' => false, 'message' => 'Vous ne pouvez pas réserver votre propre offre.'], 422);
+                return response()->json(['success' => false, 'message' => __('diaspo.cannot_book_own_offer')], 422);
             }
             // Offre réservable = vérifiée et publiée (schéma unifié : statut 'approved').
             if ($offer->status !== 'approved' || (float) $offer->remaining_kg < $data['kg_booked']) {
-                return response()->json(['success' => false, 'message' => 'Offre non disponible ou kg insuffisants.'], 422);
+                return response()->json(['success' => false, 'message' => __('diaspo.offer_unavailable_or_insufficient_kg')], 422);
             }
             // « Profil non vérifié » : l'offre est visible mais aucun paiement n'est
             // séquestré tant que l'identité du voyageur n'est pas validée (elle peut
             // encore être retirée à l'échéance de régularisation).
             if ($offer->verification_status !== 'verified') {
-                return response()->json(['success' => false, 'message' => 'Ce voyageur n\'a pas encore fait vérifier son identité. La réservation sera possible dès sa validation.'], 422);
+                return response()->json(['success' => false, 'message' => __('diaspo.traveler_not_verified')], 422);
             }
 
             // Le voyageur touche son prix ; le client paie le prix public au kilo
@@ -237,7 +237,7 @@ class DiaspoController extends Controller
                 ? $total
                 : (ExchangeRateService::convertAmount($offer->currency, PaymentMethodService::PIVOT, $total) ?? $total);
             if ($totalPivot < PaymentMethodService::minPivotFor($method)) {
-                return response()->json(['success' => false, 'message' => 'Le montant est trop faible pour ce moyen de paiement.'], 422);
+                return response()->json(['success' => false, 'message' => __('payments.amount_too_low_for_method')], 422);
             }
 
             $booking = DiaspoBooking::create([
@@ -280,12 +280,12 @@ class DiaspoController extends Controller
         ]);
 
         if (empty($result['success'])) {
-            throw new \Exception($result['message'] ?? "Échec de l'initiation du paiement KPay.");
+            throw new \Exception($result['message'] ?? __('payments.kpay_init_failed'));
         }
 
         $booking->update(['payment_reference' => $result['id'] ?? null]);
 
-        return $this->bookingCreatedResponse($booking, 'Réservation créée. Validez le paiement sur votre téléphone.', [
+        return $this->bookingCreatedResponse($booking, __('diaspo.booking_created_confirm_on_phone'), [
             'flow' => 'phone',
             'method' => 'kpay',
             'reference' => $booking->payment_reference,
@@ -297,7 +297,7 @@ class DiaspoController extends Controller
     {
         $stripe = new StripeService();
         if (!$stripe->isConfigured()) {
-            throw new \Exception('Le paiement par carte est momentanément indisponible.');
+            throw new \Exception(__('payments.card_temporarily_unavailable'));
         }
 
         $currency = PaymentMethodService::currencyFor('stripe') ?? 'USD';
@@ -305,7 +305,7 @@ class DiaspoController extends Controller
             ? $total
             : ExchangeRateService::convertAmount($offer->currency, $currency, $total);
         if ($amount === null) {
-            throw new \Exception('Conversion de devise indisponible pour le paiement carte.');
+            throw new \Exception(__('payments.card_currency_conversion_unavailable'));
         }
 
         // Carte NATIVE : PaymentIntent → client_secret confirmé côté mobile par la Payment
@@ -318,12 +318,12 @@ class DiaspoController extends Controller
         );
 
         if (empty($intent['id']) || empty($intent['client_secret'])) {
-            throw new \Exception("Échec de l'initiation du paiement carte (Stripe).");
+            throw new \Exception(__('payments.stripe_init_failed'));
         }
 
         $booking->update(['payment_reference' => $intent['id']]);
 
-        return $this->bookingCreatedResponse($booking, 'Réservation créée. Finalisez le paiement par carte.', [
+        return $this->bookingCreatedResponse($booking, __('diaspo.booking_created_complete_card'), [
             'flow' => 'card',
             'method' => 'stripe',
             'reference' => $intent['id'],
@@ -394,8 +394,8 @@ class DiaspoController extends Controller
             $seller = User::find($booking->seller_user_id);
             if ($seller) {
                 app(\App\Services\FirebaseMessagingService::class)->sendToUser(
-                    $seller, 'Nouvelle réservation payée',
-                    "Une réservation de {$booking->kg_booked} kg a été payée.",
+                    $seller, $seller->translate('notifications.diaspo_booking_paid.title'),
+                    $seller->translate('notifications.diaspo_booking_paid.body', ['kg' => $booking->kg_booked]),
                     ['type' => 'diaspo_booking_paid', 'booking_id' => (string) $booking->id]
                 );
             }
@@ -489,7 +489,7 @@ class DiaspoController extends Controller
             ->firstOrFail();
 
         if (in_array($booking->status, ['completed', 'cancelled'])) {
-            return response()->json(['success' => false, 'message' => 'Réservation déjà finalisée.'], 422);
+            return response()->json(['success' => false, 'message' => __('diaspo.booking_already_finalized')], 422);
         }
 
         DB::transaction(function () use ($booking, $request) {
@@ -515,7 +515,7 @@ class DiaspoController extends Controller
             DiaspoOffer::whereKey($b->diaspo_offer_id)->increment('remaining_kg', (float) $b->kg_booked);
         });
 
-        return response()->json(['success' => true, 'message' => 'Réservation annulée', 'data' => $booking->fresh()->load(['offer.user', 'buyer', 'seller'])->toApi($request->user()->id)]);
+        return response()->json(['success' => true, 'message' => __('diaspo.booking_cancelled'), 'data' => $booking->fresh()->load(['offer.user', 'buyer', 'seller'])->toApi($request->user()->id)]);
     }
 
     /** POST /v1/diaspo/bookings/{id}/confirm-receipt — l'acheteur confirme : fonds libérés au voyageur. */
@@ -526,7 +526,7 @@ class DiaspoController extends Controller
             ->firstOrFail();
 
         if ($booking->payment_status !== 'completed' || $booking->status === 'completed') {
-            return response()->json(['success' => false, 'message' => 'Action impossible sur cette réservation.'], 422);
+            return response()->json(['success' => false, 'message' => __('diaspo.booking_action_not_allowed')], 422);
         }
 
         DB::transaction(function () use ($booking) {
@@ -542,7 +542,7 @@ class DiaspoController extends Controller
             ]);
         });
 
-        return response()->json(['success' => true, 'message' => 'Réception confirmée. Le voyageur a été crédité.', 'data' => $booking->fresh()->load(['offer.user', 'buyer', 'seller'])->toApi($request->user()->id)]);
+        return response()->json(['success' => true, 'message' => __('diaspo.receipt_confirmed_traveler_credited'), 'data' => $booking->fresh()->load(['offer.user', 'buyer', 'seller'])->toApi($request->user()->id)]);
     }
 
     /** POST /v1/diaspo/bookings/{id}/seller-confirm-code — le voyageur valide le code de l'acheteur. */
@@ -554,15 +554,15 @@ class DiaspoController extends Controller
             ->firstOrFail();
 
         if ($booking->confirmation_code !== $request->input('confirmation_code')) {
-            return response()->json(['success' => false, 'message' => 'Code de confirmation incorrect.'], 422);
+            return response()->json(['success' => false, 'message' => __('diaspo.confirmation_code_incorrect')], 422);
         }
         if ($booking->payment_status !== 'completed') {
-            return response()->json(['success' => false, 'message' => 'La réservation n\'est pas encore payée.'], 422);
+            return response()->json(['success' => false, 'message' => __('diaspo.booking_not_paid_yet')], 422);
         }
 
         // Voyageur a validé le code de l'acheteur → réservation confirmée (en transit).
         $booking->update(['status' => 'confirmed']);
-        return response()->json(['success' => true, 'message' => 'Code validé.', 'data' => $booking->fresh()->load(['offer.user', 'buyer', 'seller'])->toApi($request->user()->id)]);
+        return response()->json(['success' => true, 'message' => __('diaspo.code_validated'), 'data' => $booking->fresh()->load(['offer.user', 'buyer', 'seller'])->toApi($request->user()->id)]);
     }
 
     /** POST /v1/diaspo/confirm-by-code — recherche une réservation par son code. */

@@ -22,7 +22,7 @@ class AppController extends Controller
                 'app_name' => 'ASSO',
                 'version' => '1.0.0',
                 'build_number' => '1',
-                'description' => "ASSO est la marketplace communautaire qui connecte vendeurs, acheteurs et livreurs, avec un espace d'entraide et un service diaspo.",
+                'description' => __('app.description'),
                 'logo' => null,
                 'contact' => [
                     'email' => 'contact@asso.app',
@@ -37,7 +37,7 @@ class AppController extends Controller
                 ],
                 'legal' => [
                     'company' => 'ASSO SARL',
-                    'copyright' => '© 2026 ASSO. Tous droits réservés.',
+                    'copyright' => __('app.copyright'),
                     // Documents rédigés dans le back-office (Pages légales).
                     'pages' => \App\Models\LegalPage::getAllActive()
                         ->map(fn ($page) => \App\Http\Controllers\PublicLegalPageController::summary($page))
@@ -79,7 +79,7 @@ class AppController extends Controller
         if ($support === null) {
             return response()->json([
                 'success' => false,
-                'message' => 'Compte support indisponible.',
+                'message' => __('app.support_account_unavailable'),
                 'support' => null,
             ], 404);
         }

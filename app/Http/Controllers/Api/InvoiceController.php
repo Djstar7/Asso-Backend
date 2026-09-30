@@ -47,7 +47,7 @@ class InvoiceController extends Controller
             if (!$transaction) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Transaction non trouvée',
+                    'message' => __('payments.transaction_not_found'),
                 ], 404);
             }
 
@@ -61,7 +61,7 @@ class InvoiceController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Facture non trouvée',
+                'message' => __('payments.invoice_not_found'),
             ], 404);
         }
     }
@@ -81,7 +81,7 @@ class InvoiceController extends Controller
             if ($vendorPackage->user_id !== $user->id) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Accès non autorisé à cette facture',
+                    'message' => __('payments.invoice_access_denied'),
                 ], 403);
             }
 
@@ -104,7 +104,7 @@ class InvoiceController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la génération de la facture',
+                'message' => __('payments.invoice_generation_error'),
             ], 500);
         }
     }
@@ -135,7 +135,7 @@ class InvoiceController extends Controller
 
                 return response()->json([
                     'success' => false,
-                    'message' => 'Accès non autorisé à cette facture',
+                    'message' => __('payments.invoice_access_denied'),
                 ], 403);
             }
 
@@ -171,7 +171,7 @@ class InvoiceController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la génération de la facture: ' . $e->getMessage(),
+                'message' => __('payments.invoice_generation_error_detail', ['error' => $e->getMessage()]),
             ], 500);
         }
     }

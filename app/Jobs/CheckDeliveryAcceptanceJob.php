@@ -66,8 +66,8 @@ class CheckDeliveryAcceptanceJob implements ShouldQueue
             if ($seller) {
                 $fcmService->sendToUser(
                     $seller,
-                    'Aucun livreur disponible',
-                    "Aucun livreur n'a accepté la commande #{$order->order_number} après 5 minutes. Consultez les livreurs disponibles.",
+                    $seller->translate('notifications.delivery_timeout.title'),
+                    $seller->translate('notifications.delivery_timeout.body', ['order_number' => $order->order_number]),
                     [
                         'type' => 'delivery_timeout',
                         'order_id' => (string) $order->id,
@@ -84,8 +84,8 @@ class CheckDeliveryAcceptanceJob implements ShouldQueue
         if ($client) {
             $fcmService->sendToUser(
                 $client,
-                'En attente d\'un livreur',
-                "Aucun livreur n'a encore pris en charge votre commande #{$order->order_number}. Nous vous tiendrons informé.",
+                $client->translate('notifications.delivery_timeout_client.title'),
+                $client->translate('notifications.delivery_timeout_client.body', ['order_number' => $order->order_number]),
                 [
                     'type' => 'delivery_timeout_client',
                     'order_id' => (string) $order->id,

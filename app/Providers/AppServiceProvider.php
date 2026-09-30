@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Observers\ConversationObserver;
 use App\Observers\DeviceTokenObserver;
 use App\Observers\DiaspoOfferObserver;
+use App\Support\Translation\JsonTranslationLoader;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
@@ -22,7 +23,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Une langue = un fichier lang/<langue>.json (voir JsonTranslationLoader).
+        $this->app->extend('translation.loader', fn ($loader, $app) => new JsonTranslationLoader(
+            $app['files'],
+            $app['path.lang'],
+            $loader,
+        ));
     }
 
     /**

@@ -322,7 +322,7 @@ class SearchController extends Controller
 
             $card = $this->formatProduct($boost->product, $favoriteIds);
             $card['is_sponsored'] = true;
-            $card['sponsored_label'] = 'Sponsorisé';
+            $card['sponsored_label'] = __('products.sponsored_label');
             $card['boost_id'] = $boost->id;
 
             $at = $positions[$index] ?? count($items);

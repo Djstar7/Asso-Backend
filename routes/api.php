@@ -187,6 +187,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/profile', [AuthController::class, 'updateProfile']);
         Route::get('/preferences', [AuthController::class, 'getPreferences']);
         Route::put('/preferences', [AuthController::class, 'updatePreferences']);
+        Route::put('/locale', [AuthController::class, 'updateLocale']);
         Route::post('/request-phone-change', [AuthController::class, 'requestPhoneChange']);
         Route::post('/confirm-phone-change', [AuthController::class, 'confirmPhoneChange']);
         Route::post('/delete-account', [AuthController::class, 'deleteAccount']);
