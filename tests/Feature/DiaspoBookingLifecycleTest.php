@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Models\Currency;
 use App\Models\DiaspoBooking;
 use App\Models\DiaspoOffer;
+use App\Models\ExchangeRate;
 use App\Models\ServiceConfiguration;
 use App\Models\Setting;
 use App\Models\User;
@@ -21,7 +23,7 @@ use Tests\TestCase;
  * services en direct) en couvrant le routage — le point de risque après la fusion
  * unify où deux implémentations Diaspo cohabitent — et le cycle complet :
  *
- *   book (PayIn KPay) → payment-status (confirmation) → seller-confirm-code → confirm-receipt.
+ *   book (PayIn KPay) → payment-status (confirmation) → seller-confirm-code (règlement).
  *
  * KPay est instancié en dur (`new KPayService()`) dans le contrôleur : on le neutralise
  * via une ServiceConfiguration kpay (pour isConfigured()) + Http::fake() sur son API.
@@ -54,6 +56,10 @@ class DiaspoBookingLifecycleTest extends TestCase
         $this->mock(FirebaseMessagingService::class, function ($m) {
             $m->shouldReceive('sendToUser')->andReturn([]);
         });
+
+        // Les offres sont en EUR : sans taux stocké, le minimum KPay (en XAF)
+        // était comparé au montant en euros et la réservation refusée.
+        $this->storeEurRate();
     }
 
     /** Offre publiée et réservable (statut unifié 'approved', voyageur vérifié). */
@@ -70,7 +76,7 @@ class DiaspoBookingLifecycleTest extends TestCase
         ]);
     }
 
-    public function test_full_lifecycle_book_pay_confirm_receipt(): void
+    public function test_full_lifecycle_book_pay_validate_code(): void
     {
         Http::fake([
             '*/api/v1/payments/init' => Http::response(['id' => 'pay_e2e_1', 'status' => 'PENDING'], 200),
@@ -80,6 +86,7 @@ class DiaspoBookingLifecycleTest extends TestCase
         // Le taux vient d'un réglage administrable : on le fige pour que le
         // test ne dépende pas de la configuration de l'environnement.
         Setting::set('diaspo_commission_rate', 10);
+        $platform = $this->makePlatformAccount();
 
         $seller = User::factory()->create(['pending_earnings' => 0]);
         $buyer = User::factory()->create();
@@ -114,20 +121,127 @@ class DiaspoBookingLifecycleTest extends TestCase
             ->assertJsonPath('data.payment_status', 'completed')
             ->assertJsonPath('data.status', 'paid');
 
-        // 3) Le voyageur valide le code de confirmation de l'acheteur
+        // 3) L'acheteur ne peut pas débloquer les fonds avant la validation du code.
+        Sanctum::actingAs($buyer);
+        $this->postJson("/api/v1/diaspo/bookings/{$bookingId}/confirm-receipt")->assertStatus(422);
+        $this->assertEquals(0, $seller->fresh()->kpayBalanceFor('XAF'));
+        $this->assertEquals(0, $platform->fresh()->kpayBalanceFor('XAF'));
+
+        // 4) Le voyageur valide le code remis à la livraison → clôture et règlement
         $code = \App\Models\DiaspoBooking::find($bookingId)->confirmation_code;
         Sanctum::actingAs($seller);
         $this->postJson("/api/v1/diaspo/bookings/{$bookingId}/seller-confirm-code", [
             'confirmation_code' => $code,
-        ])->assertOk()->assertJsonPath('data.status', 'confirmed');
+        ])->assertOk()->assertJsonPath('data.status', 'completed');
 
-        // 4) L'acheteur confirme la réception → clôture + crédit du voyageur (hors commission)
+        // Wallet (XAF, 1 EUR = 656 XAF) : le voyageur reçoit son sous-total
+        // (50 € → 32 800), ASSO la commission (5 € → 3 280).
+        $this->assertEquals(32800, $seller->fresh()->kpayBalanceFor('XAF'));
+        $this->assertEquals(3280, $platform->fresh()->kpayBalanceFor('XAF'));
+        $this->assertEquals(0, (float) $seller->fresh()->pending_earnings);
+        $this->assertDatabaseHas('wallet_transactions', [
+            'user_id' => $platform->id,
+            'type' => 'credit',
+            'amount' => 3280,
+            'description' => "Commission ASSO — Réservation Diaspo #{$bookingId}",
+        ]);
+
+        // Une seconde validation, ou une confirmation de l'acheteur, ne crédite rien de plus.
+        $this->postJson("/api/v1/diaspo/bookings/{$bookingId}/seller-confirm-code", [
+            'confirmation_code' => $code,
+        ])->assertStatus(422);
         Sanctum::actingAs($buyer);
-        $this->postJson("/api/v1/diaspo/bookings/{$bookingId}/confirm-receipt")
+        $this->postJson("/api/v1/diaspo/bookings/{$bookingId}/confirm-receipt")->assertStatus(422);
+        $this->assertEquals(32800, $seller->fresh()->kpayBalanceFor('XAF'));
+        $this->assertEquals(3280, $platform->fresh()->kpayBalanceFor('XAF'));
+    }
+
+    /** Code validé avant le correctif : la confirmation de l'acheteur règle encore la course. */
+    public function test_confirm_receipt_settles_a_booking_whose_code_was_already_validated(): void
+    {
+        $platform = $this->makePlatformAccount();
+        [$seller, $buyer, $booking] = $this->makePaidBooking('confirmed');
+
+        Sanctum::actingAs($buyer);
+        $this->postJson("/api/v1/diaspo/bookings/{$booking->id}/confirm-receipt")
             ->assertOk()->assertJsonPath('data.status', 'completed');
 
-        // Le voyageur est crédité du subtotal (50), la plateforme garde la commission (5)
-        $this->assertEquals(50, (float) $seller->fresh()->pending_earnings);
+        $this->assertEquals(32800, $seller->fresh()->kpayBalanceFor('XAF'));
+        $this->assertEquals(3280, $platform->fresh()->kpayBalanceFor('XAF'));
+    }
+
+    public function test_buyer_cannot_cancel_once_the_code_is_validated(): void
+    {
+        [, $buyer, $booking] = $this->makePaidBooking('confirmed');
+
+        Sanctum::actingAs($buyer);
+        $this->postJson("/api/v1/diaspo/bookings/{$booking->id}/cancel")->assertStatus(422);
+
+        $this->assertEquals('confirmed', $booking->fresh()->status);
+        $this->assertEquals(0, $buyer->fresh()->kpayBalanceFor('EUR'));
+    }
+
+    public function test_code_validation_without_exchange_rate_credits_nothing(): void
+    {
+        ExchangeRate::query()->delete();
+        $platform = $this->makePlatformAccount();
+        [$seller, , $booking] = $this->makePaidBooking('paid');
+
+        Sanctum::actingAs($seller);
+        $this->postJson("/api/v1/diaspo/bookings/{$booking->id}/seller-confirm-code", [
+            'confirmation_code' => '123456',
+        ])->assertStatus(503)->assertJsonPath('success', false);
+
+        $this->assertEquals('paid', $booking->fresh()->status);
+        $this->assertEquals(0, $seller->fresh()->kpayBalanceFor('XAF'));
+        $this->assertEquals(0, $platform->fresh()->kpayBalanceFor('XAF'));
+    }
+
+    /** Réservation payée (50 € + 5 € de commission), au statut voulu. */
+    private function makePaidBooking(string $status): array
+    {
+        $seller = User::factory()->create();
+        $buyer = User::factory()->create();
+        $offer = $this->makeApprovedOffer($seller);
+        $booking = DiaspoBooking::create([
+            'diaspo_offer_id' => $offer->id,
+            'buyer_user_id' => $buyer->id,
+            'seller_user_id' => $seller->id,
+            'kg_booked' => 5,
+            'price_per_kg' => 10,
+            'subtotal' => 50,
+            'commission_amount' => 5,
+            'total_price' => 55,
+            'status' => $status,
+            'payment_status' => 'completed',
+            'payment_method' => 'kpay',
+            'confirmation_code' => '123456',
+        ]);
+
+        return [$seller, $buyer, $booking];
+    }
+
+    private function makePlatformAccount(): User
+    {
+        $platform = User::factory()->create(['email' => 'platform@asso.test']);
+        Setting::set('platform_account_email', 'platform@asso.test');
+
+        return $platform;
+    }
+
+    private function storeEurRate(): void
+    {
+        Currency::firstOrCreate(['code' => 'XAF'], ['name' => 'Franc CFA', 'symbol' => 'FCFA', 'is_active' => true]);
+        Currency::firstOrCreate(['code' => 'EUR'], ['name' => 'Euro', 'symbol' => '€', 'is_active' => true]);
+
+        ExchangeRate::create([
+            'from_currency' => 'EUR',
+            'to_currency' => 'XAF',
+            'rate' => 656,
+            'effective_date' => now()->toDateString(),
+            'is_active' => true,
+            'source' => 'test',
+        ]);
     }
 
     public function test_payment_failure_cancels_booking_and_restores_kg(): void
