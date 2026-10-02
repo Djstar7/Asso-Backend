@@ -346,6 +346,7 @@
     const shippingBaseUrl = "{{ url('admin/import-countries') }}";
 let currentShippingCountryId = null;
 let editingShippingOptionId = null;
+let shippingOptions = [];
 
 document.querySelectorAll('[data-shipping]').forEach(function (btn) {
     btn.addEventListener('click', function (e) {
@@ -373,6 +374,7 @@ function loadShippingList() {
         .then(res => {
             const container = document.getElementById('shipping_list_container');
             const options = res.shipping_options ?? [];
+            shippingOptions = options;
 
             if (!options.length) {
                 container.innerHTML = '<p class="text-sm text-gray-500">Aucune option configurée pour ce pays.</p>';
@@ -391,7 +393,7 @@ function loadShippingList() {
                         ${!o.is_active ? '<span class="ml-2 text-xs text-gray-500">(inactif)</span>' : ''}
                     </div>
                     <div class="flex gap-2 flex-shrink-0">
-                        <button type="button" onclick='editShippingOption(${JSON.stringify(o)})'
+                        <button type="button" onclick="editShippingOption(${o.id})"
                                 class="px-2 py-1 bg-primary-600 text-white text-xs rounded hover:bg-primary-700">
                             <i class="fas fa-edit"></i>
                         </button>
@@ -447,7 +449,9 @@ document.getElementById('shippingForm').addEventListener('submit', function (e) 
         .catch(() => alert("Erreur réseau lors de l'enregistrement."));
 });
 
-function editShippingOption(option) {
+function editShippingOption(id) {
+    const option = shippingOptions.find(o => o.id === id);
+    if (!option) return;
     editingShippingOptionId = option.id;
     document.getElementById('shipping_mode').value = option.mode;
     document.getElementById('shipping_rate_type').value = option.rate_type;
@@ -474,7 +478,9 @@ function toggleShippingOption(id) {
             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
             'Accept': 'application/json',
         },
-    }).then(() => loadShippingList());
+    })
+        .then(r => { if (!r.ok) throw new Error(); loadShippingList(); })
+        .catch(() => alert("Impossible de changer le statut de cette option."));
 }
 
 function deleteShippingOption(id) {
@@ -485,7 +491,13 @@ function deleteShippingOption(id) {
                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
                 'Accept': 'application/json',
             },
-        }).then(() => loadShippingList());
+        })
+            .then(r => {
+                if (!r.ok) throw new Error();
+                if (editingShippingOptionId === id) resetShippingForm();
+                loadShippingList();
+            })
+            .catch(() => alert("Impossible de supprimer cette option."));
     });
 }
 </script>

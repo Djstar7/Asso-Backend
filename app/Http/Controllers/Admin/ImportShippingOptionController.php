@@ -65,8 +65,10 @@ class ImportShippingOptionController extends Controller
     /**
      * Met à jour une option existante par son id
      */
-    public function update(Request $request, ImportShippingOption $shippingOption)
+    public function update(Request $request, ImportCountry $importCountry, ImportShippingOption $shippingOption)
     {
+        $this->ensureBelongsTo($importCountry, $shippingOption);
+
         $validated = $request->validate([
             'mode'             => 'required|in:air,sea,express',
             'rate_type'        => 'required|in:per_kg,flat',
@@ -87,8 +89,10 @@ class ImportShippingOptionController extends Controller
     /**
      * Active/désactive une option sans la supprimer
      */
-    public function toggleStatus(ImportShippingOption $shippingOption)
+    public function toggleStatus(ImportCountry $importCountry, ImportShippingOption $shippingOption)
     {
+        $this->ensureBelongsTo($importCountry, $shippingOption);
+
         $shippingOption->update(['is_active' => !$shippingOption->is_active]);
 
         return response()->json(['success' => true, 'is_active' => $shippingOption->is_active]);
@@ -97,10 +101,20 @@ class ImportShippingOptionController extends Controller
     /**
      * Supprime définitivement une option
      */
-    public function destroy(ImportShippingOption $shippingOption)
+    public function destroy(ImportCountry $importCountry, ImportShippingOption $shippingOption)
     {
+        $this->ensureBelongsTo($importCountry, $shippingOption);
+
         $shippingOption->delete();
 
         return response()->json(['success' => true]);
+    }
+
+    /**
+     * L'option doit appartenir au pays de l'URL : sinon 404.
+     */
+    private function ensureBelongsTo(ImportCountry $importCountry, ImportShippingOption $shippingOption): void
+    {
+        abort_unless($shippingOption->country_code === $importCountry->code, 404);
     }
 }
