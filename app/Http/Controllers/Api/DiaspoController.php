@@ -8,10 +8,12 @@ use App\Models\DiaspoOffer;
 use App\Models\DiaspoVerification;
 use App\Models\Setting;
 use App\Models\User;
+use App\Services\CommissionService;
 use App\Services\ExchangeRateService;
 use App\Services\KPayService;
 use App\Services\PaymentMethodService;
 use App\Services\StripeService;
+use App\Services\WalletService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -488,7 +490,8 @@ class DiaspoController extends Controller
             ->where('buyer_user_id', $request->user()->id)
             ->firstOrFail();
 
-        if (in_array($booking->status, ['completed', 'cancelled'])) {
+        // « confirmed » : code de livraison déjà validé, le colis a voyagé.
+        if (in_array($booking->status, ['completed', 'cancelled', 'confirmed'])) {
             return response()->json(['success' => false, 'message' => __('diaspo.booking_already_finalized')], 422);
         }
 
@@ -518,31 +521,136 @@ class DiaspoController extends Controller
         return response()->json(['success' => true, 'message' => __('diaspo.booking_cancelled'), 'data' => $booking->fresh()->load(['offer.user', 'buyer', 'seller'])->toApi($request->user()->id)]);
     }
 
-    /** POST /v1/diaspo/bookings/{id}/confirm-receipt — l'acheteur confirme : fonds libérés au voyageur. */
+    /**
+     * POST /v1/diaspo/bookings/{id}/confirm-receipt — confirmation de réception par l'acheteur.
+     *
+     * Les fonds ne sont versés qu'à la validation du code de livraison
+     * ([sellerConfirmCode]). Cette route ne règle plus que les réservations
+     * restées « confirmed » : code validé avant que la validation ne règle
+     * elle-même la course, voyageur jamais payé.
+     */
     public function confirmReceipt(Request $request, $id)
     {
         $booking = DiaspoBooking::where('id', $id)
             ->where('buyer_user_id', $request->user()->id)
             ->firstOrFail();
 
-        if ($booking->payment_status !== 'completed' || $booking->status === 'completed') {
+        if ($booking->payment_status !== 'completed' || $booking->status !== 'confirmed') {
             return response()->json(['success' => false, 'message' => __('diaspo.booking_action_not_allowed')], 422);
         }
 
-        DB::transaction(function () use ($booking) {
-            $b = DiaspoBooking::whereKey($booking->id)->lockForUpdate()->first();
-            if ($b->status === 'completed') return;
-
-            // Libérer le sous-total au voyageur (la plateforme garde la commission)
-            User::where('id', $b->seller_user_id)->increment('pending_earnings', (float) $b->subtotal);
-
-            $b->update([
-                'status' => 'completed',
-                'confirmed_by_buyer_at' => now(),
-            ]);
-        });
+        if ($error = $this->completeBooking($booking, 'confirmed')) {
+            return $error;
+        }
 
         return response()->json(['success' => true, 'message' => __('diaspo.receipt_confirmed_traveler_credited'), 'data' => $booking->fresh()->load(['offer.user', 'buyer', 'seller'])->toApi($request->user()->id)]);
+    }
+
+    /**
+     * Clôt la réservation et la règle dans la même transaction, si elle est
+     * toujours au statut attendu (deux validations simultanées ne créditent
+     * qu'une fois). Renvoie une réponse d'erreur, ou null en cas de succès.
+     */
+    private function completeBooking(DiaspoBooking $booking, string $expectedStatus): ?\Illuminate\Http\JsonResponse
+    {
+        try {
+            $settled = DB::transaction(function () use ($booking, $expectedStatus) {
+                $b = DiaspoBooking::whereKey($booking->id)->lockForUpdate()->first();
+                if ($b->status !== $expectedStatus || $b->payment_status !== 'completed') {
+                    return false;
+                }
+
+                $this->settleBooking($b);
+
+                $b->update([
+                    'status' => 'completed',
+                    // Remettre son code vaut, pour l'acheteur, confirmation de réception.
+                    'confirmed_by_buyer_at' => $b->confirmed_by_buyer_at ?? now(),
+                ]);
+
+                return true;
+            });
+        } catch (\RuntimeException $e) {
+            // Sans taux de change, rien n'est crédité et la réservation reste
+            // au même statut : la validation pourra être refaite.
+            Log::error('[Diaspo] Règlement impossible', ['booking_id' => $booking->id, 'error' => $e->getMessage()]);
+
+            return response()->json(['success' => false, 'message' => __('diaspo.settlement_unavailable')], 503);
+        }
+
+        return $settled
+            ? null
+            : response()->json(['success' => false, 'message' => __('diaspo.booking_already_finalized')], 422);
+    }
+
+    /**
+     * Règle une réservation livrée, sur le modèle du règlement d'une commande :
+     * le voyageur reçoit son sous-total, ASSO la commission, tous deux sur le
+     * Wallet (solde XAF). Le sous-total allait auparavant dans `pending_earnings`,
+     * colonne des gains de parrainage sans aucun mécanisme de libération, et la
+     * commission n'était créditée nulle part.
+     *
+     * @throws \RuntimeException si la devise de l'offre ne peut être convertie.
+     */
+    private function settleBooking(DiaspoBooking $b): void
+    {
+        $currency = strtoupper(DiaspoOffer::withTrashed()->whereKey($b->diaspo_offer_id)->value('currency') ?: 'XAF');
+        $travelerAmount = $this->toWalletCurrency($currency, (float) $b->subtotal);
+        $commissionAmount = $this->toWalletCurrency($currency, (float) $b->commission_amount);
+
+        $wallet = app(WalletService::class);
+        $metadata = [
+            'diaspo_booking_id' => $b->id,
+            'direct_settlement' => true,
+            'currency' => $currency,
+            'subtotal' => (float) $b->subtotal,
+            'commission_amount' => (float) $b->commission_amount,
+        ];
+
+        if ($travelerAmount > 0) {
+            $wallet->credit(
+                User::findOrFail($b->seller_user_id),
+                $travelerAmount,
+                null,
+                "Réservation Diaspo #{$b->id}",
+                $metadata,
+                'kpay'
+            );
+        }
+
+        if ($commissionAmount > 0) {
+            $platform = CommissionService::platformAccount();
+            if ($platform) {
+                $wallet->credit(
+                    $platform,
+                    $commissionAmount,
+                    null,
+                    "Commission ASSO — Réservation Diaspo #{$b->id}",
+                    $metadata,
+                    'kpay'
+                );
+            } else {
+                Log::warning('[Diaspo] Compte plateforme ASSO introuvable, commission non créditée', [
+                    'booking_id' => $b->id,
+                    'commission' => $commissionAmount,
+                ]);
+            }
+        }
+    }
+
+    /** Montant de l'offre converti dans la devise du Wallet (XAF). */
+    private function toWalletCurrency(string $currency, float $amount): float
+    {
+        if ($amount <= 0) {
+            return 0.0;
+        }
+
+        $converted = ExchangeRateService::convertAmount($currency, PaymentMethodService::PIVOT, $amount);
+        if ($converted === null) {
+            throw new \RuntimeException("Taux {$currency} → " . PaymentMethodService::PIVOT . ' indisponible');
+        }
+
+        return round($converted, 2);
     }
 
     /** POST /v1/diaspo/bookings/{id}/seller-confirm-code — le voyageur valide le code de l'acheteur. */
@@ -559,9 +667,16 @@ class DiaspoController extends Controller
         if ($booking->payment_status !== 'completed') {
             return response()->json(['success' => false, 'message' => __('diaspo.booking_not_paid_yet')], 422);
         }
+        if ($booking->status !== 'paid') {
+            return response()->json(['success' => false, 'message' => __('diaspo.booking_already_finalized')], 422);
+        }
 
-        // Voyageur a validé le code de l'acheteur → réservation confirmée (en transit).
-        $booking->update(['status' => 'confirmed']);
+        // L'acheteur ne remet son code qu'à la livraison du colis : sa validation
+        // prouve le transit et déclenche seule le versement au voyageur et à ASSO.
+        if ($error = $this->completeBooking($booking, 'paid')) {
+            return $error;
+        }
+
         return response()->json(['success' => true, 'message' => __('diaspo.code_validated'), 'data' => $booking->fresh()->load(['offer.user', 'buyer', 'seller'])->toApi($request->user()->id)]);
     }
 
