@@ -245,6 +245,17 @@ class PaymentController extends Controller
             return response()->json(['message' => 'Diaspo booking webhook processed']);
         }
 
+        // Course d'un litige payée par le vendeur (externalId = LITIGE-{shipmentId})
+        if ($disputeShipment = \App\Services\DisputeService::shipmentForKpayReference($externalId)) {
+            $disputes = app(\App\Services\DisputeService::class);
+            if (in_array($status, ['COMPLETED', 'SUCCESS', 'SUCCESSFUL'])) {
+                $disputes->confirmPayment($disputeShipment);
+            } elseif (in_array($status, ['FAILED', 'CANCELLED'])) {
+                $disputes->failPayment($disputeShipment);
+            }
+            return response()->json(['message' => 'Dispute shipment webhook processed']);
+        }
+
         // Solde d'une commande avec acompte (externalId = {order_number}-SOLDE)
         if ($balanceOrder = \App\Services\DepositOrderService::orderForBalanceReference($externalId)) {
             $deposits = app(\App\Services\DepositOrderService::class);

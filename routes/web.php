@@ -151,6 +151,22 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/deposit-orders/{order}/issue', [\App\Http\Controllers\Admin\DepositOrderController::class, 'reportIssue'])->name('deposit-orders.issue');
         Route::post('/deposit-orders/{order}/close', [\App\Http\Controllers\Admin\DepositOrderController::class, 'close'])->name('deposit-orders.close');
 
+        // Réclamations / litiges : analyse, décision ASSO, remplacement, retour et remboursement
+        Route::prefix('disputes')->name('disputes.')->controller(\App\Http\Controllers\Admin\DisputeController::class)->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::get('/{dispute}', 'show')->name('show');
+            Route::post('/{dispute}/review', 'review')->name('review');
+            Route::post('/{dispute}/contact-vendor', 'contactVendor')->name('contact-vendor');
+            Route::post('/{dispute}/decide', 'decide')->name('decide');
+            Route::post('/{dispute}/replace', 'replace')->name('replace');
+            Route::post('/{dispute}/return', 'forceReturn')->name('return');
+            Route::post('/{dispute}/evidence', 'evidence')->name('evidence');
+            Route::post('/{dispute}/note', 'note')->name('note');
+            Route::post('/shipments/{shipment}/partner', 'choosePartner')->name('shipments.partner');
+            Route::post('/shipments/{shipment}/pay-by-asso', 'payByAsso')->name('shipments.pay-by-asso');
+            Route::post('/shipments/{shipment}/step', 'step')->name('shipments.step');
+        });
+
         // Deliverers (Livreurs partenaires)
         Route::resource('deliverers', DelivererController::class)->except(['store']);
         Route::post('deliverers/{deliverer}/sync-code', [DelivererController::class, 'generateSyncCode'])->name('deliverers.sync-code');

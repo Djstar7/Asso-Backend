@@ -273,6 +273,28 @@ class OrderController extends Controller
     }
 
     /**
+     * Le client valide « Tout est conforme » pendant les 48 h : la part du vendeur est
+     * débloquée tout de suite (sauf les articles en litige).
+     *
+     * POST /api/v1/orders/{id}/conform
+     */
+    public function conform(Request $request, $id)
+    {
+        $order = Order::where('user_id', $request->user()->id)->findOrFail($id);
+        if (!$order->isInControlWindow()) {
+            return response()->json(['success' => false, 'message' => __('disputes.window_closed')], 422);
+        }
+
+        $this->orderService->releaseVendorFunds($order, 'conform', $request->user()->id);
+
+        return response()->json([
+            'success' => true,
+            'message' => __('disputes.conformity_thanks'),
+            'order' => $this->formatOrder($order->fresh(['items.product.primaryImage', 'items.seller', 'deliveryCompany', 'trackingEvents', 'disputes']), true),
+        ]);
+    }
+
+    /**
      * Cancel an order and unlock escrowed funds
      */
     public function cancel(Request $request, $id)
@@ -526,6 +548,10 @@ class OrderController extends Controller
      */
     private function formatOrder($order, $detailed = false): array
     {
+        // Réclamations : une par article, ouverte pendant la fenêtre de 48 h.
+        $controlOpen = $order->isInControlWindow();
+        $disputes = $order->status === 'delivered' ? $order->disputes->keyBy('order_item_id') : collect();
+
         $data = [
             'id' => $order->id,
             'order_number' => $order->order_number,
@@ -573,6 +599,13 @@ class OrderController extends Controller
                             'avatar' => $item->product->user->avatar,
                         ]
                         : null),
+                'dispute' => ($dispute = $disputes->get($item->id)) ? [
+                    'id' => $dispute->id,
+                    'number' => $dispute->number,
+                    'status' => $dispute->status,
+                    'status_label' => \App\Models\Dispute::STATUSES[$dispute->status] ?? $dispute->status,
+                ] : null,
+                'can_report' => $controlOpen && !$disputes->has($item->id),
             ]),
             'items_count' => $order->items->count(),
             'rated_at' => $order->rated_at?->toIso8601String(),
@@ -614,6 +647,15 @@ class OrderController extends Controller
         // Commande avec acompte : montants, état du solde et de la vérification ASSO.
         $data['payment_plan'] = $order->payment_plan ?? \App\Models\Order::PLAN_FULL;
         $data['deposit'] = \App\Services\DepositOrderService::present($order);
+
+        // Fenêtre de contrôle de 48 h après la livraison : « Tout est conforme » ou
+        // réclamation par article. Sans action, la commande est validée automatiquement.
+        $data['control'] = [
+            'window_open' => $controlOpen,
+            'until' => $controlOpen ? $order->auto_validate_at?->toIso8601String() : null,
+            'conformity_confirmed_at' => $order->conformity_confirmed_at?->toIso8601String(),
+            'validated' => $order->vendor_funds_status === \App\Models\Order::VENDOR_FUNDS_RELEASED,
+        ];
 
         // Timestamps toujours inclus (nécessaires pour le tracking client)
         $data['confirmed_at'] = $order->confirmed_at?->toIso8601String();

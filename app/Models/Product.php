@@ -209,6 +209,17 @@ class Product extends Model
     }
 
     /**
+     * Même règle que hasFreeDelivery(), en SQL : livraison offerte par le vendeur sur le
+     * produit, ou produit qui suit sa boutique (null) quand la boutique l'offre.
+     */
+    public function scopeWithEffectiveFreeDelivery($query)
+    {
+        return $query->where(fn ($q) => $q->where('free_delivery', true)
+            ->orWhere(fn ($inherit) => $inherit->whereNull('free_delivery')
+                ->whereHas('shop', fn ($shop) => $shop->where('free_delivery', true))));
+    }
+
+    /**
      * Poids unitaire en kg lu depuis la fiche (colonne texte : « 1,5 », « 500 g », « 2kg »).
      * Null si absent ou illisible : la livraison ne peut alors pas être chiffrée.
      */

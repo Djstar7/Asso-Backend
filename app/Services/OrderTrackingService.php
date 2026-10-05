@@ -25,6 +25,8 @@ class OrderTrackingService
         'arrived' => 'Arrivé dans la ville de destination',
         'ready_for_pickup' => 'Disponible au retrait en agence',
         'delivered' => 'Livré — réception confirmée',
+        'conformity_confirmed' => 'Commande validée par le client — tout est conforme',
+        'auto_validated' => 'Commande validée automatiquement (48 h sans réclamation)',
         'cancelled' => 'Commande annulée',
     ];
 
@@ -69,6 +71,11 @@ class OrderTrackingService
         ]);
 
         $order->forceFill(['tracking_status' => $step])->saveQuietly();
+
+        // Livraison confirmée : fenêtre de contrôle de 48 h (part vendeur bloquée).
+        if ($step === 'delivered') {
+            app(OrderService::class)->startControlWindow($order->fresh());
+        }
 
         // Commande avec acompte : produit présenté au client → vérification ASSO à faire.
         if ($order->isDepositOrder()) {

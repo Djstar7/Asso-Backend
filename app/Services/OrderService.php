@@ -1149,8 +1149,9 @@ class OrderService
             }
             $locked->update(['status' => 'confirmed', 'confirmed_at' => now()]);
 
-            // Encaissement direct (sans escrow) : prélèvement de l'acheteur (wallet), puis
-            // crédit du vendeur, de l'entreprise de livraison et d'ASSO. Idempotent.
+            // Règlement : prélèvement de l'acheteur (wallet), puis crédit du livreur et
+            // d'ASSO ; la part du vendeur est créditée mais bloquée jusqu'à la validation
+            // du client (48 h après la livraison au plus tard). Idempotent.
             // Commande avec acompte : réglée seulement au paiement du solde, après la
             // livraison et la vérification conjointe ASSO (DepositOrderService).
             if (!$locked->isDepositOrder()) {
@@ -1352,7 +1353,9 @@ class OrderService
     /**
      * Règle une commande validée par le vendeur (idempotent, à appeler DANS une
      * transaction DB) : prélève l'acheteur (mode wallet) puis crédite le vendeur de SON
-     * prix, l'entreprise de livraison et ASSO (majorations vente + livraison).
+     * prix, l'entreprise de livraison et ASSO (majorations vente + livraison). La part
+     * du vendeur reste bloquée sur son Wallet jusqu'à la validation du client
+     * (releaseVendorFunds).
      */
     public function settleOrder(Order $order, User $vendor): void
     {
@@ -1407,6 +1410,20 @@ class OrderService
                 ],
                 'kpay'
             );
+            // Part vendeur bloquée jusqu'à la fin de la fenêtre de contrôle du client
+            // (« Tout est conforme », 48 h après la livraison, ou réclamation non fondée).
+            $this->walletService->lockFunds(
+                $vendor,
+                $vendorNet,
+                "Vente commande #{$order->order_number} — en attente de validation du client",
+                'order',
+                $order->id,
+                ['vendor_funds' => true],
+                'kpay'
+            );
+            $order->vendor_funds_status = Order::VENDOR_FUNDS_HELD;
+            $order->vendor_funds_holder_id = $vendor->id;
+            $order->vendor_funds_held_amount = $vendorNet;
         }
 
         // c) Entreprise de livraison (prix de base de la course).
@@ -1455,11 +1472,121 @@ class OrderService
         $order->settled_at = now();
         $order->save();
 
+        // Commande déjà livrée (ex. acompte : solde payé à la remise) : la fenêtre de
+        // contrôle démarre maintenant.
+        if ($order->status === 'delivered' && $order->vendor_funds_status === Order::VENDOR_FUNDS_HELD && !$order->auto_validate_at) {
+            $this->startControlWindow($order);
+        }
+
         Log::info('[OrderService] Commande réglée', [
             'order_id' => $order->id,
             'vendor_net' => $vendorNet,
             'sale_commission' => $saleCommission,
             'delivery_commission' => (float) $order->delivery_commission,
         ]);
+    }
+
+    /**
+     * Livraison confirmée : la fenêtre de contrôle de 48 h démarre (part vendeur
+     * toujours bloquée). Sans effet si la part n'est pas bloquée.
+     */
+    public function startControlWindow(Order $order): void
+    {
+        if ($order->vendor_funds_status !== Order::VENDOR_FUNDS_HELD || $order->conformity_confirmed_at) {
+            return;
+        }
+        $order->forceFill(['auto_validate_at' => now()->addHours(Order::CONTROL_WINDOW_HOURS)])->saveQuietly();
+
+        if ($client = $order->user) {
+            try {
+                $this->fcmService->sendToUser(
+                    $client,
+                    $client->translate('notifications.order_control_window.title'),
+                    $client->translate('notifications.order_control_window.body', [
+                        'order_number' => $order->order_number,
+                        'hours' => Order::CONTROL_WINDOW_HOURS,
+                    ]),
+                    ['type' => 'order_control_window', 'order_id' => (string) $order->id, 'order_number' => $order->order_number]
+                );
+            } catch (\Throwable $e) {
+                Log::warning('[OrderService] FCM order_control_window échec: ' . $e->getMessage());
+            }
+        }
+    }
+
+    /**
+     * Débloque la part vendeur encore bloquée sur la commande (idempotent). Les parts
+     * des articles en litige restent bloquées sur leur litige.
+     *
+     * @param string $reason conform (client) | auto (48 h sans action)
+     * @return float montant débloqué
+     */
+    public function releaseVendorFunds(Order $order, string $reason, ?int $actorId = null): float
+    {
+        $released = DB::transaction(function () use ($order, $reason, $actorId) {
+            $locked = Order::whereKey($order->id)->lockForUpdate()->first();
+            if (!$locked || $locked->vendor_funds_status !== Order::VENDOR_FUNDS_HELD) {
+                return null;
+            }
+
+            $amount = round((float) $locked->vendor_funds_held_amount, 2);
+            $vendor = $locked->vendor_funds_holder_id ? User::find($locked->vendor_funds_holder_id) : null;
+            if ($amount > 0 && $vendor) {
+                $this->walletService->unlockFunds(
+                    $vendor,
+                    $amount,
+                    "Vente commande #{$locked->order_number} — fonds débloqués",
+                    'order',
+                    $locked->id,
+                    ['vendor_funds' => true, 'reason' => $reason],
+                    'kpay'
+                );
+            }
+
+            $locked->update([
+                'vendor_funds_status' => Order::VENDOR_FUNDS_RELEASED,
+                'vendor_funds_held_amount' => 0,
+                'vendor_funds_released_at' => now(),
+                'conformity_confirmed_at' => $reason === 'conform' ? now() : $locked->conformity_confirmed_at,
+            ]);
+
+            // Historique visible du client (sans toucher à la dernière étape de livraison).
+            $step = $reason === 'conform' ? 'conformity_confirmed' : 'auto_validated';
+            \App\Models\OrderTrackingEvent::create([
+                'order_id' => $locked->id,
+                'step' => $step,
+                'label' => OrderTrackingService::STEPS[$step],
+                'actor_type' => $reason === 'conform' ? 'buyer' : 'system',
+                'actor_id' => $actorId,
+                'occurred_at' => now(),
+            ]);
+
+            return ['amount' => $amount, 'vendor' => $vendor, 'order' => $locked];
+        });
+
+        if (!$released) {
+            return 0.0;
+        }
+
+        if ($released['amount'] > 0 && $released['vendor']) {
+            $vendor = $released['vendor'];
+            try {
+                $this->fcmService->sendToUser(
+                    $vendor,
+                    $vendor->translate('notifications.vendor_funds_released.title'),
+                    $vendor->translate('notifications.vendor_funds_released.body', [
+                        'order_number' => $released['order']->order_number,
+                        'amount' => number_format($released['amount'], 0, ',', ' '),
+                    ]),
+                    ['type' => 'vendor_funds_released', 'order_id' => (string) $released['order']->id, 'order_number' => $released['order']->order_number]
+                );
+            } catch (\Throwable $e) {
+                Log::warning('[OrderService] FCM vendor_funds_released échec: ' . $e->getMessage());
+            }
+        }
+
+        Log::info('[OrderService] Part vendeur débloquée', ['order_id' => $order->id, 'amount' => $released['amount'], 'reason' => $reason]);
+
+        return $released['amount'];
     }
 }

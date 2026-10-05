@@ -616,6 +616,16 @@ class ProductController extends Controller
     /**
      * Format product for API response
      */
+    /** Cartes produit au format des listes (réutilisé par les produits similaires d'un litige). */
+    public function cards(\Illuminate\Support\Collection $products, ?\App\Models\User $user): array
+    {
+        $favoriteIds = $user
+            ? \DB::table('favorites')->where('user_id', $user->id)->pluck('product_id')->toArray()
+            : [];
+
+        return $products->map(fn ($product) => $this->formatProduct($product, $favoriteIds))->values()->all();
+    }
+
     private function formatProduct($product, $favoriteIds = [], $detailed = false): array
     {
         // Prix PUBLICS : prix vendeur majoré de la commission ASSO (cf. CommissionService).
