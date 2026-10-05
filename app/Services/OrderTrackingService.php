@@ -70,6 +70,11 @@ class OrderTrackingService
 
         $order->forceFill(['tracking_status' => $step])->saveQuietly();
 
+        // Commande avec acompte : produit présenté au client → vérification ASSO à faire.
+        if ($order->isDepositOrder()) {
+            app(DepositOrderService::class)->onTrackingStep($order, $step);
+        }
+
         // Transporteur à domicile : colis arrivé à l'agence (ou import arrivé à l'entrepôt
         // de Douala) → les coursiers du partenaire le voient dans l'app et l'un d'eux
         // l'accepte (flux urbain, code à 6 chiffres).

@@ -232,6 +232,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/orders/{id}/cancel', [OrderController::class, 'cancel']);
         Route::post('/orders/{id}/rate', [OrderController::class, 'rate']);
         Route::post('/orders/{id}/confirm-reception', [OrderController::class, 'confirmReception']);
+        Route::post('/orders/{id}/pay-balance', [OrderController::class, 'payBalance']);
 
         // Payments
         Route::get('/payments/methods', [PaymentController::class, 'methods']);
@@ -354,6 +355,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('/{id}', [VendorProductController::class, 'update']); // Support POST avec _method=PUT pour multipart
             Route::put('/{id}/status', [VendorProductController::class, 'updateStatus']);
             Route::put('/{id}/free-delivery', [VendorProductController::class, 'updateFreeDelivery']);
+            Route::put('/{id}/deposit', [VendorProductController::class, 'updateDeposit']);
             Route::delete('/{id}', [VendorProductController::class, 'destroy']);
 
             // Stock management

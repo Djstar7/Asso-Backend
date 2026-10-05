@@ -61,6 +61,8 @@ class AppServiceProvider extends ServiceProvider
                     ? User::where('diaspo_verification_status', 'pending')->count() : 0);
                 $view->with('wholesaleToValidateCount', $canSee('admin.wholesale-orders.index')
                     ? \App\Support\WholesaleOrderStage::apply(\App\Models\Order::where('is_wholesale', true), 'to_validate')->count() : 0);
+                $view->with('depositToContactCount', $canSee('admin.deposit-orders.index')
+                    ? \App\Support\DepositOrderStage::apply(\App\Models\Order::query(), 'to_contact')->count() : 0);
                 $view->with('adminNotifications', []);
                 $view->with('adminNotificationsCount', 0);
 
@@ -82,6 +84,9 @@ class AppServiceProvider extends ServiceProvider
                 \App\Models\Order::where('is_wholesale', true), 'to_validate'
             )->count();
 
+            // Commandes avec acompte dont le produit est présenté : client à contacter.
+            $depositToContactCount = \App\Support\DepositOrderStage::apply(\App\Models\Order::query(), 'to_contact')->count();
+
             // Changements d'emplacement de boutique à valider.
             $pendingLocationRequests = \App\Models\ShopLocationRequest::pending()->count();
 
@@ -101,6 +106,14 @@ class AppServiceProvider extends ServiceProvider
                     'color' => 'text-yellow-400',
                     'title' => $wholesaleToValidateCount.' commande'.($wholesaleToValidateCount > 1 ? 's' : '').' en gros à valider',
                     'url' => route('admin.wholesale-orders.index', ['stage' => 'to_validate']),
+                ];
+            }
+            if ($depositToContactCount > 0) {
+                $notifications[] = [
+                    'icon' => 'fa-hand-holding-usd',
+                    'color' => 'text-yellow-400',
+                    'title' => $depositToContactCount.' commande'.($depositToContactCount > 1 ? 's' : '').' avec acompte à vérifier avec le client',
+                    'url' => route('admin.deposit-orders.index', ['stage' => 'to_contact']),
                 ];
             }
             if ($pendingShopsCount > 0) {
@@ -124,7 +137,8 @@ class AppServiceProvider extends ServiceProvider
             $view->with('pendingDiaspoVerifications', $pendingDiaspoVerifications);
             $view->with('adminNotifications', $notifications);
             $view->with('wholesaleToValidateCount', $wholesaleToValidateCount);
-            $view->with('adminNotificationsCount', $pendingShopsCount + $openTicketsCount + $wholesaleToValidateCount + $pendingLocationRequests);
+            $view->with('depositToContactCount', $depositToContactCount);
+            $view->with('adminNotificationsCount', $pendingShopsCount + $openTicketsCount + $wholesaleToValidateCount + $depositToContactCount + $pendingLocationRequests);
         });
     }
 }

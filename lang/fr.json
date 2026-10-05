@@ -522,7 +522,8 @@
         },
         "order_shipped": {
             "title": "Livraison en cours !",
-            "body": "Votre commande #:order_number est en cours de livraison par :deliverer. Votre code de confirmation : :code"
+            "body": "Votre commande #:order_number est en cours de livraison par :deliverer. Votre code de confirmation : :code",
+            "body_deposit": "Votre commande #:order_number est en route avec :deliverer. Un membre d'ASSO vérifiera le produit avec vous avant le paiement du solde."
         },
         "delivery_completed": {
             "title": "Livraison confirmée",
@@ -586,6 +587,26 @@
         "stripe_account_incomplete": {
             "title": "Compte de virement à compléter",
             "body": "Renvoyez vos informations bancaires (identité, adresse, date de naissance) pour activer vos virements."
+        },
+        "order_balance_due": {
+            "title": "Solde débloqué",
+            "body": "Votre produit a été vérifié avec ASSO (commande #:order_number). Vous pouvez payer le solde de :amount FCFA dans l'application."
+        },
+        "order_balance_paid": {
+            "title": "Solde payé",
+            "body": "Merci ! Le solde de la commande #:order_number est payé. Votre produit peut vous être remis."
+        },
+        "order_balance_failed": {
+            "title": "Paiement du solde non abouti",
+            "body": "Le paiement du solde de la commande #:order_number n'a pas abouti. Vous pouvez réessayer depuis Mes commandes."
+        },
+        "order_deposit_closed": {
+            "title": "Commande clôturée",
+            "body": "La commande #:order_number a été clôturée par ASSO. Montant rendu sur votre Wallet : :amount FCFA."
+        },
+        "order_balance_paid_vendor": {
+            "title": "Commande soldée",
+            "body": "Le client a payé le solde de la commande #:order_number : votre vente est créditée."
         }
     },
     "orders": {
@@ -635,7 +656,17 @@
         "product_conversion_unavailable": "Conversion :currency → XAF indisponible pour ':product'.",
         "parcel_weight_required": "Le poids du colis doit d'abord être renseigné par ASSO avant le paiement.",
         "delivery_address_required_solex": "Indiquez votre adresse de livraison : la commande arrive à Douala, puis SOLEX la livre jusqu'à vous.",
-        "already_processed": "Cette commande a déjà été traitée."
+        "already_processed": "Cette commande a déjà été traitée.",
+        "deposit_mixed_cart": "Un produit avec acompte se commande seul : passez une commande séparée pour les autres articles.",
+        "balance_not_payable": "Cette commande n'a pas de solde à payer.",
+        "balance_already_paid": "Le solde de cette commande est déjà payé.",
+        "balance_locked_until_verification": "Le solde sera payable après la livraison et la vérification de votre produit avec ASSO.",
+        "deposit_split_exceeds": "La répartition dépasse l'acompte encaissé (:amount FCFA).",
+        "verification_transition_invalid": "Cette action n'est pas possible à cette étape de la vérification.",
+        "balance_due_before_handover": "Le solde doit être payé avant la remise du produit.",
+        "balance_confirm_on_phone": "Confirmez le paiement du solde sur votre téléphone.",
+        "balance_paid": "Solde payé. Votre produit peut vous être remis.",
+        "validated_paid_after_balance": "Commande validée. Vous serez payé une fois le produit livré, vérifié avec ASSO et le solde réglé par le client."
     },
     "products": {
         "sponsored_label": "Sponsorisé",
@@ -665,7 +696,9 @@
         "stock_updated": "Stock mis à jour avec succès",
         "stock_update_error": "Erreur lors de la mise à jour du stock",
         "not_found_short": "Produit introuvable.",
-        "default_name": "Produit"
+        "default_name": "Produit",
+        "deposit_enabled": "Commande avec acompte activée pour ce produit.",
+        "deposit_disabled": "Commande avec acompte désactivée : paiement classique."
     },
     "shops": {
         "not_a_vendor": "Vous n'êtes pas vendeur",

@@ -143,6 +143,14 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/wholesale-orders/{order}/confirm', [\App\Http\Controllers\Admin\WholesaleOrderController::class, 'confirm'])->name('wholesale-orders.confirm');
         Route::post('/wholesale-orders/{order}/reject', [\App\Http\Controllers\Admin\WholesaleOrderController::class, 'reject'])->name('wholesale-orders.reject');
 
+        // Commandes avec acompte : vérification conjointe ASSO avant le solde
+        Route::get('/deposit-orders', [\App\Http\Controllers\Admin\DepositOrderController::class, 'index'])->name('deposit-orders.index');
+        Route::get('/deposit-orders/{order}', [\App\Http\Controllers\Admin\DepositOrderController::class, 'show'])->name('deposit-orders.show');
+        Route::post('/deposit-orders/{order}/contact', [\App\Http\Controllers\Admin\DepositOrderController::class, 'contact'])->name('deposit-orders.contact');
+        Route::post('/deposit-orders/{order}/validate', [\App\Http\Controllers\Admin\DepositOrderController::class, 'validateVerification'])->name('deposit-orders.validate');
+        Route::post('/deposit-orders/{order}/issue', [\App\Http\Controllers\Admin\DepositOrderController::class, 'reportIssue'])->name('deposit-orders.issue');
+        Route::post('/deposit-orders/{order}/close', [\App\Http\Controllers\Admin\DepositOrderController::class, 'close'])->name('deposit-orders.close');
+
         // Deliverers (Livreurs partenaires)
         Route::resource('deliverers', DelivererController::class)->except(['store']);
         Route::post('deliverers/{deliverer}/sync-code', [DelivererController::class, 'generateSyncCode'])->name('deliverers.sync-code');

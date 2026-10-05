@@ -203,6 +203,12 @@ class OrderController extends Controller
             $order->refresh();
         }
 
+        // Commande avec acompte : paiement du solde en cours (Mobile Money / carte).
+        if ($order->isDepositOrder() && $order->balance_payment_reference) {
+            app(\App\Services\DepositOrderService::class)->syncBalancePayment($order);
+            $order->refresh();
+        }
+
         return response()->json([
             'success' => true,
             'data' => [
@@ -210,7 +216,59 @@ class OrderController extends Controller
                 'order_number' => $order->order_number,
                 'payment_status' => $order->payment_status, // pending | paid | failed
                 'status' => $order->status,
+                'balance_status' => $order->balance_status, // null | locked | unlocked | paid | cancelled
+                // Paiement du solde lancé et pas encore confirmé (Mobile Money / carte).
+                'balance_payment_pending' => $order->balance_status === \App\Models\Order::BALANCE_UNLOCKED
+                    && $order->balance_payment_reference !== null,
             ],
+        ]);
+    }
+
+    /**
+     * Commande avec acompte : l'acheteur paie le solde, débloqué seulement après la
+     * livraison (ou le retrait) et la vérification conjointe avec ASSO.
+     *
+     * POST /api/v1/orders/{id}/pay-balance
+     */
+    public function payBalance(Request $request, $id)
+    {
+        $request->validate([
+            'payment_mode' => 'required|in:wallet,kpay_direct,stripe_direct',
+            'provider' => 'required_if:payment_mode,kpay_direct|string',
+            'phone_number' => 'required_if:payment_mode,kpay_direct|string',
+        ]);
+
+        $order = Order::where('user_id', $request->user()->id)->findOrFail($id);
+        $paymentMode = $request->input('payment_mode');
+
+        if ($paymentMode === 'stripe_direct' && !\App\Services\PaymentMethodService::isEnabled('stripe')) {
+            return response()->json(['success' => false, 'message' => __('payments.stripe_unavailable_choose_other')], 422);
+        }
+
+        try {
+            $order = app(\App\Services\DepositOrderService::class)->initiateBalancePayment(
+                $order,
+                $paymentMode,
+                $request->input('provider'),
+                $request->input('phone_number'),
+            );
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => match ($paymentMode) {
+                'kpay_direct' => __('orders.balance_confirm_on_phone'),
+                'stripe_direct' => __('orders.created_complete_card'),
+                default => __('orders.balance_paid'),
+            },
+            'order' => $this->formatOrder($order->fresh(['items.product.primaryImage', 'items.seller', 'deliveryCompany', 'trackingEvents']), true),
+            'order_id' => $order->id,
+            'payment_reference' => $order->balance_payment_reference,
+            'client_secret' => $paymentMode === 'stripe_direct' ? ($order->client_secret ?? null) : null,
+            'payment_intent_id' => $paymentMode === 'stripe_direct' ? ($order->payment_intent_id ?? null) : null,
+            'publishable_key' => $paymentMode === 'stripe_direct' ? ($order->stripe_publishable_key ?? null) : null,
         ]);
     }
 
@@ -301,6 +359,11 @@ class OrderController extends Controller
             ->whereNull('delivery_city_grid_id')
             ->where('status', 'shipped')
             ->findOrFail($id);
+
+        // Commande avec acompte : retrait confirmé seulement une fois le solde payé.
+        if (!$order->canBeHandedOver()) {
+            return response()->json(['success' => false, 'message' => __('orders.balance_due_before_handover')], 422);
+        }
 
         DB::transaction(function () use ($order, $request) {
             $order->update([
@@ -542,9 +605,15 @@ class OrderController extends Controller
 
         // Code de confirmation : livraison urbaine en cours uniquement (le transporteur
         // ne le demande pas, l'acheteur confirme lui-même la réception).
-        if ($order->status === 'shipped' && (!$order->isCarrierDelivery() || $order->hasLastMileDelivery())) {
+        // Commande avec acompte : le code n'est remis qu'une fois le solde payé.
+        if ($order->status === 'shipped' && (!$order->isCarrierDelivery() || $order->hasLastMileDelivery())
+            && $order->canBeHandedOver()) {
             $data['confirmation_code'] = $order->confirmation_code;
         }
+
+        // Commande avec acompte : montants, état du solde et de la vérification ASSO.
+        $data['payment_plan'] = $order->payment_plan ?? \App\Models\Order::PLAN_FULL;
+        $data['deposit'] = \App\Services\DepositOrderService::present($order);
 
         // Timestamps toujours inclus (nécessaires pour le tracking client)
         $data['confirmed_at'] = $order->confirmed_at?->toIso8601String();
