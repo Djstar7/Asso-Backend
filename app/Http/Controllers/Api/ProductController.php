@@ -37,7 +37,10 @@ class ProductController extends Controller
             $query->where(function ($q) use ($search) {
                 // Use PostgreSQL f_unaccent function for accent-insensitive search
                 $q->whereRaw('f_unaccent(name) ILIKE ?', ['%' . $search . '%'])
-                    ->orWhereRaw('f_unaccent(description) ILIKE ?', ['%' . $search . '%']);
+                    ->orWhereRaw('f_unaccent(description) ILIKE ?', ['%' . $search . '%'])
+                    // Version anglaise saisie par le vendeur.
+                    ->orWhereHas('translations', fn ($t) => $t->whereIn('field', ['name', 'description'])
+                        ->whereRaw('f_unaccent(value) ILIKE ?', ['%' . $search . '%']));
             });
         }
 
