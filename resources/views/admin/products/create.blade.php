@@ -135,7 +135,7 @@
         </div>
 
         <p class="mb-2 text-xs text-gray-400">
-            Le prix suit la quantité commandée : de 1 au 2<sup>e</sup> palier, prix du 1<sup>er</sup> ; à partir du 2<sup>e</sup>, prix du 2<sup>e</sup>… Pas de minimum : sous le 1<sup>er</sup> seuil, le client paie le prix du 1<sup>er</sup> palier.
+            Le prix suit la quantité commandée : du 1<sup>er</sup> au 2<sup>e</sup> palier, prix du 1<sup>er</sup> ; à partir du 2<sup>e</sup>, prix du 2<sup>e</sup>… Le seuil du 1<sup>er</sup> palier est le minimum de commande : en dessous, le client ne peut pas commander.
         </p>
 
         <div id="tiers_wrapper" class="space-y-2"></div>
@@ -147,7 +147,7 @@
                    class="mr-2 mt-0.5 w-4 h-4 text-primary-500 focus:ring-primary-500 rounded">
             <label for="tier_mix_variants" class="text-sm text-white cursor-pointer">
                 Cumuler les options pour atteindre un palier
-                <span class="block text-xs text-gray-400">Coché : 60 bleus + 40 rouges = 100, prix du palier 100. Décoché : chaque couleur ou taille atteint son palier seule.</span>
+                <span class="block text-xs text-gray-400">Coché : 60 bleus + 40 rouges = 100, prix du palier 100. Décoché : chaque couleur ou taille atteint son palier (et le minimum) seule.</span>
             </label>
         </div>
 

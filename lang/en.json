@@ -751,6 +751,7 @@
         "product_conversion_unavailable_retry": "Conversion :currency → XAF unavailable for ':product'. Please try again later.",
         "wholesale_unavailable": "The product ':product' is not available wholesale.",
         "wholesale_price_missing": "The product ':product' does not have a wholesale price yet.",
+        "wholesale_minimum_not_reached": "Minimum quantity not reached for ':product': minimum :minimum.",
         "product_conversion_unavailable": "Conversion :currency → XAF unavailable for ':product'.",
         "parcel_weight_required": "The parcel weight must first be entered by ASSO before payment.",
         "delivery_address_required_solex": "Enter your delivery address: the order arrives in Douala, then SOLEX delivers it to you.",
