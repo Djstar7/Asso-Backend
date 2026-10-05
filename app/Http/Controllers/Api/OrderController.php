@@ -24,7 +24,7 @@ class OrderController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Order::with(['items.product.primaryImage', 'items.product.images', 'items.seller', 'deliveryPerson', 'deliveryCompany', 'rating', 'trackingEvents'])
+        $query = Order::with(['items.product.primaryImage', 'items.product.images', 'items.seller', 'deliveryPerson', 'deliveryCompany', 'rating', 'trackingEvents', 'disputes'])
             ->where('user_id', $request->user()->id);
 
         // Masquer les commandes payées par un rail DIRECT (KPay/PayPal/carte) dont le
@@ -61,7 +61,7 @@ class OrderController extends Controller
      */
     public function show(Request $request, $id)
     {
-        $order = Order::with(['items.product.primaryImage', 'items.product.images', 'items.seller', 'deliveryPerson', 'deliveryCompany', 'rating', 'trackingEvents'])
+        $order = Order::with(['items.product.primaryImage', 'items.product.images', 'items.seller', 'deliveryPerson', 'deliveryCompany', 'rating', 'trackingEvents', 'disputes'])
             ->where('user_id', $request->user()->id)
             ->findOrFail($id);
 
