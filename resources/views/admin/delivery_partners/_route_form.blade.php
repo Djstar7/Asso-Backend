@@ -50,14 +50,15 @@
         <label class="block text-xs text-gray-400 mb-1">Tranches de poids (prix de la grille du partenaire)</label>
         <template x-for="(range, i) in ranges" :key="i">
             <div class="grid grid-cols-12 gap-2 mb-2">
-                <input type="text" :name="`ranges[${i}][label]`" x-model="range.label" placeholder="Libellé (Colis…)" class="col-span-4 {{ $input }}">
+                <input type="text" :name="`ranges[${i}][label]`" x-model="range.label" placeholder="Libellé (Colis…)" class="col-span-2 {{ $input }}">
+                <input type="text" :name="`ranges[${i}][label_en]`" x-model="range.label_en" placeholder="EN (Parcel…)" class="col-span-2 {{ $input }}">
                 <input type="number" :name="`ranges[${i}][min]`" x-model="range.min" step="0.001" min="0" placeholder="De (kg)" class="col-span-2 {{ $input }}">
                 <input type="number" :name="`ranges[${i}][max]`" x-model="range.max" step="0.001" min="0.001" placeholder="À (kg)" class="col-span-2 {{ $input }}">
                 <input type="number" :name="`ranges[${i}][price]`" x-model="range.price" step="1" min="0" placeholder="Prix FCFA" class="col-span-3 {{ $input }}">
                 <button type="button" @click="ranges.splice(i, 1)" class="col-span-1 text-red-400 hover:text-red-300"><i class="fas fa-trash"></i></button>
             </div>
         </template>
-        <button type="button" @click="ranges.push({label: '', min: ranges.length ? ranges[ranges.length - 1].max : 0, max: '', price: ''})"
+        <button type="button" @click="ranges.push({label: '', label_en: '', min: ranges.length ? ranges[ranges.length - 1].max : 0, max: '', price: ''})"
                 class="text-sm text-primary-400 hover:text-primary-300"><i class="fas fa-plus mr-1"></i> Ajouter une tranche</button>
     </div>
 

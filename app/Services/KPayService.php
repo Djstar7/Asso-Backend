@@ -121,7 +121,7 @@ class KPayService
                     'id' => $data['id'] ?? null,                 // pay_xxx — used for status polling
                     'reference' => $data['reference'] ?? null,   // KPAY-... (human ref)
                     'status' => $data['status'] ?? 'PENDING',
-                    'message' => $data['message'] ?? 'Paiement initié',
+                    'message' => $data['message'] ?? __('payments.kpay_payment_initiated'),
                     'data' => $data,
                 ];
             }
@@ -218,7 +218,7 @@ class KPayService
                     'status' => $data['status'] ?? 'PENDING',
                     'net_amount' => $data['netAmount'] ?? null,
                     'fee_amount' => $data['feeAmount'] ?? null,
-                    'message' => $data['message'] ?? 'Retrait initié',
+                    'message' => $data['message'] ?? __('payments.kpay_withdrawal_initiated'),
                     'data' => $data,
                 ];
             }

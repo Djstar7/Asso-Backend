@@ -76,7 +76,7 @@ class ImportShippingOption extends Model
             'id' => $this->id,
             'country_code' => $this->country_code,
             'mode' => $this->mode,
-            'mode_label' => self::MODE_LABELS[$this->mode] ?? $this->mode,
+            'mode_label' => isset(self::MODE_LABELS[$this->mode]) ? __("delivery.import_modes.{$this->mode}") : $this->mode,
             'carrier' => $this->carrier,
             'rate_type' => $this->rate_type,
             'rate_amount' => (float) $this->rate_amount,

@@ -318,6 +318,7 @@ class DeliveryPartnerController extends Controller
             'extra_per_kg' => 'nullable|numeric|min:0',
             'ranges' => 'required|array|min:1',
             'ranges.*.label' => 'nullable|string|max:60',
+            'ranges.*.label_en' => 'nullable|string|max:60',
             'ranges.*.min' => 'nullable|numeric|min:0',
             'ranges.*.max' => 'nullable|numeric|min:0.001',
             'ranges.*.price' => 'nullable|numeric|min:0',
@@ -330,6 +331,7 @@ class DeliveryPartnerController extends Controller
                 'max' => (float) $r['max'],
                 'price' => (float) $r['price'],
                 'label' => trim((string) ($r['label'] ?? '')),
+                'label_en' => trim((string) ($r['label_en'] ?? '')),
             ])
             ->sortBy('max')
             ->values()

@@ -44,7 +44,7 @@ class NexaahService
     {
         if (!$this->isConfigured()) {
             Log::warning('NexaahService: Service not configured');
-            return ['success' => false, 'message' => 'Service SMS non configuré'];
+            return ['success' => false, 'message' => __('otp.sms_not_configured')];
         }
 
         try {
@@ -95,7 +95,7 @@ class NexaahService
      */
     public function sendOtp(string $phone, string $code): array
     {
-        $message = "Utilisez \"{$code}\" pour poursuivre l'opération sur Asso. Valable pendant 5 minutes. Ne le partagez avec personne.";
+        $message = __('otp.sms_text', ['code' => $code]);
 
         // Send twice with different sender IDs for redundancy (like E-Emploie)
         $result1 = $this->sendSms($phone, $message, 'infos');
@@ -103,10 +103,10 @@ class NexaahService
 
         // Return success if at least one send succeeded
         if ($result1['success'] || $result2['success']) {
-            return ['success' => true, 'message' => 'Code OTP envoyé par SMS'];
+            return ['success' => true, 'message' => __('otp.sent_sms')];
         }
 
-        return ['success' => false, 'message' => 'Impossible d\'envoyer le SMS. Veuillez réessayer.'];
+        return ['success' => false, 'message' => __('otp.sms_failed')];
     }
 
     /**

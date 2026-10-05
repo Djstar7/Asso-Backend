@@ -54,6 +54,17 @@ class DelivererCompany extends Model
         self::MODE_AGENCY => "D'agence en agence (dépôt et retrait en agence)",
     ];
 
+    /** Libellés dans la langue de la requête (les constantes restent ceux du back-office). */
+    public static function serviceTypeLabel(?string $type): ?string
+    {
+        return $type !== null && isset(self::SERVICE_TYPES[$type]) ? __("delivery.service_types.{$type}") : $type;
+    }
+
+    public static function serviceModeLabel(?string $mode): ?string
+    {
+        return $mode !== null && isset(self::SERVICE_MODES[$mode]) ? __("delivery.service_modes.{$mode}") : $mode;
+    }
+
     public function isCarrier(): bool
     {
         return $this->service_type !== self::SERVICE_LOCAL;

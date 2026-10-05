@@ -95,7 +95,7 @@ class DisputeService
             foreach ($paths as $path) {
                 $dispute->attachments()->create(['author_type' => 'client', 'author_id' => $client->id, 'path' => $path]);
             }
-            $this->event($dispute, 'opened', 'Réclamation enregistrée — fonds vendeur bloqués', $description, 'client', $client->id);
+            $this->event($dispute, 'opened', __('disputes.events.opened', [], 'fr'), $description, 'client', $client->id);
 
             return $dispute;
         });
@@ -112,7 +112,7 @@ class DisputeService
             return $dispute;
         }
         $dispute->update(['status' => Dispute::STATUS_IN_REVIEW]);
-        $this->event($dispute, 'in_review', 'Analyse par ASSO', null, 'admin', $employee->id);
+        $this->event($dispute, 'in_review', __('disputes.events.in_review', [], 'fr'), null, 'admin', $employee->id);
 
         return $dispute;
     }
@@ -122,7 +122,7 @@ class DisputeService
     {
         $this->assertNotDecided($dispute);
         $dispute->update(['status' => Dispute::STATUS_VENDOR_CONTACTED]);
-        $this->event($dispute, 'vendor_contacted', 'Vendeur contacté par ASSO', $note, 'admin', $employee->id);
+        $this->event($dispute, 'vendor_contacted', __('disputes.events.vendor_contacted', [], 'fr'), $note, 'admin', $employee->id);
         $this->notifySeller($dispute, 'dispute_vendor_contacted', ['number' => $dispute->number]);
 
         return $dispute;
@@ -141,7 +141,7 @@ class DisputeService
         foreach ($this->storePhotos($files) as $path) {
             $dispute->attachments()->create(['author_type' => $authorType, 'author_id' => $author->id, 'path' => $path]);
         }
-        $label = $authorType === 'vendor' ? 'Réponse du vendeur' : 'Pièce ajoutée par ASSO';
+        $label = $authorType === 'vendor' ? __('disputes.events.vendor_reply', [], 'fr') : __('disputes.events.asso_evidence', [], 'fr');
         $this->event($dispute, 'evidence', $label, $note, $authorType, $author->id);
 
         return $dispute;
@@ -150,7 +150,7 @@ class DisputeService
     /** Note interne de l'équipe ASSO (jamais visible du client ni du vendeur). */
     public function addInternalNote(Dispute $dispute, User $employee, string $note): void
     {
-        $this->event($dispute, 'note', 'Note interne', $note, 'admin', $employee->id, internal: true);
+        $this->event($dispute, 'note', __('disputes.events.internal_note', [], 'fr'), $note, 'admin', $employee->id, internal: true);
     }
 
     /**
@@ -173,7 +173,7 @@ class DisputeService
                     'status' => Dispute::STATUS_REJECTED,
                     'closed_at' => now(),
                 ]);
-                $this->event($locked, 'decision', 'Réclamation non fondée — fonds vendeur débloqués, litige clôturé', $note, 'admin', $employee->id);
+                $this->event($locked, 'decision', __('disputes.events.decision_unfounded', [], 'fr'), $note, 'admin', $employee->id);
             });
             $dispute->refresh();
             $this->notifyClient($dispute, 'dispute_unfounded', ['number' => $dispute->number]);
@@ -189,7 +189,7 @@ class DisputeService
             'decided_at' => now(),
             'status' => Dispute::STATUS_VENDOR_CONTACTED,
         ]);
-        $this->event($dispute, 'decision', 'Réclamation fondée — remplacement ou retour à organiser', $note, 'admin', $employee->id);
+        $this->event($dispute, 'decision', __('disputes.events.decision_founded', [], 'fr'), $note, 'admin', $employee->id);
         $this->notifyClient($dispute, 'dispute_founded', ['number' => $dispute->number]);
         $this->notifySeller($dispute, 'dispute_founded_vendor', ['number' => $dispute->number]);
 
@@ -219,7 +219,7 @@ class DisputeService
                 'auto_validate_at' => null,
             ]);
             $shipment = $this->createShipment($locked, DisputeShipment::TYPE_REPLACEMENT);
-            $this->event($locked, 'replacement', 'Remplacement autorisé — frais de livraison à la charge du vendeur', null, $actorType, $actorId);
+            $this->event($locked, 'replacement', __('disputes.events.replacement_authorized', [], 'fr'), null, $actorType, $actorId);
 
             return $shipment;
         });
@@ -254,8 +254,8 @@ class DisputeService
                 $locked,
                 'return',
                 $afterReplacement
-                    ? 'Remplacement non conforme — retour et remboursement (Cas B)'
-                    : 'Retour du produit et remboursement (Cas B) — livraison retour payée par le vendeur',
+                    ? __('disputes.events.return_after_replacement', [], 'fr')
+                    : __('disputes.events.return_case_b', [], 'fr'),
                 $note,
                 $actorType,
                 $actorId,
@@ -283,7 +283,7 @@ class DisputeService
             if ($locked->client_id !== $client->id || !$locked->isInReplacementControl()) {
                 throw new \Exception(__('disputes.action_unavailable'));
             }
-            $this->resolveReplacement($locked, 'client', $client->id, 'Remplacement conforme — fonds vendeur débloqués');
+            $this->resolveReplacement($locked, 'client', $client->id, __('disputes.events.replacement_conform', [], 'fr'));
         });
 
         return $dispute->refresh();
@@ -303,7 +303,7 @@ class DisputeService
         foreach ($this->storePhotos($photos) as $path) {
             $dispute->attachments()->create(['author_type' => 'client', 'author_id' => $client->id, 'path' => $path]);
         }
-        $this->event($dispute, 'replacement_rejected', 'Le client signale le remplacement comme non conforme', $description, 'client', $client->id);
+        $this->event($dispute, 'replacement_rejected', __('disputes.events.replacement_rejected', [], 'fr'), $description, 'client', $client->id);
 
         return $this->startReturn($dispute, 'system', null);
     }
@@ -551,8 +551,8 @@ class DisputeService
             $this->event(
                 $dispute,
                 'shipment_paid',
-                ($locked->type === DisputeShipment::TYPE_RETURN ? 'Livraison retour payée' : 'Livraison du remplacement payée')
-                    . ($locked->payer === 'asso' ? ' par ASSO' : ' par le vendeur') . ' — livreur sélectionné',
+                __('disputes.events.' . ($locked->type === DisputeShipment::TYPE_RETURN ? 'return' : 'replacement')
+                    . ($locked->payer === 'asso' ? '_paid_asso' : '_paid_vendor'), [], 'fr'),
                 $locked->company?->name,
                 $locked->payer === 'asso' ? 'admin' : 'vendor',
                 $locked->payer === 'asso' ? null : $dispute->seller_id,
@@ -728,7 +728,7 @@ class DisputeService
                 'status' => Dispute::STATUS_REFUNDED,
                 'closed_at' => now(),
             ]);
-            $this->event($locked, 'refunded', 'Client remboursé sur son Wallet ASSO — dossier remboursé / clôturé', null, $actorType, $actorId);
+            $this->event($locked, 'refunded', __('disputes.events.refunded', [], 'fr'), null, $actorType, $actorId);
 
             return ['dispute' => $locked, 'amount' => $amount];
         });
@@ -798,7 +798,7 @@ class DisputeService
                 DB::transaction(function () use ($dispute, &$count) {
                     $locked = Dispute::whereKey($dispute->id)->lockForUpdate()->first();
                     if ($locked && $locked->status === Dispute::STATUS_REPLACEMENT && $locked->auto_validate_at?->isPast()) {
-                        $this->resolveReplacement($locked, 'system', null, 'Aucune action après 48 h — remplacement validé automatiquement');
+                        $this->resolveReplacement($locked, 'system', null, __('disputes.events.replacement_auto_validated', [], 'fr'));
                         $count++;
                     }
                 });
@@ -853,7 +853,7 @@ class DisputeService
             'reason' => $dispute->reason,
             'description' => $dispute->description,
             'status' => $dispute->status,
-            'status_label' => Dispute::STATUSES[$dispute->status] ?? $dispute->status,
+            'status_label' => Dispute::statusLabel($dispute->status),
             'decision' => $dispute->decision,
             'decision_note' => $dispute->decision_note,
             'resolution' => $dispute->resolution,

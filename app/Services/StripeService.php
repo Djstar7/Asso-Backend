@@ -564,7 +564,7 @@ class StripeService
         $minor = (int) round($amount * 100);
 
         if ($minor <= 0) {
-            throw new \InvalidArgumentException('Montant de payout invalide.');
+            throw new \InvalidArgumentException(__('payments.invalid_payout_amount'));
         }
 
         $this->assertPayoutPossible($accountId, $amount, $currency);
@@ -844,7 +844,7 @@ class StripeService
         $minor = self::toMinorUnits($amount, $currency);
 
         if ($minor <= 0) {
-            throw new \InvalidArgumentException('Montant de paiement invalide.');
+            throw new \InvalidArgumentException(__('payments.invalid_amount'));
         }
 
         $intent = $this->client()->paymentIntents->create([
