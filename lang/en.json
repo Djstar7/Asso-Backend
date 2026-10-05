@@ -1043,5 +1043,10 @@
         "evidence_sent": "Your information has been sent to ASSO.",
         "confirm_on_phone": "Confirm the delivery payment on your phone.",
         "shipment_paid": "Delivery paid. The partner takes over."
+    },
+    "legal": {
+        "not_found": "Page not found.",
+        "updated_on": "Last updated: :date",
+        "other_documents": "Other documents"
     }
 }

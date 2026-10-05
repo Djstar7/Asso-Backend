@@ -2,12 +2,18 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasTranslations;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class DelivererCompany extends Model
 {
+    use HasTranslations;
+
+    /** Champs traduisibles (voir HasTranslations). */
+    protected array $translatable = ['description', 'conditions'];
+
     protected $fillable = [
         'user_id',
         'name',

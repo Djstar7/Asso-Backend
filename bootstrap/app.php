@@ -22,6 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
         $middleware->alias([
             'backoffice' => \App\Http\Middleware\EnsureBackofficeAccess::class,
+            'content.source' => \App\Http\Middleware\ContentSourceLocale::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

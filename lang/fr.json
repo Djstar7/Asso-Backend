@@ -1043,5 +1043,10 @@
         "evidence_sent": "Vos éléments ont été transmis à ASSO.",
         "confirm_on_phone": "Confirmez le paiement de la livraison sur votre téléphone.",
         "shipment_paid": "Livraison payée. Le partenaire prend le relais."
+    },
+    "legal": {
+        "not_found": "Page introuvable.",
+        "updated_on": "Dernière mise à jour : :date",
+        "other_documents": "Autres documents"
     }
 }

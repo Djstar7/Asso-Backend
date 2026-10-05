@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasTranslations;
 use App\Support\CountryCode;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -14,6 +15,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class DeliveryCityGrid extends Model
 {
+    use HasTranslations;
+
+    /** Champs traduisibles (voir HasTranslations). */
+    protected array $translatable = ['zones', 'vehicles'];
+
     protected $fillable = [
         'deliverer_company_id',
         'city',
@@ -32,6 +38,32 @@ class DeliveryCityGrid extends Model
         'asso_commission' => 'float',
         'is_active' => 'boolean',
     ];
+
+    /**
+     * Traduction des libellés seulement : zones {code: label}, véhicules
+     * {code: {label, lead_time}}. Prix, quartiers et codes restent ceux de la grille.
+     */
+    protected function mergeTranslation(string $field, mixed $source, mixed $translated): mixed
+    {
+        if (! is_array($source) || ! is_array($translated)) {
+            return $source;
+        }
+
+        return array_map(function ($item) use ($field, $translated) {
+            $tr = $translated[(string) ($item['code'] ?? '')] ?? null;
+            if ($field === 'zones' && is_string($tr) && $tr !== '') {
+                $item['label'] = $tr;
+            } elseif ($field === 'vehicles' && is_array($tr)) {
+                foreach (['label', 'lead_time'] as $key) {
+                    if (filled($tr[$key] ?? null)) {
+                        $item[$key] = $tr[$key];
+                    }
+                }
+            }
+
+            return $item;
+        }, $source);
+    }
 
     public function company(): BelongsTo
     {

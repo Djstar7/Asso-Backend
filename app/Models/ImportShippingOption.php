@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasTranslations;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -11,6 +12,11 @@ use Illuminate\Database\Eloquent\Model;
  */
 class ImportShippingOption extends Model
 {
+    use HasTranslations;
+
+    /** Champs traduisibles (voir HasTranslations). */
+    protected array $translatable = ['expedition_note'];
+
     protected $fillable = [
         'country_code',
         'mode',

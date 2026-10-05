@@ -2,11 +2,18 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasTranslations;
 use Illuminate\Database\Eloquent\Model;
+use App\Support\Translation\ContentLocale;
 use Illuminate\Support\Facades\Cache;
 
 class Setting extends Model
 {
+    use HasTranslations;
+
+    /** Champs traduisibles (voir HasTranslations). */
+    protected array $translatable = ['value'];
+
     /**
      * The attributes that are mass assignable.
      *
@@ -46,7 +53,7 @@ class Setting extends Model
      */
     public static function get(string $key, $default = null)
     {
-        $cacheKey = 'setting_' . $key;
+        $cacheKey = self::cacheKey('setting_' . $key);
 
         return Cache::remember($cacheKey, self::CACHE_DURATION * 60, function () use ($key, $default) {
             $setting = self::where('key', $key)->first();
@@ -85,8 +92,7 @@ class Setting extends Model
         );
 
         // Vider le cache pour cette clé
-        Cache::forget('setting_' . $key);
-        Cache::forget('settings_group_' . $group);
+        self::forgetCached($key, $group);
 
         return $setting;
     }
@@ -99,7 +105,7 @@ class Setting extends Model
      */
     public static function getByGroup(string $group): array
     {
-        $cacheKey = 'settings_group_' . $group;
+        $cacheKey = self::cacheKey('settings_group_' . $group);
 
         return Cache::remember($cacheKey, self::CACHE_DURATION * 60, function () use ($group) {
             $settings = self::where('group', $group)->get();
@@ -148,6 +154,23 @@ class Setting extends Model
         };
     }
 
+    /** Clé de cache : les valeurs traduites sont mises en cache par langue. */
+    private static function cacheKey(string $base): string
+    {
+        return ContentLocale::localizing(self::class) ? $base . ':' . app()->getLocale() : $base;
+    }
+
+    public static function forgetCached(string $key, ?string $group): void
+    {
+        foreach (array_merge([null], ContentLocale::targets()) as $locale) {
+            $suffix = $locale ? ':' . $locale : '';
+            Cache::forget('setting_' . $key . $suffix);
+            if ($group) {
+                Cache::forget('settings_group_' . $group . $suffix);
+            }
+        }
+    }
+
     /**
      * Vider tout le cache des paramètres.
      *
@@ -158,10 +181,7 @@ class Setting extends Model
         $settings = self::all();
 
         foreach ($settings as $setting) {
-            Cache::forget('setting_' . $setting->key);
-            if ($setting->group) {
-                Cache::forget('settings_group_' . $setting->group);
-            }
+            self::forgetCached($setting->key, $setting->group);
         }
     }
 
@@ -174,17 +194,11 @@ class Setting extends Model
 
         // Vider le cache lors de la mise à jour ou suppression
         static::updated(function ($setting) {
-            Cache::forget('setting_' . $setting->key);
-            if ($setting->group) {
-                Cache::forget('settings_group_' . $setting->group);
-            }
+            self::forgetCached($setting->key, $setting->group);
         });
 
         static::deleted(function ($setting) {
-            Cache::forget('setting_' . $setting->key);
-            if ($setting->group) {
-                Cache::forget('settings_group_' . $setting->group);
-            }
+            self::forgetCached($setting->key, $setting->group);
         });
     }
 }

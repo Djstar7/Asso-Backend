@@ -2,12 +2,16 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasTranslations;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class AffiliateSetting extends Model
 {
-    use HasFactory;
+    use HasFactory, HasTranslations;
+
+    /** Champs traduisibles (voir HasTranslations). */
+    protected array $translatable = ['terms_and_conditions'];
 
     protected $fillable = [
         'is_enabled',

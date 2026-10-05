@@ -408,7 +408,8 @@ class ProductController extends Controller
             'images.*' => 'file|image|mimes:jpeg,png,jpg,gif,webp|max:5120',
             // Livraison gratuite : absent/null = suit la boutique.
             'free_delivery' => 'nullable|boolean',
-        ] + \App\Services\DepositOrderService::productRules('nullable') + ProductVariantService::rules());
+        ] + \App\Services\DepositOrderService::productRules('nullable') + ProductVariantService::rules()
+            + \App\Support\Translation\ContentLocale::rules(Product::TRANSLATION_RULES));
 
         \Log::info('[PRODUCT_STORE] Validation passed');
 
@@ -516,6 +517,7 @@ class ProductController extends Controller
         if (!empty($validated['variants'])) {
             app(ProductVariantService::class)->sync($product, $validated['variants'], $validated['variant_options'] ?? null);
         }
+        $product->syncTranslations($validated['translations'] ?? null);
 
         \Log::info('[PRODUCT_STORE] Product created:', [
             'product_id' => $product->id,
@@ -579,7 +581,7 @@ class ProductController extends Controller
         return response()->json([
             'success' => true,
             'message' => __('products.created'),
-            'product' => $this->formatProduct($product, []),
+            'product' => $this->formatProduct($product, []) + ['translations' => $product->translationsPayload()],
             'storage_info' => [
                 'used_mb' => round($totalImageSizeMb, 2),
                 'remaining_mb' => round($vendorPackage->storage_remaining_mb, 2),
@@ -605,7 +607,7 @@ class ProductController extends Controller
             'success' => true,
             'message' => __('products.already_created'),
             'replayed' => true,
-            'product' => $this->formatProduct($product, []),
+            'product' => $this->formatProduct($product, []) + ['translations' => $product->translationsPayload()],
             'storage_info' => [
                 'used_mb' => 0,
                 'remaining_mb' => $vendorPackage ? round($vendorPackage->storage_remaining_mb, 2) : 0,
