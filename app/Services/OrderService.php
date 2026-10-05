@@ -468,8 +468,14 @@ class OrderService
                 $quantity = (int) $item['quantity'];
                 $mixVariants = $product->tier_mix_variants ?? true;
                 $tierQuantity = $mixVariants ? $productTotals[$product->id] : $quantity;
-                // Pas de minimum : sous le premier seuil, le prix du premier palier.
+                // Le seuil du premier palier est le minimum de commande.
                 $tier = ProductPriceTier::forQuantity($tiers, $tierQuantity);
+                if (!$tier) {
+                    throw new \Exception(__('orders.wholesale_minimum_not_reached', [
+                        'product' => $product->name,
+                        'minimum' => $tiers->min('min_quantity'),
+                    ]));
+                }
                 // Le devis de livraison lit le poids du palier réellement appliqué.
                 $items[$index]['price_tier_id'] = $tier->id;
 

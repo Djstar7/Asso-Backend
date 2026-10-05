@@ -148,20 +148,32 @@ class WholesaleMultiVariantOrderTest extends TestCase
             'currency' => 'XAF', 'min_quantity' => 100, 'is_active' => true,
         ]);
 
-        $this->order([[$this->red, 30], [$this->black, 100]])->assertCreated();
+        $this->order([[$this->red, 60], [$this->black, 100]])->assertCreated();
         $order = Order::with('items')->latest('id')->firstOrFail();
-        $this->assertEquals(1000, (float) $order->items->firstWhere('product_variant_id', $this->red)->unit_price); // 30 < 50 : prix du 1er palier
+        $this->assertEquals(1000, (float) $order->items->firstWhere('product_variant_id', $this->red)->unit_price); // 60 < 100 : prix du 1er palier
         $this->assertEquals(750, (float) $order->items->firstWhere('product_variant_id', $this->black)->unit_price);
         $this->assertSame($bulk->id, (int) $order->items->firstWhere('product_variant_id', $this->black)->price_tier_id);
     }
 
-    public function test_below_the_first_tier_the_first_tier_price_applies(): void
+    public function test_total_below_the_first_tier_is_refused(): void
     {
-        // Pas de minimum de commande : 20 + 20 sous le seuil de 50.
-        $this->order([[$this->red, 20], [$this->black, 20]])->assertCreated();
+        // Le seuil du premier palier (50) est le minimum : 20 + 20 ne l'atteint pas.
+        $this->order([[$this->red, 20], [$this->black, 20]])
+            ->assertStatus(422)
+            ->assertJsonPath('success', false);
 
-        $order = Order::with('items')->latest('id')->firstOrFail();
-        $this->assertTrue($order->items->every(fn ($item) => (int) $item->price_tier_id === $this->tier->id));
-        $this->assertEquals(40 * 1000, (float) $order->items->sum('total_price'));
+        $this->assertSame(0, Order::count());
+    }
+
+    public function test_without_mixing_each_option_must_reach_the_minimum(): void
+    {
+        $this->product->update(['tier_mix_variants' => false]);
+
+        // 60 + 30 = 90 dépasse 50, mais le noir seul (30) ne l'atteint pas.
+        $this->order([[$this->red, 60], [$this->black, 30]])
+            ->assertStatus(422)
+            ->assertJsonPath('success', false);
+
+        $this->assertSame(0, Order::count());
     }
 }
