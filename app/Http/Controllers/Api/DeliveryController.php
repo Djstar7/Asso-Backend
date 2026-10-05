@@ -249,11 +249,10 @@ class DeliveryController extends Controller
                     $order, 'delivered', null, 'Code de réception validé par le livreur', 'deliverer', $user->id,
                 );
 
-                // 2. ENCAISSEMENT DIRECT : plus AUCUN mouvement de fonds ici.
-                //    Le client a été prélevé et le vendeur / livreur / ASSO ont été crédités
-                //    (fonds disponibles immédiatement) dès la VALIDATION de la commande par le
-                //    vendeur (VendorOrderController::validate). La livraison ne fait donc que
-                //    clôturer la commande, décrémenter le stock et notifier.
+                // 2. Aucun mouvement de fonds ici : le client a été prélevé et le livreur /
+                //    ASSO crédités dès la VALIDATION de la commande par le vendeur. La part
+                //    du vendeur reste bloquée ; la livraison ouvre la fenêtre de contrôle de
+                //    48 h du client (OrderTrackingService → startControlWindow).
                 $sellers = $order->items->pluck('seller_id')->unique();
 
                 // Notifier l'entreprise de livraison que la course est terminée.

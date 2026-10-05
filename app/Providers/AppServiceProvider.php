@@ -63,6 +63,8 @@ class AppServiceProvider extends ServiceProvider
                     ? \App\Support\WholesaleOrderStage::apply(\App\Models\Order::where('is_wholesale', true), 'to_validate')->count() : 0);
                 $view->with('depositToContactCount', $canSee('admin.deposit-orders.index')
                     ? \App\Support\DepositOrderStage::apply(\App\Models\Order::query(), 'to_contact')->count() : 0);
+                $view->with('newDisputesCount', $canSee('admin.disputes.index')
+                    ? \App\Models\Dispute::where('status', \App\Models\Dispute::STATUS_NEW)->count() : 0);
                 $view->with('adminNotifications', []);
                 $view->with('adminNotificationsCount', 0);
 
@@ -86,6 +88,9 @@ class AppServiceProvider extends ServiceProvider
 
             // Commandes avec acompte dont le produit est présenté : client à contacter.
             $depositToContactCount = \App\Support\DepositOrderStage::apply(\App\Models\Order::query(), 'to_contact')->count();
+
+            // Réclamations clients pas encore prises en analyse.
+            $newDisputesCount = \App\Models\Dispute::where('status', \App\Models\Dispute::STATUS_NEW)->count();
 
             // Changements d'emplacement de boutique à valider.
             $pendingLocationRequests = \App\Models\ShopLocationRequest::pending()->count();
@@ -116,6 +121,14 @@ class AppServiceProvider extends ServiceProvider
                     'url' => route('admin.deposit-orders.index', ['stage' => 'to_contact']),
                 ];
             }
+            if ($newDisputesCount > 0) {
+                $notifications[] = [
+                    'icon' => 'fa-exclamation-circle',
+                    'color' => 'text-red-400',
+                    'title' => $newDisputesCount.' réclamation'.($newDisputesCount > 1 ? 's' : '').' client à analyser',
+                    'url' => route('admin.disputes.index', ['status' => 'new']),
+                ];
+            }
             if ($pendingShopsCount > 0) {
                 $notifications[] = [
                     'icon' => 'fa-store',
@@ -138,7 +151,8 @@ class AppServiceProvider extends ServiceProvider
             $view->with('adminNotifications', $notifications);
             $view->with('wholesaleToValidateCount', $wholesaleToValidateCount);
             $view->with('depositToContactCount', $depositToContactCount);
-            $view->with('adminNotificationsCount', $pendingShopsCount + $openTicketsCount + $wholesaleToValidateCount + $depositToContactCount + $pendingLocationRequests);
+            $view->with('newDisputesCount', $newDisputesCount);
+            $view->with('adminNotificationsCount', $pendingShopsCount + $openTicketsCount + $wholesaleToValidateCount + $depositToContactCount + $newDisputesCount + $pendingLocationRequests);
         });
     }
 }

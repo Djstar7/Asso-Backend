@@ -607,6 +607,86 @@
         "order_balance_paid_vendor": {
             "title": "Commande soldée",
             "body": "Le client a payé le solde de la commande #:order_number : votre vente est créditée."
+        },
+        "order_control_window": {
+            "title": "Commande livrée",
+            "body": "Commande #:order_number livrée. Vous avez :hours h pour vérifier vos produits : confirmez « Tout est conforme » ou faites une réclamation."
+        },
+        "vendor_funds_released": {
+            "title": "Fonds débloqués",
+            "body": "Commande #:order_number validée : :amount FCFA sont disponibles sur votre Wallet."
+        },
+        "dispute_opened": {
+            "title": "Réclamation sur une commande",
+            "body": "Le client a ouvert la réclamation :number (commande #:order_number). Vos fonds pour ce produit restent bloqués pendant l'analyse ASSO."
+        },
+        "dispute_vendor_contacted": {
+            "title": "ASSO attend votre réponse",
+            "body": "Réclamation :number : envoyez vos explications et vos preuves depuis l'application."
+        },
+        "dispute_unfounded": {
+            "title": "Réclamation non fondée",
+            "body": "Après analyse, ASSO a classé la réclamation :number comme non fondée. La commande est considérée comme conforme."
+        },
+        "dispute_unfounded_vendor": {
+            "title": "Réclamation non fondée",
+            "body": "Réclamation :number classée non fondée : les fonds du produit sont débloqués."
+        },
+        "dispute_founded": {
+            "title": "Réclamation acceptée",
+            "body": "ASSO a validé votre réclamation :number. Le produit va être remplacé ou repris et remboursé."
+        },
+        "dispute_founded_vendor": {
+            "title": "Réclamation fondée",
+            "body": "Réclamation :number fondée : remplacez le produit ou organisez le retour depuis l'application."
+        },
+        "dispute_return_validated": {
+            "title": "Retour de votre produit",
+            "body": "Votre demande de retour/remboursement (:number) est validée. Un partenaire de livraison va vous contacter pour récupérer le produit. Aucun frais de retour à payer."
+        },
+        "dispute_shipment_payment_required": {
+            "title": "Paiement de livraison requis",
+            "body": "Réclamation :number : choisissez un partenaire et payez la livraison (Wallet, Mobile Money ou carte) pour que le dossier avance."
+        },
+        "dispute_shipment_paid": {
+            "title": "Livraison payée",
+            "body": "Réclamation :number : la livraison est payée, le partenaire prend le relais."
+        },
+        "dispute_shipment_payment_failed": {
+            "title": "Paiement non abouti",
+            "body": "Réclamation :number : le paiement de la livraison n'a pas abouti. Réessayez depuis l'application."
+        },
+        "dispute_return_courier": {
+            "title": "Collecte de votre produit",
+            "body": "Réclamation :number : un livreur a été désigné et vous contactera pour récupérer le produit."
+        },
+        "dispute_replacement_shipped": {
+            "title": "Remplacement expédié",
+            "body": "Réclamation :number : votre produit de remplacement est en route. Livraison gratuite pour vous."
+        },
+        "dispute_replacement_delivered": {
+            "title": "Remplacement livré",
+            "body": "Réclamation :number : vous avez :hours h pour vérifier le produit de remplacement."
+        },
+        "dispute_pickup_scheduled": {
+            "title": "Collecte programmée",
+            "body": "Réclamation :number : la collecte de votre produit est programmée."
+        },
+        "dispute_return_delivered": {
+            "title": "Produit retourné",
+            "body": "Réclamation :number : le produit vous a été livré en retour."
+        },
+        "dispute_refunded": {
+            "title": "Remboursement effectué",
+            "body": "Réclamation :number : :amount FCFA ont été crédités sur votre Wallet ASSO. Découvrez des produits similaires avec livraison offerte par leur vendeur."
+        },
+        "dispute_refunded_vendor": {
+            "title": "Dossier clôturé",
+            "body": "Réclamation :number : le retour est confirmé et le client remboursé. Le montant du produit ne vous est pas versé."
+        },
+        "dispute_resolved_vendor": {
+            "title": "Remplacement validé",
+            "body": "Réclamation :number : le remplacement est validé, les fonds du produit sont débloqués."
         }
     },
     "orders": {
@@ -627,7 +707,7 @@
         "rating_thanks": "Merci pour votre note !",
         "cannot_be_validated": "Cette commande ne peut plus être validée",
         "payment_not_confirmed": "Le paiement de cette commande n'est pas encore confirmé.",
-        "validated_funds_credited": "Commande validée. Fonds crédités et disponibles immédiatement.",
+        "validated_funds_credited": "Commande validée. Votre part est créditée et bloquée jusqu'à la validation du client (48 h au plus après la livraison).",
         "cannot_be_rejected": "Cette commande ne peut plus être refusée",
         "rejected_refunded": "Commande refusée. Le client a été remboursé sur son Wallet ASSO.",
         "rejected": "Commande refusée.",
@@ -943,5 +1023,25 @@
             "delivered": "Livré — réception confirmée",
             "cancelled": "Commande annulée"
         }
+    },
+    "disputes": {
+        "not_found": "Réclamation introuvable.",
+        "window_closed": "Le délai de 48 h après la livraison est écoulé : la commande est validée.",
+        "item_not_found": "Cet article ne fait pas partie de la commande.",
+        "already_opened": "Une réclamation est déjà ouverte pour cet article.",
+        "closed": "Ce dossier est clôturé.",
+        "action_unavailable": "Cette action n'est pas possible à ce stade du dossier.",
+        "replacement_already_used": "Le produit a déjà été remplacé une fois : seul le retour avec remboursement est possible.",
+        "replacement_in_progress": "Le remplacement est encore en cours de livraison.",
+        "shipment_already_paid": "Cette livraison est déjà payée.",
+        "choose_partner_first": "Choisissez d'abord un partenaire de livraison.",
+        "step_invalid": "Étape de livraison non valide.",
+        "already_decided": "ASSO a déjà rendu sa décision sur ce dossier.",
+        "opened": "Réclamation envoyée. ASSO l'analyse ; les fonds du vendeur restent bloqués en attendant.",
+        "conformity_thanks": "Merci ! La commande est validée.",
+        "return_validated": "Votre demande de retour est validée. Un partenaire de livraison vous contactera pour récupérer le produit. Aucun frais de retour à payer.",
+        "evidence_sent": "Vos éléments ont été transmis à ASSO.",
+        "confirm_on_phone": "Confirmez le paiement de la livraison sur votre téléphone.",
+        "shipment_paid": "Livraison payée. Le partenaire prend le relais."
     }
 }

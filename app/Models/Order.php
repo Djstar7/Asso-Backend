@@ -37,6 +37,16 @@ class Order extends Model
     public const VERIFICATION_VERIFIED = 'verified';
     public const VERIFICATION_ISSUE = 'issue';
 
+    /**
+     * Part vendeur : bloquée sur son Wallet dès le règlement, débloquée à la fin de la
+     * fenêtre de contrôle (client conforme, 48 h sans action, réclamation non fondée).
+     */
+    public const VENDOR_FUNDS_HELD = 'held';
+    public const VENDOR_FUNDS_RELEASED = 'released';
+
+    /** Fenêtre de contrôle du client après la livraison. */
+    public const CONTROL_WINDOW_HOURS = 48;
+
     /** Rails encaissés hors solde wallet (Mobile Money / carte). */
     public const DIRECT_PAYMENT_METHODS = ['kpay_direct', 'paypal_direct', 'stripe_direct'];
 
@@ -62,6 +72,8 @@ class Order extends Model
         'notes', 'cancel_reason',
         'confirmed_at', 'shipped_at', 'delivered_at', 'cancelled_at',
         'confirmed_by_client_at', 'confirmed_by_deliverer_at', 'rated_at',
+        'vendor_funds_status', 'vendor_funds_holder_id', 'vendor_funds_held_amount',
+        'vendor_funds_released_at', 'conformity_confirmed_at', 'auto_validate_at',
     ];
 
     protected $casts = [
@@ -96,6 +108,10 @@ class Order extends Model
         'verified_at' => 'datetime',
         'deposit_refund_amount' => 'decimal:2',
         'deposit_vendor_amount' => 'decimal:2',
+        'vendor_funds_held_amount' => 'decimal:2',
+        'vendor_funds_released_at' => 'datetime',
+        'conformity_confirmed_at' => 'datetime',
+        'auto_validate_at' => 'datetime',
     ];
 
     /** local = livreur ASSO à domicile (code de confirmation) ; carrier = SOLEX, DHL, FedEx… */
@@ -291,6 +307,17 @@ class Order extends Model
     public function items(): HasMany { return $this->hasMany(OrderItem::class); }
     public function trackingEvents(): HasMany { return $this->hasMany(OrderTrackingEvent::class)->orderBy('occurred_at')->orderBy('id'); }
     public function rating(): HasOne { return $this->hasOne(OrderRating::class); }
+    public function disputes(): HasMany { return $this->hasMany(Dispute::class); }
+
+    /** Livrée, part vendeur encore bloquée et fenêtre de 48 h ouverte : réclamation possible. */
+    public function isInControlWindow(): bool
+    {
+        return $this->status === 'delivered'
+            && $this->vendor_funds_status === self::VENDOR_FUNDS_HELD
+            && $this->conformity_confirmed_at === null
+            && $this->auto_validate_at !== null
+            && $this->auto_validate_at->isFuture();
+    }
 
     public function getFormattedTotalAttribute(): string
     {

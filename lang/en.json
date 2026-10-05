@@ -607,6 +607,86 @@
         "order_balance_paid_vendor": {
             "title": "Order fully paid",
             "body": "The customer paid the balance of order #:order_number: your sale has been credited."
+        },
+        "order_control_window": {
+            "title": "Order delivered",
+            "body": "Order #:order_number delivered. You have :hours h to check your products: confirm \"Everything is fine\" or file a claim."
+        },
+        "vendor_funds_released": {
+            "title": "Funds released",
+            "body": "Order #:order_number validated: :amount FCFA are available in your Wallet."
+        },
+        "dispute_opened": {
+            "title": "Claim on an order",
+            "body": "The customer opened claim :number (order #:order_number). Your funds for this product stay on hold during ASSO's review."
+        },
+        "dispute_vendor_contacted": {
+            "title": "ASSO is waiting for your reply",
+            "body": "Claim :number: send your explanations and evidence from the app."
+        },
+        "dispute_unfounded": {
+            "title": "Claim not upheld",
+            "body": "After review, ASSO found claim :number unfounded. The order is considered compliant."
+        },
+        "dispute_unfounded_vendor": {
+            "title": "Claim not upheld",
+            "body": "Claim :number found unfounded: the product's funds are released."
+        },
+        "dispute_founded": {
+            "title": "Claim accepted",
+            "body": "ASSO upheld your claim :number. The product will be replaced, or collected and refunded."
+        },
+        "dispute_founded_vendor": {
+            "title": "Claim upheld",
+            "body": "Claim :number upheld: replace the product or organize the return from the app."
+        },
+        "dispute_return_validated": {
+            "title": "Return of your product",
+            "body": "Your return/refund request (:number) is approved. A delivery partner will contact you to collect the product. You pay no return fees."
+        },
+        "dispute_shipment_payment_required": {
+            "title": "Delivery payment required",
+            "body": "Claim :number: choose a partner and pay for the delivery (Wallet, Mobile Money or card) so the case can move forward."
+        },
+        "dispute_shipment_paid": {
+            "title": "Delivery paid",
+            "body": "Claim :number: the delivery is paid, the partner takes over."
+        },
+        "dispute_shipment_payment_failed": {
+            "title": "Payment failed",
+            "body": "Claim :number: the delivery payment did not go through. Try again from the app."
+        },
+        "dispute_return_courier": {
+            "title": "Collection of your product",
+            "body": "Claim :number: a courier has been assigned and will contact you to collect the product."
+        },
+        "dispute_replacement_shipped": {
+            "title": "Replacement shipped",
+            "body": "Claim :number: your replacement product is on its way. Delivery is free for you."
+        },
+        "dispute_replacement_delivered": {
+            "title": "Replacement delivered",
+            "body": "Claim :number: you have :hours h to check the replacement product."
+        },
+        "dispute_pickup_scheduled": {
+            "title": "Collection scheduled",
+            "body": "Claim :number: the collection of your product is scheduled."
+        },
+        "dispute_return_delivered": {
+            "title": "Product returned",
+            "body": "Claim :number: the product has been delivered back to you."
+        },
+        "dispute_refunded": {
+            "title": "Refund completed",
+            "body": "Claim :number: :amount FCFA have been credited to your ASSO Wallet. Discover similar products with delivery offered by their seller."
+        },
+        "dispute_refunded_vendor": {
+            "title": "Case closed",
+            "body": "Claim :number: the return is confirmed and the customer refunded. The product amount is not paid to you."
+        },
+        "dispute_resolved_vendor": {
+            "title": "Replacement validated",
+            "body": "Claim :number: the replacement is validated, the product's funds are released."
         }
     },
     "orders": {
@@ -627,7 +707,7 @@
         "rating_thanks": "Thank you for your rating!",
         "cannot_be_validated": "This order can no longer be validated",
         "payment_not_confirmed": "The payment for this order has not been confirmed yet.",
-        "validated_funds_credited": "Order validated. Funds credited and available immediately.",
+        "validated_funds_credited": "Order confirmed. Your share is credited and held until the customer validates it (at most 48 h after delivery).",
         "cannot_be_rejected": "This order can no longer be rejected",
         "rejected_refunded": "Order rejected. The customer has been refunded to their ASSO Wallet.",
         "rejected": "Order rejected.",
@@ -943,5 +1023,25 @@
             "delivered": "Delivered — receipt confirmed",
             "cancelled": "Order cancelled"
         }
+    },
+    "disputes": {
+        "not_found": "Claim not found.",
+        "window_closed": "The 48-hour period after delivery has ended: the order is validated.",
+        "item_not_found": "This item is not part of the order.",
+        "already_opened": "A claim is already open for this item.",
+        "closed": "This case is closed.",
+        "action_unavailable": "This action isn't possible at this stage of the case.",
+        "replacement_already_used": "The product has already been replaced once: only a return with refund is possible.",
+        "replacement_in_progress": "The replacement is still being delivered.",
+        "shipment_already_paid": "This delivery is already paid.",
+        "choose_partner_first": "Choose a delivery partner first.",
+        "step_invalid": "Invalid delivery step.",
+        "already_decided": "ASSO has already decided on this case.",
+        "opened": "Claim sent. ASSO is reviewing it; the seller's funds stay on hold meanwhile.",
+        "conformity_thanks": "Thank you! The order is validated.",
+        "return_validated": "Your return request is approved. A delivery partner will contact you to collect the product. You pay no return fees.",
+        "evidence_sent": "Your information has been sent to ASSO.",
+        "confirm_on_phone": "Confirm the delivery payment on your phone.",
+        "shipment_paid": "Delivery paid. The partner takes over."
     }
 }

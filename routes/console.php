@@ -109,6 +109,19 @@ Schedule::command('orders:reconcile-pending')
 
 /**
  * =====================================================
+ * COMMANDES — VALIDATION AUTOMATIQUE APRÈS 48 H
+ * =====================================================
+ *
+ * La part du vendeur reste bloquée pendant les 48 h qui suivent la livraison. Sans
+ * « Tout est conforme » ni réclamation, la commande est validée automatiquement et
+ * les fonds du vendeur sont débloqués (idem pour un produit de remplacement livré).
+ */
+Schedule::command('orders:auto-validate')
+    ->everyFifteenMinutes()
+    ->withoutOverlapping(300);
+
+/**
+ * =====================================================
  * DIASPO — ÉCHÉANCE DE RÉGULARISATION DE L'IDENTITÉ
  * =====================================================
  *

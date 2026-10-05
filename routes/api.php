@@ -233,6 +233,32 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/orders/{id}/rate', [OrderController::class, 'rate']);
         Route::post('/orders/{id}/confirm-reception', [OrderController::class, 'confirmReception']);
         Route::post('/orders/{id}/pay-balance', [OrderController::class, 'payBalance']);
+        // Fenêtre de contrôle de 48 h après la livraison : conforme, ou réclamation par article.
+        Route::post('/orders/{id}/conform', [OrderController::class, 'conform']);
+        Route::post('/orders/{id}/disputes', [\App\Http\Controllers\Api\DisputeController::class, 'store'])->middleware('throttle:20,1');
+
+        // Réclamations / litiges (client)
+        Route::prefix('disputes')->controller(\App\Http\Controllers\Api\DisputeController::class)->group(function () {
+            Route::get('/', 'index');
+            Route::get('/{id}', 'show')->whereNumber('id');
+            Route::post('/{id}/confirm-replacement', 'confirmReplacement');
+            Route::post('/{id}/report-replacement', 'reportReplacement');
+            Route::get('/{id}/similar-products', 'similarProducts');
+        });
+
+        // Réclamations / litiges (vendeur) : preuves, remplacement, retour, course payée par le vendeur.
+        Route::prefix('vendor/disputes')->controller(\App\Http\Controllers\Api\VendorDisputeController::class)->group(function () {
+            Route::get('/', 'index');
+            Route::get('/{id}', 'show')->whereNumber('id');
+            Route::post('/{id}/evidence', 'evidence');
+            Route::post('/{id}/replace', 'replace');
+            Route::post('/{id}/return', 'organizeReturn');
+            Route::get('/shipments/{id}/partners', 'partners');
+            Route::post('/shipments/{id}/partner', 'choosePartner');
+            Route::post('/shipments/{id}/pay', 'pay');
+            Route::get('/shipments/{id}/payment-status', 'paymentStatus');
+            Route::post('/shipments/{id}/step', 'step');
+        });
 
         // Payments
         Route::get('/payments/methods', [PaymentController::class, 'methods']);

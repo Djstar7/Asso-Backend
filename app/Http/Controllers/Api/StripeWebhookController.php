@@ -132,6 +132,15 @@ class StripeWebhookController extends Controller
                     'payment_intent' => $pi->id ?? null,
                 ]);
             }
+        } elseif ($kind === 'dispute_shipment') {
+            $shipment = \App\Models\DisputeShipment::find((int) ($pi->metadata->shipment_id ?? 0));
+            if ($shipment && $shipment->payment_reference === ($pi->id ?? null)) {
+                app(\App\Services\DisputeService::class)->confirmPayment($shipment);
+                Log::info('[StripeWebhook] ✅ Course de litige payée (carte)', [
+                    'shipment_id' => $shipment->id,
+                    'payment_intent' => $pi->id ?? null,
+                ]);
+            }
         } elseif ($kind === 'order_balance') {
             $order = \App\Models\Order::find((int) ($pi->metadata->order_id ?? 0));
             if ($order && $order->balance_payment_reference === ($pi->id ?? null)) {
@@ -191,6 +200,11 @@ class StripeWebhookController extends Controller
                     'order_id' => $orderId,
                     'payment_intent' => $pi->id ?? null,
                 ]);
+            }
+        } elseif ($kind === 'dispute_shipment') {
+            $shipment = \App\Models\DisputeShipment::find((int) ($pi->metadata->shipment_id ?? 0));
+            if ($shipment && $shipment->payment_reference === ($pi->id ?? null)) {
+                app(\App\Services\DisputeService::class)->failPayment($shipment);
             }
         } elseif ($kind === 'order_balance') {
             $order = \App\Models\Order::find((int) ($pi->metadata->order_id ?? 0));
