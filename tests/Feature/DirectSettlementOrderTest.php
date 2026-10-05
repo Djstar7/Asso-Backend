@@ -13,12 +13,11 @@ use Mockery;
 use Tests\TestCase;
 
 /**
- * Encaissement DIRECT (sans escrow bénéficiaire).
- *
- * À la VALIDATION vendeur : le vendeur, le livreur et ASSO sont crédités et les
- * fonds sont IMMÉDIATEMENT disponibles (aucun blocage). En mode wallet, le client
+ * Règlement à la VALIDATION vendeur : le livreur et ASSO sont crédités et leurs fonds
+ * sont disponibles ; le vendeur est crédité mais sa part reste BLOQUÉE jusqu'à la
+ * validation du client (48 h après la livraison au plus). En mode wallet, le client
  * est prélevé au même instant (releaseEscrow) ; en kpay_direct, rien à prélever.
- * À la LIVRAISON : plus AUCUN mouvement de fonds (juste clôture + stock + notifs).
+ * À la LIVRAISON : aucun mouvement de fonds, la fenêtre de contrôle démarre.
  */
 class DirectSettlementOrderTest extends TestCase
 {
@@ -134,16 +133,17 @@ class DirectSettlementOrderTest extends TestCase
         $this->assertEquals(0, $this->bal($client));
         $this->assertEquals(0, $this->locked($client));
 
-        // Bénéficiaires crédités ET disponibles (locked == 0).
+        // Vendeur crédité mais part bloquée ; livreur et ASSO disponibles.
         $this->assertEquals($subtotal, $this->bal($seller));
-        $this->assertEquals(0, $this->locked($seller));
+        $this->assertEquals($subtotal, $this->locked($seller));
+        $this->assertSame(Order::VENDOR_FUNDS_HELD, $order->vendor_funds_status);
         $this->assertEquals($base, $this->bal($deliverer));
         $this->assertEquals(0, $this->locked($deliverer));
         $this->assertEquals($commission, $this->bal($asso));
         $this->assertEquals(0, $this->locked($asso));
 
-        // Plus AUCUN blocage de fonds bénéficiaire (type 'lock' absent pour le vendeur).
-        $this->assertDatabaseMissing('wallet_transactions', [
+        // Part vendeur bloquée (type 'lock') en attendant la validation du client.
+        $this->assertDatabaseHas('wallet_transactions', [
             'user_id' => $seller->id,
             'reference_type' => 'order',
             'reference_id' => $order->id,
@@ -186,10 +186,12 @@ class DirectSettlementOrderTest extends TestCase
         $order->refresh();
         $this->assertSame('delivered', $order->status);
 
-        // Aucun mouvement de fonds à la livraison.
+        // Aucun mouvement de fonds à la livraison : la fenêtre de 48 h démarre.
         $this->assertEquals($sellerBefore, $this->bal($seller));
         $this->assertEquals($delivererBefore, $this->bal($deliverer));
         $this->assertEquals($assoBefore, $this->bal($asso));
+        $this->assertNotNull($order->auto_validate_at);
+        $this->assertTrue($order->isInControlWindow());
     }
 
     public function test_kpay_direct_validate_credits_without_touching_client(): void
@@ -213,9 +215,9 @@ class DirectSettlementOrderTest extends TestCase
             'type' => 'escrow_release',
         ]);
 
-        // Bénéficiaires crédités et disponibles.
+        // Vendeur crédité mais bloqué ; livreur et ASSO disponibles.
         $this->assertEquals($subtotal, $this->bal($seller));
-        $this->assertEquals(0, $this->locked($seller));
+        $this->assertEquals($subtotal, $this->locked($seller));
         $this->assertEquals($base, $this->bal($deliverer));
         $this->assertEquals($commission, $this->bal($asso));
     }

@@ -96,6 +96,8 @@ class OrderService
             // 1. Valider les produits et calculer le sous-total
             $subtotal = 0;
             $sellerSubtotal = 0;
+            $depositSubtotal = 0.0;
+            $depositFlags = [];
             $itemRates = [];
             $orderItems = [];
             $sellers = [];
@@ -160,6 +162,12 @@ class OrderService
                 $sellerSubtotal += $sellerUnitPrice * $quantity;
                 $itemRates[] = $commissionRate;
 
+                // Commande avec acompte : part du prix acheteur payée à la commande.
+                $depositFlags[] = $product->requiresDeposit();
+                if ($product->requiresDeposit()) {
+                    $depositSubtotal += DepositOrderService::depositFor($totalPrice, (float) $product->deposit_rate);
+                }
+
                 $orderItems[] = [
                     'product_id' => $product->id,
                     'product_variant_id' => $variant?->id,
@@ -186,6 +194,13 @@ class OrderService
                     $variant->decrement('stock', $quantity);
                 }
             }
+
+            // Acompte et paiement classique ne se mélangent pas dans une même commande :
+            // le solde, la vérification et le règlement portent sur toute la commande.
+            if (count(array_unique($depositFlags)) > 1) {
+                throw new \Exception(__('orders.deposit_mixed_cart'));
+            }
+            $isDepositOrder = in_array(true, $depositFlags, true);
 
             // 2. Frais de livraison recalculés côté serveur, même calcul que l'offre
             //    affichée à l'acheteur : poids réel du panier, zone ou trajet, TVA.
@@ -228,6 +243,11 @@ class OrderService
 
             $total = $subtotal + $deliveryFee;
 
+            // Acompte = part des articles + livraison (engagée dès la commande) ; le solde
+            // ne sera payable qu'après la livraison et la vérification conjointe ASSO.
+            $depositAmount = $isDepositOrder ? min($total, round($depositSubtotal + $deliveryFee, 2)) : null;
+            $upfront = $isDepositOrder ? $depositAmount : $total;
+
             $isKpayDirect = $paymentMode === 'kpay_direct';
             $isStripeDirect = $paymentMode === 'stripe_direct';
             // Paiements « directs » (Mobile Money KPay ou carte Stripe native) : l'argent
@@ -240,8 +260,10 @@ class OrderService
             if (!$isDirect) {
                 $this->walletService->lockFunds(
                     $client,
-                    $total,
-                    "Escrow commande - En attente de validation vendeur",
+                    $upfront,
+                    $isDepositOrder
+                        ? "Acompte commande - En attente de validation vendeur"
+                        : "Escrow commande - En attente de validation vendeur",
                     'order',
                     null, // L'ID de l'order sera mis à jour après création
                     ['subtotal' => $subtotal, 'delivery_fee' => $deliveryFee],
@@ -292,6 +314,11 @@ class OrderService
                 // Modes directs : en attente du paiement (Mobile Money / carte) ;
                 // wallet : déjà payé (fonds bloqués en escrow).
                 'payment_status' => $isDirect ? 'pending' : 'paid',
+                'payment_plan' => $isDepositOrder ? Order::PLAN_DEPOSIT : Order::PLAN_FULL,
+                'deposit_amount' => $depositAmount,
+                'balance_amount' => $isDepositOrder ? round($total - $depositAmount, 2) : null,
+                'balance_status' => $isDepositOrder ? Order::BALANCE_LOCKED : null,
+                'verification_status' => $isDepositOrder ? Order::VERIFICATION_PENDING : null,
                 'notes' => $notes,
             ]);
 
@@ -305,7 +332,7 @@ class OrderService
             // 4b. Initier le paiement direct (KPay / carte Stripe). Pour la carte, pose
             //     les attributs transitoires client_secret / payment_intent_id sur $order.
             //     Logique partagée avec la commande EN GROS — voir initiateDirectPayment().
-            $this->initiateDirectPayment($order, $total, $paymentMode, $kpayProvider, $kpayPhone);
+            $this->initiateDirectPayment($order, $upfront, $paymentMode, $kpayProvider, $kpayPhone);
 
             // 5. Envoyer les notifications FCM
 
@@ -672,10 +699,12 @@ class OrderService
             WalletTransaction::create([
                 'user_id' => $order->user_id,
                 'type' => 'debit',
-                'amount' => (float) $order->total,
+                'amount' => $order->upfrontAmount(),
                 'balance_before' => $buyerBalance,
                 'balance_after' => $buyerBalance,
-                'description' => "Achat - Commande #{$order->order_number}",
+                'description' => $order->isDepositOrder()
+                    ? "Acompte - Commande #{$order->order_number}"
+                    : "Achat - Commande #{$order->order_number}",
                 'reference_type' => 'order',
                 'reference_id' => $order->id,
                 'metadata' => [
@@ -817,14 +846,19 @@ class OrderService
      * Lance une exception en cas d'échec → la transaction appelante fait un rollback.
      *
      * @param string $paymentMode wallet | kpay_direct | stripe_direct
+     * @param bool $balance true = solde d'une commande avec acompte (colonnes balance_*,
+     *                      référence KPay « {order_number}-SOLDE », Stripe asso_kind=order_balance)
      */
     public function initiateDirectPayment(
         Order $order,
         float $total,
         string $paymentMode,
         ?string $kpayProvider = null,
-        ?string $kpayPhone = null
+        ?string $kpayPhone = null,
+        bool $balance = false
     ): ?string {
+        $col = $balance ? 'balance_payment' : 'payment';
+
         // Mode kpay_direct : PayIn Mobile Money (devise de l'opérateur, déduite du numéro).
         if ($paymentMode === 'kpay_direct') {
             $payCurrency = \App\Services\KPayCatalog::currencyForProvider($kpayProvider);
@@ -838,21 +872,21 @@ class OrderService
                 $payAmount = (float) round($converted);
             }
 
-            $order->update(['payment_currency' => $payCurrency, 'payment_amount' => $payAmount]);
+            $order->update(["{$col}_currency" => $payCurrency, "{$col}_amount" => $payAmount]);
 
             $kpayResult = app(\App\Services\KPayService::class)->initializePayment([
                 'amount' => $payAmount,
                 'provider' => $kpayProvider,
                 'phone_number' => $kpayPhone,
-                'description' => "Commande {$order->order_number}",
-                'external_reference' => $order->order_number,
+                'description' => $balance ? "Solde commande {$order->order_number}" : "Commande {$order->order_number}",
+                'external_reference' => $balance ? DepositOrderService::balanceReference($order) : $order->order_number,
             ]);
 
             if (empty($kpayResult['success'])) {
                 throw new \Exception($kpayResult['message'] ?? __('payments.kpay_init_failed'));
             }
 
-            $order->update(['payment_reference' => $kpayResult['id'] ?? null]);
+            $order->update(["{$col}_reference" => $kpayResult['id'] ?? null]);
             Log::info('[OrderService] PayIn KPay initié', ['order_id' => $order->id, 'charged' => $payAmount, 'currency' => $payCurrency]);
             return null;
         }
@@ -878,7 +912,7 @@ class OrderService
             $intent = $stripe->createPaymentIntent(
                 (float) $stripeAmount,
                 $stripeCurrency,
-                ['asso_kind' => 'order', 'order_id' => (string) $order->id]
+                ['asso_kind' => $balance ? 'order_balance' : 'order', 'order_id' => (string) $order->id]
             );
 
             if (empty($intent['id']) || empty($intent['client_secret'])) {
@@ -886,9 +920,9 @@ class OrderService
             }
 
             $order->update([
-                'payment_reference' => $intent['id'],
-                'payment_currency' => strtoupper($stripeCurrency),
-                'payment_amount' => round((float) $stripeAmount, 2),
+                "{$col}_reference" => $intent['id'],
+                "{$col}_currency" => strtoupper($stripeCurrency),
+                "{$col}_amount" => round((float) $stripeAmount, 2),
             ]);
 
             // Attributs transitoires (non persistés) : consommés par le contrôleur pour
@@ -960,10 +994,12 @@ class OrderService
             WalletTransaction::create([
                 'user_id' => $order->user_id,
                 'type' => 'debit',
-                'amount' => (float) $order->total,
+                'amount' => $order->upfrontAmount(),
                 'balance_before' => $buyerBalance,
                 'balance_after' => $buyerBalance,
-                'description' => "Achat - Commande #{$order->order_number}",
+                'description' => $order->isDepositOrder()
+                    ? "Acompte - Commande #{$order->order_number}"
+                    : "Achat - Commande #{$order->order_number}",
                 'reference_type' => 'order',
                 'reference_id' => $order->id,
                 'metadata' => [
@@ -1113,9 +1149,14 @@ class OrderService
             }
             $locked->update(['status' => 'confirmed', 'confirmed_at' => now()]);
 
-            // Encaissement direct (sans escrow) : prélèvement de l'acheteur (wallet), puis
-            // crédit du vendeur, de l'entreprise de livraison et d'ASSO. Idempotent.
-            $this->settleOrder($locked, $vendor);
+            // Règlement : prélèvement de l'acheteur (wallet), puis crédit du livreur et
+            // d'ASSO ; la part du vendeur est créditée mais bloquée jusqu'à la validation
+            // du client (48 h après la livraison au plus tard). Idempotent.
+            // Commande avec acompte : réglée seulement au paiement du solde, après la
+            // livraison et la vérification conjointe ASSO (DepositOrderService).
+            if (!$locked->isDepositOrder()) {
+                $this->settleOrder($locked, $vendor);
+            }
             app(OrderTrackingService::class)->record($locked, 'confirmed', null, null, $actorType, $actorId);
 
             return $locked;
@@ -1210,28 +1251,30 @@ class OrderService
             return 0.0;
         }
 
-        $amount = (float) $order->total;
+        // Wallet : fonds bloqués débloqués ; direct (Mobile Money / carte) : crédit du
+        // Wallet ASSO. Une commande avec acompte n'a encaissé que l'acompte (et le solde
+        // s'il est payé), éventuellement sur deux rails différents.
+        $collected = $order->collectedAmounts();
+        $amount = $collected['wallet'] + $collected['direct'];
+        if ($amount <= 0) {
+            return 0.0; // paiement jamais encaissé
+        }
 
-        if ($order->isWalletPayment()) {
-            if ($order->payment_status !== Order::PAYMENT_PAID) {
-                return 0.0;
-            }
+        if ($collected['wallet'] > 0) {
             $this->walletService->unlockFunds(
                 $client,
-                $amount,
+                $collected['wallet'],
                 $label,
                 'order',
                 $order->id,
                 $metadata,
                 'kpay'
             );
-        } elseif ($order->isDirectPayment()) {
-            if ($order->payment_status !== Order::PAYMENT_PAID) {
-                return 0.0; // paiement jamais encaissé
-            }
+        }
+        if ($collected['direct'] > 0) {
             $this->walletService->credit(
                 $client,
-                $amount,
+                $collected['direct'],
                 null,
                 $label,
                 array_merge($metadata, [
@@ -1242,8 +1285,6 @@ class OrderService
                 ]),
                 'kpay'
             );
-        } else {
-            return 0.0;
         }
 
         $order->update([
@@ -1312,7 +1353,9 @@ class OrderService
     /**
      * Règle une commande validée par le vendeur (idempotent, à appeler DANS une
      * transaction DB) : prélève l'acheteur (mode wallet) puis crédite le vendeur de SON
-     * prix, l'entreprise de livraison et ASSO (majorations vente + livraison).
+     * prix, l'entreprise de livraison et ASSO (majorations vente + livraison). La part
+     * du vendeur reste bloquée sur son Wallet jusqu'à la validation du client
+     * (releaseVendorFunds).
      */
     public function settleOrder(Order $order, User $vendor): void
     {
@@ -1320,15 +1363,17 @@ class OrderService
         if ($order->settled_at) {
             return; // déjà réglée
         }
-        if ($order->payment_status !== Order::PAYMENT_PAID) {
+        if ($order->payment_status !== Order::PAYMENT_PAID || !$order->canBeHandedOver()) {
             throw new \Exception(__('orders.payment_not_confirmed'));
         }
 
-        // a) Mode wallet : prélèvement définitif des fonds bloqués depuis la création.
-        if ($order->isWalletPayment()) {
+        // a) Mode wallet : prélèvement définitif des fonds bloqués (acompte et/ou solde
+        //    pour une commande avec acompte).
+        $walletEscrow = $order->collectedAmounts()['wallet'];
+        if ($walletEscrow > 0) {
             $this->walletService->releaseEscrow(
                 $order->user,
-                (float) $order->total,
+                $walletEscrow,
                 "Paiement commande #{$order->order_number} — validée par le vendeur",
                 'order',
                 $order->id,
@@ -1365,6 +1410,20 @@ class OrderService
                 ],
                 'kpay'
             );
+            // Part vendeur bloquée jusqu'à la fin de la fenêtre de contrôle du client
+            // (« Tout est conforme », 48 h après la livraison, ou réclamation non fondée).
+            $this->walletService->lockFunds(
+                $vendor,
+                $vendorNet,
+                "Vente commande #{$order->order_number} — en attente de validation du client",
+                'order',
+                $order->id,
+                ['vendor_funds' => true],
+                'kpay'
+            );
+            $order->vendor_funds_status = Order::VENDOR_FUNDS_HELD;
+            $order->vendor_funds_holder_id = $vendor->id;
+            $order->vendor_funds_held_amount = $vendorNet;
         }
 
         // c) Entreprise de livraison (prix de base de la course).
@@ -1413,11 +1472,121 @@ class OrderService
         $order->settled_at = now();
         $order->save();
 
+        // Commande déjà livrée (ex. acompte : solde payé à la remise) : la fenêtre de
+        // contrôle démarre maintenant.
+        if ($order->status === 'delivered' && $order->vendor_funds_status === Order::VENDOR_FUNDS_HELD && !$order->auto_validate_at) {
+            $this->startControlWindow($order);
+        }
+
         Log::info('[OrderService] Commande réglée', [
             'order_id' => $order->id,
             'vendor_net' => $vendorNet,
             'sale_commission' => $saleCommission,
             'delivery_commission' => (float) $order->delivery_commission,
         ]);
+    }
+
+    /**
+     * Livraison confirmée : la fenêtre de contrôle de 48 h démarre (part vendeur
+     * toujours bloquée). Sans effet si la part n'est pas bloquée.
+     */
+    public function startControlWindow(Order $order): void
+    {
+        if ($order->vendor_funds_status !== Order::VENDOR_FUNDS_HELD || $order->conformity_confirmed_at) {
+            return;
+        }
+        $order->forceFill(['auto_validate_at' => now()->addHours(Order::CONTROL_WINDOW_HOURS)])->saveQuietly();
+
+        if ($client = $order->user) {
+            try {
+                $this->fcmService->sendToUser(
+                    $client,
+                    $client->translate('notifications.order_control_window.title'),
+                    $client->translate('notifications.order_control_window.body', [
+                        'order_number' => $order->order_number,
+                        'hours' => Order::CONTROL_WINDOW_HOURS,
+                    ]),
+                    ['type' => 'order_control_window', 'order_id' => (string) $order->id, 'order_number' => $order->order_number]
+                );
+            } catch (\Throwable $e) {
+                Log::warning('[OrderService] FCM order_control_window échec: ' . $e->getMessage());
+            }
+        }
+    }
+
+    /**
+     * Débloque la part vendeur encore bloquée sur la commande (idempotent). Les parts
+     * des articles en litige restent bloquées sur leur litige.
+     *
+     * @param string $reason conform (client) | auto (48 h sans action)
+     * @return float montant débloqué
+     */
+    public function releaseVendorFunds(Order $order, string $reason, ?int $actorId = null): float
+    {
+        $released = DB::transaction(function () use ($order, $reason, $actorId) {
+            $locked = Order::whereKey($order->id)->lockForUpdate()->first();
+            if (!$locked || $locked->vendor_funds_status !== Order::VENDOR_FUNDS_HELD) {
+                return null;
+            }
+
+            $amount = round((float) $locked->vendor_funds_held_amount, 2);
+            $vendor = $locked->vendor_funds_holder_id ? User::find($locked->vendor_funds_holder_id) : null;
+            if ($amount > 0 && $vendor) {
+                $this->walletService->unlockFunds(
+                    $vendor,
+                    $amount,
+                    "Vente commande #{$locked->order_number} — fonds débloqués",
+                    'order',
+                    $locked->id,
+                    ['vendor_funds' => true, 'reason' => $reason],
+                    'kpay'
+                );
+            }
+
+            $locked->update([
+                'vendor_funds_status' => Order::VENDOR_FUNDS_RELEASED,
+                'vendor_funds_held_amount' => 0,
+                'vendor_funds_released_at' => now(),
+                'conformity_confirmed_at' => $reason === 'conform' ? now() : $locked->conformity_confirmed_at,
+            ]);
+
+            // Historique visible du client (sans toucher à la dernière étape de livraison).
+            $step = $reason === 'conform' ? 'conformity_confirmed' : 'auto_validated';
+            \App\Models\OrderTrackingEvent::create([
+                'order_id' => $locked->id,
+                'step' => $step,
+                'label' => OrderTrackingService::STEPS[$step],
+                'actor_type' => $reason === 'conform' ? 'buyer' : 'system',
+                'actor_id' => $actorId,
+                'occurred_at' => now(),
+            ]);
+
+            return ['amount' => $amount, 'vendor' => $vendor, 'order' => $locked];
+        });
+
+        if (!$released) {
+            return 0.0;
+        }
+
+        if ($released['amount'] > 0 && $released['vendor']) {
+            $vendor = $released['vendor'];
+            try {
+                $this->fcmService->sendToUser(
+                    $vendor,
+                    $vendor->translate('notifications.vendor_funds_released.title'),
+                    $vendor->translate('notifications.vendor_funds_released.body', [
+                        'order_number' => $released['order']->order_number,
+                        'amount' => number_format($released['amount'], 0, ',', ' '),
+                    ]),
+                    ['type' => 'vendor_funds_released', 'order_id' => (string) $released['order']->id, 'order_number' => $released['order']->order_number]
+                );
+            } catch (\Throwable $e) {
+                Log::warning('[OrderService] FCM vendor_funds_released échec: ' . $e->getMessage());
+            }
+        }
+
+        Log::info('[OrderService] Part vendeur débloquée', ['order_id' => $order->id, 'amount' => $released['amount'], 'reason' => $reason]);
+
+        return $released['amount'];
     }
 }

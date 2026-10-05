@@ -412,7 +412,7 @@ class ProductController extends Controller
             'images.*' => 'file|image|mimes:jpeg,png,jpg,gif,webp|max:5120',
             // Livraison gratuite : absent/null = suit la boutique.
             'free_delivery' => 'nullable|boolean',
-        ] + ProductVariantService::rules());
+        ] + \App\Services\DepositOrderService::productRules('nullable') + ProductVariantService::rules());
 
         \Log::info('[PRODUCT_STORE] Validation passed');
 
@@ -494,6 +494,8 @@ class ProductController extends Controller
         if (isset($validated['free_delivery'])) {
             $productData['free_delivery'] = (bool) $validated['free_delivery'];
         }
+        // Commande avec acompte (produit sur commande / importé).
+        $productData += \App\Services\DepositOrderService::productAttributes($validated);
 
         if ($clientReference !== null) {
             $productData['client_reference'] = $clientReference;
@@ -618,6 +620,16 @@ class ProductController extends Controller
     /**
      * Format product for API response
      */
+    /** Cartes produit au format des listes (réutilisé par les produits similaires d'un litige). */
+    public function cards(\Illuminate\Support\Collection $products, ?\App\Models\User $user): array
+    {
+        $favoriteIds = $user
+            ? \DB::table('favorites')->where('user_id', $user->id)->pluck('product_id')->toArray()
+            : [];
+
+        return $products->map(fn ($product) => $this->formatProduct($product, $favoriteIds))->values()->all();
+    }
+
     private function formatProduct($product, $favoriteIds = [], $detailed = false): array
     {
         // Prix PUBLICS : prix vendeur majoré de la commission ASSO (cf. CommissionService).
@@ -657,6 +669,8 @@ class ProductController extends Controller
             'is_sponsored' => false,
             // Livraison gratuite offerte par le vendeur (produit, sinon boutique).
             'free_delivery' => $product->hasFreeDelivery(),
+            // Commande avec acompte : % du prix payé à la commande, solde après vérification ASSO.
+            ...\App\Services\DepositOrderService::productInfo($product),
             'primary_image' => $product->primaryImage ? $this->getImageUrl($product->primaryImage->image_path) : null,
             'images' => $product->images->map(fn($img) => [
                 'id' => $img->id,

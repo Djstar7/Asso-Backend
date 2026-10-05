@@ -355,6 +355,7 @@
                 </div>
 
                 @include('admin.products._free_delivery')
+                @include('admin.products._deposit')
 
                 <!-- Status -->
                 <div class="bg-dark-100 rounded-xl shadow-lg p-6">

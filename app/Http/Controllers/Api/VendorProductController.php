@@ -118,7 +118,7 @@ class VendorProductController extends Controller
             'replace_variants' => 'sometimes|boolean',
             // Livraison gratuite : null = suit la boutique.
             'free_delivery' => 'sometimes|nullable|boolean',
-        ] + ProductVariantService::rules());
+        ] + \App\Services\DepositOrderService::productRules() + ProductVariantService::rules());
 
         \Log::info('[VENDOR_PRODUCT_UPDATE] Received data:', [
             'product_id' => $id,
@@ -170,6 +170,8 @@ class VendorProductController extends Controller
             $variants = $updateData['variants'] ?? ($request->boolean('replace_variants') ? [] : null);
             $variantOptions = $updateData['variant_options'] ?? null;
             unset($updateData['images'], $updateData['variants'], $updateData['variant_options'], $updateData['replace_variants']);
+            unset($updateData['deposit_enabled'], $updateData['deposit_rate']);
+            $updateData += \App\Services\DepositOrderService::productAttributes($validated);
 
             // Convert empty strings to null for weight fields
             if (isset($updateData['weight']) && $updateData['weight'] === '') {
@@ -436,6 +438,27 @@ class VendorProductController extends Controller
     }
 
     /**
+     * Commande avec acompte d'un produit du vendeur : activation et % d'acompte.
+     * PUT /vendor/products/{id}/deposit
+     */
+    public function updateDeposit(Request $request, $id)
+    {
+        $validated = $request->validate(\App\Services\DepositOrderService::productRules('required'));
+
+        $product = Product::where('user_id', $request->user()->id)->findOrFail($id);
+        $product->update(\App\Services\DepositOrderService::productAttributes($validated));
+        $product->load(['images', 'primaryImage', 'category', 'subcategory', 'shop', 'variants']);
+
+        return response()->json([
+            'success' => true,
+            'message' => $product->requiresDeposit()
+                ? __('products.deposit_enabled')
+                : __('products.deposit_disabled'),
+            'product' => $this->formatProduct($product),
+        ]);
+    }
+
+    /**
      * Format product for API response
      */
     private function formatProduct($product): array
@@ -496,6 +519,8 @@ class VendorProductController extends Controller
             // Effectif (produit, sinon boutique) et choix propre au produit (null = suit la boutique).
             'free_delivery' => $product->hasFreeDelivery(),
             'free_delivery_setting' => $product->free_delivery,
+            'deposit_enabled' => (bool) $product->deposit_enabled,
+            'deposit_rate' => $product->deposit_rate !== null ? (float) $product->deposit_rate : null,
             'created_at' => $product->created_at->toIso8601String(),
             'updated_at' => $product->updated_at->toIso8601String(),
         ];

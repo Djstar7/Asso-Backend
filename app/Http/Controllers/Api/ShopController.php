@@ -476,6 +476,7 @@ class ShopController extends Controller
                 'longitude' => $longitude,
                 'location' => $shop->location_label ?? $product->address,
                 'free_delivery' => $product->hasFreeDelivery(),
+                ...\App\Services\DepositOrderService::productInfo($product),
                 'created_at' => $product->created_at->toIso8601String(),
             ];
         });

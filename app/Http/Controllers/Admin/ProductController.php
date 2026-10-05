@@ -124,6 +124,9 @@ class ProductController extends Controller
             'is_wholesale' => 'nullable|boolean',
             // Livraison gratuite : 1 = offerte, 0 = non.
             'free_delivery' => 'nullable|boolean',
+            // Commande avec acompte (% du prix client).
+            'deposit_enabled' => 'nullable|boolean',
+            'deposit_rate' => 'required_if_accepted:deposit_enabled|nullable|numeric|min:1|max:99',
             'tiers' => 'nullable|array',
             'tiers.*.label' => 'required_with:tiers|string|max:255',
             'tiers.*.unit_price' => 'required_with:tiers|numeric|min:0',
@@ -178,6 +181,7 @@ class ProductController extends Controller
         // diffère de celui de sa boutique ; sinon il la suit.
         $freeDelivery = $request->boolean('free_delivery');
         $validated['free_delivery'] = $freeDelivery === (bool) $shop->free_delivery ? null : $freeDelivery;
+        $validated['deposit_enabled'] = $request->boolean('deposit_enabled');
 
         // Create product
         $product = Product::create($validated);
@@ -262,6 +266,9 @@ class ProductController extends Controller
             'is_wholesale' => 'nullable|boolean',
             // Livraison gratuite : 1 = offerte, 0 = non.
             'free_delivery' => 'nullable|boolean',
+            // Commande avec acompte (% du prix client).
+            'deposit_enabled' => 'nullable|boolean',
+            'deposit_rate' => 'required_if_accepted:deposit_enabled|nullable|numeric|min:1|max:99',
             'tiers' => 'nullable|array',
             'tiers.*.label' => 'required_with:tiers|string|max:255',
             'tiers.*.unit_price' => 'required_with:tiers|numeric|min:0',
@@ -317,6 +324,7 @@ class ProductController extends Controller
         // diffère de celui de sa boutique ; sinon il la suit.
         $freeDelivery = $request->boolean('free_delivery');
         $validated['free_delivery'] = $freeDelivery === (bool) $shop->free_delivery ? null : $freeDelivery;
+        $validated['deposit_enabled'] = $request->boolean('deposit_enabled');
 
         // Masquer / afficher est une permission distincte de la modification.
         if (! $request->user()->hasAdminPermission('products.toggle_visibility')) {
