@@ -260,9 +260,10 @@
         "booking_cancelled": "Booking cancelled",
         "booking_action_not_allowed": "This action is not possible on this booking.",
         "receipt_confirmed_traveler_credited": "Receipt confirmed. The traveler has been credited.",
+        "settlement_unavailable": "This booking cannot be settled right now. Please try again in a few moments.",
         "confirmation_code_incorrect": "Incorrect confirmation code.",
         "booking_not_paid_yet": "The booking has not been paid yet.",
-        "code_validated": "Code validated.",
+        "code_validated": "Code validated: delivery confirmed, your share has been credited to your wallet.",
         "offer_created_published": "Offer created and published successfully!",
         "offer_published_unverified": "Offer published with the \"Unverified profile\" label. Get your identity verified before :date: without validation, it will be removed. Bookings will open as soon as it is validated.",
         "offer_completed_cannot_update": "This offer is completed and can no longer be modified",
@@ -521,7 +522,8 @@
         },
         "order_shipped": {
             "title": "Delivery in progress!",
-            "body": "Your order #:order_number is being delivered by :deliverer. Your confirmation code: :code"
+            "body": "Your order #:order_number is being delivered by :deliverer. Your confirmation code: :code",
+            "body_deposit": "Your order #:order_number is on its way with :deliverer. An ASSO team member will check the product with you before the balance is paid."
         },
         "delivery_completed": {
             "title": "Delivery confirmed",
@@ -585,6 +587,26 @@
         "stripe_account_incomplete": {
             "title": "Payout account to complete",
             "body": "Resend your bank details (identity, address, date of birth) to activate your transfers."
+        },
+        "order_balance_due": {
+            "title": "Balance unlocked",
+            "body": "Your product has been checked with ASSO (order #:order_number). You can now pay the :amount FCFA balance in the app."
+        },
+        "order_balance_paid": {
+            "title": "Balance paid",
+            "body": "Thank you! The balance of order #:order_number is paid. Your product can now be handed over."
+        },
+        "order_balance_failed": {
+            "title": "Balance payment failed",
+            "body": "The balance payment for order #:order_number did not go through. You can try again from My orders."
+        },
+        "order_deposit_closed": {
+            "title": "Order closed",
+            "body": "Order #:order_number was closed by ASSO. Amount returned to your Wallet: :amount FCFA."
+        },
+        "order_balance_paid_vendor": {
+            "title": "Order fully paid",
+            "body": "The customer paid the balance of order #:order_number: your sale has been credited."
         }
     },
     "orders": {
@@ -634,7 +656,17 @@
         "product_conversion_unavailable": "Conversion :currency → XAF unavailable for ':product'.",
         "parcel_weight_required": "The parcel weight must first be entered by ASSO before payment.",
         "delivery_address_required_solex": "Enter your delivery address: the order arrives in Douala, then SOLEX delivers it to you.",
-        "already_processed": "This order has already been processed."
+        "already_processed": "This order has already been processed.",
+        "deposit_mixed_cart": "A deposit product must be ordered on its own: place a separate order for the other items.",
+        "balance_not_payable": "This order has no balance to pay.",
+        "balance_already_paid": "The balance of this order has already been paid.",
+        "balance_locked_until_verification": "The balance can be paid once your product has been delivered and checked with ASSO.",
+        "deposit_split_exceeds": "The split exceeds the deposit collected (:amount FCFA).",
+        "verification_transition_invalid": "This action is not possible at this verification step.",
+        "balance_due_before_handover": "The balance must be paid before the product is handed over.",
+        "balance_confirm_on_phone": "Confirm the balance payment on your phone.",
+        "balance_paid": "Balance paid. Your product can now be handed over.",
+        "validated_paid_after_balance": "Order confirmed. You will be paid once the product is delivered, checked with ASSO and the balance paid by the customer."
     },
     "products": {
         "sponsored_label": "Sponsored",
@@ -664,7 +696,9 @@
         "stock_updated": "Stock updated successfully",
         "stock_update_error": "Error while updating the stock",
         "not_found_short": "Product not found.",
-        "default_name": "Product"
+        "default_name": "Product",
+        "deposit_enabled": "Deposit ordering enabled for this product.",
+        "deposit_disabled": "Deposit ordering disabled: standard payment."
     },
     "shops": {
         "not_a_vendor": "You are not a vendor",

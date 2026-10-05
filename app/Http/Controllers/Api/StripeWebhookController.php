@@ -132,6 +132,15 @@ class StripeWebhookController extends Controller
                     'payment_intent' => $pi->id ?? null,
                 ]);
             }
+        } elseif ($kind === 'order_balance') {
+            $order = \App\Models\Order::find((int) ($pi->metadata->order_id ?? 0));
+            if ($order && $order->balance_payment_reference === ($pi->id ?? null)) {
+                app(\App\Services\DepositOrderService::class)->confirmBalancePayment($order);
+                Log::info('[StripeWebhook] ✅ Solde de commande payé (carte)', [
+                    'order_id' => $order->id,
+                    'payment_intent' => $pi->id ?? null,
+                ]);
+            }
         } elseif ($kind === 'package_subscription') {
             $subscriptionId = (int) ($pi->metadata->subscription_id ?? 0);
             $subscription = \App\Models\PackageSubscription::find($subscriptionId);
@@ -182,6 +191,11 @@ class StripeWebhookController extends Controller
                     'order_id' => $orderId,
                     'payment_intent' => $pi->id ?? null,
                 ]);
+            }
+        } elseif ($kind === 'order_balance') {
+            $order = \App\Models\Order::find((int) ($pi->metadata->order_id ?? 0));
+            if ($order && $order->balance_payment_reference === ($pi->id ?? null)) {
+                app(\App\Services\DepositOrderService::class)->failBalancePayment($order);
             }
         } elseif ($kind === 'package_subscription') {
             $subscriptionId = (int) ($pi->metadata->subscription_id ?? 0);

@@ -20,6 +20,23 @@ class Order extends Model
     public const PAYMENT_FAILED = 'failed';
     public const PAYMENT_REFUNDED = 'refunded';
 
+    /** Plan de paiement : unique (classique) ou acompte + solde après vérification ASSO. */
+    public const PLAN_FULL = 'full';
+    public const PLAN_DEPOSIT = 'deposit';
+
+    /** Solde d'une commande avec acompte : bloqué tant que la vérification n'est pas validée. */
+    public const BALANCE_LOCKED = 'locked';
+    public const BALANCE_UNLOCKED = 'unlocked';
+    public const BALANCE_PAID = 'paid';
+    public const BALANCE_CANCELLED = 'cancelled';
+
+    /** Vérification conjointe client + employé ASSO, à la présentation du produit. */
+    public const VERIFICATION_PENDING = 'pending';
+    public const VERIFICATION_TO_CONTACT = 'to_contact';
+    public const VERIFICATION_CONTACTED = 'contacted';
+    public const VERIFICATION_VERIFIED = 'verified';
+    public const VERIFICATION_ISSUE = 'issue';
+
     /** Rails encaissés hors solde wallet (Mobile Money / carte). */
     public const DIRECT_PAYMENT_METHODS = ['kpay_direct', 'paypal_direct', 'stripe_direct'];
 
@@ -37,6 +54,11 @@ class Order extends Model
         'delivery_mode', 'delivery_route_id', 'delivery_city_grid_id', 'delivery_vehicle', 'shipping_weight_kg', 'delivery_vat_amount', 'delivery_breakdown',
         'carrier_tracking_number', 'tracking_status',
         'payment_method', 'payment_reference', 'payment_currency', 'payment_amount', 'payment_status',
+        'payment_plan', 'deposit_amount', 'balance_amount', 'balance_status',
+        'balance_payment_method', 'balance_payment_reference', 'balance_payment_currency', 'balance_payment_amount',
+        'balance_unlocked_at', 'balance_paid_at',
+        'verification_status', 'verified_by', 'verified_at', 'verification_note',
+        'deposit_refund_amount', 'deposit_vendor_amount',
         'notes', 'cancel_reason',
         'confirmed_at', 'shipped_at', 'delivered_at', 'cancelled_at',
         'confirmed_by_client_at', 'confirmed_by_deliverer_at', 'rated_at',
@@ -66,6 +88,14 @@ class Order extends Model
         'shipping_weight_kg' => 'float',
         'delivery_vat_amount' => 'decimal:2',
         'delivery_breakdown' => 'array',
+        'deposit_amount' => 'decimal:2',
+        'balance_amount' => 'decimal:2',
+        'balance_payment_amount' => 'decimal:2',
+        'balance_unlocked_at' => 'datetime',
+        'balance_paid_at' => 'datetime',
+        'verified_at' => 'datetime',
+        'deposit_refund_amount' => 'decimal:2',
+        'deposit_vendor_amount' => 'decimal:2',
     ];
 
     /** local = livreur ASSO à domicile (code de confirmation) ; carrier = SOLEX, DHL, FedEx… */
@@ -173,6 +203,49 @@ class Order extends Model
         return str_starts_with((string) $this->payment_method, 'wallet_');
     }
 
+    /** Commande avec acompte (solde payé après livraison et vérification ASSO) ? */
+    public function isDepositOrder(): bool
+    {
+        return $this->payment_plan === self::PLAN_DEPOSIT;
+    }
+
+    /** Remise finale possible ? Une commande avec acompte exige le solde payé. */
+    public function canBeHandedOver(): bool
+    {
+        return !$this->isDepositOrder() || $this->balance_status === self::BALANCE_PAID;
+    }
+
+    /** Montant attendu au premier paiement : l'acompte, ou le total d'une commande classique. */
+    public function upfrontAmount(): float
+    {
+        return $this->isDepositOrder() ? (float) $this->deposit_amount : (float) $this->total;
+    }
+
+    /**
+     * Montant encaissé auprès de l'acheteur, ventilé par rail : wallet (fonds bloqués
+     * en escrow) et direct (Mobile Money / carte, sur le compte marchand ASSO).
+     *
+     * @return array{wallet: float, direct: float}
+     */
+    public function collectedAmounts(): array
+    {
+        $amounts = ['wallet' => 0.0, 'direct' => 0.0];
+
+        if ($this->payment_status === self::PAYMENT_PAID) {
+            $rail = $this->isWalletPayment() ? 'wallet' : ($this->isDirectPayment() ? 'direct' : null);
+            if ($rail) {
+                $amounts[$rail] += $this->upfrontAmount();
+            }
+        }
+
+        if ($this->isDepositOrder() && $this->balance_status === self::BALANCE_PAID) {
+            $rail = str_starts_with((string) $this->balance_payment_method, 'wallet_') ? 'wallet' : 'direct';
+            $amounts[$rail] += (float) $this->balance_amount;
+        }
+
+        return $amounts;
+    }
+
     // Relations
 
     /**
@@ -214,6 +287,7 @@ class Order extends Model
     public function deliveryCompany(): BelongsTo { return $this->belongsTo(DelivererCompany::class, 'delivery_company_id'); }
     public function deliveryZone(): BelongsTo { return $this->belongsTo(DeliveryZone::class, 'delivery_zone_id'); }
     public function deliveryRoute(): BelongsTo { return $this->belongsTo(DeliveryRoute::class, 'delivery_route_id'); }
+    public function verifier(): BelongsTo { return $this->belongsTo(User::class, 'verified_by'); }
     public function items(): HasMany { return $this->hasMany(OrderItem::class); }
     public function trackingEvents(): HasMany { return $this->hasMany(OrderTrackingEvent::class)->orderBy('occurred_at')->orderBy('id'); }
     public function rating(): HasOne { return $this->hasOne(OrderRating::class); }

@@ -149,10 +149,13 @@ class DeliveryController extends Controller
             // FCM au client : livraison en cours + code de confirmation
             $client = $order->user;
             if ($client) {
+                // Commande avec acompte : le code n'est remis qu'après le paiement du solde
+                // (vérification conjointe avec ASSO à la présentation du produit).
+                $codeReleased = $order->canBeHandedOver();
                 $this->fcmService->sendToUser(
                     $client,
                     $client->translate('notifications.order_shipped.title'),
-                    $client->translate('notifications.order_shipped.body', [
+                    $client->translate($codeReleased ? 'notifications.order_shipped.body' : 'notifications.order_shipped.body_deposit', [
                         'order_number' => $order->order_number,
                         'deliverer' => $user->first_name,
                         'code' => $order->confirmation_code,
@@ -161,7 +164,7 @@ class DeliveryController extends Controller
                         'type' => 'order_shipped',
                         'order_id' => (string) $order->id,
                         'order_number' => $order->order_number,
-                        'confirmation_code' => $order->confirmation_code,
+                        'confirmation_code' => $codeReleased ? $order->confirmation_code : '',
                         'deliverer_name' => $user->first_name . ' ' . $user->last_name,
                         'deliverer_phone' => $user->phone ?? '',
                     ]
@@ -213,6 +216,15 @@ class DeliveryController extends Controller
             ->where('delivery_person_id', $user->id)
             ->where('status', 'shipped')
             ->findOrFail($id);
+
+        // Commande avec acompte : remise seulement une fois le solde payé (après la
+        // vérification conjointe avec ASSO).
+        if (!$order->canBeHandedOver()) {
+            return response()->json([
+                'success' => false,
+                'message' => __('orders.balance_due_before_handover'),
+            ], 422);
+        }
 
         // Vérifier le code secret
         if ($order->confirmation_code !== $request->confirmation_code) {

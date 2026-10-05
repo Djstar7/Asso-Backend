@@ -389,6 +389,7 @@ class SearchController extends Controller
                 'address' => $product->shop->address,
             ] : null,
             'free_delivery' => $product->hasFreeDelivery(),
+            ...\App\Services\DepositOrderService::productInfo($product),
             'created_at' => $product->created_at->toIso8601String(),
         ];
 

@@ -103,7 +103,10 @@ class VendorOrderController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => __('orders.validated_funds_credited'),
+                // Commande avec acompte : le vendeur est réglé au paiement du solde.
+                'message' => $order->isDepositOrder()
+                    ? __('orders.validated_paid_after_balance')
+                    : __('orders.validated_funds_credited'),
                 'order' => $this->formatVendorOrder(
                     $order->fresh(['items.product.primaryImage', 'user', 'deliveryPerson', 'deliveryCompany', 'trackingEvents']),
                     $vendor->id
@@ -491,6 +494,11 @@ class VendorOrderController extends Controller
             // Livraison gratuite offerte : course retenue sur le montant du vendeur.
             'free_delivery' => (bool) $order->free_delivery,
             'free_delivery_amount' => (float) $order->free_delivery_amount,
+            // Commande avec acompte : le vendeur est réglé seulement après la livraison,
+            // la vérification conjointe ASSO et le paiement du solde par le client.
+            'payment_plan' => $order->payment_plan ?? \App\Models\Order::PLAN_FULL,
+            'deposit' => \App\Services\DepositOrderService::present($order),
+            'settled' => $order->settled_at !== null,
             'delivery_address' => $order->delivery_address,
             'delivery_address_details' => $order->delivery_address_details,
             'delivery_latitude' => $order->delivery_latitude !== null ? (float) $order->delivery_latitude : null,

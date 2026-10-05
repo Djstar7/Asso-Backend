@@ -245,6 +245,17 @@ class PaymentController extends Controller
             return response()->json(['message' => 'Diaspo booking webhook processed']);
         }
 
+        // Solde d'une commande avec acompte (externalId = {order_number}-SOLDE)
+        if ($balanceOrder = \App\Services\DepositOrderService::orderForBalanceReference($externalId)) {
+            $deposits = app(\App\Services\DepositOrderService::class);
+            if (in_array($status, ['COMPLETED', 'SUCCESS', 'SUCCESSFUL'])) {
+                $deposits->confirmBalancePayment($balanceOrder);
+            } elseif (in_array($status, ['FAILED', 'CANCELLED'])) {
+                $deposits->failBalancePayment($balanceOrder);
+            }
+            return response()->json(['message' => 'Order balance webhook processed']);
+        }
+
         // Commande payée en direct KPay (externalId = order_number)
         $directOrder = Order::where('order_number', $externalId)
             ->where('payment_method', 'kpay_direct')

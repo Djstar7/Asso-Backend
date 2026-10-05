@@ -353,6 +353,7 @@
                 </div>
 
                 @include('admin.products._free_delivery')
+                @include('admin.products._deposit')
 
                 <!-- Submit Button -->
                 <div class="bg-gradient-to-r from-primary-500 to-primary-600 rounded-xl shadow-lg p-6 text-white">

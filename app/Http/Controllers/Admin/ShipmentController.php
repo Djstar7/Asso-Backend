@@ -73,6 +73,9 @@ class ShipmentController extends Controller
         if (in_array($order->status, ['cancelled', 'delivered', 'pending'], true)) {
             return back()->with('error', "La commande est « {$order->status} » : aucune étape ne peut être ajoutée.");
         }
+        if ($validated['step'] === 'delivered' && !$order->canBeHandedOver()) {
+            return back()->with('error', __('orders.balance_due_before_handover'));
+        }
 
         DB::transaction(function () use ($order, $validated, $request) {
             $updates = [];
