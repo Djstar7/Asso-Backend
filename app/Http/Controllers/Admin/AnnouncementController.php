@@ -159,11 +159,11 @@ class AnnouncementController extends Controller
 
             // Logique d'envoi selon le canal
             if ($announcement->channel === 'push') {
-                $fcmService = new FirebaseMessagingService();
+                $fcmService = app(FirebaseMessagingService::class);
 
-                // Préparer les données de la notification
-                $title = $announcement->title ?? 'Nouvelle annonce';
-                $body = $announcement->message;
+                // Titre et message dans chaque langue (repli : le français saisi).
+                $texts = $this->texts($announcement);
+                [$title, $body] = $texts['fr'];
                 $data = [
                     'type' => 'announcement',
                     'announcement_id' => $announcement->id,
@@ -174,7 +174,7 @@ class AnnouncementController extends Controller
                     Log::info("Envoi de notification push à tous les utilisateurs via topic");
 
                     // Envoi via topic pour tous les utilisateurs (plus efficace)
-                    $result = $fcmService->sendToAll($title, $body, $data);
+                    $result = $fcmService->sendToAllLocalized($texts, $data);
 
                     if ($result['success']) {
                         $successCount = User::count(); // Estimation pour le topic
@@ -197,7 +197,8 @@ class AnnouncementController extends Controller
 
                     if ($user) {
                         Log::info("Envoi de notification push à l'utilisateur {$user->id}");
-                        $result = $fcmService->sendToUser($user, $title, $body, $data);
+                        [$userTitle, $userBody] = $texts[$user->preferredLocale()] ?? $texts['fr'];
+                        $result = $fcmService->sendToUser($user, $userTitle, $userBody, $data);
 
                         if ($result['success']) {
                             $successCount = $result['success_count'] ?? 1;
@@ -245,5 +246,21 @@ class AnnouncementController extends Controller
             return redirect()->back()
                 ->with('error', 'Erreur lors de l\'envoi: ' . $e->getMessage());
         }
+    }
+
+    /** @return array<string, array{0: string, 1: string}> langue => [titre, message] */
+    private function texts(Announcement $announcement): array
+    {
+        $texts = [];
+        foreach (\App\Http\Middleware\SetLocale::SUPPORTED as $locale) {
+            $texts[$locale] = [
+                $announcement->getTranslation('title', $locale)
+                    ?? $announcement->getTranslation('title', 'fr')
+                    ?? __('notifications.announcement_default_title', [], $locale),
+                $announcement->getTranslation('message', $locale) ?? $announcement->getTranslation('message', 'fr'),
+            ];
+        }
+
+        return $texts;
     }
 }
