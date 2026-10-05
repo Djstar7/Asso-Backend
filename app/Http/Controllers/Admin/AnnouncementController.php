@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Announcement;
 use App\Models\User;
 use App\Services\FirebaseMessagingService;
+use App\Support\Translation\ContentLocale;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -44,7 +45,7 @@ class AnnouncementController extends Controller
             'target_type' => 'required|in:all,specific',
             'user_id' => 'nullable|exists:users,id|required_if:target_type,specific',
             'scheduled_at' => 'nullable|date|after:now',
-        ]);
+        ] + ContentLocale::rules(['title' => 'string|max:255', 'message' => 'string']));
 
         try {
             // Déterminer le statut
@@ -55,6 +56,7 @@ class AnnouncementController extends Controller
             }
 
             $announcement = Announcement::create($validated);
+            $announcement->syncTranslations($validated['translations'] ?? null);
 
             return redirect()->route('admin.announcements.index')
                 ->with('success', 'Annonce créée avec succès');
@@ -101,7 +103,7 @@ class AnnouncementController extends Controller
             'target_type' => 'required|in:all,specific',
             'user_id' => 'nullable|exists:users,id|required_if:target_type,specific',
             'scheduled_at' => 'nullable|date|after:now',
-        ]);
+        ] + ContentLocale::rules(['title' => 'string|max:255', 'message' => 'string']));
 
         try {
             // Déterminer le statut
@@ -112,6 +114,7 @@ class AnnouncementController extends Controller
             }
 
             $announcement->update($validated);
+            $announcement->syncTranslations($validated['translations'] ?? null);
 
             return redirect()->route('admin.announcements.index')
                 ->with('success', 'Annonce mise à jour avec succès');

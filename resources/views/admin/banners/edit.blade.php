@@ -78,34 +78,12 @@
 
                     <div class="space-y-4">
                         <!-- Title -->
-                        <div>
-                            <label for="title" class="block text-sm font-medium text-gray-300 mb-2">
-                                <i class="fas fa-heading text-primary-400 mr-1"></i>
-                                Titre (optionnel)
-                            </label>
-                            <input type="text" name="title" id="title" value="{{ old('title', $banner->title) }}"
-                                   class="w-full px-4 py-3 bg-dark-50 border border-dark-300 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
-                                   placeholder="Ex: Promotion d'été">
-                            <p class="mt-1 text-xs text-gray-400">Le titre affiché sur la bannière</p>
-                            @error('title')
-                                <p class="mt-1 text-sm text-red-400">{{ $message }}</p>
-                            @enderror
-                        </div>
+                        <x-admin.translatable name="title" label="Titre (optionnel)" :model="$banner"
+                            placeholder="Ex: Promotion d'été" help="Le titre affiché sur la bannière" />
 
                         <!-- Description -->
-                        <div>
-                            <label for="description" class="block text-sm font-medium text-gray-300 mb-2">
-                                <i class="fas fa-paragraph text-primary-400 mr-1"></i>
-                                Description/Texte (optionnel)
-                            </label>
-                            <textarea name="description" id="description" rows="4"
-                                      class="w-full px-4 py-3 bg-dark-50 border border-dark-300 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
-                                      placeholder="Texte descriptif à afficher sur la bannière...">{{ old('description', $banner->description) }}</textarea>
-                            <p class="mt-1 text-xs text-gray-400">Texte qui accompagne la bannière</p>
-                            @error('description')
-                                <p class="mt-1 text-sm text-red-400">{{ $message }}</p>
-                            @enderror
-                        </div>
+                        <x-admin.translatable name="description" label="Description/Texte (optionnel)" :model="$banner" type="textarea"
+                            placeholder="Texte descriptif à afficher sur la bannière..." help="Texte qui accompagne la bannière" />
 
                         <!-- Link -->
                         <div>

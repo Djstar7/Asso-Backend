@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Banner;
+use App\Support\Translation\ContentLocale;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -39,7 +40,7 @@ class BannerController extends Controller
             'link' => 'nullable|url',
             'position' => 'required|integer|min:0',
             'is_active' => 'nullable|boolean',
-        ]);
+        ] + ContentLocale::rules(['title' => 'string|max:255', 'description' => 'string']));
 
         try {
             // Upload de l'image
@@ -51,7 +52,8 @@ class BannerController extends Controller
             // Gestion du statut actif
             $validated['is_active'] = $request->has('is_active') ? true : false;
 
-            Banner::create($validated);
+            $banner = Banner::create($validated);
+            $banner->syncTranslations($validated['translations'] ?? null);
 
             return redirect()->route('admin.banners.index')
                 ->with('success', 'Bannière créée avec succès');
@@ -90,7 +92,7 @@ class BannerController extends Controller
             'link' => 'nullable|url',
             'position' => 'required|integer|min:0',
             'is_active' => 'nullable|boolean',
-        ]);
+        ] + ContentLocale::rules(['title' => 'string|max:255', 'description' => 'string']));
 
         try {
             // Upload de la nouvelle image si fournie
@@ -108,6 +110,7 @@ class BannerController extends Controller
             $validated['is_active'] = $request->has('is_active') ? true : false;
 
             $banner->update($validated);
+            $banner->syncTranslations($validated['translations'] ?? null);
 
             return redirect()->route('admin.banners.index')
                 ->with('success', 'Bannière mise à jour avec succès');

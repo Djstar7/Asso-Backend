@@ -314,6 +314,19 @@
                               class="w-full px-4 py-2 bg-dark-50 border border-dark-300 text-white placeholder-gray-400 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                               placeholder="Description de la catégorie..."></textarea>
                 </div>
+
+                <!-- Description EN -->
+                <div>
+                    <label class="block text-sm font-medium text-white mb-2">
+                        <i class="fas fa-language text-gray-500 mr-1"></i>
+                        Description en anglais (Optionnel)
+                    </label>
+                    <textarea name="translations[en][description]"
+                              id="category_description_en"
+                              rows="3"
+                              class="w-full px-4 py-2 bg-dark-50 border border-dark-300 text-white placeholder-gray-400 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                              placeholder="Laissée vide, la description française s'affiche"></textarea>
+                </div>
             </div>
 
             <!-- Modal Footer -->
@@ -418,7 +431,7 @@
 @push('scripts')
 <script>
 // Categories data for editing
-const categoriesData = @json($categories);
+const categoriesData = @json($categories->map(fn ($c) => $c->toArray() + ['description_en' => $c->getTranslation('description', 'en')]));
 const subcategoriesData = @json($subcategories);
 
 // Category Modal Functions
@@ -447,6 +460,7 @@ function editCategory(id) {
     document.getElementById('category_name_en').value = category.name_en;
     document.getElementById('category_svg_icon').value = category.svg_icon || '';
     document.getElementById('category_description').value = category.description || '';
+    document.getElementById('category_description_en').value = category.description_en || '';
 }
 
 // Subcategory Modal Functions

@@ -40,6 +40,10 @@
             <label class="block text-xs text-gray-400 mb-1">Délai de route</label>
             <input type="text" name="lead_time" value="{{ $route?->lead_time }}" placeholder="24 h" class="{{ $input }}">
         </div>
+        <div>
+            <label class="block text-xs text-gray-400 mb-1">Délai de route (EN)</label>
+            <input type="text" name="translations[en][lead_time]" value="{{ $route?->getTranslation('lead_time', 'en') }}" placeholder="Facultatif" class="{{ $input }}">
+        </div>
     </div>
 
     <div class="mt-3">

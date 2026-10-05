@@ -14,6 +14,13 @@ class Setting extends Model
     /** Champs traduisibles (voir HasTranslations). */
     protected array $translatable = ['value'];
 
+    /** Réglages publics dont le texte se traduit (clé => règles), voir ContentLocale::rules. */
+    public const TRANSLATABLE_KEYS = [
+        'app_slogan' => 'string|max:255',
+        'app_description' => 'string',
+        'contact_address' => 'string|max:255',
+    ];
+
     /**
      * The attributes that are mass assignable.
      *
