@@ -421,7 +421,11 @@
             "body": "Votre paiement pour la commande annulée #:order_number a été crédité sur votre Wallet ASSO."
         },
         "order_tracking": {
-            "title": "Commande #:order_number"
+            "title": "Commande #:order_number",
+            "body": ":step.",
+            "body_location": ":step — :location.",
+            "body_note": ":step. :note",
+            "body_location_note": ":step — :location. :note"
         },
         "agency_delivery_request": {
             "title": "Colis à livrer depuis l'agence",
@@ -1078,7 +1082,52 @@
         "refund_completed_only": "Seules les transactions terminées peuvent être remboursées.",
         "adjustment_negative": "L'ajustement rendrait le solde négatif.",
         "unlock_insufficient": "Impossible de débloquer :amount FCFA : seulement :locked FCFA sont bloqués.",
-        "release_insufficient": "Montant bloqué insuffisant : :locked FCFA bloqués, :amount FCFA requis."
+        "release_insufficient": "Montant bloqué insuffisant : :locked FCFA bloqués, :amount FCFA requis.",
+        "transactions": {
+            "deposit_locked": "Acompte commande - En attente de validation vendeur",
+            "order_locked": "Escrow commande - En attente de validation vendeur",
+            "wholesale_order_locked": "Escrow commande gros - En attente de validation vendeur",
+            "deposit_paid": "Acompte - Commande #:order_number",
+            "purchase": "Achat - Commande #:order_number",
+            "refund_late_payment": "Remboursement commande #:order_number — paiement reçu après annulation",
+            "refund_rejected": "Remboursement commande #:order_number — refusée par le vendeur",
+            "refund_cancelled": "Remboursement commande #:order_number — annulée",
+            "order_payment_released": "Paiement commande #:order_number — validée par le vendeur",
+            "sale": "Vente commande #:order_number",
+            "sale_held": "Vente commande #:order_number — en attente de validation du client",
+            "sale_released": "Vente commande #:order_number — fonds débloqués",
+            "delivery_commission": "Commission livraison #:order_number",
+            "asso_commission_order": "Commission ASSO — Commande #:order_number",
+            "balance_locked": "Solde commande #:order_number",
+            "balance_paid": "Solde - Commande #:order_number",
+            "deposit_returned": "Acompte rendu — Commande #:order_number",
+            "deposit_kept": "Acompte retenu — Commande #:order_number",
+            "deposit_vendor_share": "Part de l'acompte — Commande #:order_number",
+            "deposit_delivery_share": "Livraison — Commande #:order_number",
+            "deposit_asso_share": "Acompte retenu par ASSO — Commande #:order_number",
+            "dispute_delivery_return": "Livraison retour — Litige :number",
+            "dispute_delivery_replacement": "Livraison remplacement — Litige :number",
+            "dispute_course_return": "Course retour — Litige :number",
+            "dispute_course_replacement": "Course remplacement — Litige :number",
+            "dispute_delivery_commission": "Commission livraison — Litige :number",
+            "dispute_refund": "Remboursement — Litige :number (commande #:order_number)",
+            "dispute_funds_released": "Litige :number — fonds débloqués",
+            "diaspo_booking": "Réservation Diaspo #:booking",
+            "asso_commission_diaspo": "Commission ASSO — Réservation Diaspo #:booking",
+            "package_certification": "Certification — :name",
+            "package_boost": "Sponsoring — :name",
+            "package_plan": "Forfait — :name",
+            "boost_refund_missing_product": "Remboursement sponsoring — article introuvable",
+            "topup_kpay": "Recharge wallet via KPay (:currency)",
+            "topup_card": "Recharge wallet par carte bancaire (Stripe)",
+            "withdrawal_mobile": "Retrait :method vers :phone",
+            "bank_transfer": "Virement IBAN ****:last4",
+            "bank_transfer_converted": "Virement IBAN ****:last4 (:amount :currency)",
+            "refund_bank_transfer_failed_ref": "Remboursement — virement IBAN non abouti (réf. :reference)",
+            "refund_bank_transfer_failed": "Remboursement virement bancaire échoué",
+            "refund_withdrawal_failed": "Remboursement retrait échoué - :method (:account)",
+            "refund_withdrawal_expired": "Remboursement retrait expiré - :method (:account)"
+        }
     },
     "tracking": {
         "steps": {

@@ -340,7 +340,7 @@ class PackageSubscriptionService
             app(WalletService::class)->credit(
                 user: $user,
                 amount: (float) $sub->amount_xaf,
-                description: 'Remboursement sponsoring — article introuvable',
+                description: WalletTransaction::label('boost_refund_missing_product'),
                 metadata: [
                     'reference_type' => 'package_subscription',
                     'subscription_id' => $sub->id,
@@ -369,8 +369,8 @@ class PackageSubscriptionService
             if ($user) {
                 $this->fcmService->sendToUser(
                     $user,
-                    $user->translate('notifications.boost_refunded.title'),
-                    $user->translate('notifications.boost_refunded.body'),
+                    $user->localized('notifications.boost_refunded.title'),
+                    $user->localized('notifications.boost_refunded.body'),
                     ['type' => 'boost_refunded', 'subscription_id' => (string) $subscription->id]
                 );
             }
@@ -622,13 +622,13 @@ class PackageSubscriptionService
                 $until = $subscription->metadata['certification_expires_at'] ?? null;
                 $this->fcmService->sendToUser(
                     $user,
-                    $user->translate('notifications.certification_activated.title'),
+                    $user->localized('notifications.certification_activated.title'),
                     $until
-                        ? $user->translate('notifications.certification_activated.body_until', [
+                        ? $user->localized('notifications.certification_activated.body_until', [
                             'package' => $package->name,
                             'date' => \Carbon\Carbon::parse($until)->format('d/m/Y'),
                         ])
-                        : $user->translate('notifications.certification_activated.body', ['package' => $package->name]),
+                        : $user->localized('notifications.certification_activated.body', ['package' => $package->name]),
                     ['type' => 'certification_activated', 'subscription_id' => (string) $subscription->id]
                 );
                 return;
@@ -642,10 +642,10 @@ class PackageSubscriptionService
 
                 $this->fcmService->sendToUser(
                     $user,
-                    $user->translate('notifications.boost_activated.title'),
+                    $user->localized('notifications.boost_activated.title'),
                     $name
-                        ? $user->translate('notifications.boost_activated.body_named', ['product' => $name, 'reach' => $reach])
-                        : $user->translate('notifications.boost_activated.body', ['reach' => $reach]),
+                        ? $user->localized('notifications.boost_activated.body_named', ['product' => $name, 'reach' => $reach])
+                        : $user->localized('notifications.boost_activated.body', ['reach' => $reach]),
                     [
                         'type' => 'boost_activated',
                         'subscription_id' => (string) $subscription->id,
@@ -677,15 +677,15 @@ class PackageSubscriptionService
     }
 
     /** Libellé lisible dans l'historique du portefeuille. */
-    private function transactionLabel(Package $package): string
+    private function transactionLabel(Package $package): \App\Support\Translation\LocalizedText
     {
-        $prefix = match ($package->type) {
-            'certification' => 'Certification',
-            'boost' => 'Sponsoring',
-            default => 'Forfait',
+        $code = match ($package->type) {
+            'certification' => 'package_certification',
+            'boost' => 'package_boost',
+            default => 'package_plan',
         };
 
-        return "{$prefix} — {$package->name}";
+        return WalletTransaction::label($code, ['name' => $package->name]);
     }
 
     private function providerFor(string $paymentMethod): string

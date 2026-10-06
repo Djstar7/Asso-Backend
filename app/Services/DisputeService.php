@@ -397,7 +397,7 @@ class DisputeService
                 $this->wallet->debit(
                     $vendor,
                     $amount,
-                    "Livraison {$this->typeLabel($locked)} — Litige {$number}",
+                    WalletTransaction::label('dispute_delivery_'.$this->shipmentKind($locked), ['number' => $number]),
                     'dispute_shipment',
                     $locked->id,
                     ['dispute_id' => $locked->dispute_id],
@@ -512,7 +512,7 @@ class DisputeService
                     'amount' => (float) $locked->price,
                     'balance_before' => $balance,
                     'balance_after' => $balance,
-                    'description' => "Livraison {$this->typeLabel($locked)} — Litige {$dispute->number}",
+                    'description' => WalletTransaction::label('dispute_delivery_'.$this->shipmentKind($locked), ['number' => $dispute->number]),
                     'reference_type' => 'dispute_shipment',
                     'reference_id' => $locked->id,
                     'metadata' => ['payment_method' => $locked->payment_mode, 'payment_reference' => $locked->payment_reference],
@@ -527,7 +527,7 @@ class DisputeService
                     $companyUser,
                     (float) $locked->carrier_amount,
                     null,
-                    "Course {$this->typeLabel($locked)} — Litige {$dispute->number}",
+                    WalletTransaction::label('dispute_course_'.$this->shipmentKind($locked), ['number' => $dispute->number]),
                     ['dispute_shipment_id' => $locked->id],
                     'kpay'
                 );
@@ -537,7 +537,7 @@ class DisputeService
                     $platform,
                     (float) $locked->asso_commission,
                     null,
-                    "Commission livraison — Litige {$dispute->number}",
+                    WalletTransaction::label('dispute_delivery_commission', ['number' => $dispute->number]),
                     ['dispute_shipment_id' => $locked->id],
                     'kpay'
                 );
@@ -699,7 +699,7 @@ class DisputeService
             $client = User::find($locked->client_id);
             $amount = round((float) $locked->item->total_price, 2);
             $held = round((float) $locked->held_amount, 2);
-            $label = "Remboursement — Litige {$locked->number} (commande #{$order->order_number})";
+            $label = WalletTransaction::label('dispute_refund', ['number' => $locked->number, 'order_number' => $order->order_number]);
 
             if ($held > 0 && ($vendor = $this->fundsHolder($order))) {
                 $this->wallet->releaseEscrow($vendor, $held, $label, 'dispute', $locked->id, ['dispute_refund' => true], 'kpay');
@@ -941,7 +941,7 @@ class DisputeService
             $this->wallet->unlockFunds(
                 $vendor,
                 $held,
-                "Litige {$dispute->number} — fonds débloqués",
+                WalletTransaction::label('dispute_funds_released', ['number' => $dispute->number]),
                 'dispute',
                 $dispute->id,
                 ['reason' => $reason],
@@ -975,9 +975,10 @@ class DisputeService
         }
     }
 
-    private function typeLabel(DisputeShipment $shipment): string
+    /** Suffixe des libellés du portefeuille : return ou replacement. */
+    private function shipmentKind(DisputeShipment $shipment): string
     {
-        return $shipment->type === DisputeShipment::TYPE_RETURN ? 'retour' : 'remplacement';
+        return $shipment->type === DisputeShipment::TYPE_RETURN ? 'return' : 'replacement';
     }
 
     /** @param UploadedFile[] $files */
@@ -1026,8 +1027,8 @@ class DisputeService
         try {
             $this->fcm->sendToUser(
                 $user,
-                $user->translate("notifications.{$type}.title", $replace),
-                $user->translate("notifications.{$type}.body", $replace),
+                $user->localized("notifications.{$type}.title", $replace),
+                $user->localized("notifications.{$type}.body", $replace),
                 $data + [
                     'type' => $type,
                     'dispute_id' => (string) $dispute->id,

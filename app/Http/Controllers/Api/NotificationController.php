@@ -166,8 +166,8 @@ class NotificationController extends Controller
 
         $result = $this->fcmService->sendToUser(
             $user,
-            $user->translate('notifications.test.title'),
-            $user->translate('notifications.test.body'),
+            $user->localized('notifications.test.title'),
+            $user->localized('notifications.test.body'),
             [
                 'type' => 'test',
                 'timestamp' => now()->toIso8601String(),

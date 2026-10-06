@@ -190,7 +190,7 @@ class DepositOrderService
                 $this->wallet->lockFunds(
                     $locked->user,
                     $amount,
-                    "Solde commande #{$locked->order_number}",
+                    WalletTransaction::label('balance_locked', ['order_number' => $locked->order_number]),
                     'order',
                     $locked->id,
                     ['balance' => true],
@@ -244,7 +244,7 @@ class DepositOrderService
                     'amount' => (float) $locked->balance_amount,
                     'balance_before' => $buyerBalance,
                     'balance_after' => $buyerBalance,
-                    'description' => "Solde - Commande #{$locked->order_number}",
+                    'description' => WalletTransaction::label('balance_paid', ['order_number' => $locked->order_number]),
                     'reference_type' => 'order',
                     'reference_id' => $locked->id,
                     'metadata' => [
@@ -370,24 +370,24 @@ class DepositOrderService
             $client = $locked->user;
             if ($collected['wallet'] > 0) {
                 if ($refund > 0) {
-                    $this->wallet->unlockFunds($client, $refund, "Acompte rendu — Commande #{$locked->order_number}", 'order', $locked->id, ['deposit_split' => true], 'kpay');
+                    $this->wallet->unlockFunds($client, $refund, WalletTransaction::label('deposit_returned', ['order_number' => $locked->order_number]), 'order', $locked->id, ['deposit_split' => true], 'kpay');
                 }
                 if ($deposit - $refund > 0) {
-                    $this->wallet->releaseEscrow($client, $deposit - $refund, "Acompte retenu — Commande #{$locked->order_number}", 'order', $locked->id, ['deposit_split' => true], 'kpay');
+                    $this->wallet->releaseEscrow($client, $deposit - $refund, WalletTransaction::label('deposit_kept', ['order_number' => $locked->order_number]), 'order', $locked->id, ['deposit_split' => true], 'kpay');
                 }
             } elseif ($refund > 0) {
-                $this->wallet->credit($client, $refund, null, "Acompte rendu — Commande #{$locked->order_number}", ['order_id' => $locked->id, 'refund' => true, 'deposit_split' => true], 'kpay');
+                $this->wallet->credit($client, $refund, null, WalletTransaction::label('deposit_returned', ['order_number' => $locked->order_number]), ['order_id' => $locked->id, 'refund' => true, 'deposit_split' => true], 'kpay');
             }
 
             $meta = ['order_id' => $locked->id, 'deposit_split' => true];
             if ($vendorShare > 0 && ($vendor = User::find($locked->items->first()?->seller_id))) {
-                $this->wallet->credit($vendor, $vendorShare, null, "Part de l'acompte — Commande #{$locked->order_number}", $meta, 'kpay');
+                $this->wallet->credit($vendor, $vendorShare, null, WalletTransaction::label('deposit_vendor_share', ['order_number' => $locked->order_number]), $meta, 'kpay');
             }
             if ($deliveryShare > 0 && ($companyUser = User::find(DelivererCompany::whereKey($locked->delivery_company_id)->value('user_id')))) {
-                $this->wallet->credit($companyUser, $deliveryShare, null, "Livraison — Commande #{$locked->order_number}", $meta, 'kpay');
+                $this->wallet->credit($companyUser, $deliveryShare, null, WalletTransaction::label('deposit_delivery_share', ['order_number' => $locked->order_number]), $meta, 'kpay');
             }
             if ($assoShare > 0 && ($platform = CommissionService::platformAccount())) {
-                $this->wallet->credit($platform, $assoShare, null, "Acompte retenu par ASSO — Commande #{$locked->order_number}", $meta, 'kpay');
+                $this->wallet->credit($platform, $assoShare, null, WalletTransaction::label('deposit_asso_share', ['order_number' => $locked->order_number]), $meta, 'kpay');
             }
 
             foreach ($locked->items as $item) {
@@ -521,8 +521,8 @@ class DepositOrderService
         try {
             $this->fcm->sendToUser(
                 $buyer,
-                $buyer->translate("notifications.{$type}.title"),
-                $buyer->translate("notifications.{$type}.body", $replace),
+                $buyer->localized("notifications.{$type}.title"),
+                $buyer->localized("notifications.{$type}.body", $replace),
                 ['type' => $type, 'order_id' => (string) $order->id, 'order_number' => $order->order_number]
             );
         } catch (\Throwable $e) {

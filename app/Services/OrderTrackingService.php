@@ -99,12 +99,17 @@ class OrderTrackingService
             try {
                 $buyer = $order->user;
                 $buyerLabel = array_key_exists($step, self::STEPS)
-                    ? $buyer->translate("tracking.steps.{$step}")
+                    ? $buyer->localized("tracking.steps.{$step}")
                     : $label;
+                $variant = 'body' . ($location ? '_location' : '') . ($note ? '_note' : '');
                 $this->fcm->sendToUser(
                     $buyer,
-                    $buyer->translate('notifications.order_tracking.title', ['order_number' => $order->order_number]),
-                    $buyerLabel . ($location ? " — {$location}" : '') . ($note ? ". {$note}" : '.'),
+                    $buyer->localized('notifications.order_tracking.title', ['order_number' => $order->order_number]),
+                    $buyer->localized("notifications.order_tracking.{$variant}", [
+                        'step' => $buyerLabel,
+                        'location' => (string) $location,
+                        'note' => (string) $note,
+                    ]),
                     [
                         'type' => 'order_tracking',
                         'order_id' => (string) $order->id,
@@ -134,8 +139,8 @@ class OrderTrackingService
             try {
                 $this->fcm->sendToUser(
                     $sync->user,
-                    $sync->user->translate('notifications.agency_delivery_request.title'),
-                    $sync->user->translate('notifications.agency_delivery_request.body', [
+                    $sync->user->localized('notifications.agency_delivery_request.title'),
+                    $sync->user->localized('notifications.agency_delivery_request.body', [
                         'order_number' => $order->order_number,
                         'address' => $order->delivery_address,
                     ]),

@@ -321,7 +321,7 @@ class OrderController extends Controller
                 // (Mobile Money / carte déjà encaissés). Idempotent.
                 $refunded = app(\App\Services\OrderService::class)->refundBuyer(
                     $order,
-                    "Remboursement commande #{$order->order_number} — annulée",
+                    \App\Models\WalletTransaction::label('refund_cancelled', ['order_number' => $order->order_number]),
                     ['cancel_reason' => $request->reason]
                 );
 
@@ -499,8 +499,8 @@ class OrderController extends Controller
                         $stars = str_repeat('★', $request->rating) . str_repeat('☆', 5 - $request->rating);
                         $fcm->sendToUser(
                             $seller,
-                            $seller->translate('notifications.order_rated.title'),
-                            $seller->translate('notifications.order_rated.body', ['order_number' => $order->order_number, 'stars' => $stars]),
+                            $seller->localized('notifications.order_rated.title'),
+                            $seller->localized('notifications.order_rated.body', ['order_number' => $order->order_number, 'stars' => $stars]),
                             [
                                 'type' => 'order_rated',
                                 'order_id' => (string) $order->id,
@@ -533,8 +533,8 @@ class OrderController extends Controller
         foreach (\App\Models\User::whereIn('id', $sellerIds)->get() as $seller) {
             app(\App\Services\FirebaseMessagingService::class)->sendToUser(
                 $seller,
-                $seller->translate($titleKey, $replace),
-                $seller->translate($bodyKey, $replace),
+                $seller->localized($titleKey, $replace),
+                $seller->localized($bodyKey, $replace),
                 $data + [
                     'order_id' => (string) $order->id,
                     'order_number' => (string) $order->order_number,

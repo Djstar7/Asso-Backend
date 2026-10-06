@@ -262,8 +262,8 @@ class OrderService
                     $client,
                     $upfront,
                     $isDepositOrder
-                        ? "Acompte commande - En attente de validation vendeur"
-                        : "Escrow commande - En attente de validation vendeur",
+                        ? WalletTransaction::label('deposit_locked')
+                        : WalletTransaction::label('order_locked'),
                     'order',
                     null, // L'ID de l'order sera mis à jour après création
                     ['subtotal' => $subtotal, 'delivery_fee' => $deliveryFee],
@@ -339,8 +339,8 @@ class OrderService
             // Notification client
             $this->fcmService->sendToUser(
                 $client,
-                $client->translate('notifications.order_created.title'),
-                $client->translate('notifications.order_created.body', ['order_number' => $order->order_number]),
+                $client->localized('notifications.order_created.title'),
+                $client->localized('notifications.order_created.body', ['order_number' => $order->order_number]),
                 [
                     'type' => 'order_created',
                     'order_id' => (string) $order->id,
@@ -360,8 +360,8 @@ class OrderService
                     if ($seller) {
                         $this->fcmService->sendToUser(
                             $seller,
-                            $seller->translate('notifications.new_order_vendor.title'),
-                            $seller->translate('notifications.new_order_vendor.body', [
+                            $seller->localized('notifications.new_order_vendor.title'),
+                            $seller->localized('notifications.new_order_vendor.body', [
                                 'order_number' => $order->order_number,
                                 'client' => $client->first_name,
                                 'total' => $order->formatted_total,
@@ -571,7 +571,7 @@ class OrderService
             // Mode wallet : escrow depuis le solde. Modes directs : encaissement externe.
             if (!$isDirect) {
                 $this->walletService->lockFunds(
-                    $client, $total, 'Escrow commande gros - En attente de validation vendeur',
+                    $client, $total, WalletTransaction::label('wholesale_order_locked'),
                     'order', null, ['wholesale' => true], $kpayProvider ?? 'kpay'
                 );
             }
@@ -640,8 +640,8 @@ class OrderService
 
             $this->fcmService->sendToUser(
                 $client,
-                $client->translate('notifications.wholesale_order_created.title'),
-                $client->translate('notifications.wholesale_order_created.body', ['order_number' => $order->order_number]),
+                $client->localized('notifications.wholesale_order_created.title'),
+                $client->localized('notifications.wholesale_order_created.body', ['order_number' => $order->order_number]),
                 ['type' => 'wholesale_order_created', 'order_id' => (string) $order->id, 'order_number' => $order->order_number]
             );
 
@@ -709,8 +709,8 @@ class OrderService
                 'balance_before' => $buyerBalance,
                 'balance_after' => $buyerBalance,
                 'description' => $order->isDepositOrder()
-                    ? "Acompte - Commande #{$order->order_number}"
-                    : "Achat - Commande #{$order->order_number}",
+                    ? WalletTransaction::label('deposit_paid', ['order_number' => $order->order_number])
+                    : WalletTransaction::label('purchase', ['order_number' => $order->order_number]),
                 'reference_type' => 'order',
                 'reference_id' => $order->id,
                 'metadata' => [
@@ -728,7 +728,7 @@ class OrderService
             if ($order->status === 'cancelled') {
                 $this->refundBuyer(
                     $order,
-                    "Remboursement commande #{$order->order_number} — paiement reçu après annulation",
+                    WalletTransaction::label('refund_late_payment', ['order_number' => $order->order_number]),
                     ['late_payment' => true]
                 );
                 $sellers = [];
@@ -750,8 +750,8 @@ class OrderService
         try {
             $this->fcmService->sendToUser(
                 $order->user,
-                $order->user->translate('notifications.order_paid.title'),
-                $order->user->translate('notifications.order_paid.body', ['order_number' => $order->order_number]),
+                $order->user->localized('notifications.order_paid.title'),
+                $order->user->localized('notifications.order_paid.body', ['order_number' => $order->order_number]),
                 ['type' => 'order_paid', 'order_id' => (string) $order->id, 'order_number' => $order->order_number]
             );
         } catch (\Exception $e) {
@@ -770,14 +770,14 @@ class OrderService
             try {
                 $this->fcmService->sendToUser(
                     $seller,
-                    $seller->translate('notifications.new_order_vendor.title'),
+                    $seller->localized('notifications.new_order_vendor.title'),
                     $client
-                        ? $seller->translate('notifications.new_order_vendor.body', [
+                        ? $seller->localized('notifications.new_order_vendor.body', [
                             'order_number' => $order->order_number,
                             'client' => $client->first_name,
                             'total' => $order->formatted_total,
                         ])
-                        : $seller->translate('notifications.new_order_vendor.body_no_client', [
+                        : $seller->localized('notifications.new_order_vendor.body_no_client', [
                             'order_number' => $order->order_number,
                             'total' => $order->formatted_total,
                         ]),
@@ -836,8 +836,8 @@ class OrderService
         try {
             $this->fcmService->sendToUser(
                 $order->user,
-                $order->user->translate('notifications.order_payment_failed.title'),
-                $order->user->translate('notifications.order_payment_failed.body', ['order_number' => $order->order_number]),
+                $order->user->localized('notifications.order_payment_failed.title'),
+                $order->user->localized('notifications.order_payment_failed.body', ['order_number' => $order->order_number]),
                 ['type' => 'order_payment_failed', 'order_id' => (string) $order->id, 'order_number' => $order->order_number]
             );
         } catch (\Exception $e) {
@@ -1004,8 +1004,8 @@ class OrderService
                 'balance_before' => $buyerBalance,
                 'balance_after' => $buyerBalance,
                 'description' => $order->isDepositOrder()
-                    ? "Acompte - Commande #{$order->order_number}"
-                    : "Achat - Commande #{$order->order_number}",
+                    ? WalletTransaction::label('deposit_paid', ['order_number' => $order->order_number])
+                    : WalletTransaction::label('purchase', ['order_number' => $order->order_number]),
                 'reference_type' => 'order',
                 'reference_id' => $order->id,
                 'metadata' => [
@@ -1023,7 +1023,7 @@ class OrderService
             if ($order->status === 'cancelled') {
                 $this->refundBuyer(
                     $order,
-                    "Remboursement commande #{$order->order_number} — paiement reçu après annulation",
+                    WalletTransaction::label('refund_late_payment', ['order_number' => $order->order_number]),
                     ['late_payment' => true]
                 );
                 $sellers = [];
@@ -1044,8 +1044,8 @@ class OrderService
         try {
             $this->fcmService->sendToUser(
                 $order->user,
-                $order->user->translate('notifications.order_paid.title'),
-                $order->user->translate('notifications.order_paid.body', ['order_number' => $order->order_number]),
+                $order->user->localized('notifications.order_paid.title'),
+                $order->user->localized('notifications.order_paid.body', ['order_number' => $order->order_number]),
                 ['type' => 'order_paid', 'order_id' => (string) $order->id, 'order_number' => $order->order_number]
             );
         } catch (\Exception $e) {
@@ -1061,14 +1061,14 @@ class OrderService
             try {
                 $this->fcmService->sendToUser(
                     $seller,
-                    $seller->translate('notifications.new_order_vendor.title'),
+                    $seller->localized('notifications.new_order_vendor.title'),
                     $client
-                        ? $seller->translate('notifications.new_order_vendor.body', [
+                        ? $seller->localized('notifications.new_order_vendor.body', [
                             'order_number' => $order->order_number,
                             'client' => $client->first_name,
                             'total' => $order->formatted_total,
                         ])
-                        : $seller->translate('notifications.new_order_vendor.body_no_client', [
+                        : $seller->localized('notifications.new_order_vendor.body_no_client', [
                             'order_number' => $order->order_number,
                             'total' => $order->formatted_total,
                         ]),
@@ -1121,8 +1121,8 @@ class OrderService
         try {
             $this->fcmService->sendToUser(
                 $order->user,
-                $order->user->translate('notifications.order_payment_failed.title'),
-                $order->user->translate('notifications.order_payment_failed.body', ['order_number' => $order->order_number]),
+                $order->user->localized('notifications.order_payment_failed.title'),
+                $order->user->localized('notifications.order_payment_failed.body', ['order_number' => $order->order_number]),
                 ['type' => 'order_payment_failed', 'order_id' => (string) $order->id, 'order_number' => $order->order_number]
             );
         } catch (\Exception $e) {
@@ -1171,8 +1171,8 @@ class OrderService
         if ($client = $confirmed->user) {
             $this->fcmService->sendToUser(
                 $client,
-                $client->translate('notifications.order_confirmed.title'),
-                $client->translate(
+                $client->localized('notifications.order_confirmed.title'),
+                $client->localized(
                     $confirmed->isCarrierDelivery()
                         ? 'notifications.order_confirmed.body_carrier'
                         : 'notifications.order_confirmed.body_courier',
@@ -1203,7 +1203,7 @@ class OrderService
 
             $refunded = $this->refundBuyer(
                 $locked,
-                "Remboursement commande #{$locked->order_number} — refusée par le vendeur",
+                WalletTransaction::label('refund_rejected', ['order_number' => $locked->order_number]),
                 ['cancel_reason' => $reason]
             );
             foreach ($locked->items as $item) {
@@ -1217,13 +1217,13 @@ class OrderService
         if ($client = $order->user) {
             $this->fcmService->sendToUser(
                 $client,
-                $client->translate('notifications.order_rejected.title'),
+                $client->localized('notifications.order_rejected.title'),
                 $refunded > 0
-                    ? $client->translate('notifications.order_rejected.body_refunded', [
+                    ? $client->localized('notifications.order_rejected.body_refunded', [
                         'order_number' => $order->order_number,
                         'amount' => number_format($refunded, 0, ',', ' '),
                     ])
-                    : $client->translate('notifications.order_rejected.body', ['order_number' => $order->order_number]),
+                    : $client->localized('notifications.order_rejected.body', ['order_number' => $order->order_number]),
                 ['type' => 'order_rejected', 'order_id' => (string) $order->id, 'order_number' => $order->order_number, 'reason' => $reason]
             );
         }
@@ -1243,7 +1243,7 @@ class OrderService
      *
      * Renvoie le montant rendu disponible à l'acheteur (0 si rien à rembourser).
      */
-    public function refundBuyer(Order $order, string $label, array $metadata = []): float
+    public function refundBuyer(Order $order, string|\App\Support\Translation\LocalizedText $label, array $metadata = []): float
     {
         $order = Order::whereKey($order->id)->lockForUpdate()->firstOrFail();
 
@@ -1347,8 +1347,8 @@ class OrderService
         try {
             $this->fcmService->sendToUser(
                 $order->user,
-                $order->user->translate('notifications.wallet_refund.title'),
-                $order->user->translate('notifications.wallet_refund.body', ['order_number' => $order->order_number]),
+                $order->user->localized('notifications.wallet_refund.title'),
+                $order->user->localized('notifications.wallet_refund.body', ['order_number' => $order->order_number]),
                 ['type' => 'wallet_refund', 'order_id' => (string) $order->id, 'order_number' => $order->order_number]
             );
         } catch (\Exception $e) {
@@ -1380,7 +1380,7 @@ class OrderService
             $this->walletService->releaseEscrow(
                 $order->user,
                 $walletEscrow,
-                "Paiement commande #{$order->order_number} — validée par le vendeur",
+                WalletTransaction::label('order_payment_released', ['order_number' => $order->order_number]),
                 'order',
                 $order->id,
                 [],
@@ -1404,7 +1404,7 @@ class OrderService
                 $vendor,
                 $vendorNet,
                 null,
-                "Vente commande #{$order->order_number}",
+                WalletTransaction::label('sale', ['order_number' => $order->order_number]),
                 [
                     'order_id' => $order->id,
                     'direct_settlement' => true,
@@ -1421,7 +1421,7 @@ class OrderService
             $this->walletService->lockFunds(
                 $vendor,
                 $vendorNet,
-                "Vente commande #{$order->order_number} — en attente de validation du client",
+                WalletTransaction::label('sale_held', ['order_number' => $order->order_number]),
                 'order',
                 $order->id,
                 ['vendor_funds' => true],
@@ -1442,7 +1442,7 @@ class OrderService
                     $companyUser,
                     $baseDeliveryPrice,
                     null,
-                    "Commission livraison #{$order->order_number}",
+                    WalletTransaction::label('delivery_commission', ['order_number' => $order->order_number]),
                     ['order_id' => $order->id, 'direct_settlement' => true],
                     'kpay'
                 );
@@ -1458,7 +1458,7 @@ class OrderService
                     $platform,
                     $assoTotal,
                     null,
-                    "Commission ASSO — Commande #{$order->order_number}",
+                    WalletTransaction::label('asso_commission_order', ['order_number' => $order->order_number]),
                     [
                         'order_id' => $order->id,
                         'direct_settlement' => true,
@@ -1507,8 +1507,8 @@ class OrderService
             try {
                 $this->fcmService->sendToUser(
                     $client,
-                    $client->translate('notifications.order_control_window.title'),
-                    $client->translate('notifications.order_control_window.body', [
+                    $client->localized('notifications.order_control_window.title'),
+                    $client->localized('notifications.order_control_window.body', [
                         'order_number' => $order->order_number,
                         'hours' => Order::CONTROL_WINDOW_HOURS,
                     ]),
@@ -1541,7 +1541,7 @@ class OrderService
                 $this->walletService->unlockFunds(
                     $vendor,
                     $amount,
-                    "Vente commande #{$locked->order_number} — fonds débloqués",
+                    WalletTransaction::label('sale_released', ['order_number' => $locked->order_number]),
                     'order',
                     $locked->id,
                     ['vendor_funds' => true, 'reason' => $reason],
@@ -1579,8 +1579,8 @@ class OrderService
             try {
                 $this->fcmService->sendToUser(
                     $vendor,
-                    $vendor->translate('notifications.vendor_funds_released.title'),
-                    $vendor->translate('notifications.vendor_funds_released.body', [
+                    $vendor->localized('notifications.vendor_funds_released.title'),
+                    $vendor->localized('notifications.vendor_funds_released.body', [
                         'order_number' => $released['order']->order_number,
                         'amount' => number_format($released['amount'], 0, ',', ' '),
                     ]),

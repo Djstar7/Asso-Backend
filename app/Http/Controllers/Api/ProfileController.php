@@ -570,6 +570,8 @@ class ProfileController extends Controller
 
         // Gains encaissés par le livreur (part transporteur créditée au règlement
         // de chaque commande) : sans cela le tableau de bord affichait 0 FCFA.
+        // La colonne garde le libellé français (wallet.transactions.delivery_commission
+        // de lang/fr.json) : ne pas modifier ce texte sans reprendre ce filtre.
         $totalCommissions = (float) \App\Models\WalletTransaction::where('user_id', $user->id)
             ->where('type', 'credit')
             ->where('description', 'like', 'Commission livraison%')

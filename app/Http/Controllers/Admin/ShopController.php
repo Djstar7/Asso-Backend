@@ -343,8 +343,8 @@ class ShopController extends Controller
             if ($vendor) {
                 $fcmService->sendToUser(
                     $vendor,  // Pass the User object, not the ID
-                    $vendor->translate('notifications.location_request_approved.title'),
-                    $vendor->translate('notifications.location_request_approved.body', ['shop' => $shop->name]),
+                    $vendor->localized('notifications.location_request_approved.title'),
+                    $vendor->localized('notifications.location_request_approved.body', ['shop' => $shop->name]),
                     [
                         'type' => 'location_request_approved',
                         'shop_id' => $shop->id,
@@ -403,8 +403,8 @@ class ShopController extends Controller
             if ($vendor) {
                 $fcmService->sendToUser(
                     $vendor,  // Pass the User object, not the ID
-                    $vendor->translate('notifications.location_request_rejected.title'),
-                    $vendor->translate('notifications.location_request_rejected.body', ['shop' => $shop->name, 'reason' => $reason]),
+                    $vendor->localized('notifications.location_request_rejected.title'),
+                    $vendor->localized('notifications.location_request_rejected.body', ['shop' => $shop->name, 'reason' => $reason]),
                     [
                         'type' => 'location_request_rejected',
                         'shop_id' => $shop->id,
