@@ -439,11 +439,13 @@ Route::middleware('auth:sanctum')->group(function () {
             // Send test notification to yourself
             Route::post('/test', [NotificationController::class, 'sendTestNotification']);
 
-            // Admin only routes (will be checked in controller or middleware)
-            Route::post('/send-to-user', [NotificationController::class, 'sendToUser']);
-            Route::post('/send-to-users', [NotificationController::class, 'sendToUsers']);
-            Route::post('/send-to-all', [NotificationController::class, 'sendToAll']);
-            Route::post('/send-to-topic', [NotificationController::class, 'sendToTopic']);
+            // Envoi à d'autres utilisateurs : compte admin uniquement.
+            Route::middleware('api.admin')->group(function () {
+                Route::post('/send-to-user', [NotificationController::class, 'sendToUser']);
+                Route::post('/send-to-users', [NotificationController::class, 'sendToUsers']);
+                Route::post('/send-to-all', [NotificationController::class, 'sendToAll']);
+                Route::post('/send-to-topic', [NotificationController::class, 'sendToTopic']);
+            });
         });
     });
 });
