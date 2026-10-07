@@ -172,7 +172,7 @@ class ProductController extends Controller
         }
 
         // Generate slug
-        $validated['slug'] = Str::slug($validated['name']);
+        $validated['slug'] = Product::uniqueSlug($validated['name']);
 
         // Vente en gros
         $validated['is_wholesale'] = $isWholesale;
@@ -314,7 +314,7 @@ class ProductController extends Controller
 
         // Update slug if name changed
         if ($product->name !== $validated['name']) {
-            $validated['slug'] = Str::slug($validated['name']);
+            $validated['slug'] = Product::uniqueSlug($validated['name'], $product->id);
         }
 
         // Vente en gros
