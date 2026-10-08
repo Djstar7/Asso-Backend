@@ -46,7 +46,7 @@ class WalletController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la récupération des statistiques',
+                'message' => __('wallet.stats_fetch_error'),
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -80,7 +80,7 @@ class WalletController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la récupération des transactions',
+                'message' => __('wallet.transactions_fetch_error'),
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -121,7 +121,7 @@ class WalletController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Données invalides',
+                'message' => __('common.invalid_data'),
                 'errors' => $validator->errors(),
             ], 422);
         }
@@ -197,7 +197,7 @@ class WalletController extends Controller
 
                     return response()->json([
                         'success' => false,
-                        'message' => $paymentResult['message'] ?? 'Erreur lors de l\'initiation du paiement',
+                        'message' => $paymentResult['message'] ?? __('payments.initiation_error'),
                     ], 400);
                 }
 
@@ -233,7 +233,7 @@ class WalletController extends Controller
 
                 return response()->json([
                     'success' => true,
-                    'message' => 'Paiement initié. Veuillez composer le code USSD reçu sur votre téléphone.',
+                    'message' => __('wallet.deposit_initiated_ussd'),
                     'data' => [
                         'transaction_id' => $walletTransaction->id,
                         'amount' => $chargeAmount,
@@ -251,7 +251,7 @@ class WalletController extends Controller
                 if (!$stripe->isConfigured() || !\App\Services\PaymentMethodService::isEnabled('stripe')) {
                     return response()->json([
                         'success' => false,
-                        'message' => "La recharge par carte bancaire n'est pas disponible pour le moment.",
+                        'message' => __('wallet.card_deposit_unavailable'),
                     ], 503);
                 }
 
@@ -265,7 +265,7 @@ class WalletController extends Controller
                 if ($chargeAmount === null) {
                     return response()->json([
                         'success' => false,
-                        'message' => "Conversion XAF → {$stripeCurrency} indisponible pour le paiement carte. Réessayez plus tard.",
+                        'message' => __('payments.card_conversion_unavailable_retry', ['currency' => $stripeCurrency]),
                     ], 422);
                 }
 
@@ -305,7 +305,7 @@ class WalletController extends Controller
                     $walletTransaction->delete();
                     return response()->json([
                         'success' => false,
-                        'message' => "Échec de l'initiation du paiement carte (Stripe).",
+                        'message' => __('payments.stripe_init_failed'),
                     ], 400);
                 }
 
@@ -319,7 +319,7 @@ class WalletController extends Controller
 
                 return response()->json([
                     'success' => true,
-                    'message' => 'Recharge initiée. Finalisez le paiement par carte.',
+                    'message' => __('wallet.card_deposit_initiated'),
                     'data' => [
                         'transaction_id' => $walletTransaction->id,
                         'payment_id' => $walletTransaction->id, // alias pour le polling payment-status
@@ -339,7 +339,7 @@ class WalletController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Méthode de paiement non supportée',
+                'message' => __('payments.method_not_supported'),
             ], 400);
 
         } catch (\Exception $e) {
@@ -349,7 +349,7 @@ class WalletController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de l\'initiation de la recharge',
+                'message' => __('wallet.deposit_initiation_error'),
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -370,7 +370,7 @@ class WalletController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Données invalides',
+                'message' => __('common.invalid_data'),
                 'errors' => $validator->errors(),
             ], 422);
         }
@@ -387,7 +387,7 @@ class WalletController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la vérification',
+                'message' => __('wallet.verification_error'),
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -408,7 +408,7 @@ class WalletController extends Controller
     {
         return response()->json([
             'success' => false,
-            'message' => 'Ce mode de paiement n\'est plus disponible. Choisissez « Wallet ASSO » au moment de payer votre commande ou votre forfait.',
+            'message' => __('payments.method_discontinued_use_wallet'),
         ], 410);
     }
 
@@ -514,7 +514,7 @@ class WalletController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la récupération des soldes',
+                'message' => __('wallet.balances_fetch_error'),
             ], 500);
         }
     }
@@ -546,7 +546,7 @@ class WalletController extends Controller
             Log::warning("[WalletController] ❌ Validation failed", $validator->errors()->toArray());
             return response()->json([
                 'success' => false,
-                'message' => 'Données invalides',
+                'message' => __('common.invalid_data'),
                 'errors' => $validator->errors(),
             ], 422);
         }
@@ -575,7 +575,7 @@ class WalletController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => "Solde $currency insuffisant. Disponible: " . number_format($availableBalance, 0, ',', ' ') . " $currency",
+                'message' => __('wallet.insufficient_currency_balance', ['currency' => $currency, 'available' => number_format($availableBalance, 0, ',', ' ')]),
             ], 400);
         }
 
@@ -605,7 +605,7 @@ class WalletController extends Controller
 
                 return response()->json([
                     'success' => false,
-                    'message' => "Solde $currency insuffisant. Disponible: " . number_format($lockedAvailable, 0, ',', ' ') . " $currency",
+                    'message' => __('wallet.insufficient_currency_balance', ['currency' => $currency, 'available' => number_format($lockedAvailable, 0, ',', ' ')]),
                 ], 400);
             }
 
@@ -694,7 +694,7 @@ class WalletController extends Controller
 
                 return response()->json([
                     'success' => false,
-                    'message' => $disbursementResult['message'] ?? 'Erreur lors de l\'initiation du retrait',
+                    'message' => $disbursementResult['message'] ?? __('wallet.withdrawal_initiation_error'),
                 ], 400);
             }
 
@@ -729,8 +729,12 @@ class WalletController extends Controller
             try {
                 $this->fcmService->sendToUser(
                     $user,
-                    'Retrait KPay en cours',
-                    "Votre demande de retrait de {$amount} {$currency} vers {$phone} est en cours de traitement.",
+                    $user->translate('notifications.wallet_withdrawal_processing_kpay.title'),
+                    $user->translate('notifications.wallet_withdrawal_processing_kpay.body', [
+                        'amount' => $amount,
+                        'currency' => $currency,
+                        'phone' => $phone,
+                    ]),
                     [
                         'type' => 'wallet_withdrawal_processing',
                         'provider' => 'kpay',
@@ -750,7 +754,7 @@ class WalletController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Retrait en cours de traitement.',
+                'message' => __('wallet.withdrawal_processing'),
                 'data' => [
                     'withdrawal_id' => $withdrawal->id,
                     'wallet_transaction_id' => $walletTransaction->id,
@@ -806,7 +810,7 @@ class WalletController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Données invalides',
+                'message' => __('common.invalid_data'),
                 'errors' => $validator->errors(),
             ], 422);
         }
@@ -823,7 +827,7 @@ class WalletController extends Controller
                     'sources' => array_values($sources),
                     'source' => null,
                     'can_withdraw' => false,
-                    'message' => 'Aucun solde convertible vers la devise de votre compte bancaire.',
+                    'message' => __('wallet.no_convertible_balance'),
                 ],
             ]);
         }
@@ -839,11 +843,20 @@ class WalletController extends Controller
 
         $reasons = [];
         if ($sourceAmount > $source['available']) {
-            $reasons[] = 'Solde insuffisant.';
+            $reasons[] = __('wallet.insufficient_balance_short');
         }
         if ($payoutAmount < $minPayout) {
-            $reasons[] = 'Le minimum est de ' . number_format($minPayout, 2, ',', ' ') . " {$payoutCurrency}"
-                . ($minSource ? ' (' . number_format($minSource, 0, ',', ' ') . " {$source['currency']})" : '') . '.';
+            $reasons[] = $minSource
+                ? __('wallet.minimum_is_with_source', [
+                    'amount' => number_format($minPayout, 2, ',', ' '),
+                    'currency' => $payoutCurrency,
+                    'source_amount' => number_format($minSource, 0, ',', ' '),
+                    'source_currency' => $source['currency'],
+                ])
+                : __('wallet.minimum_is', [
+                    'amount' => number_format($minPayout, 2, ',', ' '),
+                    'currency' => $payoutCurrency,
+                ]);
         }
 
         return response()->json([
@@ -888,7 +901,7 @@ class WalletController extends Controller
         if (!$stripe->isConfigured()) {
             return response()->json([
                 'success' => false,
-                'message' => "Le paiement par virement (Stripe) n'est pas encore disponible.",
+                'message' => __('wallet.stripe_withdrawal_unavailable'),
             ], 503);
         }
 
@@ -896,7 +909,7 @@ class WalletController extends Controller
         if ($user->stripe_account_status !== 'approved' || empty($user->stripe_account_id)) {
             return response()->json([
                 'success' => false,
-                'message' => "Votre compte de virement (IBAN) n'est pas encore validé. Enregistrez et faites valider votre IBAN avant de retirer.",
+                'message' => __('wallet.iban_not_validated'),
             ], 422);
         }
 
@@ -913,7 +926,7 @@ class WalletController extends Controller
             Log::warning("[WalletController] ❌ Validation failed", $validator->errors()->toArray());
             return response()->json([
                 'success' => false,
-                'message' => 'Données invalides',
+                'message' => __('common.invalid_data'),
                 'errors' => $validator->errors(),
             ], 422);
         }
@@ -927,8 +940,8 @@ class WalletController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => $requestedCurrency
-                    ? "Aucun solde disponible en {$requestedCurrency} convertible vers {$payoutCurrency}."
-                    : 'Aucun solde convertible vers la devise de votre compte bancaire.',
+                    ? __('wallet.no_convertible_balance_in_currency', ['currency' => $requestedCurrency, 'payout_currency' => $payoutCurrency])
+                    : __('wallet.no_convertible_balance'),
             ], 400);
         }
 
@@ -944,9 +957,17 @@ class WalletController extends Controller
             $minSource = $rate > 0 ? ceil($minWithdrawalAmount / $rate) : null;
             return response()->json([
                 'success' => false,
-                'message' => 'Montant trop faible : le minimum est de '
-                    . number_format($minWithdrawalAmount, 2, ',', ' ') . " {$payoutCurrency}"
-                    . ($minSource ? ' (' . number_format($minSource, 0, ',', ' ') . " {$sourceCurrency})" : '') . '.',
+                'message' => $minSource
+                    ? __('wallet.amount_too_low_with_source', [
+                        'amount' => number_format($minWithdrawalAmount, 2, ',', ' '),
+                        'currency' => $payoutCurrency,
+                        'source_amount' => number_format($minSource, 0, ',', ' '),
+                        'source_currency' => $sourceCurrency,
+                    ])
+                    : __('wallet.amount_too_low', [
+                        'amount' => number_format($minWithdrawalAmount, 2, ',', ' '),
+                        'currency' => $payoutCurrency,
+                    ]),
             ], 422);
         }
 
@@ -959,7 +980,7 @@ class WalletController extends Controller
             ]);
             return response()->json([
                 'success' => false,
-                'message' => "Solde $sourceCurrency insuffisant. Disponible: " . number_format($source['available'], 2, ',', ' ') . " $sourceCurrency",
+                'message' => __('wallet.insufficient_currency_balance', ['currency' => $sourceCurrency, 'available' => number_format($source['available'], 2, ',', ' ')]),
             ], 400);
         }
 
@@ -1004,7 +1025,7 @@ class WalletController extends Controller
                 ]);
                 return response()->json([
                     'success' => false,
-                    'message' => "Solde $sourceCurrency insuffisant. Disponible: " . number_format($lockedAvailable, 2, ',', ' ') . " $sourceCurrency",
+                    'message' => __('wallet.insufficient_currency_balance', ['currency' => $sourceCurrency, 'available' => number_format($lockedAvailable, 2, ',', ' ')]),
                 ], 400);
             }
 
@@ -1114,9 +1135,12 @@ class WalletController extends Controller
             try {
                 $this->fcmService->sendToUser(
                     $user,
-                    'Virement en cours',
-                    "Votre demande de virement de " . number_format($payoutAmount, 2, ',', ' ') . " {$payoutCurrency}"
-                        . " vers votre IBAN ****{$ibanLast4} est en cours de traitement.",
+                    $user->translate('notifications.wallet_withdrawal_processing_bank.title'),
+                    $user->translate('notifications.wallet_withdrawal_processing_bank.body', [
+                        'amount' => number_format($payoutAmount, 2, ',', ' '),
+                        'currency' => $payoutCurrency,
+                        'iban_last4' => $ibanLast4,
+                    ]),
                     [
                         'type' => 'wallet_withdrawal_processing',
                         'provider' => 'stripe',
@@ -1135,8 +1159,10 @@ class WalletController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Virement de ' . number_format($payoutAmount, 2, ',', ' ') . " {$payoutCurrency}"
-                    . ' en cours de traitement. Les fonds arriveront sur votre compte sous 1 à 3 jours ouvrés.',
+                'message' => __('wallet.bank_withdrawal_processing', [
+                    'amount' => number_format($payoutAmount, 2, ',', ' '),
+                    'currency' => $payoutCurrency,
+                ]),
                 'data' => [
                     'withdrawal_id' => $withdrawal->id,
                     'wallet_transaction_id' => $walletTransaction->id,
@@ -1174,7 +1200,7 @@ class WalletController extends Controller
             // Ne pas exposer le détail technique Stripe (reste tracé ci-dessus).
             return response()->json([
                 'success' => false,
-                'message' => "Le virement n'a pas pu être initié pour le moment. Votre solde n'a pas été débité. Réessayez plus tard.",
+                'message' => __('wallet.bank_withdrawal_initiation_failed'),
             ], 500);
         }
     }
@@ -1248,15 +1274,10 @@ class WalletController extends Controller
     private function stripeUnavailableMessage(string $reason): string
     {
         return match ($reason) {
-            'account_not_ready' => "Votre compte de virement n'est pas encore activé par notre partenaire bancaire. "
-                . 'Vérifiez vos informations dans « Compte de virement » ou réessayez sous peu.',
-            'payout_refused', 'transfer_refused' => "Le virement a été refusé par notre partenaire bancaire. "
-                . "Votre solde n'a pas été débité. Vérifiez votre IBAN puis réessayez.",
-            'platform_funds' => "Le virement bancaire est momentanément indisponible (fonds en cours de "
-                . "réapprovisionnement). Votre solde n'a pas été débité : réessayez plus tard ou "
-                . 'choisissez un autre moyen de retrait.',
-            default => "Le virement bancaire est momentanément indisponible. "
-                . "Votre solde n'a pas été débité. Réessayez plus tard ou choisissez un autre moyen de retrait.",
+            'account_not_ready' => __('wallet.stripe_unavailable.account_not_ready'),
+            'payout_refused', 'transfer_refused' => __('wallet.stripe_unavailable.refused'),
+            'platform_funds' => __('wallet.stripe_unavailable.platform_funds'),
+            default => __('wallet.stripe_unavailable.default'),
         };
     }
 
@@ -1290,7 +1311,7 @@ class WalletController extends Controller
             if (!$withdrawal) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Retrait non trouvé',
+                    'message' => __('wallet.withdrawal_not_found'),
                 ], 404);
             }
 
@@ -1326,7 +1347,7 @@ class WalletController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la vérification du statut',
+                'message' => __('wallet.status_check_error'),
             ], 500);
         }
     }
@@ -1480,7 +1501,7 @@ class WalletController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la récupération de l\'historique',
+                'message' => __('wallet.history_fetch_error'),
             ], 500);
         }
     }
@@ -1502,7 +1523,7 @@ class WalletController extends Controller
             if (!$walletTransaction) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Paiement non trouvé',
+                    'message' => __('payments.not_found'),
                 ], 404);
             }
 
@@ -1554,7 +1575,7 @@ class WalletController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la vérification du statut',
+                'message' => __('wallet.status_check_error'),
             ], 500);
         }
     }
@@ -1605,9 +1626,10 @@ class WalletController extends Controller
             if ($user) {
                 $this->fcmService->sendToUser(
                     $user,
-                    'Recharge par carte réussie',
-                    'Votre wallet a été crédité de ' . number_format((float) $tx->amount, 0, ',', ' ')
-                        . ' FCFA par carte bancaire.',
+                    $user->translate('notifications.wallet_deposit_success_card.title'),
+                    $user->translate('notifications.wallet_deposit_success_card.body', [
+                        'amount' => number_format((float) $tx->amount, 0, ',', ' '),
+                    ]),
                     [
                         'type' => 'wallet_deposit_success',
                         'provider' => 'stripe',

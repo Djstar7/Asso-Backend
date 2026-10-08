@@ -3,28 +3,26 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Category;
+use App\Models\Currency;
+use App\Models\ImportCountry;
 use App\Models\Product;
 use App\Models\ProductImage;
 use App\Models\ProductVideo;
-use App\Models\Category;
-use App\Models\Subcategory;
 use App\Models\Shop;
-use App\Models\ImportCountry;
-use App\Models\Currency;
-use Illuminate\Http\Request;
-use Illuminate\Support\Str;
-use Illuminate\Support\Facades\File;
-use Illuminate\Validation\Rule;
-use App\Models\DeliveryPricelist;
+use App\Models\Subcategory;
 use App\Services\ProductBroadcastService;
 use App\Services\ProductVariantService;
 use App\Support\ImportHub;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class ProductController extends Controller
 {
-    public function __construct(private readonly ProductVariantService $variantService)
-    {
-    }
+    public function __construct(private readonly ProductVariantService $variantService) {}
 
     /**
      * Display a listing of products
@@ -32,8 +30,8 @@ class ProductController extends Controller
     public function index(Request $request)
     {
         $query = Product::with(['shop', 'category', 'subcategory', 'primaryImage'])
-                        ->withCount('reviews')
-                        ->latest();
+            ->withCount('reviews')
+            ->latest();
 
         if ($request->filled('shop_id')) {
             $query->where('shop_id', $request->shop_id);
@@ -66,7 +64,7 @@ class ProductController extends Controller
         }
 
         if ($request->filled('search')) {
-            $query->where('name', 'like', '%' . $request->search . '%');
+            $query->where('name', 'like', '%'.$request->search.'%');
         }
 
         $products = $query->paginate(20);
@@ -97,8 +95,8 @@ class ProductController extends Controller
     {
         $validated = $request->validate([
             'shop_id' => 'required|exists:shops,id',
-            'category_id' => 'required|exists:categories,id',
-            'subcategory_id' => 'nullable|exists:subcategories,id',
+            'category_id' => 'bail|required|integer|exists:categories,id',
+            'subcategory_id' => 'bail|nullable|integer|exists:subcategories,id',
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'characteristics' => 'nullable|string|max:10000',
@@ -115,26 +113,35 @@ class ProductController extends Controller
                 Rule::requiredIf(fn () => $request->input('type') === 'article'),
                 'nullable', 'numeric', 'min:0.001', 'max:999999',
             ],
-            'weight_category' => 'sometimes|in:' . implode(',', Product::WEIGHT_CATEGORIES),
+            'weight_category' => 'sometimes|in:'.implode(',', Product::WEIGHT_CATEGORIES),
             'sizes' => 'nullable|array',
-            'sizes.*' => 'string|in:' . implode(',', Product::AVAILABLE_SIZES),
+            'sizes.*' => 'string|in:'.implode(',', Product::AVAILABLE_SIZES),
             'stock' => 'required|integer|min:0',
             'status' => 'required|in:active,inactive',
             'images' => 'nullable|array|max:15',
             'images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:5120',
 
-            'is_wholesale'         => 'nullable|boolean',
-            'tiers'                => 'nullable|array',
-            'tiers.*.label'        => 'required_with:tiers|string|max:255',
-            'tiers.*.unit_price'   => 'required_with:tiers|numeric|min:0',
+            'is_wholesale' => 'nullable|boolean',
+            // Livraison gratuite : 1 = offerte, 0 = non.
+            'free_delivery' => 'nullable|boolean',
+            // Commande avec acompte (% du prix client).
+            'deposit_enabled' => 'nullable|boolean',
+            'deposit_rate' => 'required_if_accepted:deposit_enabled|nullable|numeric|min:1|max:99',
+            'tiers' => 'nullable|array',
+            'tiers.*.label' => 'required_with:tiers|string|max:255',
+            'tiers.*.unit_price' => 'required_with:tiers|numeric|min:0',
             'tiers.*.min_quantity' => 'required_with:tiers|integer|min:1',
-            'tiers.*.pack_size'    => 'nullable|integer|min:1',
-            'tiers.*.weight_kg'    => 'nullable|numeric|min:0',
+            'tiers.*.pack_size' => 'nullable|integer|min:1',
+            'tiers.*.weight_kg' => 'nullable|numeric|min:0',
+            // Les options (couleurs, tailles) se cumulent pour atteindre un palier.
+            'tier_mix_variants' => 'nullable|boolean',
 
             // Vidéo déjà envoyée par morceaux (ProductVideoController) : on ne reçoit que son id.
-            'video_id'             => 'nullable|integer|exists:product_videos,id',
-            'remove_video'         => 'nullable|boolean',
+            'video_id' => 'nullable|integer|exists:product_videos,id',
+            'remove_video' => 'nullable|boolean',
         ] + ProductVariantService::rules());
+
+        $this->assertDistinctTierThresholds($validated['tiers'] ?? []);
 
         // Isole les données "gros" AVANT toute insertion — elles ne vont pas dans `products`
         $tiers = $validated['tiers'] ?? [];
@@ -169,6 +176,12 @@ class ProductController extends Controller
 
         // Vente en gros
         $validated['is_wholesale'] = $isWholesale;
+        $validated['tier_mix_variants'] = $request->boolean('tier_mix_variants', true);
+        // Livraison gratuite : le produit ne garde un réglage propre que s'il
+        // diffère de celui de sa boutique ; sinon il la suit.
+        $freeDelivery = $request->boolean('free_delivery');
+        $validated['free_delivery'] = $freeDelivery === (bool) $shop->free_delivery ? null : $freeDelivery;
+        $validated['deposit_enabled'] = $request->boolean('deposit_enabled');
 
         // Create product
         $product = Product::create($validated);
@@ -224,8 +237,8 @@ class ProductController extends Controller
     {
         $validated = $request->validate([
             'shop_id' => 'required|exists:shops,id',
-            'category_id' => 'required|exists:categories,id',
-            'subcategory_id' => 'nullable|exists:subcategories,id',
+            'category_id' => 'bail|required|integer|exists:categories,id',
+            'subcategory_id' => 'bail|nullable|integer|exists:subcategories,id',
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'characteristics' => 'nullable|string|max:10000',
@@ -242,26 +255,35 @@ class ProductController extends Controller
                 Rule::requiredIf(fn () => $request->input('type') === 'article'),
                 'nullable', 'numeric', 'min:0.001', 'max:999999',
             ],
-            'weight_category' => 'sometimes|in:' . implode(',', Product::WEIGHT_CATEGORIES),
+            'weight_category' => 'sometimes|in:'.implode(',', Product::WEIGHT_CATEGORIES),
             'sizes' => 'nullable|array',
-            'sizes.*' => 'string|in:' . implode(',', Product::AVAILABLE_SIZES),
+            'sizes.*' => 'string|in:'.implode(',', Product::AVAILABLE_SIZES),
             'stock' => 'required|integer|min:0',
             'status' => 'required|in:active,inactive',
             'images' => 'nullable|array|max:15',
             'images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:5120',
 
-            'is_wholesale'         => 'nullable|boolean',
-            'tiers'                => 'nullable|array',
-            'tiers.*.label'        => 'required_with:tiers|string|max:255',
-            'tiers.*.unit_price'   => 'required_with:tiers|numeric|min:0',
+            'is_wholesale' => 'nullable|boolean',
+            // Livraison gratuite : 1 = offerte, 0 = non.
+            'free_delivery' => 'nullable|boolean',
+            // Commande avec acompte (% du prix client).
+            'deposit_enabled' => 'nullable|boolean',
+            'deposit_rate' => 'required_if_accepted:deposit_enabled|nullable|numeric|min:1|max:99',
+            'tiers' => 'nullable|array',
+            'tiers.*.label' => 'required_with:tiers|string|max:255',
+            'tiers.*.unit_price' => 'required_with:tiers|numeric|min:0',
             'tiers.*.min_quantity' => 'required_with:tiers|integer|min:1',
-            'tiers.*.pack_size'    => 'nullable|integer|min:1',
-            'tiers.*.weight_kg'    => 'nullable|numeric|min:0',
+            'tiers.*.pack_size' => 'nullable|integer|min:1',
+            'tiers.*.weight_kg' => 'nullable|numeric|min:0',
+            // Les options (couleurs, tailles) se cumulent pour atteindre un palier.
+            'tier_mix_variants' => 'nullable|boolean',
 
             // Vidéo déjà envoyée par morceaux (ProductVideoController) : on ne reçoit que son id.
-            'video_id'             => 'nullable|integer|exists:product_videos,id',
-            'remove_video'         => 'nullable|boolean',
+            'video_id' => 'nullable|integer|exists:product_videos,id',
+            'remove_video' => 'nullable|boolean',
         ] + ProductVariantService::rules());
+
+        $this->assertDistinctTierThresholds($validated['tiers'] ?? []);
 
         // Isole les données "gros" AVANT l'update — elles ne vont pas dans `products`
         $tiers = $validated['tiers'] ?? [];
@@ -297,6 +319,17 @@ class ProductController extends Controller
 
         // Vente en gros
         $validated['is_wholesale'] = $isWholesale;
+        $validated['tier_mix_variants'] = $request->boolean('tier_mix_variants', true);
+        // Livraison gratuite : le produit ne garde un réglage propre que s'il
+        // diffère de celui de sa boutique ; sinon il la suit.
+        $freeDelivery = $request->boolean('free_delivery');
+        $validated['free_delivery'] = $freeDelivery === (bool) $shop->free_delivery ? null : $freeDelivery;
+        $validated['deposit_enabled'] = $request->boolean('deposit_enabled');
+
+        // Masquer / afficher est une permission distincte de la modification.
+        if (! $request->user()->hasAdminPermission('products.toggle_visibility')) {
+            $validated['status'] = $product->status;
+        }
 
         // Update product
         $product->update($validated);
@@ -335,6 +368,18 @@ class ProductController extends Controller
     }
 
     /**
+     * Masque ou réaffiche un produit sur la plateforme (statut active/inactive).
+     */
+    public function toggleStatus(Product $product)
+    {
+        $product->update(['status' => $product->status === 'active' ? 'inactive' : 'active']);
+
+        return back()->with('success', $product->status === 'active'
+            ? 'Produit de nouveau visible sur la plateforme.'
+            : 'Produit masqué de la plateforme.');
+    }
+
+    /**
      * Rattache la vidéo envoyée au produit, ou retire l'ancienne.
      *
      * Réservé pour l'instant aux produits grossistes (pays d'import + vente en
@@ -343,19 +388,19 @@ class ProductController extends Controller
      */
     private function syncVideo(Product $product, Request $request): void
     {
-        $isImport = $product->is_wholesale && !empty($product->origin_country);
+        $isImport = $product->is_wholesale && ! empty($product->origin_country);
         $newId = $request->integer('video_id') ?: null;
 
         $current = ProductVideo::where('product_id', $product->id)->get();
-        $replaceOrRemove = !$isImport
+        $replaceOrRemove = ! $isImport
             || $request->boolean('remove_video')
-            || ($newId && !$current->contains('id', $newId));
+            || ($newId && ! $current->contains('id', $newId));
 
         if ($replaceOrRemove) {
             $current->reject(fn (ProductVideo $v) => $v->id === $newId)->each->delete();
         }
 
-        if (!$newId) {
+        if (! $newId) {
             return;
         }
 
@@ -364,7 +409,7 @@ class ProductController extends Controller
             ->where(fn ($q) => $q->whereNull('product_id')->orWhere('product_id', $product->id))
             ->first();
 
-        if (!$video) {
+        if (! $video) {
             return;
         }
 
@@ -377,6 +422,23 @@ class ProductController extends Controller
     }
 
     /**
+     * Le palier appliqué se déduit de la quantité : deux paliers au même seuil
+     * rendraient le prix ambigu.
+     */
+    private function assertDistinctTierThresholds(array $tiers): void
+    {
+        $thresholds = collect($tiers)
+            ->filter(fn ($tier) => ! empty($tier['label']) && isset($tier['unit_price']))
+            ->map(fn ($tier) => (int) ($tier['min_quantity'] ?? 1));
+
+        if ($thresholds->count() !== $thresholds->unique()->count()) {
+            throw ValidationException::withMessages([
+                'tiers' => 'Deux paliers ne peuvent pas partir de la même quantité : le prix appliqué serait ambigu.',
+            ]);
+        }
+    }
+
+    /**
      * Synchronise les paliers de prix (vente en gros) d'un produit.
      * Stratégie "replace all" : simple, robuste, aucun palier orphelin possible.
      */
@@ -385,20 +447,20 @@ class ProductController extends Controller
         $product->priceTiers()->delete();
 
         foreach ($tiers as $i => $tier) {
-            if (empty($tier['label']) || !isset($tier['unit_price'])) {
+            if (empty($tier['label']) || ! isset($tier['unit_price'])) {
                 continue; // ignore les lignes vides envoyées par erreur
             }
 
             $product->priceTiers()->create([
-                'label'        => $tier['label'],
-                'unit_price'   => $tier['unit_price'],
+                'label' => $tier['label'],
+                'unit_price' => $tier['unit_price'],
                 'min_quantity' => $tier['min_quantity'] ?? 1,
-                'pack_size'    => $tier['pack_size'] ?? 1,
+                'pack_size' => $tier['pack_size'] ?? 1,
                 // Poids d'une unité de ce palier (pack, bidon, pièce) : sert au prix au kg et à SOLEX.
-                'weight_kg'    => isset($tier['weight_kg']) && $tier['weight_kg'] !== '' ? (float) $tier['weight_kg'] : null,
-                'currency'     => $product->currency ?? 'XAF',
-                'is_active'    => true,
-                'sort_order'   => $i + 1,
+                'weight_kg' => isset($tier['weight_kg']) && $tier['weight_kg'] !== '' ? (float) $tier['weight_kg'] : null,
+                'currency' => $product->currency ?? 'XAF',
+                'is_active' => true,
+                'sort_order' => $i + 1,
             ]);
         }
     }
@@ -409,7 +471,7 @@ class ProductController extends Controller
 
         return array_values(array_filter(
             Product::AVAILABLE_SIZES,
-            fn(string $size): bool => in_array($size, $selected, true),
+            fn (string $size): bool => in_array($size, $selected, true),
         ));
     }
 
@@ -423,12 +485,12 @@ class ProductController extends Controller
 
         foreach ($images as $image) {
             $order++;
-            $imageName = time() . '_' . $order . '_' . Str::slug($product->name) . '.' . $image->getClientOriginalExtension();
+            $imageName = time().'_'.$order.'_'.Str::slug($product->name).'.'.$image->getClientOriginalExtension();
             $image->move(public_path('storage/products'), $imageName);
 
             ProductImage::create([
                 'product_id' => $product->id,
-                'image_path' => 'storage/products/' . $imageName,
+                'image_path' => 'storage/products/'.$imageName,
                 'is_primary' => $isPrimary,
                 'order' => $order,
             ]);

@@ -22,7 +22,7 @@
             style="border:0"
             referrerpolicy="no-referrer-when-downgrade"
             allowfullscreen
-            src="https://www.google.com/maps/embed/v1/place?key=AIzaSyAffUHSFli6kMnjkfJOKBGO6AN828ixJPo&q={{ $latitude }},{{ $longitude }}&zoom={{ $zoom ?? '15' }}">
+            src="https://maps.google.com/maps?q={{ $latitude }},{{ $longitude }}&z={{ $zoom ?? '15' }}&hl=fr&output=embed">
         </iframe>
     </div>
 

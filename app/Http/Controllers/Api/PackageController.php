@@ -215,9 +215,9 @@ class PackageController extends Controller
         return response()->json([
             'success' => true,
             'message' => match ($package->type) {
-                'certification' => 'Certification activée ! Votre boutique affiche désormais le badge vérifié.',
-                'boost' => 'Sponsoring activé ! Votre produit est désormais mis en avant.',
-                default => 'Forfait activé ! Votre espace de stockage est disponible.',
+                'certification' => __('packages.certification_activated'),
+                'boost' => __('packages.boost_activated'),
+                default => __('packages.storage_activated'),
             },
             'payment_mode' => 'wallet',
             'subscription_id' => $subscription->id,
@@ -243,7 +243,7 @@ class PackageController extends Controller
         if ($paymentMode === 'stripe_direct' && !PaymentMethodService::isEnabled('stripe')) {
             return response()->json([
                 'success' => false,
-                'message' => "Le paiement par carte bancaire (Stripe) n'est pas disponible pour le moment. Veuillez choisir un autre moyen de paiement.",
+                'message' => __('payments.stripe_unavailable_choose_other'),
             ], 422);
         }
 
@@ -268,9 +268,9 @@ class PackageController extends Controller
         return response()->json([
             'success' => true,
             'message' => match ($paymentMode) {
-                'kpay_direct' => 'Abonnement créé. Validez le paiement sur votre téléphone (USSD).',
-                'stripe_direct' => 'Abonnement créé. Finalisez le paiement par carte.',
-                default => 'Abonnement créé.',
+                'kpay_direct' => __('packages.subscription_created_confirm_on_phone'),
+                'stripe_direct' => __('packages.subscription_created_complete_card'),
+                default => __('packages.subscription_created'),
             },
             'payment_mode' => $paymentMode,
             'subscription_id' => $subscription->id,
@@ -352,7 +352,7 @@ class PackageController extends Controller
             // client alors que `has_package: false` suffit à décrire le cas.
             return response()->json([
                 'success' => true,
-                'message' => 'Aucun package actif',
+                'message' => __('packages.no_active_package'),
                 'has_package' => false,
                 'vendor_package' => null,
             ]);
@@ -378,12 +378,12 @@ class PackageController extends Controller
             ]
             : [
                 'id' => null,
-                'name' => $vendorPackage->custom_name ?? 'Espace Cumulé',
-                'description' => 'Package personnalisé avec espace cumulé',
+                'name' => $vendorPackage->custom_name ?? __('packages.cumulative.name'),
+                'description' => __('packages.cumulative.description'),
                 'price' => null,
-                'formatted_price' => 'Variable',
+                'formatted_price' => __('packages.cumulative.price'),
                 'duration_days' => null,
-                'formatted_duration' => 'Personnalisé',
+                'formatted_duration' => __('packages.cumulative.duration'),
                 'storage_size_mb' => (float) $vendorPackage->storage_total_mb,
                 'formatted_storage_size' => number_format($vendorPackage->storage_total_mb, 0) . ' MB',
             ];

@@ -89,6 +89,7 @@ class DeliveryQuoteService
             'vat_rate' => self::vatRate(),
             // Grille zone à zone dans la ville de l'acheteur : quartier à choisir.
             'city_grid' => $gridContext['public'],
+            'free_delivery' => false,
             'partners' => [],
         ];
 
@@ -99,13 +100,31 @@ class DeliveryQuoteService
         );
 
         usort($partners, fn ($a, $b) => [$a['sort_group'], $a['delivery_price']] <=> [$b['sort_group'], $b['delivery_price']]);
+
+        // Livraison gratuite offerte par le vendeur : chaque offre dit si elle est
+        // offerte (prix affiché barré) ou si elle coûte plus que la part du vendeur.
+        $vendorNet = $cart['free_delivery'] ? FreeDeliveryService::vendorNetXaf($items) : null;
+        foreach ($partners as &$partner) {
+            $partner['free_delivery'] = FreeDeliveryService::applies(
+                $cart['free_delivery'], (float) $partner['delivery_price'], $vendorNet
+            );
+        }
+        unset($partner);
+        $result['free_delivery'] = $cart['free_delivery'];
+
         $result['partners'] = array_map(fn ($p) => array_diff_key($p, ['sort_group' => 1]), $partners);
         $result['available'] = $result['partners'] !== [];
 
         if (!$result['available']) {
             $result['reason'] = 'no_partner';
-            $result['message'] = 'Aucun partenaire de livraison ne dessert ' . ($destCity ?: 'cette adresse')
-                . ($originCity ? " depuis {$originCity}" : '') . ' pour ' . $this->formatKg($cart['weight_kg']) . '.';
+            $replace = [
+                'destination' => $destCity ?: __('delivery.this_address'),
+                'origin' => $originCity,
+                'weight' => $this->formatKg($cart['weight_kg']),
+            ];
+            $result['message'] = $originCity
+                ? __('delivery.no_partner_from_origin', $replace)
+                : __('delivery.no_partner', $replace);
         }
 
         return $result;
@@ -324,10 +343,10 @@ class DeliveryQuoteService
         }
 
         if ($gridId && ($result['city_grid']['destination_zone'] ?? null) === null) {
-            throw new \Exception('Choisissez votre quartier de livraison pour calculer le prix.');
+            throw new \Exception(__('delivery.neighborhood_required'));
         }
 
-        throw new \Exception("Ce mode de livraison n'est plus disponible pour cette adresse. Veuillez en choisir un autre.");
+        throw new \Exception(__('delivery.mode_unavailable_for_address'));
     }
 
     /** Panier : poids total, articles sans poids, origine (ville/pays de la boutique). */
@@ -387,6 +406,10 @@ class DeliveryQuoteService
             'origin_lat' => $originLat,
             'origin_lng' => $originLng,
             'weight_category' => $category ?? 'X-small',
+            // Tous les articles offrent la livraison (cf. FreeDeliveryService).
+            'free_delivery' => FreeDeliveryService::cartEligible(
+                collect($items)->map(fn ($item) => $products->get((int) $item['product_id']))->filter()
+            ),
         ];
     }
 

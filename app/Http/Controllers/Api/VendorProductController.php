@@ -89,7 +89,7 @@ class VendorProductController extends Controller
         if ($product->user_id !== $user->id) {
             return response()->json([
                 'success' => false,
-                'message' => 'Vous n\'êtes pas autorisé à modifier ce produit',
+                'message' => __('products.not_authorized_update'),
             ], 403);
         }
 
@@ -99,8 +99,8 @@ class VendorProductController extends Controller
             'description' => 'sometimes|string',
             'price' => 'sometimes|numeric|min:0',
             'currency' => 'sometimes|string|size:3|exists:currencies,code', // price_xaf recalculé auto
-            'category_id' => 'sometimes|exists:categories,id',
-            'subcategory_id' => 'sometimes|nullable|exists:subcategories,id',
+            'category_id' => 'sometimes|bail|integer|exists:categories,id',
+            'subcategory_id' => 'sometimes|bail|nullable|integer|exists:subcategories,id',
             'type' => 'sometimes|in:article,service',
             'origin_country' => 'sometimes|nullable|string|max:2',
             'condition' => 'sometimes|in:new,used,refurbished',
@@ -116,7 +116,9 @@ class VendorProductController extends Controller
             'deleted_image_ids.*' => 'integer|exists:product_images,id',
             // Multipart ne sait pas envoyer une liste vide : ce drapeau permet de retirer toutes les variantes.
             'replace_variants' => 'sometimes|boolean',
-        ] + ProductVariantService::rules());
+            // Livraison gratuite : null = suit la boutique.
+            'free_delivery' => 'sometimes|nullable|boolean',
+        ] + \App\Services\DepositOrderService::productRules() + ProductVariantService::rules());
 
         \Log::info('[VENDOR_PRODUCT_UPDATE] Received data:', [
             'product_id' => $id,
@@ -141,7 +143,7 @@ class VendorProductController extends Controller
                 if (!$vendorPackage) {
                     return response()->json([
                         'success' => false,
-                        'message' => 'Vous devez avoir un package actif pour ajouter des images',
+                        'message' => __('products.active_package_required_for_images'),
                         'error_code' => 'NO_ACTIVE_PACKAGE',
                     ], 403);
                 }
@@ -155,7 +157,7 @@ class VendorProductController extends Controller
                 if (!$vendorPackage->hasEnoughStorage($totalNewImageSizeMb)) {
                     return response()->json([
                         'success' => false,
-                        'message' => 'Espace de stockage insuffisant pour ajouter ces images',
+                        'message' => __('products.storage_insufficient_for_images'),
                         'error_code' => 'INSUFFICIENT_STORAGE',
                         'required_mb' => round($totalNewImageSizeMb, 2),
                         'available_mb' => round($vendorPackage->storage_remaining_mb, 2),
@@ -168,6 +170,8 @@ class VendorProductController extends Controller
             $variants = $updateData['variants'] ?? ($request->boolean('replace_variants') ? [] : null);
             $variantOptions = $updateData['variant_options'] ?? null;
             unset($updateData['images'], $updateData['variants'], $updateData['variant_options'], $updateData['replace_variants']);
+            unset($updateData['deposit_enabled'], $updateData['deposit_rate']);
+            $updateData += \App\Services\DepositOrderService::productAttributes($validated);
 
             // Convert empty strings to null for weight fields
             if (isset($updateData['weight']) && $updateData['weight'] === '') {
@@ -292,7 +296,7 @@ class VendorProductController extends Controller
 
             $responseData = [
                 'success' => true,
-                'message' => 'Produit mis à jour avec succès',
+                'message' => __('products.updated'),
                 'product' => $this->formatProduct($product),
             ];
 
@@ -318,7 +322,7 @@ class VendorProductController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la mise à jour du produit',
+                'message' => __('products.update_error'),
                 'error' => app()->environment('local') ? $e->getMessage() : null,
             ], 500);
         }
@@ -336,7 +340,7 @@ class VendorProductController extends Controller
         if ($product->user_id !== $user->id) {
             return response()->json([
                 'success' => false,
-                'message' => 'Vous n\'êtes pas autorisé à supprimer ce produit',
+                'message' => __('products.not_authorized_delete'),
             ], 403);
         }
 
@@ -372,7 +376,7 @@ class VendorProductController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Produit supprimé avec succès',
+                'message' => __('products.deleted'),
                 'storage_restored_mb' => round($totalImageSizeMb, 2),
             ]);
         } catch (\Exception $e) {
@@ -383,7 +387,7 @@ class VendorProductController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la suppression du produit',
+                'message' => __('products.delete_error'),
                 'error' => app()->environment('local') ? $e->getMessage() : null,
             ], 500);
         }
@@ -402,11 +406,55 @@ class VendorProductController extends Controller
         return response()->json([
             'success' => true,
             'message' => $product->status === 'active'
-                ? 'Produit réactivé avec succès'
-                : 'Produit désactivé avec succès',
+                ? __('products.reactivated')
+                : __('products.deactivated'),
             'product' => $this->formatProduct($product->load([
                 'images', 'primaryImage', 'category', 'subcategory', 'shop', 'variants',
             ])),
+        ]);
+    }
+
+    /**
+     * Livraison gratuite d'un produit du vendeur : true/false force le choix,
+     * null le fait suivre la boutique.
+     */
+    public function updateFreeDelivery(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'free_delivery' => 'present|nullable|boolean',
+        ]);
+
+        $product = Product::where('user_id', $request->user()->id)->findOrFail($id);
+        $product->update(['free_delivery' => $validated['free_delivery'] === null ? null : (bool) $validated['free_delivery']]);
+        $product->load(['images', 'primaryImage', 'category', 'subcategory', 'shop', 'variants']);
+
+        return response()->json([
+            'success' => true,
+            'message' => $product->hasFreeDelivery()
+                ? __('products.free_delivery_enabled')
+                : __('products.free_delivery_disabled'),
+            'product' => $this->formatProduct($product),
+        ]);
+    }
+
+    /**
+     * Commande avec acompte d'un produit du vendeur : activation et % d'acompte.
+     * PUT /vendor/products/{id}/deposit
+     */
+    public function updateDeposit(Request $request, $id)
+    {
+        $validated = $request->validate(\App\Services\DepositOrderService::productRules('required'));
+
+        $product = Product::where('user_id', $request->user()->id)->findOrFail($id);
+        $product->update(\App\Services\DepositOrderService::productAttributes($validated));
+        $product->load(['images', 'primaryImage', 'category', 'subcategory', 'shop', 'variants']);
+
+        return response()->json([
+            'success' => true,
+            'message' => $product->requiresDeposit()
+                ? __('products.deposit_enabled')
+                : __('products.deposit_disabled'),
+            'product' => $this->formatProduct($product),
         ]);
     }
 
@@ -463,10 +511,16 @@ class VendorProductController extends Controller
                 'slug' => $product->shop->slug,
                 'logo' => $product->shop->logo,
                 'is_certified' => (bool) $product->shop->is_certified,
+                'free_delivery' => (bool) $product->shop->free_delivery,
                 'latitude' => $product->shop->latitude ? (float) $product->shop->latitude : null,
                 'longitude' => $product->shop->longitude ? (float) $product->shop->longitude : null,
                 'address' => $product->shop->address,
             ] : null,
+            // Effectif (produit, sinon boutique) et choix propre au produit (null = suit la boutique).
+            'free_delivery' => $product->hasFreeDelivery(),
+            'free_delivery_setting' => $product->free_delivery,
+            'deposit_enabled' => (bool) $product->deposit_enabled,
+            'deposit_rate' => $product->deposit_rate !== null ? (float) $product->deposit_rate : null,
             'created_at' => $product->created_at->toIso8601String(),
             'updated_at' => $product->updated_at->toIso8601String(),
         ];
@@ -551,7 +605,7 @@ class VendorProductController extends Controller
         if ($product->user_id !== $user->id) {
             return response()->json([
                 'success' => false,
-                'message' => 'Vous n\'êtes pas autorisé à gérer ce produit',
+                'message' => __('products.not_authorized_manage'),
             ], 403);
         }
 
@@ -567,7 +621,7 @@ class VendorProductController extends Controller
                 if ($currentStock < $quantity) {
                     return response()->json([
                         'success' => false,
-                        'message' => 'Stock insuffisant',
+                        'message' => __('products.insufficient_stock'),
                     ], 400);
                 }
                 $newStock = $currentStock - $quantity;
@@ -591,7 +645,7 @@ class VendorProductController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Entrée d\'inventaire ajoutée avec succès',
+                'message' => __('products.inventory_entry_added'),
                 'inventory' => [
                     'id' => $inventory->id,
                     'product_id' => $inventory->product_id,
@@ -616,7 +670,7 @@ class VendorProductController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de l\'ajout de l\'entrée d\'inventaire',
+                'message' => __('products.inventory_entry_error'),
             ], 500);
         }
     }
@@ -643,7 +697,7 @@ class VendorProductController extends Controller
         if ($product->user_id !== $user->id) {
             return response()->json([
                 'success' => false,
-                'message' => 'Vous n\'êtes pas autorisé à modifier ce produit',
+                'message' => __('products.not_authorized_update'),
             ], 403);
         }
 
@@ -681,7 +735,7 @@ class VendorProductController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Stock mis à jour avec succès',
+                'message' => __('products.stock_updated'),
                 'product' => [
                     'id' => $product->id,
                     'name' => $product->name,
@@ -697,7 +751,7 @@ class VendorProductController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la mise à jour du stock',
+                'message' => __('products.stock_update_error'),
             ], 500);
         }
     }

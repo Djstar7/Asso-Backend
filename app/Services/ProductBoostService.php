@@ -71,16 +71,16 @@ class ProductBoostService
     public function assertBoostable(User $user, Product $product): void
     {
         if ((int) $product->user_id !== (int) $user->id) {
-            throw new \Exception("Ce produit n'est pas le vôtre.");
+            throw new \Exception(__('packages.boost_not_owner'));
         }
         if ($product->status !== 'active') {
-            throw new \Exception('Seul un produit actif peut être sponsorisé.');
+            throw new \Exception(__('packages.boost_product_inactive'));
         }
         if (!$product->shop_id) {
-            throw new \Exception('Ce produit doit appartenir à une boutique.');
+            throw new \Exception(__('packages.boost_product_without_shop'));
         }
         if ($this->activeBoostFor($product)) {
-            throw new \Exception('Ce produit est déjà sponsorisé. Attendez la fin de la campagne en cours.');
+            throw new \Exception(__('packages.boost_already_active'));
         }
     }
 
@@ -115,7 +115,7 @@ class ProductBoostService
     ): ProductBoost {
         $quota = (int) $package->reach_users;
         if ($quota <= 0) {
-            throw new \Exception('Ce forfait de sponsoring est mal configuré. Contactez le support.');
+            throw new \Exception(__('packages.boost_misconfigured'));
         }
 
         return ProductBoost::create([
@@ -370,13 +370,16 @@ class ProductBoostService
                     $name = $boost->productLabel();
                     $served = number_format($boost->impressions_served, 0, ',', ' ');
 
-                    $body = $boost->status === ProductBoost::COMPLETED
-                        ? "« {$name} » a été vu par {$served} personnes. Relancez une campagne quand vous voulez."
-                        : "La campagne sur « {$name} » est terminée : {$served} personnes touchées.";
+                    $body = $boost->user->translate(
+                        $boost->status === ProductBoost::COMPLETED
+                            ? 'notifications.boost_finished.body_completed'
+                            : 'notifications.boost_finished.body_ended',
+                        ['product' => $name, 'served' => $served]
+                    );
 
                     $fcm->sendToUser(
                         $boost->user,
-                        'Sponsoring terminé',
+                        $boost->user->translate('notifications.boost_finished.title'),
                         $body,
                         [
                             'type' => 'boost_finished',
@@ -414,8 +417,8 @@ class ProductBoostService
             if ($boost->user) {
                 app(\App\Services\FcmService::class)->sendToUser(
                     $boost->user,
-                    'Sponsoring interrompu',
-                    "La campagne sur « {$boost->productLabel()} » a été arrêtée. Contactez le support pour en savoir plus.",
+                    $boost->user->translate('notifications.boost_cancelled.title'),
+                    $boost->user->translate('notifications.boost_cancelled.body', ['product' => $boost->productLabel()]),
                     ['type' => 'boost_cancelled', 'product_boost_id' => (string) $boost->id]
                 );
             }

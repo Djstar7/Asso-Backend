@@ -107,7 +107,14 @@ class Product extends Model
         'latitude',
         'longitude',
         'status',
-        'is_wholesale'
+        'is_wholesale',
+        'free_delivery',
+        // Commande avec acompte : acompte en % du prix acheteur (cf. DepositOrderService).
+        'deposit_enabled',
+        'deposit_rate',
+        'tier_mix_variants',
+        // Référence de l'application pour un produit saisi hors ligne (idempotence).
+        'client_reference',
     ];
 
     protected $casts = [
@@ -118,6 +125,10 @@ class Product extends Model
         'latitude' => 'decimal:8',
         'longitude' => 'decimal:8',
         'is_wholesale' => 'boolean',
+        'free_delivery' => 'boolean',
+        'deposit_enabled' => 'boolean',
+        'deposit_rate' => 'float',
+        'tier_mix_variants' => 'boolean',
         'min_order_quantity' => 'integer',
         'sizes' => 'array',
         'variant_options' => 'array',
@@ -180,6 +191,32 @@ class Product extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /** Produit vendu « sur commande » : acompte à la commande, solde après vérification ASSO. */
+    public function requiresDeposit(): bool
+    {
+        return $this->deposit_enabled && (float) $this->deposit_rate > 0 && !$this->is_wholesale;
+    }
+
+    /**
+     * Livraison gratuite offerte par le vendeur : le choix du produit prime, sinon
+     * celui de la boutique (null = suit la boutique).
+     */
+    public function hasFreeDelivery(): bool
+    {
+        return $this->free_delivery ?? (bool) $this->shop?->free_delivery;
+    }
+
+    /**
+     * Même règle que hasFreeDelivery(), en SQL : livraison offerte par le vendeur sur le
+     * produit, ou produit qui suit sa boutique (null) quand la boutique l'offre.
+     */
+    public function scopeWithEffectiveFreeDelivery($query)
+    {
+        return $query->where(fn ($q) => $q->where('free_delivery', true)
+            ->orWhere(fn ($inherit) => $inherit->whereNull('free_delivery')
+                ->whereHas('shop', fn ($shop) => $shop->where('free_delivery', true))));
     }
 
     /**

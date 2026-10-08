@@ -1,0 +1,1048 @@
+{
+    "auth": {
+        "failed": "These credentials do not match our records.",
+        "password": "The provided password is incorrect.",
+        "throttle": "Too many login attempts. Please try again in :seconds seconds.",
+        "whatsapp_direct_login_allowed": "Direct login authorized via WhatsApp",
+        "user_not_found": "User not found",
+        "login_success_whatsapp": "Logged in successfully via WhatsApp",
+        "otp_expired": "OTP code expired. Please request a new one.",
+        "otp_incorrect": "Incorrect OTP code",
+        "login_success": "Logged in successfully",
+        "invalid_phone_or_password": "Incorrect phone number or password",
+        "email_already_registered": "An account already exists with this email address.",
+        "verification_code_send_failed": "The verification code could not be sent. Check the address or try again later.",
+        "account_created_code_sent": "Account created. A verification code has been sent to your email.",
+        "invalid_email_or_password": "Incorrect email or password",
+        "verification_code_incorrect": "Incorrect verification code",
+        "verification_code_expired_request_new": "Verification code expired. Please request a new one.",
+        "email_verified": "Email verified successfully",
+        "reset_code_sent_if_exists": "If this account exists, a code has been sent.",
+        "code_send_failed": "The code could not be sent. Please try again later.",
+        "reset_code_sent": "A reset code has been sent.",
+        "code_invalid_or_expired": "Invalid or expired code.",
+        "password_changed": "Password changed successfully.",
+        "logout_success": "Logged out successfully",
+        "phone_already_used": "This number is already used by another account.",
+        "phone_change_code_sent": "A verification code has been sent to the new number.",
+        "verification_code_expired": "Verification code expired",
+        "phone_updated": "Phone number updated",
+        "account_deleted": "Account deleted successfully",
+        "unauthenticated": "User not authenticated",
+        "phone_already_registered": "This phone number is already linked to an account.",
+        "otp_service_unavailable": "OTP sending service unavailable. Contact the administrator.",
+        "otp_send_error": "Error while sending the OTP. Please try again.",
+        "phone_verified_bypass": "Number verified successfully (bypass).",
+        "phone_verified": "Number verified successfully."
+    },
+    "pagination": {
+        "previous": "&laquo; Previous",
+        "next": "Next &raquo;"
+    },
+    "passwords": {
+        "reset": "Your password has been reset.",
+        "sent": "We have emailed your password reset link.",
+        "throttled": "Please wait before retrying.",
+        "token": "This password reset token is invalid.",
+        "user": "We can't find a user with that email address."
+    },
+    "validation": {
+        "accepted": "The :attribute field must be accepted.",
+        "accepted_if": "The :attribute field must be accepted when :other is :value.",
+        "active_url": "The :attribute field must be a valid URL.",
+        "after": "The :attribute field must be a date after :date.",
+        "after_or_equal": "The :attribute field must be a date after or equal to :date.",
+        "alpha": "The :attribute field must only contain letters.",
+        "alpha_dash": "The :attribute field must only contain letters, numbers, dashes, and underscores.",
+        "alpha_num": "The :attribute field must only contain letters and numbers.",
+        "any_of": "The :attribute field is invalid.",
+        "array": "The :attribute field must be an array.",
+        "ascii": "The :attribute field must only contain single-byte alphanumeric characters and symbols.",
+        "before": "The :attribute field must be a date before :date.",
+        "before_or_equal": "The :attribute field must be a date before or equal to :date.",
+        "between": {
+            "array": "The :attribute field must have between :min and :max items.",
+            "file": "The :attribute field must be between :min and :max kilobytes.",
+            "numeric": "The :attribute field must be between :min and :max.",
+            "string": "The :attribute field must be between :min and :max characters."
+        },
+        "boolean": "The :attribute field must be true or false.",
+        "can": "The :attribute field contains an unauthorized value.",
+        "confirmed": "The :attribute field confirmation does not match.",
+        "contains": "The :attribute field is missing a required value.",
+        "current_password": "The password is incorrect.",
+        "date": "The :attribute field must be a valid date.",
+        "date_equals": "The :attribute field must be a date equal to :date.",
+        "date_format": "The :attribute field must match the format :format.",
+        "decimal": "The :attribute field must have :decimal decimal places.",
+        "declined": "The :attribute field must be declined.",
+        "declined_if": "The :attribute field must be declined when :other is :value.",
+        "different": "The :attribute field and :other must be different.",
+        "digits": "The :attribute field must be :digits digits.",
+        "digits_between": "The :attribute field must be between :min and :max digits.",
+        "dimensions": "The :attribute field has invalid image dimensions.",
+        "distinct": "The :attribute field has a duplicate value.",
+        "doesnt_contain": "The :attribute field must not contain any of the following: :values.",
+        "doesnt_end_with": "The :attribute field must not end with one of the following: :values.",
+        "doesnt_start_with": "The :attribute field must not start with one of the following: :values.",
+        "email": "The :attribute field must be a valid email address.",
+        "encoding": "The :attribute field must be encoded in :encoding.",
+        "ends_with": "The :attribute field must end with one of the following: :values.",
+        "enum": "The selected :attribute is invalid.",
+        "exists": "The selected :attribute is invalid.",
+        "extensions": "The :attribute field must have one of the following extensions: :values.",
+        "file": "The :attribute field must be a file.",
+        "filled": "The :attribute field must have a value.",
+        "gt": {
+            "array": "The :attribute field must have more than :value items.",
+            "file": "The :attribute field must be greater than :value kilobytes.",
+            "numeric": "The :attribute field must be greater than :value.",
+            "string": "The :attribute field must be greater than :value characters."
+        },
+        "gte": {
+            "array": "The :attribute field must have :value items or more.",
+            "file": "The :attribute field must be greater than or equal to :value kilobytes.",
+            "numeric": "The :attribute field must be greater than or equal to :value.",
+            "string": "The :attribute field must be greater than or equal to :value characters."
+        },
+        "hex_color": "The :attribute field must be a valid hexadecimal color.",
+        "image": "The :attribute field must be an image.",
+        "in": "The selected :attribute is invalid.",
+        "in_array": "The :attribute field must exist in :other.",
+        "in_array_keys": "The :attribute field must contain at least one of the following keys: :values.",
+        "integer": "The :attribute field must be an integer.",
+        "ip": "The :attribute field must be a valid IP address.",
+        "ipv4": "The :attribute field must be a valid IPv4 address.",
+        "ipv6": "The :attribute field must be a valid IPv6 address.",
+        "json": "The :attribute field must be a valid JSON string.",
+        "list": "The :attribute field must be a list.",
+        "lowercase": "The :attribute field must be lowercase.",
+        "lt": {
+            "array": "The :attribute field must have less than :value items.",
+            "file": "The :attribute field must be less than :value kilobytes.",
+            "numeric": "The :attribute field must be less than :value.",
+            "string": "The :attribute field must be less than :value characters."
+        },
+        "lte": {
+            "array": "The :attribute field must not have more than :value items.",
+            "file": "The :attribute field must be less than or equal to :value kilobytes.",
+            "numeric": "The :attribute field must be less than or equal to :value.",
+            "string": "The :attribute field must be less than or equal to :value characters."
+        },
+        "mac_address": "The :attribute field must be a valid MAC address.",
+        "max": {
+            "array": "The :attribute field must not have more than :max items.",
+            "file": "The :attribute field must not be greater than :max kilobytes.",
+            "numeric": "The :attribute field must not be greater than :max.",
+            "string": "The :attribute field must not be greater than :max characters."
+        },
+        "max_digits": "The :attribute field must not have more than :max digits.",
+        "mimes": "The :attribute field must be a file of type: :values.",
+        "mimetypes": "The :attribute field must be a file of type: :values.",
+        "min": {
+            "array": "The :attribute field must have at least :min items.",
+            "file": "The :attribute field must be at least :min kilobytes.",
+            "numeric": "The :attribute field must be at least :min.",
+            "string": "The :attribute field must be at least :min characters."
+        },
+        "min_digits": "The :attribute field must have at least :min digits.",
+        "missing": "The :attribute field must be missing.",
+        "missing_if": "The :attribute field must be missing when :other is :value.",
+        "missing_unless": "The :attribute field must be missing unless :other is :value.",
+        "missing_with": "The :attribute field must be missing when :values is present.",
+        "missing_with_all": "The :attribute field must be missing when :values are present.",
+        "multiple_of": "The :attribute field must be a multiple of :value.",
+        "not_in": "The selected :attribute is invalid.",
+        "not_regex": "The :attribute field format is invalid.",
+        "numeric": "The :attribute field must be a number.",
+        "password": {
+            "letters": "The :attribute field must contain at least one letter.",
+            "mixed": "The :attribute field must contain at least one uppercase and one lowercase letter.",
+            "numbers": "The :attribute field must contain at least one number.",
+            "symbols": "The :attribute field must contain at least one symbol.",
+            "uncompromised": "The given :attribute has appeared in a data leak. Please choose a different :attribute."
+        },
+        "present": "The :attribute field must be present.",
+        "present_if": "The :attribute field must be present when :other is :value.",
+        "present_unless": "The :attribute field must be present unless :other is :value.",
+        "present_with": "The :attribute field must be present when :values is present.",
+        "present_with_all": "The :attribute field must be present when :values are present.",
+        "prohibited": "The :attribute field is prohibited.",
+        "prohibited_if": "The :attribute field is prohibited when :other is :value.",
+        "prohibited_if_accepted": "The :attribute field is prohibited when :other is accepted.",
+        "prohibited_if_declined": "The :attribute field is prohibited when :other is declined.",
+        "prohibited_unless": "The :attribute field is prohibited unless :other is in :values.",
+        "prohibits": "The :attribute field prohibits :other from being present.",
+        "regex": "The :attribute field format is invalid.",
+        "required": "The :attribute field is required.",
+        "required_array_keys": "The :attribute field must contain entries for: :values.",
+        "required_if": "The :attribute field is required when :other is :value.",
+        "required_if_accepted": "The :attribute field is required when :other is accepted.",
+        "required_if_declined": "The :attribute field is required when :other is declined.",
+        "required_unless": "The :attribute field is required unless :other is in :values.",
+        "required_with": "The :attribute field is required when :values is present.",
+        "required_with_all": "The :attribute field is required when :values are present.",
+        "required_without": "The :attribute field is required when :values is not present.",
+        "required_without_all": "The :attribute field is required when none of :values are present.",
+        "same": "The :attribute field must match :other.",
+        "size": {
+            "array": "The :attribute field must contain :size items.",
+            "file": "The :attribute field must be :size kilobytes.",
+            "numeric": "The :attribute field must be :size.",
+            "string": "The :attribute field must be :size characters."
+        },
+        "starts_with": "The :attribute field must start with one of the following: :values.",
+        "string": "The :attribute field must be a string.",
+        "timezone": "The :attribute field must be a valid timezone.",
+        "unique": "The :attribute has already been taken.",
+        "uploaded": "The :attribute failed to upload.",
+        "uppercase": "The :attribute field must be uppercase.",
+        "url": "The :attribute field must be a valid URL.",
+        "ulid": "The :attribute field must be a valid ULID.",
+        "uuid": "The :attribute field must be a valid UUID.",
+        "attributes": {
+            "phone": "phone number",
+            "email": "email address",
+            "password": "password",
+            "password_confirmation": "password confirmation",
+            "first_name": "first name",
+            "last_name": "last name",
+            "name": "name",
+            "description": "description",
+            "amount": "amount",
+            "quantity": "quantity",
+            "price": "price",
+            "address": "address",
+            "city": "city",
+            "country": "country",
+            "country_code": "country code",
+            "otp": "code",
+            "code": "code",
+            "locale": "language",
+            "title": "title",
+            "message": "message",
+            "content": "content",
+            "image": "image",
+            "images": "images",
+            "avatar": "profile photo",
+            "birth_date": "date of birth",
+            "gender": "gender",
+            "shop_name": "shop name",
+            "category_id": "category",
+            "weight": "weight",
+            "stock": "stock",
+            "reason": "reason"
+        }
+    },
+    "profile": {
+        "updated": "Profile updated successfully",
+        "preferences_updated": "Preferences updated",
+        "already_vendor": "You are already a vendor",
+        "logo_upload_error": "Error while uploading the logo",
+        "now_vendor": "You are now a vendor!",
+        "already_deliverer": "You are already a delivery person",
+        "now_deliverer": "You are now a delivery person!",
+        "dashboard_load_error": "Error while loading the dashboard"
+    },
+    "diaspo": {
+        "documents_received": "Documents received. Your verification is being processed.",
+        "identity_required_to_create_offer": "Your identity must be verified to create an offer.",
+        "offer_created": "Offer created",
+        "offer_updated": "Offer updated",
+        "offer_delete_has_bookings": "Cannot delete: bookings are in progress.",
+        "offer_deleted": "Offer deleted",
+        "cannot_book_own_offer": "You cannot book your own offer.",
+        "offer_unavailable_or_insufficient_kg": "Offer unavailable or not enough kg available.",
+        "traveler_not_verified": "This traveler has not yet had their identity verified. Booking will be possible once it is validated.",
+        "booking_created_confirm_on_phone": "Booking created. Confirm the payment on your phone.",
+        "booking_created_complete_card": "Booking created. Complete the payment by card.",
+        "booking_already_finalized": "Booking already finalized.",
+        "booking_cancelled": "Booking cancelled",
+        "booking_action_not_allowed": "This action is not possible on this booking.",
+        "receipt_confirmed_traveler_credited": "Receipt confirmed. The traveler has been credited.",
+        "settlement_unavailable": "This booking cannot be settled right now. Please try again in a few moments.",
+        "confirmation_code_incorrect": "Incorrect confirmation code.",
+        "booking_not_paid_yet": "The booking has not been paid yet.",
+        "code_validated": "Code validated: delivery confirmed, your share has been credited to your wallet.",
+        "offer_created_published": "Offer created and published successfully!",
+        "offer_published_unverified": "Offer published with the \"Unverified profile\" label. Get your identity verified before :date: without validation, it will be removed. Bookings will open as soon as it is validated.",
+        "offer_completed_cannot_update": "This offer is completed and can no longer be modified",
+        "offer_update_has_bookings": "This offer cannot be modified because it has active bookings",
+        "offer_delete_has_active_bookings": "This offer cannot be deleted because it has active bookings",
+        "identity_already_verified": "Your identity is already verified.",
+        "documents_uploaded": "Documents uploaded successfully. Your profile will be verified within 24-48 hours.",
+        "documents_upload_error": "Error while uploading the documents: :error"
+    },
+    "payments": {
+        "method_unavailable": "This payment method is currently unavailable.",
+        "amount_too_low_for_method": "The amount is too low for this payment method.",
+        "kpay_init_failed": "Failed to initiate the KPay payment.",
+        "card_temporarily_unavailable": "Card payment is temporarily unavailable.",
+        "card_currency_conversion_unavailable": "Currency conversion is unavailable for card payment.",
+        "stripe_init_failed": "Failed to initiate the card payment (Stripe).",
+        "stripe_unavailable_choose_other": "Card payment (Stripe) is not available at the moment. Please choose another payment method.",
+        "stripe_unavailable": "Card payment (Stripe) is not available at the moment.",
+        "conversion_unavailable_retry": "Conversion XAF → :currency unavailable. Please try again later.",
+        "card_conversion_unavailable": "Conversion XAF → :currency unavailable for card payment.",
+        "initiation_error": "Error while initiating the payment",
+        "card_conversion_unavailable_retry": "Conversion XAF → :currency unavailable for card payment. Please try again later.",
+        "method_not_supported": "Payment method not supported",
+        "method_discontinued_use_wallet": "This payment method is no longer available. Choose “ASSO Wallet” when paying for your order or plan.",
+        "not_found": "Payment not found",
+        "stripe_connect": {
+            "verified": "Account verified by Stripe.",
+            "pending": "Verification in progress at Stripe (a few minutes).",
+            "not_activated": "Account not yet activated by Stripe.",
+            "requirements_due": "Additional information requested by Stripe.",
+            "status_unavailable": "Account status unavailable at the moment.",
+            "already_validated": "Your payout account is already validated. Contact support to change your IBAN.",
+            "saved": "Bank details saved. Your payout account will be verified within 24-48 hours.",
+            "error_connection": "The bank transfer service is temporarily unavailable. Please try again in a few moments.",
+            "error_invalid_iban": "The IBAN entered seems invalid. Check it and try again.",
+            "error_country_unsupported": "The bank account's country is not supported for transfers.",
+            "error_invalid_details": "Some bank details are invalid. Check your information and try again.",
+            "error_unavailable": "Bank transfer payout (Stripe) is not available yet. Please try again later.",
+            "error_save_failed": "Unable to save your bank details at the moment. Please try again later.",
+            "error_generic": "An error occurred while saving your bank details. Please try again."
+        },
+        "transaction_not_found": "Transaction not found",
+        "invoice_not_found": "Invoice not found",
+        "invoice_access_denied": "Unauthorized access to this invoice",
+        "invoice_generation_error_detail": "Error while generating the invoice: :error",
+        "invoice_generation_error": "Error while generating the invoice",
+        "initiated_confirm_on_phone": "Payment initiated. Please confirm on your phone.",
+        "cash_on_delivery_confirmed": "Order confirmed. Payment on delivery.",
+        "kpay_not_configured": "KPay not configured (missing API keys).",
+        "connection_error": "Error connecting to the payment service",
+        "kpay_payment_init_error": "Error while initializing the payment",
+        "kpay_withdrawal_init_error": "Error while initializing the withdrawal"
+    },
+    "notifications": {
+        "diaspo_booking_paid": {
+            "title": "New paid booking",
+            "body": "A booking of :kg kg has been paid."
+        },
+        "order_cancelled_by_buyer": {
+            "title": "Order cancelled by the customer",
+            "body": "Order #:order_number has been cancelled. The stock has been put back on sale.",
+            "body_with_reason": "Order #:order_number has been cancelled: :reason The stock has been put back on sale."
+        },
+        "order_received_by_buyer": {
+            "title": "Package received",
+            "body": "The buyer has confirmed receipt of order #:order_number."
+        },
+        "order_rated": {
+            "title": "New rating received",
+            "body": "Order #:order_number rated :stars"
+        },
+        "delivery_assigned": {
+            "title": "New delivery assigned",
+            "body": "Order #:order_number — Delivery to :address:details. Contact: :phone. Fee: :fee FCFA"
+        },
+        "new_delivery_request": {
+            "title": "New delivery available",
+            "body": "Order #:order_number — Delivery to :address. Commission: :fee FCFA"
+        },
+        "new_message": {
+            "photo_body": "Photo",
+            "text_body": "Message"
+        },
+        "package_purchase": {
+            "title": "Purchase confirmed!",
+            "body": "Your :package package (:storage MB) has been activated successfully."
+        },
+        "package_expiring": {
+            "title": "Package expiring soon",
+            "body_singular": "Your package expires in :days day. Renew it to keep publishing your products.",
+            "body_plural": "Your package expires in :days days. Renew it to keep publishing your products."
+        },
+        "order_status_pending": {
+            "title": "New order",
+            "body": "Order #:order_number received!"
+        },
+        "order_status_confirmed": {
+            "title": "Order confirmed",
+            "body": "Order #:order_number confirmed"
+        },
+        "order_status_shipped": {
+            "title": "Order shipped",
+            "body": "Order #:order_number is out for delivery"
+        },
+        "order_status_delivered": {
+            "title": "Order delivered",
+            "body": "Order #:order_number delivered successfully"
+        },
+        "order_status_cancelled": {
+            "title": "Order cancelled",
+            "body": "Order #:order_number cancelled"
+        },
+        "order_status_update": {
+            "title": "Order update",
+            "body": "Order #:order_number"
+        },
+        "order_created": {
+            "title": "Order pending",
+            "body": "Your order #:order_number has been created. Awaiting seller approval."
+        },
+        "new_order_vendor": {
+            "title": "New order received",
+            "body": "You have received a new order #:order_number from :client (:total).",
+            "body_no_client": "You have received a new order #:order_number (:total)."
+        },
+        "wholesale_order_created": {
+            "title": "Wholesale order created",
+            "body": "Your wholesale order #:order_number has been created. Awaiting payment/approval."
+        },
+        "order_paid": {
+            "title": "Payment confirmed",
+            "body": "Your payment for order #:order_number has been confirmed. Awaiting seller approval."
+        },
+        "order_payment_failed": {
+            "title": "Payment failed",
+            "body": "The payment for order #:order_number did not go through. The order has been cancelled."
+        },
+        "order_confirmed": {
+            "title": "Order approved!",
+            "body_carrier": "Your order #:order_number has been accepted by the seller. The parcel will be handed over to the carrier.",
+            "body_courier": "Your order #:order_number has been accepted by the seller. Waiting for the delivery driver."
+        },
+        "order_rejected": {
+            "title": "Order declined",
+            "body": "Your order #:order_number has been declined.",
+            "body_refunded": "Your order #:order_number has been declined. :amount FCFA have been made available in your ASSO Wallet."
+        },
+        "wallet_refund": {
+            "title": "Payment refunded",
+            "body": "Your payment for cancelled order #:order_number has been credited to your ASSO Wallet."
+        },
+        "order_tracking": {
+            "title": "Order #:order_number"
+        },
+        "agency_delivery_request": {
+            "title": "Parcel to deliver from the agency",
+            "body": "Order #:order_number — delivery to :address."
+        },
+        "boost_refunded": {
+            "title": "Sponsoring not activated",
+            "body": "The item to sponsor no longer exists. The amount has been credited back to your wallet."
+        },
+        "certification_activated": {
+            "title": "Shop certified ✅",
+            "body": "Your :package is active.",
+            "body_until": "Your :package is active until :date."
+        },
+        "boost_activated": {
+            "title": "Sponsoring activated 🚀",
+            "body_named": "“:product” is sponsored: up to :reach people will see it.",
+            "body": "Your product is sponsored: up to :reach people will see it."
+        },
+        "boost_finished": {
+            "title": "Sponsoring ended",
+            "body_completed": "“:product” was seen by :served people. Start a new campaign whenever you like.",
+            "body_ended": "The campaign for “:product” has ended: :served people reached."
+        },
+        "boost_cancelled": {
+            "title": "Sponsoring stopped",
+            "body": "The campaign for “:product” has been stopped. Contact support to learn more."
+        },
+        "wallet_withdrawal_completed_bank": {
+            "title": "Transfer completed",
+            "body": "Your transfer of :amount :currency has been paid into your bank account."
+        },
+        "wallet_withdrawal_failed_bank": {
+            "title": "Transfer failed",
+            "body": "Your transfer of :amount :currency failed. The amount has been credited back to your wallet."
+        },
+        "new_wholesale_order_vendor": {
+            "title": "New wholesale order",
+            "body": "Wholesale order #:order_number paid: :count item(s) to prepare."
+        },
+        "diaspo_verified": {
+            "title": "Identity verified!",
+            "body": "Your identity has been verified: the “Unverified profile” label has been removed from your DIASPO offers."
+        },
+        "diaspo_rejected": {
+            "title": "DIASPO verification not approved",
+            "body": "Your identity documents were not accepted. Reason: :reason",
+            "body_with_deadline": "Your identity documents were not accepted. Reason: :reason Send valid documents before :date, otherwise your offers will be removed."
+        },
+        "diaspo_verification_deadline": {
+            "title": "Verify your identity",
+            "body": "Your offer :from → :to will be removed on :date at :time if your identity has not been verified by then."
+        },
+        "diaspo_offer_removed": {
+            "title": "DIASPO offer removed",
+            "body": "Your offer :from → :to has been removed: your identity was not verified in time."
+        },
+        "delivery_timeout": {
+            "title": "No delivery driver available",
+            "body": "No delivery driver has accepted order #:order_number after 5 minutes. Check the available drivers."
+        },
+        "delivery_timeout_client": {
+            "title": "Waiting for a delivery driver",
+            "body": "No delivery driver has picked up your order #:order_number yet. We will keep you informed."
+        },
+        "wallet_credit": {
+            "title": "Deposit successful",
+            "body": "Your deposit of :amount FCFA has been confirmed successfully."
+        },
+        "wallet_credit_failed": {
+            "title": "Deposit failed",
+            "body": "Your deposit of :amount FCFA failed. Reason: :reason",
+            "unknown_reason": "Unknown error"
+        },
+        "wallet_withdrawal_completed": {
+            "title": "Withdrawal completed",
+            "body": "Your withdrawal of :amount FCFA has been sent successfully to :account."
+        },
+        "wallet_withdrawal_failed": {
+            "title": "Withdrawal failed",
+            "body": "Your withdrawal of :amount FCFA failed. :reason",
+            "default_reason": "Please try again."
+        },
+        "wallet_withdrawal_processing_kpay": {
+            "title": "KPay withdrawal in progress",
+            "body": "Your withdrawal request of :amount :currency to :phone is being processed."
+        },
+        "wallet_withdrawal_processing_bank": {
+            "title": "Transfer in progress",
+            "body": "Your transfer request of :amount :currency to your IBAN ****:iban_last4 is being processed."
+        },
+        "wallet_deposit_success_card": {
+            "title": "Card top-up successful",
+            "body": "Your wallet has been credited with :amount FCFA by bank card."
+        },
+        "stripe_account_requirements": {
+            "title": "Payout account needs updating",
+            "body": "Our banking partner needs additional information before authorizing your transfers. Please update your payout account."
+        },
+        "order_shipped_vendor": {
+            "title": "Order out for delivery",
+            "body": "Delivery driver :deliverer has picked up order #:order_number."
+        },
+        "order_shipped": {
+            "title": "Delivery in progress!",
+            "body": "Your order #:order_number is being delivered by :deliverer. Your confirmation code: :code",
+            "body_deposit": "Your order #:order_number is on its way with :deliverer. An ASSO team member will check the product with you before the balance is paid."
+        },
+        "delivery_completed": {
+            "title": "Delivery confirmed",
+            "body": "Delivery #:order_number confirmed."
+        },
+        "order_delivered": {
+            "title": "Delivery confirmed!",
+            "body": "Your order #:order_number has been delivered successfully. Rate your experience!"
+        },
+        "order_delivered_vendor": {
+            "title": "Delivery confirmed",
+            "body": "Order #:order_number has been delivered successfully."
+        },
+        "delivery_taken": {
+            "title": "Order taken",
+            "body": "Order #:order_number has been accepted by another driver."
+        },
+        "api": {
+            "not_found": "Notification not found",
+            "marked_as_read": "Notification marked as read",
+            "all_marked_as_read": "All notifications marked as read",
+            "deleted": "Notification deleted",
+            "all_deleted": "All notifications deleted"
+        },
+        "test": {
+            "title": "Test Notification",
+            "body": "This is a test notification from Asso!"
+        },
+        "stripe_account_approved": {
+            "title": "Payout account approved!",
+            "body": "Your bank account has been approved. You can now be paid by bank transfer (IBAN)."
+        },
+        "stripe_account_rejected": {
+            "title": "Payout account not approved",
+            "body": "Your bank account was not approved. Reason: :reason"
+        },
+        "shop_verified": {
+            "title": "Shop verified!",
+            "body": "Congratulations! Your shop \":shop\" has been verified and activated."
+        },
+        "shop_rejected": {
+            "title": "Shop not approved",
+            "body": "Your shop \":shop\" was not approved. Reason: :reason"
+        },
+        "shop_activated": {
+            "title": "Shop activated",
+            "body": "Your shop \":shop\" has been activated by the administrator."
+        },
+        "shop_deactivated": {
+            "title": "Shop deactivated",
+            "body": "Your shop \":shop\" has been deactivated by the administrator."
+        },
+        "location_request_approved": {
+            "title": "Location change approved",
+            "body": "Your location change request for :shop has been approved by the administrator."
+        },
+        "location_request_rejected": {
+            "title": "Location change rejected",
+            "body": "Your location change request for :shop has been declined: :reason"
+        },
+        "stripe_account_incomplete": {
+            "title": "Payout account to complete",
+            "body": "Resend your bank details (identity, address, date of birth) to activate your transfers."
+        },
+        "order_balance_due": {
+            "title": "Balance unlocked",
+            "body": "Your product has been checked with ASSO (order #:order_number). You can now pay the :amount FCFA balance in the app."
+        },
+        "order_balance_paid": {
+            "title": "Balance paid",
+            "body": "Thank you! The balance of order #:order_number is paid. Your product can now be handed over."
+        },
+        "order_balance_failed": {
+            "title": "Balance payment failed",
+            "body": "The balance payment for order #:order_number did not go through. You can try again from My orders."
+        },
+        "order_deposit_closed": {
+            "title": "Order closed",
+            "body": "Order #:order_number was closed by ASSO. Amount returned to your Wallet: :amount FCFA."
+        },
+        "order_balance_paid_vendor": {
+            "title": "Order fully paid",
+            "body": "The customer paid the balance of order #:order_number: your sale has been credited."
+        },
+        "order_control_window": {
+            "title": "Order delivered",
+            "body": "Order #:order_number delivered. You have :hours h to check your products: confirm \"Everything is fine\" or file a claim."
+        },
+        "vendor_funds_released": {
+            "title": "Funds released",
+            "body": "Order #:order_number validated: :amount FCFA are available in your Wallet."
+        },
+        "dispute_opened": {
+            "title": "Claim on an order",
+            "body": "The customer opened claim :number (order #:order_number). Your funds for this product stay on hold during ASSO's review."
+        },
+        "dispute_vendor_contacted": {
+            "title": "ASSO is waiting for your reply",
+            "body": "Claim :number: send your explanations and evidence from the app."
+        },
+        "dispute_unfounded": {
+            "title": "Claim not upheld",
+            "body": "After review, ASSO found claim :number unfounded. The order is considered compliant."
+        },
+        "dispute_unfounded_vendor": {
+            "title": "Claim not upheld",
+            "body": "Claim :number found unfounded: the product's funds are released."
+        },
+        "dispute_founded": {
+            "title": "Claim accepted",
+            "body": "ASSO upheld your claim :number. The product will be replaced, or collected and refunded."
+        },
+        "dispute_founded_vendor": {
+            "title": "Claim upheld",
+            "body": "Claim :number upheld: replace the product or organize the return from the app."
+        },
+        "dispute_return_validated": {
+            "title": "Return of your product",
+            "body": "Your return/refund request (:number) is approved. A delivery partner will contact you to collect the product. You pay no return fees."
+        },
+        "dispute_shipment_payment_required": {
+            "title": "Delivery payment required",
+            "body": "Claim :number: choose a partner and pay for the delivery (Wallet, Mobile Money or card) so the case can move forward."
+        },
+        "dispute_shipment_paid": {
+            "title": "Delivery paid",
+            "body": "Claim :number: the delivery is paid, the partner takes over."
+        },
+        "dispute_shipment_payment_failed": {
+            "title": "Payment failed",
+            "body": "Claim :number: the delivery payment did not go through. Try again from the app."
+        },
+        "dispute_return_courier": {
+            "title": "Collection of your product",
+            "body": "Claim :number: a courier has been assigned and will contact you to collect the product."
+        },
+        "dispute_replacement_shipped": {
+            "title": "Replacement shipped",
+            "body": "Claim :number: your replacement product is on its way. Delivery is free for you."
+        },
+        "dispute_replacement_delivered": {
+            "title": "Replacement delivered",
+            "body": "Claim :number: you have :hours h to check the replacement product."
+        },
+        "dispute_pickup_scheduled": {
+            "title": "Collection scheduled",
+            "body": "Claim :number: the collection of your product is scheduled."
+        },
+        "dispute_return_delivered": {
+            "title": "Product returned",
+            "body": "Claim :number: the product has been delivered back to you."
+        },
+        "dispute_refunded": {
+            "title": "Refund completed",
+            "body": "Claim :number: :amount FCFA have been credited to your ASSO Wallet. Discover similar products with delivery offered by their seller."
+        },
+        "dispute_refunded_vendor": {
+            "title": "Case closed",
+            "body": "Claim :number: the return is confirmed and the customer refunded. The product amount is not paid to you."
+        },
+        "dispute_resolved_vendor": {
+            "title": "Replacement validated",
+            "body": "Claim :number: the replacement is validated, the product's funds are released."
+        }
+    },
+    "orders": {
+        "created_confirm_on_phone": "Order created. Confirm the payment on your phone (USSD).",
+        "created_complete_card": "Order created. Complete the payment by card.",
+        "created_funds_held": "Order created successfully. Funds are held pending validation.",
+        "already_handled_cannot_cancel": "This order has already been taken over by the seller and can no longer be cancelled.",
+        "cancelled_refunded": "Order cancelled. :amount FCFA are available in your ASSO Wallet.",
+        "cancelled": "Order cancelled.",
+        "reception_confirmed": "Receipt confirmed. Thank you!",
+        "rating_required": "Please give a rating.",
+        "rating_integer": "The rating must be a whole number.",
+        "rating_range": "The rating must be between 1 and 5 stars.",
+        "rating_comment_max": "Your comment must not exceed 1000 characters.",
+        "not_found": "Order not found.",
+        "rate_after_delivery": "You will be able to rate this order once it has been delivered.",
+        "already_rated": "You have already rated this order.",
+        "rating_thanks": "Thank you for your rating!",
+        "cannot_be_validated": "This order can no longer be validated",
+        "payment_not_confirmed": "The payment for this order has not been confirmed yet.",
+        "validated_funds_credited": "Order confirmed. Your share is credited and held until the customer validates it (at most 48 h after delivery).",
+        "cannot_be_rejected": "This order can no longer be rejected",
+        "rejected_refunded": "Order rejected. The customer has been refunded to their ASSO Wallet.",
+        "rejected": "Order rejected.",
+        "must_be_confirmed_before_assign": "The order must be confirmed before assigning a delivery person",
+        "carrier_order_hand_over": "This order ships by carrier: drop the package off at the agency and enter its tracking number.",
+        "deliverer_assigned": "Delivery person assigned and notified",
+        "delivered_by_urban_deliverer": "This order is delivered by an urban delivery person.",
+        "must_be_validated_before_carrier": "The order must be validated before handing it over to the carrier.",
+        "handed_to_carrier": "Package handed over to the carrier. The buyer has been notified.",
+        "unknown_tracking_step": "Unknown tracking step.",
+        "carrier_tracking_after_handover": "Carrier tracking starts after the package is handed over.",
+        "tracking_step_added": "Step added. The buyer has been notified.",
+        "wholesale": {
+            "solex_delivery_required": "Choose SOLEX delivery: the order arrives in Douala, then SOLEX delivers it to you.",
+            "delivery_address_required": "Enter your delivery address.",
+            "created": "Wholesale order created."
+        },
+        "product_unavailable": "The product ':product' is no longer available.",
+        "variant_not_found": "The selected variant for ':product' does not exist.",
+        "variant_unavailable": "The selected variant for ':product' is no longer available.",
+        "variant_required": "Please select a variant for ':product'.",
+        "insufficient_stock": "Insufficient stock for ':product'. Available: :available",
+        "product_conversion_unavailable_retry": "Conversion :currency → XAF unavailable for ':product'. Please try again later.",
+        "wholesale_unavailable": "The product ':product' is not available wholesale.",
+        "wholesale_price_missing": "The product ':product' does not have a wholesale price yet.",
+        "wholesale_minimum_not_reached": "Minimum quantity not reached for ':product': minimum :minimum.",
+        "product_conversion_unavailable": "Conversion :currency → XAF unavailable for ':product'.",
+        "parcel_weight_required": "The parcel weight must first be entered by ASSO before payment.",
+        "delivery_address_required_solex": "Enter your delivery address: the order arrives in Douala, then SOLEX delivers it to you.",
+        "already_processed": "This order has already been processed.",
+        "deposit_mixed_cart": "A deposit product must be ordered on its own: place a separate order for the other items.",
+        "balance_not_payable": "This order has no balance to pay.",
+        "balance_already_paid": "The balance of this order has already been paid.",
+        "balance_locked_until_verification": "The balance can be paid once your product has been delivered and checked with ASSO.",
+        "deposit_split_exceeds": "The split exceeds the deposit collected (:amount FCFA).",
+        "verification_transition_invalid": "This action is not possible at this verification step.",
+        "balance_due_before_handover": "The balance must be paid before the product is handed over.",
+        "balance_confirm_on_phone": "Confirm the balance payment on your phone.",
+        "balance_paid": "Balance paid. Your product can now be handed over.",
+        "validated_paid_after_balance": "Order confirmed. You will be paid once the product is delivered, checked with ASSO and the balance paid by the customer."
+    },
+    "products": {
+        "sponsored_label": "Sponsored",
+        "added_to_favorites": "Added to favorites",
+        "removed_from_favorites": "Removed from favorites",
+        "storage_package_required": "You must subscribe to a storage package to add products",
+        "storage_insufficient_subscribe": "Insufficient storage space. Please subscribe to an additional package.",
+        "shop_required": "You must create a shop before adding products",
+        "created": "Product created successfully",
+        "already_created": "Product already created",
+        "not_authorized_update": "You are not authorized to modify this product",
+        "active_package_required_for_images": "You must have an active package to add images",
+        "storage_insufficient_for_images": "Insufficient storage space to add these images",
+        "updated": "Product updated successfully",
+        "update_error": "Error while updating the product",
+        "not_authorized_delete": "You are not authorized to delete this product",
+        "deleted": "Product deleted successfully",
+        "delete_error": "Error while deleting the product",
+        "reactivated": "Product reactivated successfully",
+        "deactivated": "Product deactivated successfully",
+        "free_delivery_enabled": "Free delivery enabled for this product",
+        "free_delivery_disabled": "Free delivery disabled for this product",
+        "not_authorized_manage": "You are not authorized to manage this product",
+        "insufficient_stock": "Insufficient stock",
+        "inventory_entry_added": "Inventory entry added successfully",
+        "inventory_entry_error": "Error while adding the inventory entry",
+        "stock_updated": "Stock updated successfully",
+        "stock_update_error": "Error while updating the stock",
+        "not_found_short": "Product not found.",
+        "default_name": "Product",
+        "deposit_enabled": "Deposit ordering enabled for this product.",
+        "deposit_disabled": "Deposit ordering disabled: standard payment."
+    },
+    "shops": {
+        "not_a_vendor": "You are not a vendor",
+        "no_shop_found": "No shop found",
+        "not_found": "Shop not found",
+        "unavailable": "This shop is not available",
+        "invalid_address": "The address provided is invalid. Please try again.",
+        "location_change_requires_request": "The shop location can no longer be changed directly: submit a change request, and the ASSO team will approve it.",
+        "updated": "Shop updated successfully",
+        "update_error": "Error while updating the shop",
+        "free_delivery_enabled": "Free delivery enabled for the whole shop",
+        "free_delivery_disabled": "Free delivery disabled for the shop",
+        "location_request_sent": "Request sent. The ASSO team will review it before your shop's location changes.",
+        "create_error": "Error while creating the shop",
+        "verification": {
+            "active": "Your shop is verified and active",
+            "pending": "Your shop is being verified by our team",
+            "rejected_with_reason": "Your shop has been rejected. Reason: :reason",
+            "rejected": "Your shop has been rejected",
+            "inactive": "Your shop is deactivated",
+            "unknown": "Unknown status"
+        },
+        "statistics": {
+            "periods": {
+                "7d": "Last 7 days",
+                "30d": "Last 30 days",
+                "90d": "Last 90 days",
+                "365d": "Last 12 months",
+                "all": "Since the beginning"
+            },
+            "unsupported_format": "Unsupported format (csv or pdf).",
+            "export": {
+                "shop": "Shop",
+                "period": "Period",
+                "from": "From",
+                "to": "To",
+                "generated_at": "Generated on",
+                "indicator": "Indicator",
+                "value": "Value",
+                "detail_by_month": "Breakdown by month",
+                "detail_by_day": "Breakdown by day",
+                "date": "Date",
+                "visits": "Visits",
+                "product_views": "Products viewed",
+                "contacts": "Contacts",
+                "orders": "Orders",
+                "revenue": "Revenue",
+                "top_products": "Most viewed products",
+                "product": "Product",
+                "views": "Views",
+                "sold": "Sold"
+            },
+            "labels": {
+                "visits": "Shop visits",
+                "unique_visitors": "Unique visitors",
+                "product_views": "Products viewed",
+                "contacts": "Contacts made",
+                "orders": "Orders",
+                "validated_orders": "Approved orders",
+                "pending_orders": "Pending orders",
+                "cancelled_orders": "Cancelled orders",
+                "items_sold": "Items sold",
+                "revenue": "Revenue (XAF)",
+                "gross_sales": "Customer volume (XAF)",
+                "commission": "ASSO commission (XAF)",
+                "average_basket": "Average basket (XAF)",
+                "conversion_rate": "Conversion rate (%)"
+            }
+        },
+        "not_found_short": "Shop not found"
+    },
+    "delivery": {
+        "deliverer_not_found": "Delivery person not found",
+        "order_or_company_required": "Please provide order_id or company_id",
+        "company_not_found": "Delivery company not found",
+        "sync": {
+            "invalid_data": "Invalid validation data",
+            "code_invalid": "Invalid or unknown sync code",
+            "code_expired": "This sync code has expired",
+            "banned": "You have been banned from this sync code",
+            "already_synced": "You are already synced with this code",
+            "company_not_found": "No delivery company found for this code",
+            "error": "Error during synchronization: :error",
+            "success": "Profile synced successfully! You are now a delivery person for :company",
+            "code_not_found": "Sync code not found",
+            "not_active_deliverer": "You are not an active delivery person",
+            "unsynced": "Unsynced successfully. You are no longer a delivery person.",
+            "user_not_deliverer": "User not found or not a delivery person",
+            "code_generated": "New sync code generated successfully"
+        },
+        "neighborhood_required": "Choose your delivery neighborhood to calculate the price.",
+        "mode_unavailable_for_address": "This delivery option is no longer available for this address. Please choose another one.",
+        "this_address": "this address",
+        "no_partner": "No delivery partner serves :destination for :weight.",
+        "no_partner_from_origin": "No delivery partner serves :destination from :origin for :weight.",
+        "max_active_runs": "You are already carrying :count orders. Deliver one before accepting another.",
+        "already_taken": "This delivery has already been taken by another driver.",
+        "accepted_run_started": "Delivery accepted — run started",
+        "confirmation_code_incorrect": "Incorrect confirmation code.",
+        "confirmed": "Delivery confirmed!",
+        "no_zone_available": "No delivery zone available at the moment",
+        "position_not_covered": "Sorry, no delivery zone covers this location. Please choose a location within a served area.",
+        "zone_available": "Delivery zone available",
+        "partners_fetch_error": "Error while fetching delivery partners",
+        "agency_label": "Agency :company",
+        "announced_lead_time": "Announced lead time: :lead_time"
+    },
+    "common": {
+        "unauthorized": "Unauthorized",
+        "invalid_data": "Invalid data",
+        "validation_failed": "Validation failed"
+    },
+    "settings": {
+        "fetch_error": "Error while retrieving the settings",
+        "group_access_denied": "Unauthorized access to this settings group",
+        "access_denied": "Unauthorized access to this setting",
+        "not_found": "Setting not found",
+        "fetch_one_error": "Error while retrieving the setting"
+    },
+    "currency": {
+        "country_required": "The \"country\" parameter is required.",
+        "not_found_for_country": "No currency found for country: :country",
+        "convert_params_required": "The \"from\", \"to\" and \"amount\" parameters are required.",
+        "conversion_unavailable": "Conversion :from → :to unavailable.",
+        "rate_params_required": "The \"from\" and \"to\" parameters are required.",
+        "rate_unavailable": "Exchange rate :from → :to unavailable."
+    },
+    "app": {
+        "copyright": "© 2026 ASSO. All rights reserved.",
+        "support_account_unavailable": "Support account unavailable.",
+        "description": "ASSO is the community marketplace connecting sellers, buyers and delivery people, with a mutual-aid space and a diaspora service."
+    },
+    "posts": {
+        "not_found": "Post not found",
+        "content_required": "The message cannot be empty.",
+        "content_too_short": "The message is too short.",
+        "content_max": "The message must not exceed :max characters.",
+        "created": "Post created",
+        "updated": "Post updated",
+        "deleted": "Post deleted",
+        "comment_not_found": "Comment not found",
+        "comment_required": "The comment cannot be empty.",
+        "comment_max": "The comment must not exceed :max characters.",
+        "comment_parent_missing": "The comment you are replying to no longer exists.",
+        "comment_parent_mismatch": "The parent comment does not belong to this post",
+        "comment_added": "Comment added",
+        "comment_updated": "Comment updated",
+        "comment_deleted": "Comment deleted"
+    },
+    "conversations": {
+        "cannot_message_self": "You cannot send a message to yourself",
+        "message_or_image_required": "You must send a message or an image",
+        "hidden": "Conversation hidden successfully"
+    },
+    "packages": {
+        "unsupported_type": "Unsupported plan type.",
+        "no_longer_available": "This plan is no longer available.",
+        "storage_misconfigured": "This storage plan is misconfigured. Please contact support.",
+        "shop_required_for_certification": "Create your shop before subscribing to a certification.",
+        "boost_product_required": "Choose the product to sponsor.",
+        "boost_misconfigured": "This sponsoring plan is misconfigured. Please contact support.",
+        "boost_product_not_found": "Product to sponsor not found.",
+        "no_shop_to_certify": "No shop to certify.",
+        "boost_not_owner": "This product is not yours.",
+        "boost_product_inactive": "Only an active product can be sponsored.",
+        "boost_product_without_shop": "This product must belong to a shop.",
+        "boost_already_active": "This product is already sponsored. Wait for the current campaign to end.",
+        "sales_code_invalid": "This sales code does not exist or is no longer active. Check it or leave the field empty.",
+        "sales_code_own": "You cannot use your own sales code.",
+        "certification_activated": "Certification activated! Your shop now displays the verified badge.",
+        "boost_activated": "Sponsoring activated! Your product is now featured.",
+        "storage_activated": "Plan activated! Your storage space is available.",
+        "subscription_created_confirm_on_phone": "Subscription created. Confirm the payment on your phone (USSD).",
+        "subscription_created_complete_card": "Subscription created. Complete the card payment.",
+        "subscription_created": "Subscription created.",
+        "no_active_package": "No active package",
+        "cumulative": {
+            "name": "Combined storage",
+            "description": "Custom package with combined storage",
+            "price": "Variable",
+            "duration": "Custom"
+        },
+        "boost_campaign_not_found": "Campaign not found.",
+        "boost_campaign_not_running": "This campaign is no longer running.",
+        "boost_campaign_stopped": "Campaign stopped."
+    },
+    "wallet": {
+        "insufficient_available_balance": "Insufficient available KPay balance. Available: :available FCFA, required amount: :amount FCFA",
+        "insufficient_available_balance_to_lock": "Insufficient available KPay balance. Available: :available FCFA, required: :amount FCFA",
+        "stats_fetch_error": "Error while fetching statistics",
+        "transactions_fetch_error": "Error while fetching transactions",
+        "deposit_initiated_ussd": "Payment initiated. Please dial the USSD code received on your phone.",
+        "card_deposit_unavailable": "Top-up by bank card is not available at the moment.",
+        "card_deposit_initiated": "Top-up initiated. Complete the card payment.",
+        "deposit_initiation_error": "Error while initiating the top-up",
+        "verification_error": "Error during verification",
+        "balances_fetch_error": "Error while fetching balances",
+        "insufficient_currency_balance": "Insufficient :currency balance. Available: :available :currency",
+        "withdrawal_initiation_error": "Error while initiating the withdrawal",
+        "withdrawal_processing": "Withdrawal being processed.",
+        "no_convertible_balance": "No balance can be converted to your bank account currency.",
+        "no_convertible_balance_in_currency": "No available :currency balance can be converted to :payout_currency.",
+        "insufficient_balance_short": "Insufficient balance.",
+        "minimum_is_with_source": "The minimum is :amount :currency (:source_amount :source_currency).",
+        "minimum_is": "The minimum is :amount :currency.",
+        "stripe_withdrawal_unavailable": "Bank transfer payout (Stripe) is not available yet.",
+        "iban_not_validated": "Your payout account (IBAN) has not been validated yet. Save your IBAN and have it validated before withdrawing.",
+        "amount_too_low_with_source": "Amount too low: the minimum is :amount :currency (:source_amount :source_currency).",
+        "amount_too_low": "Amount too low: the minimum is :amount :currency.",
+        "bank_withdrawal_processing": "Transfer of :amount :currency being processed. The funds will reach your account within 1 to 3 business days.",
+        "bank_withdrawal_initiation_failed": "The transfer could not be initiated at the moment. Your balance has not been debited. Please try again later.",
+        "stripe_unavailable": {
+            "account_not_ready": "Your payout account has not been activated by our banking partner yet. Check your details under “Payout account” or try again shortly.",
+            "refused": "The transfer was refused by our banking partner. Your balance has not been debited. Check your IBAN and try again.",
+            "platform_funds": "Bank transfer is temporarily unavailable (funds are being replenished). Your balance has not been debited: try again later or choose another withdrawal method.",
+            "default": "Bank transfer is temporarily unavailable. Your balance has not been debited. Try again later or choose another withdrawal method."
+        },
+        "withdrawal_not_found": "Withdrawal not found",
+        "status_check_error": "Error while checking the status",
+        "history_fetch_error": "Error while fetching the history",
+        "payout_account": {
+            "provider_unsupported": "Mobile Money operator not supported.",
+            "phone_invalid": "Invalid number: enter digits only, including the country code.",
+            "saved": "Withdrawal details saved.",
+            "deleted": "Withdrawal details deleted."
+        },
+        "can_pay": "Payment possible with KPay wallet",
+        "insufficient_balance_missing": "Insufficient available KPay balance. You are missing :missing FCFA"
+    },
+    "tracking": {
+        "steps": {
+            "pending": "Order placed",
+            "confirmed": "Order approved by the seller",
+            "preparing": "Parcel being prepared",
+            "out_for_delivery": "Picked up by the delivery driver",
+            "handed_to_carrier": "Handed over to the carrier",
+            "in_transit": "In transit",
+            "customs": "In customs clearance",
+            "arrived_hub": "Arrived at the ASSO warehouse in Douala",
+            "arrived": "Arrived in the destination city",
+            "ready_for_pickup": "Ready for pickup at the agency",
+            "delivered": "Delivered — receipt confirmed",
+            "cancelled": "Order cancelled"
+        }
+    },
+    "disputes": {
+        "not_found": "Claim not found.",
+        "window_closed": "The 48-hour period after delivery has ended: the order is validated.",
+        "item_not_found": "This item is not part of the order.",
+        "already_opened": "A claim is already open for this item.",
+        "closed": "This case is closed.",
+        "action_unavailable": "This action isn't possible at this stage of the case.",
+        "replacement_already_used": "The product has already been replaced once: only a return with refund is possible.",
+        "replacement_in_progress": "The replacement is still being delivered.",
+        "shipment_already_paid": "This delivery is already paid.",
+        "choose_partner_first": "Choose a delivery partner first.",
+        "step_invalid": "Invalid delivery step.",
+        "already_decided": "ASSO has already decided on this case.",
+        "opened": "Claim sent. ASSO is reviewing it; the seller's funds stay on hold meanwhile.",
+        "conformity_thanks": "Thank you! The order is validated.",
+        "return_validated": "Your return request is approved. A delivery partner will contact you to collect the product. You pay no return fees.",
+        "evidence_sent": "Your information has been sent to ASSO.",
+        "confirm_on_phone": "Confirm the delivery payment on your phone.",
+        "shipment_paid": "Delivery paid. The partner takes over."
+    }
+}

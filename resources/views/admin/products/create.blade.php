@@ -154,7 +154,22 @@
             </button>
         </div>
 
+        <p class="mb-2 text-xs text-gray-400">
+            Le prix suit la quantité commandée : du 1<sup>er</sup> au 2<sup>e</sup> palier, prix du 1<sup>er</sup> ; à partir du 2<sup>e</sup>, prix du 2<sup>e</sup>… Le seuil du 1<sup>er</sup> palier est le minimum de commande : en dessous, le client ne peut pas commander.
+        </p>
+
         <div id="tiers_wrapper" class="space-y-2"></div>
+
+        <div class="mt-3 flex items-start">
+            <input type="hidden" name="tier_mix_variants" value="0">
+            <input type="checkbox" name="tier_mix_variants" id="tier_mix_variants" value="1"
+                   {{ old('tier_mix_variants', $product->tier_mix_variants ?? true) ? 'checked' : '' }}
+                   class="mr-2 mt-0.5 w-4 h-4 text-primary-500 focus:ring-primary-500 rounded">
+            <label for="tier_mix_variants" class="text-sm text-white cursor-pointer">
+                Cumuler les options pour atteindre un palier
+                <span class="block text-xs text-gray-400">Coché : 60 bleus + 40 rouges = 100, prix du palier 100. Décoché : chaque couleur ou taille atteint son palier (et le minimum) seule.</span>
+            </label>
+        </div>
 
         <p id="tiers_empty_msg" class="text-xs text-gray-500 mt-2 hidden">
             Aucun palier. Cliquez sur « Ajouter un palier » (ex: Pack de 50, Carton de 100...).
@@ -337,6 +352,9 @@
                     </div>
                 </div>
 
+                @include('admin.products._free_delivery')
+                @include('admin.products._deposit')
+
                 <!-- Submit Button -->
                 <div class="bg-gradient-to-r from-primary-500 to-primary-600 rounded-xl shadow-lg p-6 text-white">
                     <button type="submit" class="w-full px-6 py-3 bg-dark-100 text-primary-600 rounded-lg hover:bg-dark-50 transition-all font-semibold">
@@ -419,7 +437,7 @@ function tierRowTemplate(data = {}) {
                    class="w-full px-3 py-2 bg-dark-100 border border-dark-300 rounded text-white text-sm">
         </div>
         <div class="md:col-span-2">
-            <label class="block text-xs text-gray-400 mb-1">Qté min</label>
+            <label class="block text-xs text-gray-400 mb-1" title="Quantité à partir de laquelle ce prix s'applique">À partir de (qté)</label>
             <input type="number" min="1" name="tiers[${idx}][min_quantity]" value="${esc(data.min_quantity)}"
                    class="w-full px-3 py-2 bg-dark-100 border border-dark-300 rounded text-white text-sm">
         </div>

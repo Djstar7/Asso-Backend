@@ -96,6 +96,8 @@ class OrderService
             // 1. Valider les produits et calculer le sous-total
             $subtotal = 0;
             $sellerSubtotal = 0;
+            $depositSubtotal = 0.0;
+            $depositFlags = [];
             $itemRates = [];
             $orderItems = [];
             $sellers = [];
@@ -104,7 +106,7 @@ class OrderService
                 $product = Product::lockForUpdate()->findOrFail($item['product_id']);
 
                 if (!in_array($product->status, ['published', 'active'])) {
-                    throw new \Exception("Le produit '{$product->name}' n'est plus disponible.");
+                    throw new \Exception(__('orders.product_unavailable', ['product' => $product->name]));
                 }
 
                 $variant = null;
@@ -115,18 +117,18 @@ class OrderService
                         ->lockForUpdate()
                         ->find($item['variant_id']);
                     if (!$variant) {
-                        throw new \Exception("La variante sélectionnée pour '{$product->name}' n'existe pas.");
+                        throw new \Exception(__('orders.variant_not_found', ['product' => $product->name]));
                     }
                     if (!$variant->is_active) {
-                        throw new \Exception("La variante sélectionnée pour '{$product->name}' n'est plus disponible.");
+                        throw new \Exception(__('orders.variant_unavailable', ['product' => $product->name]));
                     }
                 } elseif ($product->variants()->exists()) {
-                    throw new \Exception("Veuillez sélectionner une variante pour '{$product->name}'.");
+                    throw new \Exception(__('orders.variant_required', ['product' => $product->name]));
                 }
 
                 $availableStock = $variant?->stock ?? $product->stock;
                 if ($availableStock !== null && $availableStock < $item['quantity']) {
-                    throw new \Exception("Stock insuffisant pour '{$product->name}'. Disponible: {$availableStock}");
+                    throw new \Exception(__('orders.insufficient_stock', ['product' => $product->name, 'available' => $availableStock]));
                 }
 
                 // Prix du produit converti en XAF (devise pivot) au taux du MOMENT de la
@@ -148,7 +150,7 @@ class OrderService
                     $conv = \App\Services\ExchangeRateService::convert($sourceCurrency, 'XAF', $buyerSourceUnit);
                     $sellerConv = \App\Services\ExchangeRateService::convert($sourceCurrency, 'XAF', $sellerSourceUnit);
                     if (empty($conv['success']) || $conv['amount'] === null || empty($sellerConv['success']) || $sellerConv['amount'] === null) {
-                        throw new \Exception("Conversion {$sourceCurrency} → XAF indisponible pour '{$product->name}'. Réessayez plus tard.");
+                        throw new \Exception(__('orders.product_conversion_unavailable_retry', ['currency' => $sourceCurrency, 'product' => $product->name]));
                     }
                     $unitPrice = round((float) $conv['amount'], 2);
                     $sellerUnitPrice = min($unitPrice, round((float) $sellerConv['amount'], 2));
@@ -159,6 +161,12 @@ class OrderService
                 $subtotal += $totalPrice;
                 $sellerSubtotal += $sellerUnitPrice * $quantity;
                 $itemRates[] = $commissionRate;
+
+                // Commande avec acompte : part du prix acheteur payée à la commande.
+                $depositFlags[] = $product->requiresDeposit();
+                if ($product->requiresDeposit()) {
+                    $depositSubtotal += DepositOrderService::depositFor($totalPrice, (float) $product->deposit_rate);
+                }
 
                 $orderItems[] = [
                     'product_id' => $product->id,
@@ -187,6 +195,13 @@ class OrderService
                 }
             }
 
+            // Acompte et paiement classique ne se mélangent pas dans une même commande :
+            // le solde, la vérification et le règlement portent sur toute la commande.
+            if (count(array_unique($depositFlags)) > 1) {
+                throw new \Exception(__('orders.deposit_mixed_cart'));
+            }
+            $isDepositOrder = in_array(true, $depositFlags, true);
+
             // 2. Frais de livraison recalculés côté serveur, même calcul que l'offre
             //    affichée à l'acheteur : poids réel du panier, zone ou trajet, TVA.
             $quote = app(DeliveryQuoteService::class)->quoteFor(
@@ -207,6 +222,19 @@ class OrderService
             $assoCommission = (float) $quote['asso_commission'];
             $deliveryFee = (float) $quote['delivery_price'];
 
+            // Livraison gratuite : le vendeur finance la course affichée (transporteur +
+            // commission ASSO), sauf si elle dépasse sa part — l'acheteur la paie alors.
+            $freeDeliveryAmount = 0.0;
+            $freeDelivery = FreeDeliveryService::applies(
+                FreeDeliveryService::cartEligible(Product::with('shop')->whereIn('id', array_column($orderItems, 'product_id'))->get()),
+                $deliveryFee,
+                round($sellerSubtotal, 2),
+            );
+            if ($freeDelivery) {
+                $freeDeliveryAmount = $deliveryFee;
+                $deliveryFee = 0.0;
+            }
+
             Log::info("[OrderService] Frais de livraison calculés", [
                 'mode' => $quote['delivery_mode'],
                 'weight_kg' => $quote['weight_kg'],
@@ -214,6 +242,11 @@ class OrderService
             ]);
 
             $total = $subtotal + $deliveryFee;
+
+            // Acompte = part des articles + livraison (engagée dès la commande) ; le solde
+            // ne sera payable qu'après la livraison et la vérification conjointe ASSO.
+            $depositAmount = $isDepositOrder ? min($total, round($depositSubtotal + $deliveryFee, 2)) : null;
+            $upfront = $isDepositOrder ? $depositAmount : $total;
 
             $isKpayDirect = $paymentMode === 'kpay_direct';
             $isStripeDirect = $paymentMode === 'stripe_direct';
@@ -227,8 +260,10 @@ class OrderService
             if (!$isDirect) {
                 $this->walletService->lockFunds(
                     $client,
-                    $total,
-                    "Escrow commande - En attente de validation vendeur",
+                    $upfront,
+                    $isDepositOrder
+                        ? "Acompte commande - En attente de validation vendeur"
+                        : "Escrow commande - En attente de validation vendeur",
                     'order',
                     null, // L'ID de l'order sera mis à jour après création
                     ['subtotal' => $subtotal, 'delivery_fee' => $deliveryFee],
@@ -241,7 +276,7 @@ class OrderService
             $saleCommission = [
                 'rate' => count($uniqueRates) === 1 ? $uniqueRates[0] : null,
                 'commission' => round($subtotal - $sellerSubtotal, 2),
-                'vendor_net' => round($sellerSubtotal, 2),
+                'vendor_net' => round($sellerSubtotal - $freeDeliveryAmount, 2),
             ];
             $order = Order::create([
                 'user_id' => $client->id,
@@ -250,6 +285,8 @@ class OrderService
                 'delivery_fee' => $deliveryFee,
                 'base_delivery_price' => $baseDeliveryPrice,
                 'delivery_commission' => $assoCommission,
+                'free_delivery' => $freeDelivery,
+                'free_delivery_amount' => $freeDeliveryAmount,
                 // Commission ASSO sur la vente, figée à la création (cf. CommissionService).
                 'sale_commission_rate' => $saleCommission['rate'],
                 'sale_commission' => $saleCommission['commission'],
@@ -277,6 +314,11 @@ class OrderService
                 // Modes directs : en attente du paiement (Mobile Money / carte) ;
                 // wallet : déjà payé (fonds bloqués en escrow).
                 'payment_status' => $isDirect ? 'pending' : 'paid',
+                'payment_plan' => $isDepositOrder ? Order::PLAN_DEPOSIT : Order::PLAN_FULL,
+                'deposit_amount' => $depositAmount,
+                'balance_amount' => $isDepositOrder ? round($total - $depositAmount, 2) : null,
+                'balance_status' => $isDepositOrder ? Order::BALANCE_LOCKED : null,
+                'verification_status' => $isDepositOrder ? Order::VERIFICATION_PENDING : null,
                 'notes' => $notes,
             ]);
 
@@ -290,15 +332,15 @@ class OrderService
             // 4b. Initier le paiement direct (KPay / carte Stripe). Pour la carte, pose
             //     les attributs transitoires client_secret / payment_intent_id sur $order.
             //     Logique partagée avec la commande EN GROS — voir initiateDirectPayment().
-            $this->initiateDirectPayment($order, $total, $paymentMode, $kpayProvider, $kpayPhone);
+            $this->initiateDirectPayment($order, $upfront, $paymentMode, $kpayProvider, $kpayPhone);
 
             // 5. Envoyer les notifications FCM
 
             // Notification client
             $this->fcmService->sendToUser(
                 $client,
-                'Commande en attente',
-                "Votre commande #{$order->order_number} a été créée. En attente de validation du vendeur.",
+                $client->translate('notifications.order_created.title'),
+                $client->translate('notifications.order_created.body', ['order_number' => $order->order_number]),
                 [
                     'type' => 'order_created',
                     'order_id' => (string) $order->id,
@@ -318,8 +360,12 @@ class OrderService
                     if ($seller) {
                         $this->fcmService->sendToUser(
                             $seller,
-                            'Nouvelle commande reçue',
-                            "Vous avez reçu une nouvelle commande #{$order->order_number} de {$client->first_name} ({$order->formatted_total}).",
+                            $seller->translate('notifications.new_order_vendor.title'),
+                            $seller->translate('notifications.new_order_vendor.body', [
+                                'order_number' => $order->order_number,
+                                'client' => $client->first_name,
+                                'total' => $order->formatted_total,
+                            ]),
                             [
                                 'type' => 'new_order_vendor',
                                 'order_id' => (string) $order->id,
@@ -385,26 +431,28 @@ class OrderService
             $calculatedWeightKg = 0;
             $hasMissingWeight = false;
 
-            // Le minimum d'un palier porte sur le total commandé pour ce produit et
-            // ce palier, toutes variantes confondues : 300 rouges + 200 noires d'un
-            // palier « minimum 500 » l'atteignent, même si aucune couleur seule ne
-            // l'atteint. Une ligne par couleur ne doit pas multiplier le minimum.
-            $tierTotals = [];
+            // Le palier suit la quantité (le prix du palier choisi par l'app n'est
+            // qu'indicatif) : 30 ou 60 unités d'un produit à paliers 50 et 100 paient le
+            // prix du palier 50, 100 unités celui du palier 100. Si le produit
+            // cumule ses options, le palier se lit sur le total du produit, toutes
+            // couleurs confondues (300 rouges + 200 noires = 500) ; sinon chaque
+            // option atteint son palier seule.
+            $productTotals = [];
             foreach ($items as $item) {
-                $key = (int) $item['product_id'] . ':' . (int) $item['price_tier_id'];
-                $tierTotals[$key] = ($tierTotals[$key] ?? 0) + (int) $item['quantity'];
+                $productId = (int) $item['product_id'];
+                $productTotals[$productId] = ($productTotals[$productId] ?? 0) + (int) $item['quantity'];
             }
 
-            foreach ($items as $item) {
+            foreach ($items as $index => $item) {
                 $product = Product::lockForUpdate()->findOrFail($item['product_id']);
                 if (!$product->is_wholesale || $product->status !== 'active') {
-                    throw new \Exception("Le produit '{$product->name}' n'est pas disponible en gros.");
+                    throw new \Exception(__('orders.wholesale_unavailable', ['product' => $product->name]));
                 }
 
-                $tier = ProductPriceTier::where('product_id', $product->id)
-                    ->where('id', $item['price_tier_id'])
-                    ->where('is_active', true)
-                    ->firstOrFail();
+                $tiers = ProductPriceTier::where('product_id', $product->id)->where('is_active', true)->get();
+                if ($tiers->isEmpty()) {
+                    throw new \Exception(__('orders.wholesale_price_missing', ['product' => $product->name]));
+                }
 
                 // Variante choisie (couleur, taille…) : conservée sur la ligne pour le fournisseur.
                 $variant = null;
@@ -413,15 +461,23 @@ class OrderService
                         ->where('is_active', true)
                         ->find($item['variant_id']);
                     if (!$variant) {
-                        throw new \Exception("La variante sélectionnée pour '{$product->name}' n'est plus disponible.");
+                        throw new \Exception(__('orders.variant_unavailable', ['product' => $product->name]));
                     }
                 }
 
                 $quantity = (int) $item['quantity'];
-                $tierTotal = $tierTotals[$product->id . ':' . $tier->id] ?? $quantity;
-                if ($tierTotal < $tier->min_quantity) {
-                    throw new \Exception("Quantité minimale non atteinte pour '{$product->name}' ({$tier->label}) : minimum {$tier->min_quantity} au total, toutes options confondues.");
+                $mixVariants = $product->tier_mix_variants ?? true;
+                $tierQuantity = $mixVariants ? $productTotals[$product->id] : $quantity;
+                // Le seuil du premier palier est le minimum de commande.
+                $tier = ProductPriceTier::forQuantity($tiers, $tierQuantity);
+                if (!$tier) {
+                    throw new \Exception(__('orders.wholesale_minimum_not_reached', [
+                        'product' => $product->name,
+                        'minimum' => $tiers->min('min_quantity'),
+                    ]));
                 }
+                // Le devis de livraison lit le poids du palier réellement appliqué.
+                $items[$index]['price_tier_id'] = $tier->id;
 
                 // Prix du palier converti en XAF (devise pivot) au taux du moment.
                 $tierCurrency = strtoupper($tier->currency ?? 'XAF');
@@ -429,7 +485,7 @@ class OrderService
                 if ($tierCurrency !== 'XAF') {
                     $conv = \App\Services\ExchangeRateService::convert($tierCurrency, 'XAF', $unitPrice);
                     if (empty($conv['success']) || $conv['amount'] === null) {
-                        throw new \Exception("Conversion {$tierCurrency} → XAF indisponible pour '{$product->name}'.");
+                        throw new \Exception(__('orders.product_conversion_unavailable', ['currency' => $tierCurrency, 'product' => $product->name]));
                     }
                     $unitPrice = round((float) $conv['amount'], 2);
                 }
@@ -462,7 +518,7 @@ class OrderService
             $shipping = ImportShippingOption::where('id', $shippingOptionId)->where('is_active', true)->firstOrFail();
             if ($shipping->rate_type === 'per_kg') {
                 if ($hasMissingWeight || $calculatedWeightKg <= 0) {
-                    throw new \Exception("Le poids du colis doit d'abord être renseigné par ASSO avant le paiement.");
+                    throw new \Exception(__('orders.parcel_weight_required'));
                 }
                 // Calcul autoritaire côté serveur : ne jamais faire saisir ni faire
                 // confiance au poids envoyé par le client.
@@ -473,7 +529,7 @@ class OrderService
             // Puis SOLEX, de l'entrepôt ASSO de Douala jusqu'au client : prix recalculé
             // côté serveur (même calcul que l'offre affichée), payé avec la commande.
             if (empty($delivery['company_id'])) {
-                throw new \Exception("Indiquez votre adresse de livraison : la commande arrive à Douala, puis SOLEX la livre jusqu'à vous.");
+                throw new \Exception(__('orders.delivery_address_required_solex'));
             }
             $quote = app(DeliveryQuoteService::class)->quoteFor(
                 array_map(fn ($item) => [
@@ -494,6 +550,20 @@ class OrderService
                 $deliveryAddress,
             );
             $localDeliveryFee = (float) $quote['delivery_price'];
+
+            // Livraison gratuite : la course SOLEX est retenue sur la part du vendeur ;
+            // l'expédition jusqu'à Douala reste payée par l'acheteur.
+            $freeDeliveryAmount = 0.0;
+            $freeDelivery = FreeDeliveryService::applies(
+                FreeDeliveryService::cartEligible(Product::with('shop')->whereIn('id', array_column($orderItems, 'product_id'))->get()),
+                $localDeliveryFee,
+                round($subtotal, 2),
+            );
+            if ($freeDelivery) {
+                $freeDeliveryAmount = $localDeliveryFee;
+                $localDeliveryFee = 0.0;
+            }
+
             $total = $subtotal + $shippingCost + $localDeliveryFee;
 
             $isDirect = in_array($paymentMode, ['kpay_direct', 'stripe_direct']);
@@ -507,7 +577,7 @@ class OrderService
             }
 
             // Catalogue import (prix fixés par ASSO) : aucune majoration.
-            $saleCommission = ['rate' => 0.0, 'commission' => 0.0, 'vendor_net' => (float) $subtotal];
+            $saleCommission = ['rate' => 0.0, 'commission' => 0.0, 'vendor_net' => round($subtotal - $freeDeliveryAmount, 2)];
             $order = Order::create([
                 'user_id' => $client->id,
                 'status' => 'pending',
@@ -524,6 +594,8 @@ class OrderService
                 // Part SOLEX (TTC) et commission ASSO sur sa course, réglées comme une livraison.
                 'base_delivery_price' => (float) $quote['base_price'],
                 'delivery_commission' => (float) $quote['asso_commission'],
+                'free_delivery' => $freeDelivery,
+                'free_delivery_amount' => $freeDeliveryAmount,
                 'delivery_company_id' => $quote['company_id'],
                 'delivery_zone_id' => $quote['zone_id'],
                 'delivery_route_id' => $quote['route_id'],
@@ -568,17 +640,18 @@ class OrderService
 
             $this->fcmService->sendToUser(
                 $client,
-                'Commande en gros créée',
-                "Votre commande gros #{$order->order_number} a été créée. En attente de paiement/validation.",
+                $client->translate('notifications.wholesale_order_created.title'),
+                $client->translate('notifications.wholesale_order_created.body', ['order_number' => $order->order_number]),
                 ['type' => 'wholesale_order_created', 'order_id' => (string) $order->id, 'order_number' => $order->order_number]
             );
 
             // Payée tout de suite via le portefeuille : le vendeur peut préparer.
             // (En paiement direct, il est prévenu à la confirmation du paiement.)
             if (!$isDirect) {
-                $order->notifySellers(
-                    'Nouvelle commande en gros',
-                    "Commande gros #{$order->order_number} payée : {$order->items()->sum('quantity')} article(s) à préparer.",
+                $order->notifySellersTranslated(
+                    'notifications.new_wholesale_order_vendor.title',
+                    'notifications.new_wholesale_order_vendor.body',
+                    ['order_number' => $order->order_number, 'count' => $order->items()->sum('quantity')],
                     ['type' => 'new_order_vendor'],
                 );
             }
@@ -632,10 +705,12 @@ class OrderService
             WalletTransaction::create([
                 'user_id' => $order->user_id,
                 'type' => 'debit',
-                'amount' => (float) $order->total,
+                'amount' => $order->upfrontAmount(),
                 'balance_before' => $buyerBalance,
                 'balance_after' => $buyerBalance,
-                'description' => "Achat - Commande #{$order->order_number}",
+                'description' => $order->isDepositOrder()
+                    ? "Acompte - Commande #{$order->order_number}"
+                    : "Achat - Commande #{$order->order_number}",
                 'reference_type' => 'order',
                 'reference_id' => $order->id,
                 'metadata' => [
@@ -675,8 +750,8 @@ class OrderService
         try {
             $this->fcmService->sendToUser(
                 $order->user,
-                'Paiement confirmé',
-                "Votre paiement pour la commande #{$order->order_number} a été confirmé. En attente de validation du vendeur.",
+                $order->user->translate('notifications.order_paid.title'),
+                $order->user->translate('notifications.order_paid.body', ['order_number' => $order->order_number]),
                 ['type' => 'order_paid', 'order_id' => (string) $order->id, 'order_number' => $order->order_number]
             );
         } catch (\Exception $e) {
@@ -695,10 +770,17 @@ class OrderService
             try {
                 $this->fcmService->sendToUser(
                     $seller,
-                    'Nouvelle commande reçue',
-                    "Vous avez reçu une nouvelle commande #{$order->order_number}"
-                        . ($client ? " de {$client->first_name}" : '')
-                        . " ({$order->formatted_total}).",
+                    $seller->translate('notifications.new_order_vendor.title'),
+                    $client
+                        ? $seller->translate('notifications.new_order_vendor.body', [
+                            'order_number' => $order->order_number,
+                            'client' => $client->first_name,
+                            'total' => $order->formatted_total,
+                        ])
+                        : $seller->translate('notifications.new_order_vendor.body_no_client', [
+                            'order_number' => $order->order_number,
+                            'total' => $order->formatted_total,
+                        ]),
                     [
                         'type' => 'new_order_vendor',
                         'order_id' => (string) $order->id,
@@ -754,8 +836,8 @@ class OrderService
         try {
             $this->fcmService->sendToUser(
                 $order->user,
-                'Paiement échoué',
-                "Le paiement de la commande #{$order->order_number} n'a pas abouti. La commande a été annulée.",
+                $order->user->translate('notifications.order_payment_failed.title'),
+                $order->user->translate('notifications.order_payment_failed.body', ['order_number' => $order->order_number]),
                 ['type' => 'order_payment_failed', 'order_id' => (string) $order->id, 'order_number' => $order->order_number]
             );
         } catch (\Exception $e) {
@@ -770,14 +852,19 @@ class OrderService
      * Lance une exception en cas d'échec → la transaction appelante fait un rollback.
      *
      * @param string $paymentMode wallet | kpay_direct | stripe_direct
+     * @param bool $balance true = solde d'une commande avec acompte (colonnes balance_*,
+     *                      référence KPay « {order_number}-SOLDE », Stripe asso_kind=order_balance)
      */
     public function initiateDirectPayment(
         Order $order,
         float $total,
         string $paymentMode,
         ?string $kpayProvider = null,
-        ?string $kpayPhone = null
+        ?string $kpayPhone = null,
+        bool $balance = false
     ): ?string {
+        $col = $balance ? 'balance_payment' : 'payment';
+
         // Mode kpay_direct : PayIn Mobile Money (devise de l'opérateur, déduite du numéro).
         if ($paymentMode === 'kpay_direct') {
             $payCurrency = \App\Services\KPayCatalog::currencyForProvider($kpayProvider);
@@ -786,26 +873,26 @@ class OrderService
             if ($payCurrency !== 'XAF') {
                 $converted = \App\Services\ExchangeRateService::convertAmount('XAF', $payCurrency, $total);
                 if ($converted === null) {
-                    throw new \Exception("Conversion XAF → {$payCurrency} indisponible. Réessayez plus tard.");
+                    throw new \Exception(__('payments.conversion_unavailable_retry', ['currency' => $payCurrency]));
                 }
                 $payAmount = (float) round($converted);
             }
 
-            $order->update(['payment_currency' => $payCurrency, 'payment_amount' => $payAmount]);
+            $order->update(["{$col}_currency" => $payCurrency, "{$col}_amount" => $payAmount]);
 
             $kpayResult = app(\App\Services\MobileMoneyGateway::class)->initializePayment([
                 'amount' => $payAmount,
                 'provider' => $kpayProvider,
                 'phone_number' => $kpayPhone,
-                'description' => "Commande {$order->order_number}",
-                'external_reference' => $order->order_number,
+                'description' => $balance ? "Solde commande {$order->order_number}" : "Commande {$order->order_number}",
+                'external_reference' => $balance ? DepositOrderService::balanceReference($order) : $order->order_number,
             ]);
 
             if (empty($kpayResult['success'])) {
-                throw new \Exception($kpayResult['message'] ?? "Échec de l'initiation du paiement KPay.");
+                throw new \Exception($kpayResult['message'] ?? __('payments.kpay_init_failed'));
             }
 
-            $order->update(['payment_reference' => $kpayResult['id'] ?? null]);
+            $order->update(["{$col}_reference" => $kpayResult['id'] ?? null]);
             Log::info('[OrderService] PayIn KPay initié', ['order_id' => $order->id, 'charged' => $payAmount, 'currency' => $payCurrency]);
             return null;
         }
@@ -817,7 +904,7 @@ class OrderService
         if ($paymentMode === 'stripe_direct') {
             $stripe = app(\App\Services\StripeService::class);
             if (!$stripe->isConfigured()) {
-                throw new \Exception('Le paiement par carte est momentanément indisponible.');
+                throw new \Exception(__('payments.card_temporarily_unavailable'));
             }
 
             $stripeCurrency = \App\Services\PaymentMethodService::currencyFor('stripe') ?? 'USD';
@@ -825,23 +912,23 @@ class OrderService
                 ? (float) round($total)
                 : \App\Services\ExchangeRateService::convertAmount('XAF', $stripeCurrency, $total);
             if ($stripeAmount === null) {
-                throw new \Exception("Conversion XAF → {$stripeCurrency} indisponible pour le paiement carte.");
+                throw new \Exception(__('payments.card_conversion_unavailable', ['currency' => $stripeCurrency]));
             }
 
             $intent = $stripe->createPaymentIntent(
                 (float) $stripeAmount,
                 $stripeCurrency,
-                ['asso_kind' => 'order', 'order_id' => (string) $order->id]
+                ['asso_kind' => $balance ? 'order_balance' : 'order', 'order_id' => (string) $order->id]
             );
 
             if (empty($intent['id']) || empty($intent['client_secret'])) {
-                throw new \Exception("Échec de l'initiation du paiement carte (Stripe).");
+                throw new \Exception(__('payments.stripe_init_failed'));
             }
 
             $order->update([
-                'payment_reference' => $intent['id'],
-                'payment_currency' => strtoupper($stripeCurrency),
-                'payment_amount' => round((float) $stripeAmount, 2),
+                "{$col}_reference" => $intent['id'],
+                "{$col}_currency" => strtoupper($stripeCurrency),
+                "{$col}_amount" => round((float) $stripeAmount, 2),
             ]);
 
             // Attributs transitoires (non persistés) : consommés par le contrôleur pour
@@ -913,10 +1000,12 @@ class OrderService
             WalletTransaction::create([
                 'user_id' => $order->user_id,
                 'type' => 'debit',
-                'amount' => (float) $order->total,
+                'amount' => $order->upfrontAmount(),
                 'balance_before' => $buyerBalance,
                 'balance_after' => $buyerBalance,
-                'description' => "Achat - Commande #{$order->order_number}",
+                'description' => $order->isDepositOrder()
+                    ? "Acompte - Commande #{$order->order_number}"
+                    : "Achat - Commande #{$order->order_number}",
                 'reference_type' => 'order',
                 'reference_id' => $order->id,
                 'metadata' => [
@@ -955,8 +1044,8 @@ class OrderService
         try {
             $this->fcmService->sendToUser(
                 $order->user,
-                'Paiement confirmé',
-                "Votre paiement pour la commande #{$order->order_number} a été confirmé. En attente de validation du vendeur.",
+                $order->user->translate('notifications.order_paid.title'),
+                $order->user->translate('notifications.order_paid.body', ['order_number' => $order->order_number]),
                 ['type' => 'order_paid', 'order_id' => (string) $order->id, 'order_number' => $order->order_number]
             );
         } catch (\Exception $e) {
@@ -972,10 +1061,17 @@ class OrderService
             try {
                 $this->fcmService->sendToUser(
                     $seller,
-                    'Nouvelle commande reçue',
-                    "Vous avez reçu une nouvelle commande #{$order->order_number}"
-                        . ($client ? " de {$client->first_name}" : '')
-                        . " ({$order->formatted_total}).",
+                    $seller->translate('notifications.new_order_vendor.title'),
+                    $client
+                        ? $seller->translate('notifications.new_order_vendor.body', [
+                            'order_number' => $order->order_number,
+                            'client' => $client->first_name,
+                            'total' => $order->formatted_total,
+                        ])
+                        : $seller->translate('notifications.new_order_vendor.body_no_client', [
+                            'order_number' => $order->order_number,
+                            'total' => $order->formatted_total,
+                        ]),
                     [
                         'type' => 'new_order_vendor',
                         'order_id' => (string) $order->id,
@@ -1025,8 +1121,8 @@ class OrderService
         try {
             $this->fcmService->sendToUser(
                 $order->user,
-                'Paiement échoué',
-                "Le paiement de la commande #{$order->order_number} n'a pas abouti. La commande a été annulée.",
+                $order->user->translate('notifications.order_payment_failed.title'),
+                $order->user->translate('notifications.order_payment_failed.body', ['order_number' => $order->order_number]),
                 ['type' => 'order_payment_failed', 'order_id' => (string) $order->id, 'order_number' => $order->order_number]
             );
         } catch (\Exception $e) {
@@ -1048,20 +1144,25 @@ class OrderService
         // Le paiement doit être acquis : sinon le vendeur serait crédité sur de l'argent
         // jamais encaissé (Mobile Money ou carte encore en attente).
         if ($order->payment_status !== Order::PAYMENT_PAID) {
-            throw new \Exception("Le paiement de cette commande n'est pas encore confirmé.");
+            throw new \Exception(__('orders.payment_not_confirmed'));
         }
 
         $confirmed = DB::transaction(function () use ($order, $vendor, $actorType, $actorId) {
             // Verrou + re-contrôle : deux validations simultanées ne créditent pas deux fois.
             $locked = Order::whereKey($order->id)->lockForUpdate()->first();
             if (!$locked || $locked->status !== 'pending') {
-                throw new \Exception('Cette commande a déjà été traitée.');
+                throw new \Exception(__('orders.already_processed'));
             }
             $locked->update(['status' => 'confirmed', 'confirmed_at' => now()]);
 
-            // Encaissement direct (sans escrow) : prélèvement de l'acheteur (wallet), puis
-            // crédit du vendeur, de l'entreprise de livraison et d'ASSO. Idempotent.
-            $this->settleOrder($locked, $vendor);
+            // Règlement : prélèvement de l'acheteur (wallet), puis crédit du livreur et
+            // d'ASSO ; la part du vendeur est créditée mais bloquée jusqu'à la validation
+            // du client (48 h après la livraison au plus tard). Idempotent.
+            // Commande avec acompte : réglée seulement au paiement du solde, après la
+            // livraison et la vérification conjointe ASSO (DepositOrderService).
+            if (!$locked->isDepositOrder()) {
+                $this->settleOrder($locked, $vendor);
+            }
             app(OrderTrackingService::class)->record($locked, 'confirmed', null, null, $actorType, $actorId);
 
             return $locked;
@@ -1070,10 +1171,13 @@ class OrderService
         if ($client = $confirmed->user) {
             $this->fcmService->sendToUser(
                 $client,
-                'Commande validée !',
-                $confirmed->isCarrierDelivery()
-                    ? "Votre commande #{$confirmed->order_number} a été acceptée par le vendeur. Le colis va être remis au transporteur."
-                    : "Votre commande #{$confirmed->order_number} a été acceptée par le vendeur. En attente du livreur.",
+                $client->translate('notifications.order_confirmed.title'),
+                $client->translate(
+                    $confirmed->isCarrierDelivery()
+                        ? 'notifications.order_confirmed.body_carrier'
+                        : 'notifications.order_confirmed.body_courier',
+                    ['order_number' => $confirmed->order_number]
+                ),
                 ['type' => 'order_confirmed', 'order_id' => (string) $confirmed->id, 'order_number' => $confirmed->order_number]
             );
         }
@@ -1093,7 +1197,7 @@ class OrderService
             // Verrou + re-contrôle : pas de refus après validation.
             $locked = Order::whereKey($order->id)->lockForUpdate()->with('items')->first();
             if (!$locked || $locked->status !== 'pending') {
-                throw new \Exception('Cette commande a déjà été traitée.');
+                throw new \Exception(__('orders.already_processed'));
             }
             $locked->update(['status' => 'cancelled', 'cancel_reason' => $reason, 'cancelled_at' => now()]);
 
@@ -1113,10 +1217,13 @@ class OrderService
         if ($client = $order->user) {
             $this->fcmService->sendToUser(
                 $client,
-                'Commande refusée',
+                $client->translate('notifications.order_rejected.title'),
                 $refunded > 0
-                    ? "Votre commande #{$order->order_number} a été refusée. " . number_format($refunded, 0, ',', ' ') . " FCFA ont été rendus disponibles sur votre Wallet ASSO."
-                    : "Votre commande #{$order->order_number} a été refusée.",
+                    ? $client->translate('notifications.order_rejected.body_refunded', [
+                        'order_number' => $order->order_number,
+                        'amount' => number_format($refunded, 0, ',', ' '),
+                    ])
+                    : $client->translate('notifications.order_rejected.body', ['order_number' => $order->order_number]),
                 ['type' => 'order_rejected', 'order_id' => (string) $order->id, 'order_number' => $order->order_number, 'reason' => $reason]
             );
         }
@@ -1150,28 +1257,30 @@ class OrderService
             return 0.0;
         }
 
-        $amount = (float) $order->total;
+        // Wallet : fonds bloqués débloqués ; direct (Mobile Money / carte) : crédit du
+        // Wallet ASSO. Une commande avec acompte n'a encaissé que l'acompte (et le solde
+        // s'il est payé), éventuellement sur deux rails différents.
+        $collected = $order->collectedAmounts();
+        $amount = $collected['wallet'] + $collected['direct'];
+        if ($amount <= 0) {
+            return 0.0; // paiement jamais encaissé
+        }
 
-        if ($order->isWalletPayment()) {
-            if ($order->payment_status !== Order::PAYMENT_PAID) {
-                return 0.0;
-            }
+        if ($collected['wallet'] > 0) {
             $this->walletService->unlockFunds(
                 $client,
-                $amount,
+                $collected['wallet'],
                 $label,
                 'order',
                 $order->id,
                 $metadata,
                 'kpay'
             );
-        } elseif ($order->isDirectPayment()) {
-            if ($order->payment_status !== Order::PAYMENT_PAID) {
-                return 0.0; // paiement jamais encaissé
-            }
+        }
+        if ($collected['direct'] > 0) {
             $this->walletService->credit(
                 $client,
-                $amount,
+                $collected['direct'],
                 null,
                 $label,
                 array_merge($metadata, [
@@ -1182,8 +1291,6 @@ class OrderService
                 ]),
                 'kpay'
             );
-        } else {
-            return 0.0;
         }
 
         $order->update([
@@ -1240,8 +1347,8 @@ class OrderService
         try {
             $this->fcmService->sendToUser(
                 $order->user,
-                'Paiement remboursé',
-                "Votre paiement pour la commande annulée #{$order->order_number} a été crédité sur votre Wallet ASSO.",
+                $order->user->translate('notifications.wallet_refund.title'),
+                $order->user->translate('notifications.wallet_refund.body', ['order_number' => $order->order_number]),
                 ['type' => 'wallet_refund', 'order_id' => (string) $order->id, 'order_number' => $order->order_number]
             );
         } catch (\Exception $e) {
@@ -1252,7 +1359,9 @@ class OrderService
     /**
      * Règle une commande validée par le vendeur (idempotent, à appeler DANS une
      * transaction DB) : prélève l'acheteur (mode wallet) puis crédite le vendeur de SON
-     * prix, l'entreprise de livraison et ASSO (majorations vente + livraison).
+     * prix, l'entreprise de livraison et ASSO (majorations vente + livraison). La part
+     * du vendeur reste bloquée sur son Wallet jusqu'à la validation du client
+     * (releaseVendorFunds).
      */
     public function settleOrder(Order $order, User $vendor): void
     {
@@ -1260,15 +1369,17 @@ class OrderService
         if ($order->settled_at) {
             return; // déjà réglée
         }
-        if ($order->payment_status !== Order::PAYMENT_PAID) {
-            throw new \Exception("Le paiement de cette commande n'est pas encore confirmé.");
+        if ($order->payment_status !== Order::PAYMENT_PAID || !$order->canBeHandedOver()) {
+            throw new \Exception(__('orders.payment_not_confirmed'));
         }
 
-        // a) Mode wallet : prélèvement définitif des fonds bloqués depuis la création.
-        if ($order->isWalletPayment()) {
+        // a) Mode wallet : prélèvement définitif des fonds bloqués (acompte et/ou solde
+        //    pour une commande avec acompte).
+        $walletEscrow = $order->collectedAmounts()['wallet'];
+        if ($walletEscrow > 0) {
             $this->walletService->releaseEscrow(
                 $order->user,
-                (float) $order->total,
+                $walletEscrow,
                 "Paiement commande #{$order->order_number} — validée par le vendeur",
                 'order',
                 $order->id,
@@ -1300,9 +1411,25 @@ class OrderService
                     'subtotal' => $subtotal,
                     'sale_commission' => $saleCommission,
                     'sale_commission_rate' => (float) $order->sale_commission_rate,
+                    // Livraison gratuite offerte : course retenue sur la vente.
+                    'free_delivery_amount' => (float) $order->free_delivery_amount,
                 ],
                 'kpay'
             );
+            // Part vendeur bloquée jusqu'à la fin de la fenêtre de contrôle du client
+            // (« Tout est conforme », 48 h après la livraison, ou réclamation non fondée).
+            $this->walletService->lockFunds(
+                $vendor,
+                $vendorNet,
+                "Vente commande #{$order->order_number} — en attente de validation du client",
+                'order',
+                $order->id,
+                ['vendor_funds' => true],
+                'kpay'
+            );
+            $order->vendor_funds_status = Order::VENDOR_FUNDS_HELD;
+            $order->vendor_funds_holder_id = $vendor->id;
+            $order->vendor_funds_held_amount = $vendorNet;
         }
 
         // c) Entreprise de livraison (prix de base de la course).
@@ -1351,11 +1478,121 @@ class OrderService
         $order->settled_at = now();
         $order->save();
 
+        // Commande déjà livrée (ex. acompte : solde payé à la remise) : la fenêtre de
+        // contrôle démarre maintenant.
+        if ($order->status === 'delivered' && $order->vendor_funds_status === Order::VENDOR_FUNDS_HELD && !$order->auto_validate_at) {
+            $this->startControlWindow($order);
+        }
+
         Log::info('[OrderService] Commande réglée', [
             'order_id' => $order->id,
             'vendor_net' => $vendorNet,
             'sale_commission' => $saleCommission,
             'delivery_commission' => (float) $order->delivery_commission,
         ]);
+    }
+
+    /**
+     * Livraison confirmée : la fenêtre de contrôle de 48 h démarre (part vendeur
+     * toujours bloquée). Sans effet si la part n'est pas bloquée.
+     */
+    public function startControlWindow(Order $order): void
+    {
+        if ($order->vendor_funds_status !== Order::VENDOR_FUNDS_HELD || $order->conformity_confirmed_at) {
+            return;
+        }
+        $order->forceFill(['auto_validate_at' => now()->addHours(Order::CONTROL_WINDOW_HOURS)])->saveQuietly();
+
+        if ($client = $order->user) {
+            try {
+                $this->fcmService->sendToUser(
+                    $client,
+                    $client->translate('notifications.order_control_window.title'),
+                    $client->translate('notifications.order_control_window.body', [
+                        'order_number' => $order->order_number,
+                        'hours' => Order::CONTROL_WINDOW_HOURS,
+                    ]),
+                    ['type' => 'order_control_window', 'order_id' => (string) $order->id, 'order_number' => $order->order_number]
+                );
+            } catch (\Throwable $e) {
+                Log::warning('[OrderService] FCM order_control_window échec: ' . $e->getMessage());
+            }
+        }
+    }
+
+    /**
+     * Débloque la part vendeur encore bloquée sur la commande (idempotent). Les parts
+     * des articles en litige restent bloquées sur leur litige.
+     *
+     * @param string $reason conform (client) | auto (48 h sans action)
+     * @return float montant débloqué
+     */
+    public function releaseVendorFunds(Order $order, string $reason, ?int $actorId = null): float
+    {
+        $released = DB::transaction(function () use ($order, $reason, $actorId) {
+            $locked = Order::whereKey($order->id)->lockForUpdate()->first();
+            if (!$locked || $locked->vendor_funds_status !== Order::VENDOR_FUNDS_HELD) {
+                return null;
+            }
+
+            $amount = round((float) $locked->vendor_funds_held_amount, 2);
+            $vendor = $locked->vendor_funds_holder_id ? User::find($locked->vendor_funds_holder_id) : null;
+            if ($amount > 0 && $vendor) {
+                $this->walletService->unlockFunds(
+                    $vendor,
+                    $amount,
+                    "Vente commande #{$locked->order_number} — fonds débloqués",
+                    'order',
+                    $locked->id,
+                    ['vendor_funds' => true, 'reason' => $reason],
+                    'kpay'
+                );
+            }
+
+            $locked->update([
+                'vendor_funds_status' => Order::VENDOR_FUNDS_RELEASED,
+                'vendor_funds_held_amount' => 0,
+                'vendor_funds_released_at' => now(),
+                'conformity_confirmed_at' => $reason === 'conform' ? now() : $locked->conformity_confirmed_at,
+            ]);
+
+            // Historique visible du client (sans toucher à la dernière étape de livraison).
+            $step = $reason === 'conform' ? 'conformity_confirmed' : 'auto_validated';
+            \App\Models\OrderTrackingEvent::create([
+                'order_id' => $locked->id,
+                'step' => $step,
+                'label' => OrderTrackingService::STEPS[$step],
+                'actor_type' => $reason === 'conform' ? 'buyer' : 'system',
+                'actor_id' => $actorId,
+                'occurred_at' => now(),
+            ]);
+
+            return ['amount' => $amount, 'vendor' => $vendor, 'order' => $locked];
+        });
+
+        if (!$released) {
+            return 0.0;
+        }
+
+        if ($released['amount'] > 0 && $released['vendor']) {
+            $vendor = $released['vendor'];
+            try {
+                $this->fcmService->sendToUser(
+                    $vendor,
+                    $vendor->translate('notifications.vendor_funds_released.title'),
+                    $vendor->translate('notifications.vendor_funds_released.body', [
+                        'order_number' => $released['order']->order_number,
+                        'amount' => number_format($released['amount'], 0, ',', ' '),
+                    ]),
+                    ['type' => 'vendor_funds_released', 'order_id' => (string) $released['order']->id, 'order_number' => $released['order']->order_number]
+                );
+            } catch (\Throwable $e) {
+                Log::warning('[OrderService] FCM vendor_funds_released échec: ' . $e->getMessage());
+            }
+        }
+
+        Log::info('[OrderService] Part vendeur débloquée', ['order_id' => $order->id, 'amount' => $released['amount'], 'reason' => $reason]);
+
+        return $released['amount'];
     }
 }

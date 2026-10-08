@@ -127,6 +127,9 @@ Route::prefix('v1')->group(function () {
     Route::get('/app/version', [AppController::class, 'version']);
     // Compte support ASSO (id à utiliser par le mobile pour démarrer une conversation).
     Route::get('/app/support', [AppController::class, 'support']);
+    // Pages légales actives (CGU, CGV, confidentialité…), rédigées dans le back-office.
+    Route::get('/legal-pages', [\App\Http\Controllers\PublicLegalPageController::class, 'index']);
+    Route::get('/legal-pages/{slug}', [\App\Http\Controllers\PublicLegalPageController::class, 'showJson']);
 
     // AI Product Analysis (Gemini Vision) — collab upstream
     Route::post('/products/analyze', [AnalyzeProductController::class, 'analyze']);
@@ -189,6 +192,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/profile', [AuthController::class, 'updateProfile']);
         Route::get('/preferences', [AuthController::class, 'getPreferences']);
         Route::put('/preferences', [AuthController::class, 'updatePreferences']);
+        Route::put('/locale', [AuthController::class, 'updateLocale']);
         Route::post('/request-phone-change', [AuthController::class, 'requestPhoneChange']);
         Route::post('/confirm-phone-change', [AuthController::class, 'confirmPhoneChange']);
         Route::post('/delete-account', [AuthController::class, 'deleteAccount']);
@@ -233,6 +237,33 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/orders/{id}/cancel', [OrderController::class, 'cancel']);
         Route::post('/orders/{id}/rate', [OrderController::class, 'rate']);
         Route::post('/orders/{id}/confirm-reception', [OrderController::class, 'confirmReception']);
+        Route::post('/orders/{id}/pay-balance', [OrderController::class, 'payBalance']);
+        // Fenêtre de contrôle de 48 h après la livraison : conforme, ou réclamation par article.
+        Route::post('/orders/{id}/conform', [OrderController::class, 'conform']);
+        Route::post('/orders/{id}/disputes', [\App\Http\Controllers\Api\DisputeController::class, 'store'])->middleware('throttle:20,1');
+
+        // Réclamations / litiges (client)
+        Route::prefix('disputes')->controller(\App\Http\Controllers\Api\DisputeController::class)->group(function () {
+            Route::get('/', 'index');
+            Route::get('/{id}', 'show')->whereNumber('id');
+            Route::post('/{id}/confirm-replacement', 'confirmReplacement');
+            Route::post('/{id}/report-replacement', 'reportReplacement');
+            Route::get('/{id}/similar-products', 'similarProducts');
+        });
+
+        // Réclamations / litiges (vendeur) : preuves, remplacement, retour, course payée par le vendeur.
+        Route::prefix('vendor/disputes')->controller(\App\Http\Controllers\Api\VendorDisputeController::class)->group(function () {
+            Route::get('/', 'index');
+            Route::get('/{id}', 'show')->whereNumber('id');
+            Route::post('/{id}/evidence', 'evidence');
+            Route::post('/{id}/replace', 'replace');
+            Route::post('/{id}/return', 'organizeReturn');
+            Route::get('/shipments/{id}/partners', 'partners');
+            Route::post('/shipments/{id}/partner', 'choosePartner');
+            Route::post('/shipments/{id}/pay', 'pay');
+            Route::get('/shipments/{id}/payment-status', 'paymentStatus');
+            Route::post('/shipments/{id}/step', 'step');
+        });
 
         // Payments
         Route::get('/payments/methods', [PaymentController::class, 'methods']);
@@ -280,6 +311,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // Vendor shop management
         Route::get('/vendor/shop', [ShopController::class, 'show']);
         Route::put('/vendor/shop', [ShopController::class, 'update']);
+        Route::put('/vendor/shop/free-delivery', [ShopController::class, 'updateFreeDelivery']);
         Route::get('/vendor/shops', [ShopController::class, 'index']);
         Route::get('/vendor/shop/location-requests', [ShopController::class, 'getLocationRequests']);
         Route::post('/vendor/shop/location-requests', [ShopController::class, 'storeLocationRequest']);
@@ -353,6 +385,8 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::put('/{id}', [VendorProductController::class, 'update']);
             Route::post('/{id}', [VendorProductController::class, 'update']); // Support POST avec _method=PUT pour multipart
             Route::put('/{id}/status', [VendorProductController::class, 'updateStatus']);
+            Route::put('/{id}/free-delivery', [VendorProductController::class, 'updateFreeDelivery']);
+            Route::put('/{id}/deposit', [VendorProductController::class, 'updateDeposit']);
             Route::delete('/{id}', [VendorProductController::class, 'destroy']);
 
             // Stock management

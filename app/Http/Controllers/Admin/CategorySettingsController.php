@@ -80,7 +80,7 @@ class CategorySettingsController extends Controller
     public function storeSubcategory(Request $request)
     {
         $validated = $request->validate([
-            'category_id' => 'required|exists:categories,id',
+            'category_id' => 'bail|required|integer|exists:categories,id',
             'name' => 'required|string|max:255',
             'name_en' => 'required|string|max:255',
         ]);
@@ -98,7 +98,7 @@ class CategorySettingsController extends Controller
     public function updateSubcategory(Request $request, Subcategory $subcategory)
     {
         $validated = $request->validate([
-            'category_id' => 'required|exists:categories,id',
+            'category_id' => 'bail|required|integer|exists:categories,id',
             'name' => 'required|string|max:255',
             'name_en' => 'required|string|max:255',
         ]);

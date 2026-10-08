@@ -18,7 +18,7 @@ use Tests\TestCase;
 
 /**
  * Commande en gros sur plusieurs couleurs : une ligne par variante, et le
- * minimum du palier calculé sur le total de ces lignes.
+ * palier (prix selon la quantité) lu sur le total de ces lignes.
  */
 class WholesaleMultiVariantOrderTest extends TestCase
 {
@@ -109,9 +109,68 @@ class WholesaleMultiVariantOrderTest extends TestCase
         $this->assertEquals(50 * 1000 + 20000 + 1789, (float) $order->total);
     }
 
-    public function test_total_below_the_minimum_is_refused(): void
+    public function test_price_follows_the_tier_reached_by_the_quantity(): void
     {
+        $bulk = ProductPriceTier::create([
+            'product_id' => $this->product->id, 'label' => 'Carton de 100', 'unit_price' => 750,
+            'currency' => 'XAF', 'min_quantity' => 100, 'is_active' => true,
+        ]);
+
+        // L'app envoie encore le premier palier : 60 + 40 = 100 atteint le second.
+        $this->order([[$this->red, 60], [$this->black, 40]])->assertCreated();
+
+        $order = Order::with('items')->latest('id')->firstOrFail();
+        $this->assertTrue($order->items->every(fn ($item) => (int) $item->price_tier_id === $bulk->id));
+        $this->assertEquals(750, (float) $order->items->first()->unit_price);
+        $this->assertEquals(100 * 750, (float) $order->items->sum('total_price'));
+    }
+
+    public function test_between_two_tiers_the_lower_tier_price_applies(): void
+    {
+        ProductPriceTier::create([
+            'product_id' => $this->product->id, 'label' => 'Carton de 100', 'unit_price' => 750,
+            'currency' => 'XAF', 'min_quantity' => 100, 'is_active' => true,
+        ]);
+
+        $this->order([[$this->red, 70]])->assertCreated();
+
+        $item = Order::with('items')->latest('id')->firstOrFail()->items->first();
+        $this->assertSame($this->tier->id, (int) $item->price_tier_id);
+        $this->assertEquals(1000, (float) $item->unit_price);
+    }
+
+    public function test_without_mixing_each_option_reaches_its_own_tier(): void
+    {
+        // Poids réduit : 160 unités doivent tenir sur la moto SOLEX.
+        $this->product->update(['tier_mix_variants' => false, 'weight' => '0.1']);
+        $bulk = ProductPriceTier::create([
+            'product_id' => $this->product->id, 'label' => 'Carton de 100', 'unit_price' => 750,
+            'currency' => 'XAF', 'min_quantity' => 100, 'is_active' => true,
+        ]);
+
+        $this->order([[$this->red, 60], [$this->black, 100]])->assertCreated();
+        $order = Order::with('items')->latest('id')->firstOrFail();
+        $this->assertEquals(1000, (float) $order->items->firstWhere('product_variant_id', $this->red)->unit_price); // 60 < 100 : prix du 1er palier
+        $this->assertEquals(750, (float) $order->items->firstWhere('product_variant_id', $this->black)->unit_price);
+        $this->assertSame($bulk->id, (int) $order->items->firstWhere('product_variant_id', $this->black)->price_tier_id);
+    }
+
+    public function test_total_below_the_first_tier_is_refused(): void
+    {
+        // Le seuil du premier palier (50) est le minimum : 20 + 20 ne l'atteint pas.
         $this->order([[$this->red, 20], [$this->black, 20]])
+            ->assertStatus(422)
+            ->assertJsonPath('success', false);
+
+        $this->assertSame(0, Order::count());
+    }
+
+    public function test_without_mixing_each_option_must_reach_the_minimum(): void
+    {
+        $this->product->update(['tier_mix_variants' => false]);
+
+        // 60 + 30 = 90 dépasse 50, mais le noir seul (30) ne l'atteint pas.
+        $this->order([[$this->red, 60], [$this->black, 30]])
             ->assertStatus(422)
             ->assertJsonPath('success', false);
 

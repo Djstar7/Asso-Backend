@@ -132,6 +132,24 @@ class StripeWebhookController extends Controller
                     'payment_intent' => $pi->id ?? null,
                 ]);
             }
+        } elseif ($kind === 'dispute_shipment') {
+            $shipment = \App\Models\DisputeShipment::find((int) ($pi->metadata->shipment_id ?? 0));
+            if ($shipment && $shipment->payment_reference === ($pi->id ?? null)) {
+                app(\App\Services\DisputeService::class)->confirmPayment($shipment);
+                Log::info('[StripeWebhook] ✅ Course de litige payée (carte)', [
+                    'shipment_id' => $shipment->id,
+                    'payment_intent' => $pi->id ?? null,
+                ]);
+            }
+        } elseif ($kind === 'order_balance') {
+            $order = \App\Models\Order::find((int) ($pi->metadata->order_id ?? 0));
+            if ($order && $order->balance_payment_reference === ($pi->id ?? null)) {
+                app(\App\Services\DepositOrderService::class)->confirmBalancePayment($order);
+                Log::info('[StripeWebhook] ✅ Solde de commande payé (carte)', [
+                    'order_id' => $order->id,
+                    'payment_intent' => $pi->id ?? null,
+                ]);
+            }
         } elseif ($kind === 'package_subscription') {
             $subscriptionId = (int) ($pi->metadata->subscription_id ?? 0);
             $subscription = \App\Models\PackageSubscription::find($subscriptionId);
@@ -182,6 +200,16 @@ class StripeWebhookController extends Controller
                     'order_id' => $orderId,
                     'payment_intent' => $pi->id ?? null,
                 ]);
+            }
+        } elseif ($kind === 'dispute_shipment') {
+            $shipment = \App\Models\DisputeShipment::find((int) ($pi->metadata->shipment_id ?? 0));
+            if ($shipment && $shipment->payment_reference === ($pi->id ?? null)) {
+                app(\App\Services\DisputeService::class)->failPayment($shipment);
+            }
+        } elseif ($kind === 'order_balance') {
+            $order = \App\Models\Order::find((int) ($pi->metadata->order_id ?? 0));
+            if ($order && $order->balance_payment_reference === ($pi->id ?? null)) {
+                app(\App\Services\DepositOrderService::class)->failBalancePayment($order);
             }
         } elseif ($kind === 'package_subscription') {
             $subscriptionId = (int) ($pi->metadata->subscription_id ?? 0);
@@ -256,9 +284,8 @@ class StripeWebhookController extends Controller
 
             $this->notifyUser(
                 $user,
-                'Compte de virement à mettre à jour',
-                'Notre partenaire bancaire demande des informations complémentaires avant '
-                    . "d'autoriser vos virements. Mettez à jour votre compte de virement.",
+                $user->translate('notifications.stripe_account_requirements.title'),
+                $user->translate('notifications.stripe_account_requirements.body'),
                 ['type' => 'stripe_account_requirements', 'action' => 'open_stripe_connect'],
             );
         }

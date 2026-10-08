@@ -25,6 +25,8 @@ class OrderTrackingService
         'arrived' => 'Arrivé dans la ville de destination',
         'ready_for_pickup' => 'Disponible au retrait en agence',
         'delivered' => 'Livré — réception confirmée',
+        'conformity_confirmed' => 'Commande validée par le client — tout est conforme',
+        'auto_validated' => 'Commande validée automatiquement (48 h sans réclamation)',
         'cancelled' => 'Commande annulée',
     ];
 
@@ -70,6 +72,16 @@ class OrderTrackingService
 
         $order->forceFill(['tracking_status' => $step])->saveQuietly();
 
+        // Livraison confirmée : fenêtre de contrôle de 48 h (part vendeur bloquée).
+        if ($step === 'delivered') {
+            app(OrderService::class)->startControlWindow($order->fresh());
+        }
+
+        // Commande avec acompte : produit présenté au client → vérification ASSO à faire.
+        if ($order->isDepositOrder()) {
+            app(DepositOrderService::class)->onTrackingStep($order, $step);
+        }
+
         // Transporteur à domicile : colis arrivé à l'agence (ou import arrivé à l'entrepôt
         // de Douala) → les coursiers du partenaire le voient dans l'app et l'un d'eux
         // l'accepte (flux urbain, code à 6 chiffres).
@@ -79,10 +91,14 @@ class OrderTrackingService
 
         if ($notifyBuyer && $order->user) {
             try {
+                $buyer = $order->user;
+                $buyerLabel = array_key_exists($step, self::STEPS)
+                    ? $buyer->translate("tracking.steps.{$step}")
+                    : $label;
                 $this->fcm->sendToUser(
-                    $order->user,
-                    "Commande #{$order->order_number}",
-                    $label . ($location ? " — {$location}" : '') . ($note ? ". {$note}" : '.'),
+                    $buyer,
+                    $buyer->translate('notifications.order_tracking.title', ['order_number' => $order->order_number]),
+                    $buyerLabel . ($location ? " — {$location}" : '') . ($note ? ". {$note}" : '.'),
                     [
                         'type' => 'order_tracking',
                         'order_id' => (string) $order->id,
@@ -112,8 +128,11 @@ class OrderTrackingService
             try {
                 $this->fcm->sendToUser(
                     $sync->user,
-                    'Colis à livrer depuis l\'agence',
-                    "Commande #{$order->order_number} — livraison vers {$order->delivery_address}.",
+                    $sync->user->translate('notifications.agency_delivery_request.title'),
+                    $sync->user->translate('notifications.agency_delivery_request.body', [
+                        'order_number' => $order->order_number,
+                        'address' => $order->delivery_address,
+                    ]),
                     [
                         'type' => 'new_delivery_request',
                         'order_id' => (string) $order->id,

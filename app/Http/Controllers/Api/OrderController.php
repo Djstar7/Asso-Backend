@@ -24,7 +24,7 @@ class OrderController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Order::with(['items.product.primaryImage', 'items.product.images', 'items.seller', 'deliveryPerson', 'deliveryCompany', 'rating', 'trackingEvents'])
+        $query = Order::with(['items.product.primaryImage', 'items.product.images', 'items.seller', 'deliveryPerson', 'deliveryCompany', 'rating', 'trackingEvents', 'disputes'])
             ->where('user_id', $request->user()->id);
 
         // Masquer les commandes payées par un rail DIRECT (KPay/PayPal/carte) dont le
@@ -61,7 +61,7 @@ class OrderController extends Controller
      */
     public function show(Request $request, $id)
     {
-        $order = Order::with(['items.product.primaryImage', 'items.product.images', 'items.seller', 'deliveryPerson', 'deliveryCompany', 'rating', 'trackingEvents'])
+        $order = Order::with(['items.product.primaryImage', 'items.product.images', 'items.seller', 'deliveryPerson', 'deliveryCompany', 'rating', 'trackingEvents', 'disputes'])
             ->where('user_id', $request->user()->id)
             ->findOrFail($id);
 
@@ -120,7 +120,7 @@ class OrderController extends Controller
                 && !\App\Services\PaymentMethodService::isEnabled('stripe')) {
                 return response()->json([
                     'success' => false,
-                    'message' => "Le paiement par carte bancaire (Stripe) n'est pas disponible pour le moment. Veuillez choisir un autre moyen de paiement.",
+                    'message' => __('payments.stripe_unavailable_choose_other'),
                 ], 422);
             }
 
@@ -150,9 +150,9 @@ class OrderController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => match ($paymentMode) {
-                    'kpay_direct' => 'Commande créée. Validez le paiement sur votre téléphone (USSD).',
-                    'stripe_direct' => 'Commande créée. Finalisez le paiement par carte.',
-                    default => 'Commande créée avec succès. Fonds bloqués en attente de validation.',
+                    'kpay_direct' => __('orders.created_confirm_on_phone'),
+                    'stripe_direct' => __('orders.created_complete_card'),
+                    default => __('orders.created_funds_held'),
                 },
                 'order' => $this->formatOrder($order),
                 // Pour le polling du statut de paiement (modes directs)
@@ -203,6 +203,12 @@ class OrderController extends Controller
             $order->refresh();
         }
 
+        // Commande avec acompte : paiement du solde en cours (Mobile Money / carte).
+        if ($order->isDepositOrder() && $order->balance_payment_reference) {
+            app(\App\Services\DepositOrderService::class)->syncBalancePayment($order);
+            $order->refresh();
+        }
+
         return response()->json([
             'success' => true,
             'data' => [
@@ -210,7 +216,81 @@ class OrderController extends Controller
                 'order_number' => $order->order_number,
                 'payment_status' => $order->payment_status, // pending | paid | failed
                 'status' => $order->status,
+                'balance_status' => $order->balance_status, // null | locked | unlocked | paid | cancelled
+                // Paiement du solde lancé et pas encore confirmé (Mobile Money / carte).
+                'balance_payment_pending' => $order->balance_status === \App\Models\Order::BALANCE_UNLOCKED
+                    && $order->balance_payment_reference !== null,
             ],
+        ]);
+    }
+
+    /**
+     * Commande avec acompte : l'acheteur paie le solde, débloqué seulement après la
+     * livraison (ou le retrait) et la vérification conjointe avec ASSO.
+     *
+     * POST /api/v1/orders/{id}/pay-balance
+     */
+    public function payBalance(Request $request, $id)
+    {
+        $request->validate([
+            'payment_mode' => 'required|in:wallet,kpay_direct,stripe_direct',
+            'provider' => 'required_if:payment_mode,kpay_direct|string',
+            'phone_number' => 'required_if:payment_mode,kpay_direct|string',
+        ]);
+
+        $order = Order::where('user_id', $request->user()->id)->findOrFail($id);
+        $paymentMode = $request->input('payment_mode');
+
+        if ($paymentMode === 'stripe_direct' && !\App\Services\PaymentMethodService::isEnabled('stripe')) {
+            return response()->json(['success' => false, 'message' => __('payments.stripe_unavailable_choose_other')], 422);
+        }
+
+        try {
+            $order = app(\App\Services\DepositOrderService::class)->initiateBalancePayment(
+                $order,
+                $paymentMode,
+                $request->input('provider'),
+                $request->input('phone_number'),
+            );
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => match ($paymentMode) {
+                'kpay_direct' => __('orders.balance_confirm_on_phone'),
+                'stripe_direct' => __('orders.created_complete_card'),
+                default => __('orders.balance_paid'),
+            },
+            'order' => $this->formatOrder($order->fresh(['items.product.primaryImage', 'items.seller', 'deliveryCompany', 'trackingEvents']), true),
+            'order_id' => $order->id,
+            'payment_reference' => $order->balance_payment_reference,
+            'client_secret' => $paymentMode === 'stripe_direct' ? ($order->client_secret ?? null) : null,
+            'payment_intent_id' => $paymentMode === 'stripe_direct' ? ($order->payment_intent_id ?? null) : null,
+            'publishable_key' => $paymentMode === 'stripe_direct' ? ($order->stripe_publishable_key ?? null) : null,
+        ]);
+    }
+
+    /**
+     * Le client valide « Tout est conforme » pendant les 48 h : la part du vendeur est
+     * débloquée tout de suite (sauf les articles en litige).
+     *
+     * POST /api/v1/orders/{id}/conform
+     */
+    public function conform(Request $request, $id)
+    {
+        $order = Order::where('user_id', $request->user()->id)->findOrFail($id);
+        if (!$order->isInControlWindow()) {
+            return response()->json(['success' => false, 'message' => __('disputes.window_closed')], 422);
+        }
+
+        $this->orderService->releaseVendorFunds($order, 'conform', $request->user()->id);
+
+        return response()->json([
+            'success' => true,
+            'message' => __('disputes.conformity_thanks'),
+            'order' => $this->formatOrder($order->fresh(['items.product.primaryImage', 'items.seller', 'deliveryCompany', 'trackingEvents', 'disputes']), true),
         ]);
     }
 
@@ -234,7 +314,7 @@ class OrderController extends Controller
                 // Verrou + re-contrôle : le vendeur a pu valider entre-temps.
                 $locked = Order::whereKey($order->id)->lockForUpdate()->first();
                 if (!$locked || $locked->status !== 'pending') {
-                    throw new \Exception('Cette commande a déjà été prise en charge par le vendeur et ne peut plus être annulée.');
+                    throw new \Exception(__('orders.already_handled_cannot_cancel'));
                 }
 
                 // Remboursement : déblocage de l'escrow (wallet) ou crédit du Wallet ASSO
@@ -261,17 +341,21 @@ class OrderController extends Controller
                 );
             });
 
-            $order->notifySellers(
-                'Commande annulée par le client',
-                "La commande #{$order->order_number} a été annulée" . ($request->reason ? " : {$request->reason}" : '.') . ' Le stock a été remis en vente.',
+            $this->notifySellersLocalized(
+                $order,
+                'notifications.order_cancelled_by_buyer.title',
+                $request->reason
+                    ? 'notifications.order_cancelled_by_buyer.body_with_reason'
+                    : 'notifications.order_cancelled_by_buyer.body',
+                ['order_number' => $order->order_number, 'reason' => $request->reason],
                 ['type' => 'order_cancelled_vendor', 'cancel_reason' => $request->reason],
             );
 
             return response()->json([
                 'success' => true,
                 'message' => $refunded > 0
-                    ? 'Commande annulée. ' . number_format($refunded, 0, ',', ' ') . ' FCFA sont disponibles sur votre Wallet ASSO.'
-                    : 'Commande annulée.',
+                    ? __('orders.cancelled_refunded', ['amount' => number_format($refunded, 0, ',', ' ')])
+                    : __('orders.cancelled'),
                 'refunded_amount' => $refunded,
                 'order' => $this->formatOrder($order->fresh()),
             ]);
@@ -298,6 +382,11 @@ class OrderController extends Controller
             ->where('status', 'shipped')
             ->findOrFail($id);
 
+        // Commande avec acompte : retrait confirmé seulement une fois le solde payé.
+        if (!$order->canBeHandedOver()) {
+            return response()->json(['success' => false, 'message' => __('orders.balance_due_before_handover')], 422);
+        }
+
         DB::transaction(function () use ($order, $request) {
             $order->update([
                 'status' => 'delivered',
@@ -310,15 +399,17 @@ class OrderController extends Controller
             );
         });
 
-        $order->notifySellers(
-            'Colis reçu',
-            "L'acheteur a confirmé la réception de la commande #{$order->order_number}.",
+        $this->notifySellersLocalized(
+            $order,
+            'notifications.order_received_by_buyer.title',
+            'notifications.order_received_by_buyer.body',
+            ['order_number' => $order->order_number],
             ['type' => 'order_delivered_vendor'],
         );
 
         return response()->json([
             'success' => true,
-            'message' => 'Réception confirmée. Merci !',
+            'message' => __('orders.reception_confirmed'),
             'order' => $this->formatOrder($order->fresh(['items.product.primaryImage', 'items.seller', 'deliveryCompany', 'trackingEvents']), true),
         ]);
     }
@@ -334,11 +425,11 @@ class OrderController extends Controller
             'rating' => 'required|integer|min:1|max:5',
             'comment' => 'nullable|string|max:1000',
         ], [
-            'rating.required' => 'Merci d’attribuer une note.',
-            'rating.integer' => 'La note doit être un nombre entier.',
-            'rating.min' => 'La note doit être comprise entre 1 et 5 étoiles.',
-            'rating.max' => 'La note doit être comprise entre 1 et 5 étoiles.',
-            'comment.max' => 'Votre commentaire ne doit pas dépasser 1000 caractères.',
+            'rating.required' => __('orders.rating_required'),
+            'rating.integer' => __('orders.rating_integer'),
+            'rating.min' => __('orders.rating_range'),
+            'rating.max' => __('orders.rating_range'),
+            'comment.max' => __('orders.rating_comment_max'),
         ]);
 
         // Diagnostic précis : sans cela une commande déjà notée renvoie une
@@ -348,21 +439,21 @@ class OrderController extends Controller
         if (!$order) {
             return response()->json([
                 'success' => false,
-                'message' => 'Commande introuvable.',
+                'message' => __('orders.not_found'),
             ], 404);
         }
 
         if ($order->status !== 'delivered') {
             return response()->json([
                 'success' => false,
-                'message' => 'Vous pourrez noter cette commande une fois qu’elle sera livrée.',
+                'message' => __('orders.rate_after_delivery'),
             ], 422);
         }
 
         if ($order->rated_at !== null) {
             return response()->json([
                 'success' => false,
-                'message' => 'Vous avez déjà noté cette commande.',
+                'message' => __('orders.already_rated'),
             ], 422);
         }
 
@@ -408,8 +499,8 @@ class OrderController extends Controller
                         $stars = str_repeat('★', $request->rating) . str_repeat('☆', 5 - $request->rating);
                         $fcm->sendToUser(
                             $seller,
-                            'Nouvelle note reçue',
-                            "Commande #{$order->order_number} notée {$stars}",
+                            $seller->translate('notifications.order_rated.title'),
+                            $seller->translate('notifications.order_rated.body', ['order_number' => $order->order_number, 'stars' => $stars]),
                             [
                                 'type' => 'order_rated',
                                 'order_id' => (string) $order->id,
@@ -422,7 +513,7 @@ class OrderController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Merci pour votre note !',
+                'message' => __('orders.rating_thanks'),
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -433,10 +524,34 @@ class OrderController extends Controller
     }
 
     /**
+     * Même envoi que Order::notifySellers, mais chaque vendeur reçoit la
+     * notification dans sa propre langue.
+     */
+    private function notifySellersLocalized(Order $order, string $titleKey, string $bodyKey, array $replace = [], array $data = []): void
+    {
+        $sellerIds = $order->items()->pluck('seller_id')->filter()->unique();
+        foreach (\App\Models\User::whereIn('id', $sellerIds)->get() as $seller) {
+            app(\App\Services\FirebaseMessagingService::class)->sendToUser(
+                $seller,
+                $seller->translate($titleKey, $replace),
+                $seller->translate($bodyKey, $replace),
+                $data + [
+                    'order_id' => (string) $order->id,
+                    'order_number' => (string) $order->order_number,
+                ],
+            );
+        }
+    }
+
+    /**
      * Format order for API response
      */
     private function formatOrder($order, $detailed = false): array
     {
+        // Réclamations : une par article, ouverte pendant la fenêtre de 48 h.
+        $controlOpen = $order->isInControlWindow();
+        $disputes = $order->status === 'delivered' ? $order->disputes->keyBy('order_item_id') : collect();
+
         $data = [
             'id' => $order->id,
             'order_number' => $order->order_number,
@@ -445,6 +560,9 @@ class OrderController extends Controller
             'delivery_fee' => (float) $order->delivery_fee,
             // Import en gros : part du trajet jusqu'à Douala dans les frais de livraison.
             'import_shipping_fee' => $order->import_shipping_fee !== null ? (float) $order->import_shipping_fee : null,
+            // Livraison gratuite offerte par le vendeur : prix de la course, affiché barré.
+            'free_delivery' => (bool) $order->free_delivery,
+            'free_delivery_amount' => (float) $order->free_delivery_amount,
             'total' => (float) $order->total,
             'formatted_total' => $order->formatted_total,
             'payment_method' => $order->payment_method,
@@ -481,6 +599,13 @@ class OrderController extends Controller
                             'avatar' => $item->product->user->avatar,
                         ]
                         : null),
+                'dispute' => ($dispute = $disputes->get($item->id)) ? [
+                    'id' => $dispute->id,
+                    'number' => $dispute->number,
+                    'status' => $dispute->status,
+                    'status_label' => \App\Models\Dispute::STATUSES[$dispute->status] ?? $dispute->status,
+                ] : null,
+                'can_report' => $controlOpen && !$disputes->has($item->id),
             ]),
             'items_count' => $order->items->count(),
             'rated_at' => $order->rated_at?->toIso8601String(),
@@ -513,9 +638,24 @@ class OrderController extends Controller
 
         // Code de confirmation : livraison urbaine en cours uniquement (le transporteur
         // ne le demande pas, l'acheteur confirme lui-même la réception).
-        if ($order->status === 'shipped' && (!$order->isCarrierDelivery() || $order->hasLastMileDelivery())) {
+        // Commande avec acompte : le code n'est remis qu'une fois le solde payé.
+        if ($order->status === 'shipped' && (!$order->isCarrierDelivery() || $order->hasLastMileDelivery())
+            && $order->canBeHandedOver()) {
             $data['confirmation_code'] = $order->confirmation_code;
         }
+
+        // Commande avec acompte : montants, état du solde et de la vérification ASSO.
+        $data['payment_plan'] = $order->payment_plan ?? \App\Models\Order::PLAN_FULL;
+        $data['deposit'] = \App\Services\DepositOrderService::present($order);
+
+        // Fenêtre de contrôle de 48 h après la livraison : « Tout est conforme » ou
+        // réclamation par article. Sans action, la commande est validée automatiquement.
+        $data['control'] = [
+            'window_open' => $controlOpen,
+            'until' => $controlOpen ? $order->auto_validate_at?->toIso8601String() : null,
+            'conformity_confirmed_at' => $order->conformity_confirmed_at?->toIso8601String(),
+            'validated' => $order->vendor_funds_status === \App\Models\Order::VENDOR_FUNDS_RELEASED,
+        ];
 
         // Timestamps toujours inclus (nécessaires pour le tracking client)
         $data['confirmed_at'] = $order->confirmed_at?->toIso8601String();

@@ -10,6 +10,7 @@ use App\Models\Inventory;
 use App\Services\ProductBroadcastService;
 use App\Services\ProductVariantService;
 use Illuminate\Http\Request;
+use Illuminate\Database\UniqueConstraintViolationException;
 
 class ProductController extends Controller
 {
@@ -167,7 +168,7 @@ class ProductController extends Controller
 
             $card = $this->formatProduct($boost->product, $favoriteIds);
             $card['is_sponsored'] = true;
-            $card['sponsored_label'] = 'Sponsorisé';
+            $card['sponsored_label'] = __('products.sponsored_label');
             $card['boost_id'] = $boost->id;
 
             // Position prévue, ou à la suite si la page est plus courte que le slot.
@@ -313,7 +314,7 @@ class ProductController extends Controller
         return response()->json([
             'success' => true,
             'is_favorite' => $isFavorite,
-            'message' => $isFavorite ? 'Ajouté aux favoris' : 'Retiré des favoris',
+            'message' => $isFavorite ? __('products.added_to_favorites') : __('products.removed_from_favorites'),
         ]);
     }
 
@@ -365,6 +366,21 @@ class ProductController extends Controller
             'count' => $request->hasFile('images') ? count($request->file('images')) : 0,
         ]);
 
+        // Renvoi d'un produit saisi hors ligne : s'il a déjà été créé (réponse
+        // perdue en route), on le rend tel quel plutôt que d'en créer un second.
+        $request->validate(['client_reference' => 'nullable|string|max:64']);
+        $clientReference = $request->filled('client_reference')
+            ? (string) $request->input('client_reference')
+            : null;
+        if ($clientReference !== null) {
+            $existing = Product::where('user_id', $request->user()->id)
+                ->where('client_reference', $clientReference)
+                ->first();
+            if ($existing) {
+                return $this->replayedProductResponse($existing, $request);
+            }
+        }
+
         // Poids en kg : accepte la virgule décimale (« 1,5 »).
         if (is_string($request->input('weight'))) {
             $request->merge(['weight' => str_replace(',', '.', trim($request->input('weight')))]);
@@ -377,8 +393,8 @@ class ProductController extends Controller
             'price' => 'required|numeric|min:0',
             // Devise dans laquelle le vendeur fixe le prix (défaut XAF). Doit être active.
             'currency' => 'nullable|string|size:3|exists:currencies,code',
-            'category_id' => 'required|exists:categories,id',
-            'subcategory_id' => 'nullable|exists:subcategories,id',
+            'category_id' => 'bail|required|integer|exists:categories,id',
+            'subcategory_id' => 'bail|nullable|integer|exists:subcategories,id',
             'type' => 'required|in:article,service',
             'origin_country' => 'nullable|string|size:2',
             'condition' => 'required|in:new,used,refurbished',
@@ -390,7 +406,9 @@ class ProductController extends Controller
             'sizes.*' => 'string|in:' . implode(',', Product::AVAILABLE_SIZES),
             'images' => 'required|array|min:1',
             'images.*' => 'file|image|mimes:jpeg,png,jpg,gif,webp|max:5120',
-        ] + ProductVariantService::rules());
+            // Livraison gratuite : absent/null = suit la boutique.
+            'free_delivery' => 'nullable|boolean',
+        ] + \App\Services\DepositOrderService::productRules('nullable') + ProductVariantService::rules());
 
         \Log::info('[PRODUCT_STORE] Validation passed');
 
@@ -399,7 +417,7 @@ class ProductController extends Controller
         if (!$vendorPackage) {
             return response()->json([
                 'success' => false,
-                'message' => 'Vous devez souscrire à un package de stockage pour ajouter des produits',
+                'message' => __('products.storage_package_required'),
                 'error_code' => 'NO_ACTIVE_PACKAGE',
             ], 403);
         }
@@ -416,7 +434,7 @@ class ProductController extends Controller
         if (!$vendorPackage->hasEnoughStorage($totalImageSizeMb)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Espace de stockage insuffisant. Veuillez souscrire à un package supplémentaire.',
+                'message' => __('products.storage_insufficient_subscribe'),
                 'error_code' => 'INSUFFICIENT_STORAGE',
                 'required_mb' => round($totalImageSizeMb, 2),
                 'available_mb' => round($vendorPackage->storage_remaining_mb, 2),
@@ -431,7 +449,7 @@ class ProductController extends Controller
             \Log::warning('[PRODUCT_STORE] User has no shop');
             return response()->json([
                 'success' => false,
-                'message' => 'Vous devez créer une boutique avant d\'ajouter des produits',
+                'message' => __('products.shop_required'),
                 'error_code' => 'NO_SHOP',
             ], 403);
         }
@@ -469,8 +487,32 @@ class ProductController extends Controller
         if (!empty($validated['weight'])) {
             $productData['weight'] = $validated['weight'];
         }
+        if (isset($validated['free_delivery'])) {
+            $productData['free_delivery'] = (bool) $validated['free_delivery'];
+        }
+        // Commande avec acompte (produit sur commande / importé).
+        $productData += \App\Services\DepositOrderService::productAttributes($validated);
 
-        $product = Product::create($productData);
+        if ($clientReference !== null) {
+            $productData['client_reference'] = $clientReference;
+        }
+
+        try {
+            $product = Product::create($productData);
+        } catch (UniqueConstraintViolationException $e) {
+            // Deux envois simultanés de la même référence : le premier a créé
+            // le produit, le second le rend. Rien n'a encore été stocké ni débité.
+            $existing = $clientReference !== null
+                ? Product::where('user_id', $request->user()->id)
+                    ->where('client_reference', $clientReference)
+                    ->first()
+                : null;
+            if (!$existing) {
+                throw $e;
+            }
+
+            return $this->replayedProductResponse($existing, $request);
+        }
         if (!empty($validated['variants'])) {
             app(ProductVariantService::class)->sync($product, $validated['variants'], $validated['variant_options'] ?? null);
         }
@@ -536,7 +578,7 @@ class ProductController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Product created successfully',
+            'message' => __('products.created'),
             'product' => $this->formatProduct($product, []),
             'storage_info' => [
                 'used_mb' => round($totalImageSizeMb, 2),
@@ -546,8 +588,44 @@ class ProductController extends Controller
     }
 
     /**
+     * Réponse à un renvoi : le produit déjà créé pour cette référence, sans
+     * nouvelle écriture ni nouveau débit de stockage.
+     */
+    private function replayedProductResponse(Product $product, Request $request)
+    {
+        \Log::info('[PRODUCT_STORE] Replay of client reference', [
+            'product_id' => $product->id,
+            'client_reference' => $product->client_reference,
+        ]);
+
+        $product->load(['images', 'primaryImage', 'category', 'subcategory', 'user', 'shop']);
+        $vendorPackage = $request->user()->activeVendorPackage;
+
+        return response()->json([
+            'success' => true,
+            'message' => __('products.already_created'),
+            'replayed' => true,
+            'product' => $this->formatProduct($product, []),
+            'storage_info' => [
+                'used_mb' => 0,
+                'remaining_mb' => $vendorPackage ? round($vendorPackage->storage_remaining_mb, 2) : 0,
+            ],
+        ], 200);
+    }
+
+    /**
      * Format product for API response
      */
+    /** Cartes produit au format des listes (réutilisé par les produits similaires d'un litige). */
+    public function cards(\Illuminate\Support\Collection $products, ?\App\Models\User $user): array
+    {
+        $favoriteIds = $user
+            ? \DB::table('favorites')->where('user_id', $user->id)->pluck('product_id')->toArray()
+            : [];
+
+        return $products->map(fn ($product) => $this->formatProduct($product, $favoriteIds))->values()->all();
+    }
+
     private function formatProduct($product, $favoriteIds = [], $detailed = false): array
     {
         // Prix PUBLICS : prix vendeur majoré de la commission ASSO (cf. CommissionService).
@@ -585,6 +663,10 @@ class ProductController extends Controller
             // Positionné par injectSponsored(), jamais déduit du produit lui-même —
             // une même fiche n'est « Sponsorisé » que là où l'annonce est diffusée.
             'is_sponsored' => false,
+            // Livraison gratuite offerte par le vendeur (produit, sinon boutique).
+            'free_delivery' => $product->hasFreeDelivery(),
+            // Commande avec acompte : % du prix payé à la commande, solde après vérification ASSO.
+            ...\App\Services\DepositOrderService::productInfo($product),
             'primary_image' => $product->primaryImage ? $this->getImageUrl($product->primaryImage->image_path) : null,
             'images' => $product->images->map(fn($img) => [
                 'id' => $img->id,
@@ -613,6 +695,7 @@ class ProductController extends Controller
                 'slug' => $product->shop->slug,
                 'logo' => $product->shop->logo ? $this->getImageUrl($product->shop->logo) : null,
                 'is_certified' => (bool) $product->shop->is_certified,
+                'free_delivery' => (bool) $product->shop->free_delivery,
                 'latitude' => $product->shop->latitude ? (float) $product->shop->latitude : null,
                 'longitude' => $product->shop->longitude ? (float) $product->shop->longitude : null,
                 'address' => $product->shop->address,
@@ -630,6 +713,8 @@ class ProductController extends Controller
         if (auth('sanctum')->id() && auth('sanctum')->id() === $product->user_id) {
             $data['seller_price'] = (float) $product->price;
             $data['asso_commission_rate'] = $pricing['rate'];
+            // Choix propre au produit : null = suit la boutique.
+            $data['free_delivery_setting'] = $product->free_delivery;
         }
 
         if ($detailed) {

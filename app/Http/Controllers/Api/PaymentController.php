@@ -138,7 +138,7 @@ class PaymentController extends Controller
 
                 return response()->json([
                     'success' => true,
-                    'message' => 'Paiement initié. Veuillez valider sur votre téléphone.',
+                    'message' => __('payments.initiated_confirm_on_phone'),
                     'payment_reference' => $result['reference'],
                     'kpay_id' => $result['id'],
                     'transaction_id' => $transaction->id,
@@ -159,13 +159,13 @@ class PaymentController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Commande confirmée. Paiement à la livraison.',
+                'message' => __('payments.cash_on_delivery_confirmed'),
             ]);
         }
 
         return response()->json([
             'success' => false,
-            'message' => 'Méthode de paiement non supportée',
+            'message' => __('payments.method_not_supported'),
         ], 422);
     }
 
@@ -243,6 +243,28 @@ class PaymentController extends Controller
                 }
             }
             return response()->json(['message' => 'Diaspo booking webhook processed']);
+        }
+
+        // Course d'un litige payée par le vendeur (externalId = LITIGE-{shipmentId})
+        if ($disputeShipment = \App\Services\DisputeService::shipmentForKpayReference($externalId)) {
+            $disputes = app(\App\Services\DisputeService::class);
+            if (in_array($status, ['COMPLETED', 'SUCCESS', 'SUCCESSFUL'])) {
+                $disputes->confirmPayment($disputeShipment);
+            } elseif (in_array($status, ['FAILED', 'CANCELLED'])) {
+                $disputes->failPayment($disputeShipment);
+            }
+            return response()->json(['message' => 'Dispute shipment webhook processed']);
+        }
+
+        // Solde d'une commande avec acompte (externalId = {order_number}-SOLDE)
+        if ($balanceOrder = \App\Services\DepositOrderService::orderForBalanceReference($externalId)) {
+            $deposits = app(\App\Services\DepositOrderService::class);
+            if (in_array($status, ['COMPLETED', 'SUCCESS', 'SUCCESSFUL'])) {
+                $deposits->confirmBalancePayment($balanceOrder);
+            } elseif (in_array($status, ['FAILED', 'CANCELLED'])) {
+                $deposits->failBalancePayment($balanceOrder);
+            }
+            return response()->json(['message' => 'Order balance webhook processed']);
         }
 
         // Commande payée en direct KPay (externalId = order_number)

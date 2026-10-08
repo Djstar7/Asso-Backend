@@ -114,13 +114,30 @@ class ShopController extends Controller
     }
 
     /**
+     * Livraison gratuite sur toute la boutique (financée par le vendeur). Les
+     * produits réglés un à un gardent leur choix.
+     */
+    public function toggleFreeDelivery(Shop $shop)
+    {
+        $shop->update(['free_delivery' => ! $shop->free_delivery]);
+
+        return back()->with('success', $shop->free_delivery
+            ? 'Livraison gratuite activée sur toute la boutique.'
+            : 'Livraison gratuite désactivée sur la boutique.');
+    }
+
+    /**
      * Show the form for editing the specified shop
      */
     public function edit(Shop $shop)
     {
         $shop->load('verifier', 'rejector', 'user', 'products');
-        $users = User::all();
-        return view('admin.shops.edit', compact('shop', 'users'));
+        $users = User::orderBy('first_name')->get();
+        // Catégories proposées : celles du catalogue, plus celles déjà sur la boutique.
+        $categories = \App\Models\Category::orderBy('name')->pluck('name')
+            ->merge($shop->categories ?? [])->unique()->values();
+
+        return view('admin.shops.edit', compact('shop', 'users', 'categories'));
     }
 
     /**
@@ -141,9 +158,14 @@ class ShopController extends Controller
             'description' => 'nullable|string',
             'shop_link' => 'nullable|url',
             'address' => 'nullable|string',
+            'city' => 'nullable|string|max:120',
+            'country' => 'nullable|string|max:120',
+            'phone' => 'nullable|string|max:30',
+            'email' => 'nullable|email|max:255',
             'latitude' => 'nullable|numeric|between:-90,90',
             'longitude' => 'nullable|numeric|between:-180,180',
             'status' => 'required|in:active,inactive',
+            'free_delivery' => 'nullable|boolean',
             'verification_status' => 'required|in:pending,verified,rejected',
             'rejection_reason' => 'required_if:verification_status,rejected|nullable|string|max:500',
             'logo' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
@@ -154,6 +176,17 @@ class ShopController extends Controller
         Log::info('[ADMIN-SHOP-UPDATE] Validation passed', [
             'validated_fields' => array_keys($validated)
         ]);
+
+        // Toutes les cases décochées : le formulaire n'envoie rien, la boutique n'a plus de catégorie.
+        $validated['categories'] = array_values(array_filter($validated['categories'] ?? []));
+        $validated['free_delivery'] = $request->boolean('free_delivery');
+
+        // Ville / pays laissés vides : déduits de l'adresse, comme à l'approbation d'un emplacement.
+        if (!empty($validated['address']) && (blank($validated['city'] ?? null) || blank($validated['country'] ?? null))) {
+            [$city, $country] = \App\Support\LocationFormatter::parse($validated['address']);
+            $validated['city'] = ($validated['city'] ?? null) ?: $city;
+            $validated['country'] = ($validated['country'] ?? null) ?: $country;
+        }
 
         // Update slug only if name changed
         if ($shop->name !== $validated['name']) {
@@ -184,8 +217,9 @@ class ShopController extends Controller
 
         switch ($validated['verification_status']) {
             case 'verified':
-                $validated['verified_at'] = now();
-                $validated['verified_by'] = auth()->id();
+                // Déjà vérifiée : on garde la date et l'auteur de la vérification d'origine.
+                $validated['verified_at'] = $previousStatus === 'verified' ? $shop->verified_at : now();
+                $validated['verified_by'] = $previousStatus === 'verified' ? $shop->verified_by : auth()->id();
                 $validated['rejected_at'] = null;
                 $validated['rejected_by'] = null;
                 $validated['rejection_reason'] = null;
@@ -198,8 +232,8 @@ class ShopController extends Controller
                 break;
 
             case 'rejected':
-                $validated['rejected_at'] = now();
-                $validated['rejected_by'] = auth()->id();
+                $validated['rejected_at'] = $previousStatus === 'rejected' ? $shop->rejected_at : now();
+                $validated['rejected_by'] = $previousStatus === 'rejected' ? $shop->rejected_by : auth()->id();
                 $validated['verified_at'] = null;
                 $validated['verified_by'] = null;
 
@@ -236,7 +270,7 @@ class ShopController extends Controller
                 'updated_fields' => array_keys($validated)
             ]);
 
-            return redirect()->route('admin.shops.index')
+            return redirect()->route('admin.shops.show', $shop)
                 ->with('success', 'Boutique mise à jour avec succès!');
         } catch (\Exception $e) {
             Log::error('[ADMIN-SHOP-UPDATE] Failed to update shop', [
@@ -309,8 +343,8 @@ class ShopController extends Controller
             if ($vendor) {
                 $fcmService->sendToUser(
                     $vendor,  // Pass the User object, not the ID
-                    'Changement de localisation approuvé',
-                    "Votre demande de changement de localisation pour {$shop->name} a été approuvée par l'administrateur.",
+                    $vendor->translate('notifications.location_request_approved.title'),
+                    $vendor->translate('notifications.location_request_approved.body', ['shop' => $shop->name]),
                     [
                         'type' => 'location_request_approved',
                         'shop_id' => $shop->id,
@@ -369,8 +403,8 @@ class ShopController extends Controller
             if ($vendor) {
                 $fcmService->sendToUser(
                     $vendor,  // Pass the User object, not the ID
-                    'Changement de localisation rejeté',
-                    "Votre demande de changement d'emplacement pour {$shop->name} a été refusée : {$reason}",
+                    $vendor->translate('notifications.location_request_rejected.title'),
+                    $vendor->translate('notifications.location_request_rejected.body', ['shop' => $shop->name, 'reason' => $reason]),
                     [
                         'type' => 'location_request_rejected',
                         'shop_id' => $shop->id,

@@ -22,7 +22,7 @@ class ShopController extends Controller
         if (!$user->hasAnyRole(['vendeur', 'vendor'])) {
             return response()->json([
                 'success' => false,
-                'message' => 'Vous n\'êtes pas vendeur',
+                'message' => __('shops.not_a_vendor'),
             ], 403);
         }
 
@@ -32,7 +32,7 @@ class ShopController extends Controller
         if (!$shop) {
             return response()->json([
                 'success' => false,
-                'message' => 'Aucune boutique trouvée',
+                'message' => __('shops.no_shop_found'),
             ], 404);
         }
 
@@ -79,7 +79,7 @@ class ShopController extends Controller
         if (!$shop) {
             return response()->json([
                 'success' => false,
-                'message' => 'Boutique non trouvée',
+                'message' => __('shops.not_found'),
             ], 404);
         }
 
@@ -87,7 +87,7 @@ class ShopController extends Controller
         if (!$shop->isVerified()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Cette boutique n\'est pas disponible',
+                'message' => __('shops.unavailable'),
             ], 403);
         }
 
@@ -148,7 +148,7 @@ class ShopController extends Controller
         if (!$user->hasAnyRole(['vendeur', 'vendor'])) {
             return response()->json([
                 'success' => false,
-                'message' => 'Vous n\'êtes pas vendeur',
+                'message' => __('shops.not_a_vendor'),
             ], 403);
         }
 
@@ -171,7 +171,7 @@ class ShopController extends Controller
         if (!$user->hasAnyRole(['vendeur', 'vendor'])) {
             return response()->json([
                 'success' => false,
-                'message' => 'Vous n\'êtes pas vendeur',
+                'message' => __('shops.not_a_vendor'),
             ], 403);
         }
 
@@ -180,7 +180,7 @@ class ShopController extends Controller
         if (!$shop) {
             return response()->json([
                 'success' => false,
-                'message' => 'Aucune boutique trouvée',
+                'message' => __('shops.no_shop_found'),
             ], 404);
         }
 
@@ -219,7 +219,7 @@ class ShopController extends Controller
                 empty(trim($address))) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'L\'adresse fournie est invalide. Veuillez réessayer.',
+                    'message' => __('shops.invalid_address'),
                 ], 422);
             }
         }
@@ -232,7 +232,7 @@ class ShopController extends Controller
                 return response()->json([
                     'success' => false,
                     'code' => 'location_change_requires_approval',
-                    'message' => "L'emplacement de la boutique ne se modifie plus directement : envoyez une demande de changement, l'équipe ASSO la valide.",
+                    'message' => __('shops.location_change_requires_request'),
                 ], 422);
             }
             $validated = array_diff_key($validated, array_flip(['shop_address', 'shop_city', 'shop_country', 'shop_latitude', 'shop_longitude']));
@@ -315,7 +315,7 @@ class ShopController extends Controller
 
             $response = [
                 'success' => true,
-                'message' => 'Boutique mise à jour avec succès',
+                'message' => __('shops.updated'),
                 'shop' => $this->formatShop($shop),
                 'stats' => $stats,
             ];
@@ -331,7 +331,7 @@ class ShopController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la mise à jour de la boutique',
+                'message' => __('shops.update_error'),
                 'error' => app()->environment('local') ? $e->getMessage() : null,
             ], 500);
         }
@@ -358,12 +358,54 @@ class ShopController extends Controller
             'categories' => $shop->categories ?? [],
             'status' => $shop->status,
             'is_certified' => (bool) $shop->is_certified,
+            'free_delivery' => (bool) $shop->free_delivery,
             'phone' => $shop->phone ?? $shop->user->phone,
             'email' => $shop->email ?? $shop->user->email,
             'products_count' => $shop->products()->count(),
             'created_at' => $shop->created_at->toIso8601String(),
             'updated_at' => $shop->updated_at->toIso8601String(),
         ];
+    }
+
+    /**
+     * Livraison gratuite sur toute la boutique. Les produits réglés un à un gardent
+     * leur choix ; les autres suivent la boutique.
+     * PUT /vendor/shop/free-delivery
+     */
+    public function updateFreeDelivery(Request $request)
+    {
+        $validated = $request->validate([
+            'free_delivery' => 'required|boolean',
+        ]);
+
+        $user = $request->user();
+        if (!$user->hasAnyRole(['vendeur', 'vendor'])) {
+            return response()->json([
+                'success' => false,
+                'message' => __('shops.not_a_vendor'),
+            ], 403);
+        }
+
+        $shop = $user->primaryShop;
+        if (!$shop) {
+            return response()->json([
+                'success' => false,
+                'message' => __('shops.no_shop_found'),
+            ], 404);
+        }
+
+        $shop->update(['free_delivery' => (bool) $validated['free_delivery']]);
+
+        return response()->json([
+            'success' => true,
+            'message' => $shop->free_delivery
+                ? __('shops.free_delivery_enabled')
+                : __('shops.free_delivery_disabled'),
+            'free_delivery' => (bool) $shop->free_delivery,
+            // Produits qui ne suivent pas la boutique (réglés un à un).
+            'overridden_products' => $shop->products()->whereNotNull('free_delivery')
+                ->where('free_delivery', '!=', $shop->free_delivery)->count(),
+        ]);
     }
 
     /**
@@ -385,6 +427,7 @@ class ShopController extends Controller
             'longitude' => $shop->longitude,
             'categories' => $shop->categories ?? [],
             'is_certified' => (bool) $shop->is_certified,
+            'free_delivery' => (bool) $shop->free_delivery,
             'phone' => $shop->phone ?? $shop->user->phone,
             'products_count' => $shop->products()->count(),
         ];
@@ -432,6 +475,8 @@ class ShopController extends Controller
                 'latitude' => $latitude,
                 'longitude' => $longitude,
                 'location' => $shop->location_label ?? $product->address,
+                'free_delivery' => $product->hasFreeDelivery(),
+                ...\App\Services\DepositOrderService::productInfo($product),
                 'created_at' => $product->created_at->toIso8601String(),
             ];
         });
@@ -450,6 +495,7 @@ class ShopController extends Controller
             'longitude' => $shop->longitude,
             'categories' => $shop->categories ?? [],
             'is_certified' => (bool) $shop->is_certified,
+            'free_delivery' => (bool) $shop->free_delivery,
             'phone' => $shop->phone ?? $shop->user->phone,
             'email' => $shop->email ?? $shop->user->email,
             'products' => $products,
@@ -554,11 +600,11 @@ class ShopController extends Controller
     {
         $user = $request->user();
         if (!$user->hasAnyRole(['vendeur', 'vendor'])) {
-            return response()->json(['success' => false, 'message' => 'Vous n\'êtes pas vendeur'], 403);
+            return response()->json(['success' => false, 'message' => __('shops.not_a_vendor')], 403);
         }
         $shop = $user->primaryShop;
         if (!$shop) {
-            return response()->json(['success' => false, 'message' => 'Aucune boutique trouvée'], 404);
+            return response()->json(['success' => false, 'message' => __('shops.no_shop_found')], 404);
         }
 
         $validated = $request->validate([
@@ -582,7 +628,7 @@ class ShopController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => "Demande envoyée. L'équipe ASSO la vérifie avant que votre boutique ne change d'emplacement.",
+            'message' => __('shops.location_request_sent'),
             'request' => $this->formatLocationRequest($locationRequest->load('reviewer')),
         ], 201);
     }
@@ -618,7 +664,7 @@ class ShopController extends Controller
         if (!$user->hasAnyRole(['vendeur', 'vendor'])) {
             return response()->json([
                 'success' => false,
-                'message' => 'Vous n\'êtes pas vendeur',
+                'message' => __('shops.not_a_vendor'),
             ], 403);
         }
 
@@ -627,7 +673,7 @@ class ShopController extends Controller
         if (!$shop) {
             return response()->json([
                 'success' => false,
-                'message' => 'Aucune boutique trouvée',
+                'message' => __('shops.no_shop_found'),
             ], 404);
         }
 

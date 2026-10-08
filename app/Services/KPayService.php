@@ -99,7 +99,7 @@ class KPayService
     public function initializePayment(array $params): array
     {
         if (!$this->isConfigured()) {
-            return ['success' => false, 'message' => 'KPay non configuré (clés API manquantes).'];
+            return ['success' => false, 'message' => __('payments.kpay_not_configured')];
         }
 
         try {
@@ -139,12 +139,12 @@ class KPayService
 
             return [
                 'success' => false,
-                'message' => $data['message'] ?? 'Erreur lors de l\'initialisation du paiement',
+                'message' => $data['message'] ?? __('payments.kpay_payment_init_error'),
                 'data' => $data,
             ];
         } catch (\Exception $e) {
             Log::error('[KPayService] Payment init exception', ['error' => $e->getMessage()]);
-            return ['success' => false, 'message' => 'Erreur de connexion au service de paiement'];
+            return ['success' => false, 'message' => __('payments.connection_error')];
         }
     }
 
@@ -194,7 +194,7 @@ class KPayService
     public function initiateDisbursement(array $params): array
     {
         if (!$this->isConfigured()) {
-            return ['success' => false, 'message' => 'KPay non configuré (clés API manquantes).'];
+            return ['success' => false, 'message' => __('payments.kpay_not_configured')];
         }
 
         try {
@@ -236,12 +236,12 @@ class KPayService
 
             return [
                 'success' => false,
-                'message' => $data['message'] ?? 'Erreur lors de l\'initialisation du retrait',
+                'message' => $data['message'] ?? __('payments.kpay_withdrawal_init_error'),
                 'data' => $data,
             ];
         } catch (\Exception $e) {
             Log::error('[KPayService] Disbursement exception', ['error' => $e->getMessage()]);
-            return ['success' => false, 'message' => 'Erreur de connexion au service de paiement'];
+            return ['success' => false, 'message' => __('payments.connection_error')];
         }
     }
 

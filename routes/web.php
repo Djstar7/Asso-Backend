@@ -1,39 +1,39 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Admin\AuthController;
-use App\Http\Controllers\Admin\DashboardController;
-use App\Http\Controllers\Admin\UserController;
-use App\Http\Controllers\Admin\ShopController;
-use App\Http\Controllers\Admin\CategorySettingsController;
-use App\Http\Controllers\Admin\ProductController;
-use App\Http\Controllers\Admin\SettingsController;
-use App\Http\Controllers\Admin\MaintenanceController;
-use App\Http\Controllers\Admin\LegalPageController;
-use App\Http\Controllers\Admin\BannerController;
-use App\Http\Controllers\Admin\ImportCountryController;
-use App\Http\Controllers\Admin\AnnouncementController;
-use App\Http\Controllers\Admin\TransactionController;
-use App\Http\Controllers\Admin\ExchangeController;
-use App\Http\Controllers\Admin\MapController;
-use App\Http\Controllers\Admin\PackageController;
-use App\Http\Controllers\Admin\SupportController;
-use App\Http\Controllers\Admin\MessageController;
 use App\Http\Controllers\Admin\AffiliateController;
-use App\Http\Controllers\Admin\SalesAgentController;
-use App\Http\Controllers\Admin\SalesCommissionController;
+use App\Http\Controllers\Admin\AnnouncementController;
+use App\Http\Controllers\Admin\AuthController;
+use App\Http\Controllers\Admin\BannerController;
+use App\Http\Controllers\Admin\CategorySettingsController;
+use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\DatabaseController;
 use App\Http\Controllers\Admin\DelivererController;
 use App\Http\Controllers\Admin\DelivererSyncManagementController;
-use App\Http\Controllers\Admin\DocumentController;
-use App\Http\Controllers\Admin\DatabaseController;
-use App\Http\Controllers\Admin\VaultController;
-use App\Http\Controllers\Admin\PreferenceController;
-use App\Http\Controllers\Admin\FcmTokenController;
-use App\Http\Controllers\Admin\OtpBypassController;
-use App\Http\Controllers\Admin\DiaspoVerificationController;
 use App\Http\Controllers\Admin\DiaspoOfferController;
-use App\Http\Controllers\Admin\PostController;
+use App\Http\Controllers\Admin\DiaspoVerificationController;
+use App\Http\Controllers\Admin\DocumentController;
+use App\Http\Controllers\Admin\ExchangeController;
+use App\Http\Controllers\Admin\FcmTokenController;
+use App\Http\Controllers\Admin\ImportCountryController;
 use App\Http\Controllers\Admin\ImportShippingOptionController;
+use App\Http\Controllers\Admin\LegalPageController;
+use App\Http\Controllers\Admin\MaintenanceController;
+use App\Http\Controllers\Admin\MapController;
+use App\Http\Controllers\Admin\MessageController;
+use App\Http\Controllers\Admin\OtpBypassController;
+use App\Http\Controllers\Admin\PackageController;
+use App\Http\Controllers\Admin\PostController;
+use App\Http\Controllers\Admin\PreferenceController;
+use App\Http\Controllers\Admin\ProductController;
+use App\Http\Controllers\Admin\SalesAgentController;
+use App\Http\Controllers\Admin\SalesCommissionController;
+use App\Http\Controllers\Admin\SettingsController;
+use App\Http\Controllers\Admin\ShopController;
+use App\Http\Controllers\Admin\SupportController;
+use App\Http\Controllers\Admin\TransactionController;
+use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\Admin\VaultController;
+use Illuminate\Support\Facades\Route;
 
 // Redirect root to admin login
 Route::get('/', function () {
@@ -78,6 +78,9 @@ Route::get('/.well-known/apple-app-site-association', function () {
 // Pages de retour des paiements par redirection (PayPal, Stripe Checkout).
 // La WebView mobile intercepte ces URLs pour clôturer le parcours ; la confirmation
 // réelle du paiement se fait côté serveur (webhook + polling), pas sur ces pages.
+// Pages légales publiques (CGU, CGV, confidentialité…), lues aussi par l'application.
+Route::get('/legal/{slug}', [\App\Http\Controllers\PublicLegalPageController::class, 'show'])->name('legal.show');
+
 Route::get('/payment/success', function () {
     return response('<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Paiement effectué</title></head><body style="font-family:sans-serif;text-align:center;padding:40px"><h2>Paiement effectué</h2><p>Vous pouvez fermer cette page et revenir à l\'application.</p></body></html>');
 })->name('payment.success');
@@ -96,11 +99,19 @@ Route::prefix('admin')->name('admin.')->group(function () {
     // Login routes (no guest middleware to avoid redirect loops)
     Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
     Route::post('/login', [AuthController::class, 'login'])->name('login.submit');
+    Route::get('/gestionnaire/login', [AuthController::class, 'showManagerLogin'])->name('manager.login');
+    Route::post('/gestionnaire/login', [AuthController::class, 'managerLogin'])->name('manager.login.submit');
 
-    // Authenticated routes
-    Route::middleware('auth')->group(function () {
+    // Authenticated routes — accès filtré par rôle / permission (config/admin_access.php)
+    Route::middleware(['auth', 'backoffice'])->group(function () {
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
         Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+
+        // Gestionnaires du back-office (admin uniquement)
+        Route::post('/managers/{manager}/resend-credentials', [\App\Http\Controllers\Admin\ManagerController::class, 'resendCredentials'])->name('managers.resend-credentials');
+        Route::resource('managers', \App\Http\Controllers\Admin\ManagerController::class)
+            ->parameters(['managers' => 'manager'])
+            ->except(['show']);
 
         // Users management
         Route::resource('users', UserController::class);
@@ -132,6 +143,30 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/wholesale-orders/{order}/confirm', [\App\Http\Controllers\Admin\WholesaleOrderController::class, 'confirm'])->name('wholesale-orders.confirm');
         Route::post('/wholesale-orders/{order}/reject', [\App\Http\Controllers\Admin\WholesaleOrderController::class, 'reject'])->name('wholesale-orders.reject');
 
+        // Commandes avec acompte : vérification conjointe ASSO avant le solde
+        Route::get('/deposit-orders', [\App\Http\Controllers\Admin\DepositOrderController::class, 'index'])->name('deposit-orders.index');
+        Route::get('/deposit-orders/{order}', [\App\Http\Controllers\Admin\DepositOrderController::class, 'show'])->name('deposit-orders.show');
+        Route::post('/deposit-orders/{order}/contact', [\App\Http\Controllers\Admin\DepositOrderController::class, 'contact'])->name('deposit-orders.contact');
+        Route::post('/deposit-orders/{order}/validate', [\App\Http\Controllers\Admin\DepositOrderController::class, 'validateVerification'])->name('deposit-orders.validate');
+        Route::post('/deposit-orders/{order}/issue', [\App\Http\Controllers\Admin\DepositOrderController::class, 'reportIssue'])->name('deposit-orders.issue');
+        Route::post('/deposit-orders/{order}/close', [\App\Http\Controllers\Admin\DepositOrderController::class, 'close'])->name('deposit-orders.close');
+
+        // Réclamations / litiges : analyse, décision ASSO, remplacement, retour et remboursement
+        Route::prefix('disputes')->name('disputes.')->controller(\App\Http\Controllers\Admin\DisputeController::class)->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::get('/{dispute}', 'show')->name('show');
+            Route::post('/{dispute}/review', 'review')->name('review');
+            Route::post('/{dispute}/contact-vendor', 'contactVendor')->name('contact-vendor');
+            Route::post('/{dispute}/decide', 'decide')->name('decide');
+            Route::post('/{dispute}/replace', 'replace')->name('replace');
+            Route::post('/{dispute}/return', 'forceReturn')->name('return');
+            Route::post('/{dispute}/evidence', 'evidence')->name('evidence');
+            Route::post('/{dispute}/note', 'note')->name('note');
+            Route::post('/shipments/{shipment}/partner', 'choosePartner')->name('shipments.partner');
+            Route::post('/shipments/{shipment}/pay-by-asso', 'payByAsso')->name('shipments.pay-by-asso');
+            Route::post('/shipments/{shipment}/step', 'step')->name('shipments.step');
+        });
+
         // Deliverers (Livreurs partenaires)
         Route::resource('deliverers', DelivererController::class)->except(['store']);
         Route::post('deliverers/{deliverer}/sync-code', [DelivererController::class, 'generateSyncCode'])->name('deliverers.sync-code');
@@ -152,6 +187,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/shops/{shop}/verify', [\App\Http\Controllers\Admin\ShopVerificationController::class, 'verify'])->name('shops.verify');
         Route::post('/shops/{shop}/reject', [\App\Http\Controllers\Admin\ShopVerificationController::class, 'reject'])->name('shops.reject');
         Route::post('/shops/{shop}/toggle-status', [\App\Http\Controllers\Admin\ShopVerificationController::class, 'toggleStatus'])->name('shops.toggleStatus');
+        Route::post('/shops/{shop}/free-delivery', [ShopController::class, 'toggleFreeDelivery'])->name('shops.free-delivery');
 
         // Statistiques boutiques (P8)
         Route::prefix('statistics')->name('statistics.')->group(function () {
@@ -175,6 +211,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
 
         // Products management
         Route::resource('products', ProductController::class);
+        Route::patch('/products/{product}/toggle-status', [ProductController::class, 'toggleStatus'])->name('products.toggle-status');
         Route::get('/categories/{category}/subcategories', [ProductController::class, 'getSubcategories'])->name('categories.subcategories');
         Route::delete('/products/{product}/images/{image}', [ProductController::class, 'deleteImage'])->name('products.images.delete');
         Route::post('/products/{product}/images/{image}/primary', [ProductController::class, 'setPrimaryImage'])->name('products.images.setPrimary');
