@@ -40,6 +40,11 @@ class DeliveryPresenter
             'delivery_option_label' => $snapshot['delivery_option_label'] ?? null,
             'last_mile' => $order->hasLastMileDelivery(),
             'lead_time' => $snapshot['lead_time'] ?? null,
+            // Délai annoncé (jours ouvrables) et fourchette de dates estimée, figés à la commande.
+            'delivery_days_min' => $snapshot['delivery_days_min'] ?? null,
+            'delivery_days_max' => $snapshot['delivery_days_max'] ?? null,
+            'estimated_delivery_from' => $snapshot['estimated_delivery_from'] ?? null,
+            'estimated_delivery_to' => $snapshot['estimated_delivery_to'] ?? null,
             'conditions' => $snapshot['conditions'] ?? null,
             'price_grid' => $snapshot['price_grid'] ?? [],
             'weight_kg' => $order->shipping_weight_kg,
