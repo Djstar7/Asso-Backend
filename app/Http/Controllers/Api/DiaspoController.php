@@ -396,8 +396,8 @@ class DiaspoController extends Controller
             $seller = User::find($booking->seller_user_id);
             if ($seller) {
                 app(\App\Services\FirebaseMessagingService::class)->sendToUser(
-                    $seller, $seller->translate('notifications.diaspo_booking_paid.title'),
-                    $seller->translate('notifications.diaspo_booking_paid.body', ['kg' => $booking->kg_booked]),
+                    $seller, $seller->localized('notifications.diaspo_booking_paid.title'),
+                    $seller->localized('notifications.diaspo_booking_paid.body', ['kg' => $booking->kg_booked]),
                     ['type' => 'diaspo_booking_paid', 'booking_id' => (string) $booking->id]
                 );
             }
@@ -612,7 +612,7 @@ class DiaspoController extends Controller
                 User::findOrFail($b->seller_user_id),
                 $travelerAmount,
                 null,
-                "Réservation Diaspo #{$b->id}",
+                \App\Models\WalletTransaction::label('diaspo_booking', ['booking' => $b->id]),
                 $metadata,
                 'kpay'
             );
@@ -625,7 +625,7 @@ class DiaspoController extends Controller
                     $platform,
                     $commissionAmount,
                     null,
-                    "Commission ASSO — Réservation Diaspo #{$b->id}",
+                    \App\Models\WalletTransaction::label('asso_commission_diaspo', ['booking' => $b->id]),
                     $metadata,
                     'kpay'
                 );

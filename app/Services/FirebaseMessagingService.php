@@ -6,6 +6,7 @@ use App\Http\Middleware\SetLocale;
 use App\Models\DeviceToken;
 use App\Models\User;
 use App\Models\Notification as NotificationModel;
+use App\Support\Translation\LocalizedText;
 use Kreait\Firebase\Factory;
 use Kreait\Firebase\Messaging\CloudMessage;
 use Kreait\Firebase\Messaging\Notification;
@@ -99,18 +100,23 @@ class FirebaseMessagingService
     /**
      * Envoie une notification à un utilisateur spécifique
      *
+     * Un titre ou un texte LocalizedText est enregistré avec sa clé : l'historique
+     * le rédige à nouveau dans la langue courante de l'utilisateur.
+     *
      * @param User $user
-     * @param string $title
-     * @param string $body
+     * @param string|LocalizedText $title
+     * @param string|LocalizedText $body
      * @param array $data
      * @param string|null $platform
      * @return array
      */
-    public function sendToUser(User $user, string $title, string $body, array $data = [], ?string $platform = null): array
+    public function sendToUser(User $user, string|LocalizedText $title, string|LocalizedText $body, array $data = [], ?string $platform = null): array
     {
         // Enregistrée d'abord : l'app reçoit l'id et peut marquer la notification lue.
         $notificationId = $this->saveNotificationToDatabase($user->id, $title, $body, $data);
         $data = self::stringifyData($data + ($notificationId ? ['notification_id' => $notificationId] : []));
+        $title = (string) $title;
+        $body = (string) $body;
 
         $tokens = $user->deviceTokens()->active();
 
@@ -485,20 +491,20 @@ class FirebaseMessagingService
      * Enregistre une notification dans la base de données
      *
      * @param int $userId
-     * @param string $title
-     * @param string $body
+     * @param string|LocalizedText $title
+     * @param string|LocalizedText $body
      * @param array $data
-     * @return void
+     * @return int|null
      */
-    private function saveNotificationToDatabase(int $userId, string $title, string $body, array $data = []): ?int
+    private function saveNotificationToDatabase(int $userId, string|LocalizedText $title, string|LocalizedText $body, array $data = []): ?int
     {
         try {
             $notification = NotificationModel::create([
                 'user_id' => $userId,
-                'title' => $title,
-                'body' => $body,
+                'title' => (string) $title,
+                'body' => (string) $body,
                 'type' => $data['type'] ?? null,
-                'data' => $data,
+                'data' => NotificationModel::withI18n($data, $title, $body),
                 'is_read' => false,
                 'sent_at' => now(),
             ]);

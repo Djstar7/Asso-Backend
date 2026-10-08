@@ -230,8 +230,8 @@ class StripeDoctor extends Command
             try {
                 $fcm->sendToUser(
                     $vendor,
-                    $vendor->translate('notifications.stripe_account_incomplete.title'),
-                    $vendor->translate('notifications.stripe_account_incomplete.body'),
+                    $vendor->localized('notifications.stripe_account_incomplete.title'),
+                    $vendor->localized('notifications.stripe_account_incomplete.body'),
                     ['type' => 'stripe_account_requirements', 'action' => 'open_stripe_connect'],
                 );
             } catch (\Throwable $e) {

@@ -138,8 +138,8 @@ class ProcessWithdrawalStatusJob implements ShouldQueue
                         $user = $withdrawal->user;
                         $fcmService->sendToUser(
                             $user,
-                            $user->translate('notifications.wallet_withdrawal_completed.title'),
-                            $user->translate('notifications.wallet_withdrawal_completed.body', [
+                            $user->localized('notifications.wallet_withdrawal_completed.title'),
+                            $user->localized('notifications.wallet_withdrawal_completed.body', [
                                 'amount' => $withdrawal->amount_sent,
                                 'account' => $withdrawal->payment_account,
                             ]),
@@ -201,10 +201,10 @@ class ProcessWithdrawalStatusJob implements ShouldQueue
                         $user = $withdrawal->user;
                         $fcmService->sendToUser(
                             $user,
-                            $user->translate('notifications.wallet_withdrawal_failed.title'),
-                            $user->translate('notifications.wallet_withdrawal_failed.body', [
+                            $user->localized('notifications.wallet_withdrawal_failed.title'),
+                            $user->localized('notifications.wallet_withdrawal_failed.body', [
                                 'amount' => $withdrawal->amount_sent,
-                                'reason' => $reason ?? $user->translate('notifications.wallet_withdrawal_failed.default_reason'),
+                                'reason' => $reason ?? $user->localized('notifications.wallet_withdrawal_failed.default_reason'),
                             ]),
                             [
                                 'type' => 'wallet_withdrawal_failed',
@@ -302,7 +302,7 @@ class ProcessWithdrawalStatusJob implements ShouldQueue
                 'amount' => $refundAmount,
                 'balance_before' => $balanceBefore,
                 'balance_after' => $balanceBefore + $refundAmount,
-                'description' => "Remboursement retrait échoué - {$withdrawal->payment_method} ({$withdrawal->payment_account})",
+                'description' => WalletTransaction::label('refund_withdrawal_failed', ['method' => $withdrawal->payment_method, 'account' => $withdrawal->payment_account]),
                 'reference_type' => 'platform_withdrawal_refund',
                 'reference_id' => $withdrawal->id,
                 'status' => 'completed',

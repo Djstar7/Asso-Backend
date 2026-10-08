@@ -124,7 +124,7 @@ class DiaspoVerificationService
             }
         });
 
-        $this->notify($user, $user->translate('notifications.diaspo_verified.title'), $user->translate('notifications.diaspo_verified.body'), [
+        $this->notify($user, $user->localized('notifications.diaspo_verified.title'), $user->localized('notifications.diaspo_verified.body'), [
             'type' => 'diaspo_verified',
             'action' => 'open_diaspo',
         ]);
@@ -148,13 +148,13 @@ class DiaspoVerificationService
 
         $deadline = self::nextDeadlineFor($user);
         $body = $deadline
-            ? $user->translate('notifications.diaspo_rejected.body_with_deadline', [
+            ? $user->localized('notifications.diaspo_rejected.body_with_deadline', [
                 'reason' => $reason,
                 'date' => $deadline->format('d/m/Y'),
             ])
-            : $user->translate('notifications.diaspo_rejected.body', ['reason' => $reason]);
+            : $user->localized('notifications.diaspo_rejected.body', ['reason' => $reason]);
 
-        $this->notify($user, $user->translate('notifications.diaspo_rejected.title'), $body, [
+        $this->notify($user, $user->localized('notifications.diaspo_rejected.title'), $body, [
             'type' => 'diaspo_rejected',
             'action' => 'open_diaspo',
             'reason' => $reason,
@@ -201,8 +201,8 @@ class DiaspoVerificationService
             if ($offer->user) {
                 $this->notify(
                     $offer->user,
-                    $offer->user->translate('notifications.diaspo_verification_deadline.title'),
-                    $offer->user->translate('notifications.diaspo_verification_deadline.body', [
+                    $offer->user->localized('notifications.diaspo_verification_deadline.title'),
+                    $offer->user->localized('notifications.diaspo_verification_deadline.body', [
                         'from' => $offer->departure_city,
                         'to' => $offer->arrival_city,
                         'date' => $offer->verification_deadline_at->format('d/m/Y'),
@@ -266,8 +266,8 @@ class DiaspoVerificationService
             if ($offer->user) {
                 $this->notify(
                     $offer->user,
-                    $offer->user->translate('notifications.diaspo_offer_removed.title'),
-                    $offer->user->translate('notifications.diaspo_offer_removed.body', [
+                    $offer->user->localized('notifications.diaspo_offer_removed.title'),
+                    $offer->user->localized('notifications.diaspo_offer_removed.body', [
                         'from' => $offer->departure_city,
                         'to' => $offer->arrival_city,
                     ]),

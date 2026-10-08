@@ -173,7 +173,7 @@ class CleanupStaleTransactionsJob implements ShouldQueue
                 'amount' => $refundAmount,
                 'balance_before' => $balanceBefore,
                 'balance_after' => $balanceBefore + $refundAmount,
-                'description' => "Remboursement retrait expiré - {$withdrawal->payment_method} ({$withdrawal->payment_account})",
+                'description' => WalletTransaction::label('refund_withdrawal_expired', ['method' => $withdrawal->payment_method, 'account' => $withdrawal->payment_account]),
                 'reference_type' => 'platform_withdrawal_refund',
                 'reference_id' => $withdrawal->id,
                 'status' => 'completed',

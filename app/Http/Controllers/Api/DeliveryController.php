@@ -154,8 +154,8 @@ class DeliveryController extends Controller
                 $codeReleased = $order->canBeHandedOver();
                 $this->fcmService->sendToUser(
                     $client,
-                    $client->translate('notifications.order_shipped.title'),
-                    $client->translate($codeReleased ? 'notifications.order_shipped.body' : 'notifications.order_shipped.body_deposit', [
+                    $client->localized('notifications.order_shipped.title'),
+                    $client->localized($codeReleased ? 'notifications.order_shipped.body' : 'notifications.order_shipped.body_deposit', [
                         'order_number' => $order->order_number,
                         'deliverer' => $user->first_name,
                         'code' => $order->confirmation_code,
@@ -264,8 +264,8 @@ class DeliveryController extends Controller
                         if ($companyUser) {
                             $this->fcmService->sendToUser(
                                 $companyUser,
-                                $companyUser->translate('notifications.delivery_completed.title'),
-                                $companyUser->translate('notifications.delivery_completed.body', ['order_number' => $order->order_number]),
+                                $companyUser->localized('notifications.delivery_completed.title'),
+                                $companyUser->localized('notifications.delivery_completed.body', ['order_number' => $order->order_number]),
                                 [
                                     'type' => 'delivery_completed',
                                     'order_id' => (string) $order->id,
@@ -300,8 +300,8 @@ class DeliveryController extends Controller
                 if ($client) {
                     $this->fcmService->sendToUser(
                         $client,
-                        $client->translate('notifications.order_delivered.title'),
-                        $client->translate('notifications.order_delivered.body', ['order_number' => $order->order_number]),
+                        $client->localized('notifications.order_delivered.title'),
+                        $client->localized('notifications.order_delivered.body', ['order_number' => $order->order_number]),
                         [
                             'type' => 'order_delivered',
                             'order_id' => (string) $order->id,
@@ -316,8 +316,8 @@ class DeliveryController extends Controller
                     if ($seller) {
                         $this->fcmService->sendToUser(
                             $seller,
-                            $seller->translate('notifications.order_delivered_vendor.title'),
-                            $seller->translate('notifications.order_delivered_vendor.body', ['order_number' => $order->order_number]),
+                            $seller->localized('notifications.order_delivered_vendor.title'),
+                            $seller->localized('notifications.order_delivered_vendor.body', ['order_number' => $order->order_number]),
                             [
                                 'type' => 'order_delivered_vendor',
                                 'order_id' => (string) $order->id,
@@ -687,8 +687,8 @@ class DeliveryController extends Controller
             if ($sync->user) {
                 $this->fcmService->sendToUser(
                     $sync->user,
-                    $sync->user->translate('notifications.delivery_taken.title'),
-                    $sync->user->translate('notifications.delivery_taken.body', ['order_number' => $order->order_number]),
+                    $sync->user->localized('notifications.delivery_taken.title'),
+                    $sync->user->localized('notifications.delivery_taken.body', ['order_number' => $order->order_number]),
                     [
                         'type' => 'delivery_taken',
                         'order_id' => (string) $order->id,

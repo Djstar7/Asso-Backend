@@ -421,7 +421,11 @@
             "body": "Your payment for cancelled order #:order_number has been credited to your ASSO Wallet."
         },
         "order_tracking": {
-            "title": "Order #:order_number"
+            "title": "Order #:order_number",
+            "body": ":step.",
+            "body_location": ":step — :location.",
+            "body_note": ":step. :note",
+            "body_location_note": ":step — :location. :note"
         },
         "agency_delivery_request": {
             "title": "Parcel to deliver from the agency",
@@ -1078,7 +1082,52 @@
         "refund_completed_only": "Only completed transactions can be refunded.",
         "adjustment_negative": "This adjustment would make the balance negative.",
         "unlock_insufficient": "Cannot unlock :amount FCFA: only :locked FCFA is on hold.",
-        "release_insufficient": "Not enough funds on hold: :locked FCFA held, :amount FCFA required."
+        "release_insufficient": "Not enough funds on hold: :locked FCFA held, :amount FCFA required.",
+        "transactions": {
+            "deposit_locked": "Order deposit - Awaiting seller approval",
+            "order_locked": "Order escrow - Awaiting seller approval",
+            "wholesale_order_locked": "Wholesale order escrow - Awaiting seller approval",
+            "deposit_paid": "Deposit - Order #:order_number",
+            "purchase": "Purchase - Order #:order_number",
+            "refund_late_payment": "Refund for order #:order_number — payment received after cancellation",
+            "refund_rejected": "Refund for order #:order_number — rejected by the seller",
+            "refund_cancelled": "Refund for order #:order_number — cancelled",
+            "order_payment_released": "Payment for order #:order_number — approved by the seller",
+            "sale": "Sale — order #:order_number",
+            "sale_held": "Sale — order #:order_number — awaiting customer approval",
+            "sale_released": "Sale — order #:order_number — funds released",
+            "delivery_commission": "Delivery commission #:order_number",
+            "asso_commission_order": "ASSO commission — Order #:order_number",
+            "balance_locked": "Order balance #:order_number",
+            "balance_paid": "Balance - Order #:order_number",
+            "deposit_returned": "Deposit returned — Order #:order_number",
+            "deposit_kept": "Deposit kept — Order #:order_number",
+            "deposit_vendor_share": "Deposit share — Order #:order_number",
+            "deposit_delivery_share": "Delivery — Order #:order_number",
+            "deposit_asso_share": "Deposit kept by ASSO — Order #:order_number",
+            "dispute_delivery_return": "Return delivery — Dispute :number",
+            "dispute_delivery_replacement": "Replacement delivery — Dispute :number",
+            "dispute_course_return": "Return trip — Dispute :number",
+            "dispute_course_replacement": "Replacement trip — Dispute :number",
+            "dispute_delivery_commission": "Delivery commission — Dispute :number",
+            "dispute_refund": "Refund — Dispute :number (order #:order_number)",
+            "dispute_funds_released": "Dispute :number — funds released",
+            "diaspo_booking": "Diaspo booking #:booking",
+            "asso_commission_diaspo": "ASSO commission — Diaspo booking #:booking",
+            "package_certification": "Certification — :name",
+            "package_boost": "Sponsorship — :name",
+            "package_plan": "Plan — :name",
+            "boost_refund_missing_product": "Sponsorship refund — item not found",
+            "topup_kpay": "Wallet top-up via KPay (:currency)",
+            "topup_card": "Wallet top-up by bank card (Stripe)",
+            "withdrawal_mobile": ":method withdrawal to :phone",
+            "bank_transfer": "IBAN transfer ****:last4",
+            "bank_transfer_converted": "IBAN transfer ****:last4 (:amount :currency)",
+            "refund_bank_transfer_failed_ref": "Refund — IBAN transfer failed (ref. :reference)",
+            "refund_bank_transfer_failed": "Refund for failed bank transfer",
+            "refund_withdrawal_failed": "Refund for failed withdrawal - :method (:account)",
+            "refund_withdrawal_expired": "Refund for expired withdrawal - :method (:account)"
+        }
     },
     "tracking": {
         "steps": {

@@ -370,7 +370,7 @@ class ProductBoostService
                     $name = $boost->productLabel();
                     $served = number_format($boost->impressions_served, 0, ',', ' ');
 
-                    $body = $boost->user->translate(
+                    $body = $boost->user->localized(
                         $boost->status === ProductBoost::COMPLETED
                             ? 'notifications.boost_finished.body_completed'
                             : 'notifications.boost_finished.body_ended',
@@ -379,7 +379,7 @@ class ProductBoostService
 
                     $fcm->sendToUser(
                         $boost->user,
-                        $boost->user->translate('notifications.boost_finished.title'),
+                        $boost->user->localized('notifications.boost_finished.title'),
                         $body,
                         [
                             'type' => 'boost_finished',
@@ -417,8 +417,8 @@ class ProductBoostService
             if ($boost->user) {
                 app(\App\Services\FcmService::class)->sendToUser(
                     $boost->user,
-                    $boost->user->translate('notifications.boost_cancelled.title'),
-                    $boost->user->translate('notifications.boost_cancelled.body', ['product' => $boost->productLabel()]),
+                    $boost->user->localized('notifications.boost_cancelled.title'),
+                    $boost->user->localized('notifications.boost_cancelled.body', ['product' => $boost->productLabel()]),
                     ['type' => 'boost_cancelled', 'product_boost_id' => (string) $boost->id]
                 );
             }

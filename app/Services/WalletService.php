@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\Translation\LocalizedText;
 use App\Models\User;
 use App\Models\Order;
 use App\Models\WalletTransaction;
@@ -45,7 +46,7 @@ class WalletService
      * @param User $user
      * @param float $amount
      * @param Transaction|null $transaction Transaction source (KPay, etc.)
-     * @param string $description
+     * @param string|LocalizedText $description
      * @param array $metadata
      * @param string $provider Provider (kpay)
      * @return WalletTransaction
@@ -54,7 +55,7 @@ class WalletService
         User $user,
         float $amount,
         ?Transaction $transaction = null,
-        string $description = 'Recharge wallet',
+        string|LocalizedText $description = 'Recharge wallet',
         array $metadata = [],
         string $provider = 'kpay'
     ): WalletTransaction {
@@ -97,7 +98,7 @@ class WalletService
      *
      * @param User $user
      * @param float $amount
-     * @param string $description
+     * @param string|LocalizedText $description
      * @param string|null $referenceType Type de référence (order, subscription, etc.)
      * @param int|null $referenceId ID de la référence
      * @param array $metadata
@@ -108,7 +109,7 @@ class WalletService
     public function debit(
         User $user,
         float $amount,
-        string $description,
+        string|LocalizedText $description,
         ?string $referenceType = null,
         ?int $referenceId = null,
         array $metadata = [],
@@ -200,7 +201,7 @@ class WalletService
      *
      * @param User $user
      * @param float $amount
-     * @param string $description
+     * @param string|LocalizedText $description
      * @param array $metadata
      * @param string $provider
      * @return WalletTransaction
@@ -208,7 +209,7 @@ class WalletService
     public function addBonus(
         User $user,
         float $amount,
-        string $description = 'Bonus',
+        string|LocalizedText $description = 'Bonus',
         array $metadata = [],
         string $provider = 'kpay'
     ): WalletTransaction {
@@ -397,7 +398,7 @@ class WalletService
     public function lockFunds(
         User $user,
         float $amount,
-        string $description,
+        string|LocalizedText $description,
         ?string $referenceType = null,
         ?int $referenceId = null,
         array $metadata = [],
@@ -455,7 +456,7 @@ class WalletService
     public function unlockFunds(
         User $user,
         float $amount,
-        string $description,
+        string|LocalizedText $description,
         ?string $referenceType = null,
         ?int $referenceId = null,
         array $metadata = [],
@@ -511,7 +512,7 @@ class WalletService
     public function releaseEscrow(
         User $user,
         float $amount,
-        string $description,
+        string|LocalizedText $description,
         ?string $referenceType = null,
         ?int $referenceId = null,
         array $metadata = [],
