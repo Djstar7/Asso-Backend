@@ -22,6 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
         $middleware->alias([
             'backoffice' => \App\Http\Middleware\EnsureBackofficeAccess::class,
+            'api.admin' => \App\Http\Middleware\EnsureApiAdmin::class,
             'content.source' => \App\Http\Middleware\ContentSourceLocale::class,
         ]);
     })
