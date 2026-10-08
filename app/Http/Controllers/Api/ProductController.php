@@ -412,7 +412,8 @@ class ProductController extends Controller
             // Livraison gratuite : absent/null = suit la boutique.
             'free_delivery' => 'nullable|boolean',
         ] + \App\Services\DepositOrderService::productRules('nullable') + ProductVariantService::rules()
-            + \App\Support\Translation\ContentLocale::rules(Product::TRANSLATION_RULES));
+            + \App\Support\Translation\ContentLocale::rules(Product::TRANSLATION_RULES)
+            + \App\Support\DeliveryDelay::rules());
 
         \Log::info('[PRODUCT_STORE] Validation passed');
 
@@ -494,6 +495,9 @@ class ProductController extends Controller
         if (isset($validated['free_delivery'])) {
             $productData['free_delivery'] = (bool) $validated['free_delivery'];
         }
+        // Délai de livraison (jours ouvrables) ; vide = délai de la catégorie.
+        $productData['delivery_days_min'] = $validated['delivery_days_min'] ?? null;
+        $productData['delivery_days_max'] = $validated['delivery_days_max'] ?? null;
         // Commande avec acompte (produit sur commande / importé).
         $productData += \App\Services\DepositOrderService::productAttributes($validated);
 
@@ -670,6 +674,10 @@ class ProductController extends Controller
             'is_sponsored' => false,
             // Livraison gratuite offerte par le vendeur (produit, sinon boutique).
             'free_delivery' => $product->hasFreeDelivery(),
+            // Délai de livraison annoncé (jours ouvrables) : produit → catégorie → défaut.
+            'delivery_delay' => \App\Support\DeliveryDelay::forProduct($product),
+            'delivery_days_min' => $product->delivery_days_min,
+            'delivery_days_max' => $product->delivery_days_max,
             // Commande avec acompte : % du prix payé à la commande, solde après vérification ASSO.
             ...\App\Services\DepositOrderService::productInfo($product),
             'primary_image' => $product->primaryImage ? $this->getImageUrl($product->primaryImage->image_path) : null,

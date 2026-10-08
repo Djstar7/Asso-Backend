@@ -115,6 +115,14 @@
 
                                 <div class="flex gap-4 text-sm">
                                     <span class="flex items-center text-primary-400">
+                                        <i class="fas fa-clock mr-1"></i>
+                                        @if($category->delivery_days_min || $category->delivery_days_max)
+                                            <span class="font-semibold">{{ $category->delivery_days_min ?? $category->delivery_days_max }} à {{ $category->delivery_days_max ?? $category->delivery_days_min }} j</span>
+                                        @else
+                                            <span class="text-gray-400">délai par défaut</span>
+                                        @endif
+                                    </span>
+                                    <span class="flex items-center text-primary-400">
                                         <i class="fas fa-layer-group mr-1"></i>
                                         <span class="font-semibold">{{ $category->subcategories_count }}</span>
                                         <span class="ml-1">sous-catégories</span>
@@ -327,6 +335,26 @@
                               class="w-full px-4 py-2 bg-dark-50 border border-dark-300 text-white placeholder-gray-400 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                               placeholder="Laissée vide, la description française s'affiche"></textarea>
                 </div>
+
+                <!-- Délai de livraison par défaut des produits de la catégorie -->
+                <div>
+                    <label class="block text-sm font-medium text-white mb-2">
+                        <i class="fas fa-clock text-gray-500 mr-1"></i>
+                        Délai de livraison (jours ouvrables, 1 à 20)
+                    </label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <input type="number" name="delivery_days_min" id="category_delivery_days_min" min="1" max="20" step="1"
+                               class="w-full px-4 py-2 bg-dark-50 border border-dark-300 text-white placeholder-gray-400 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                               placeholder="Minimum">
+                        <input type="number" name="delivery_days_max" id="category_delivery_days_max" min="1" max="20" step="1"
+                               class="w-full px-4 py-2 bg-dark-50 border border-dark-300 text-white placeholder-gray-400 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                               placeholder="Maximum">
+                    </div>
+                    <p class="text-xs text-gray-400 mt-1">
+                        <i class="fas fa-info-circle mr-1"></i>
+                        S'applique aux produits sans délai propre. Vide = délai par défaut (Partenaires de livraison).
+                    </p>
+                </div>
             </div>
 
             <!-- Modal Footer -->
@@ -461,6 +489,8 @@ function editCategory(id) {
     document.getElementById('category_svg_icon').value = category.svg_icon || '';
     document.getElementById('category_description').value = category.description || '';
     document.getElementById('category_description_en').value = category.description_en || '';
+    document.getElementById('category_delivery_days_min').value = category.delivery_days_min || '';
+    document.getElementById('category_delivery_days_max').value = category.delivery_days_max || '';
 }
 
 // Subcategory Modal Functions

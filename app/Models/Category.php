@@ -22,6 +22,13 @@ class Category extends Model
         'slug',
         'description',
         'svg_icon',
+        'delivery_days_min',
+        'delivery_days_max',
+    ];
+
+    protected $casts = [
+        'delivery_days_min' => 'integer',
+        'delivery_days_max' => 'integer',
     ];
 
     /**
