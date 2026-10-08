@@ -86,6 +86,7 @@ class WalletConcurrencyTest extends TestCase
         $this->mockFcm();
 
         $kpay = Mockery::mock(KPayService::class);
+        $kpay->shouldReceive('isConfigured')->andReturn(true); // prestataire Mobile Money actif
         $kpay->shouldReceive('checkPaymentStatus')->andReturn(['status' => 'SUCCESS']);
         $this->app->instance(KPayService::class, $kpay);
 
@@ -103,8 +104,8 @@ class WalletConcurrencyTest extends TestCase
         ]);
 
         // Deux exécutions successives (webhook + polling) ne doivent créditer qu'une fois
-        (new ProcessDepositStatusJob($deposit->id))->handle(app(KPayService::class), app(FirebaseMessagingService::class));
-        (new ProcessDepositStatusJob($deposit->id))->handle(app(KPayService::class), app(FirebaseMessagingService::class));
+        (new ProcessDepositStatusJob($deposit->id))->handle(app(\App\Services\MobileMoneyGateway::class), app(FirebaseMessagingService::class));
+        (new ProcessDepositStatusJob($deposit->id))->handle(app(\App\Services\MobileMoneyGateway::class), app(FirebaseMessagingService::class));
 
         $this->assertSame('completed', $deposit->fresh()->status);
         $this->assertSame(5000.0, $user->fresh()->kpayAvailableFor('XAF'));
@@ -115,6 +116,7 @@ class WalletConcurrencyTest extends TestCase
         $this->mockFcm();
 
         $kpay = Mockery::mock(KPayService::class);
+        $kpay->shouldReceive('isConfigured')->andReturn(true); // prestataire Mobile Money actif
         $kpay->shouldReceive('initiateDisbursement')->andReturn([
             'success' => true, 'id' => 'wdr_1', 'reference' => 'ref_1', 'data' => [],
         ]);
@@ -146,6 +148,7 @@ class WalletConcurrencyTest extends TestCase
         $this->mockFcm();
 
         $kpay = Mockery::mock(KPayService::class);
+        $kpay->shouldReceive('isConfigured')->andReturn(true); // prestataire Mobile Money actif
         $kpay->shouldReceive('checkDisbursementStatus')->andReturn(['status' => 'SUCCESS']);
         $this->app->instance(KPayService::class, $kpay);
 
@@ -166,6 +169,7 @@ class WalletConcurrencyTest extends TestCase
         $this->mockFcm();
 
         $kpay = Mockery::mock(KPayService::class);
+        $kpay->shouldReceive('isConfigured')->andReturn(true); // prestataire Mobile Money actif
         $kpay->shouldReceive('checkDisbursementStatus')->andReturn(['status' => 'FAILED', 'reason' => 'Rejeté']);
         $this->app->instance(KPayService::class, $kpay);
 
@@ -186,6 +190,7 @@ class WalletConcurrencyTest extends TestCase
         $this->mockFcm();
 
         $kpay = Mockery::mock(KPayService::class);
+        $kpay->shouldReceive('isConfigured')->andReturn(true); // prestataire Mobile Money actif
         $kpay->shouldReceive('checkDisbursementStatus')->andReturn(['status' => 'PENDING']);
         $this->app->instance(KPayService::class, $kpay);
 

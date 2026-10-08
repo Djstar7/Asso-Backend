@@ -4,7 +4,7 @@ namespace App\Jobs\Wallet;
 
 use App\Models\WalletTransaction;
 use App\Models\User;
-use App\Services\KPayService;
+use App\Services\MobileMoneyGateway;
 use App\Services\FirebaseMessagingService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -30,7 +30,7 @@ class ProcessDepositStatusJob implements ShouldQueue
         public int $walletTransactionId
     ) {}
 
-    public function handle(KPayService $kpayService, FirebaseMessagingService $fcmService)
+    public function handle(MobileMoneyGateway $kpayService, FirebaseMessagingService $fcmService)
     {
         $deposit = WalletTransaction::find($this->walletTransactionId);
 
@@ -168,7 +168,7 @@ class ProcessDepositStatusJob implements ShouldQueue
                         ]);
                     }
 
-                } elseif (in_array($status, ['FAILED', 'FAILURE', 'ERROR', 'REJECTED', 'CANCELLED', 'CANCELED'])) {
+                } elseif (in_array($status, ['FAILED', 'FAILURE', 'REJECTED', 'CANCELLED', 'CANCELED'])) {
                     Log::warning('⚠️ [PROCESS-DEPOSIT] Payment FAILED', [
                         'wallet_transaction_id' => $deposit->id,
                         'reason' => $reason,

@@ -121,7 +121,7 @@ class PackageSubscriptionService
                 $payAmount = (float) round($converted);
             }
 
-            $result = app(KPayService::class)->initializePayment([
+            $result = app(MobileMoneyGateway::class)->initializePayment([
                 'amount' => $payAmount,
                 'provider' => $kpayProvider,
                 'phone_number' => $kpayPhone,
@@ -197,11 +197,11 @@ class PackageSubscriptionService
 
         switch ($subscription->payment_method) {
             case 'kpay_direct':
-                $result = app(KPayService::class)->checkPaymentStatus($subscription->payment_reference);
+                $result = app(MobileMoneyGateway::class)->checkPaymentStatus($subscription->payment_reference);
                 $status = strtoupper($result['status'] ?? 'UNKNOWN');
                 if (in_array($status, ['SUCCESS', 'SUCCESSFUL', 'COMPLETED'])) {
                     $this->confirm($subscription);
-                } elseif (in_array($status, ['FAILED', 'FAILURE', 'ERROR', 'REJECTED', 'CANCELLED', 'CANCELED'])) {
+                } elseif (in_array($status, ['FAILED', 'FAILURE', 'REJECTED', 'CANCELLED', 'CANCELED'])) {
                     $this->fail($subscription);
                 }
                 break;

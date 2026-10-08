@@ -4,7 +4,23 @@
 @section('header', 'Configuration des Paiements')
 
 @section('content')
-<div class="space-y-6" x-data="{ activePayment: 'kpay' }">
+@php
+    $mobileMoneyActive = ($elgiopayEnabled ?? false) ? 'elgiopay' : (($kpayEnabled ?? false) ? 'kpay' : null);
+@endphp
+<div class="space-y-6" x-data="{ activePayment: '{{ $mobileMoneyActive ?? 'kpay' }}' }">
+    <!-- Prestataire Mobile Money actif (un seul à la fois) -->
+    <div class="bg-dark-100 rounded-lg border border-dark-200 px-6 py-3 flex items-center text-sm">
+        <i class="fas fa-mobile-alt text-gray-400 mr-2"></i>
+        <span class="text-gray-400 mr-2">Mobile Money actif :</span>
+        @if($mobileMoneyActive === 'elgiopay')
+            <span class="font-semibold text-orange-400">ElgioPay</span><span class="text-gray-500 ml-2">— Cameroun uniquement (MTN, Orange)</span>
+        @elseif($mobileMoneyActive === 'kpay')
+            <span class="font-semibold text-purple-400">KPay</span><span class="text-gray-500 ml-2">— multi-pays</span>
+        @else
+            <span class="font-semibold text-yellow-400">Aucun</span><span class="text-gray-500 ml-2">— le Mobile Money est indisponible dans l'app</span>
+        @endif
+    </div>
+
     <!-- Sticky Tabs Navigation -->
     <div class="bg-dark-100 rounded-lg shadow-lg border border-dark-200 sticky top-0 z-10">
         <div class="border-b border-dark-200">
@@ -13,6 +29,11 @@
                         :class="activePayment === 'kpay' ? 'border-purple-500 text-purple-500' : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-300'"
                         class="py-4 px-1 border-b-2 font-medium text-sm transition-colors">
                     <i class="fas fa-mobile-alt mr-2"></i> KPay
+                </button>
+                <button @click="activePayment = 'elgiopay'"
+                        :class="activePayment === 'elgiopay' ? 'border-orange-500 text-orange-500' : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-300'"
+                        class="py-4 px-1 border-b-2 font-medium text-sm transition-colors">
+                    <i class="fas fa-mobile-alt mr-2"></i> ElgioPay <span class="ml-1 text-xs text-gray-500">(Cameroun)</span>
                 </button>
                 <button @click="activePayment = 'direct'"
                         :class="activePayment === 'direct' ? 'border-emerald-500 text-emerald-500' : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-300'"
@@ -302,6 +323,177 @@
         </form>
     </div>
 
+    <!-- ElgioPay Tab (Mobile Money Cameroun — exclusif avec KPay) -->
+    <div x-show="activePayment === 'elgiopay'" x-cloak>
+        <form action="{{ route('admin.settings.payments.update') }}" method="POST">
+            @csrf
+            @method('PUT')
+            <input type="hidden" name="_form" value="elgiopay">
+
+            <!-- Service Header Card -->
+            <div class="bg-gradient-to-br from-orange-500/10 to-orange-600/5 rounded-xl shadow-lg border border-orange-500/20 p-6 mb-6">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center">
+                        <div class="w-16 h-16 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center mr-4 shadow-lg">
+                            <i class="fas fa-mobile-alt text-3xl text-white"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-2xl font-bold text-white">ElgioPay</h3>
+                            <p class="text-gray-400 mt-1">Mobile Money Cameroun — MTN MoMo et Orange Money (XAF)</p>
+                        </div>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="hidden" name="elgiopay_enabled" value="0">
+                        <input type="checkbox" name="elgiopay_enabled" value="1"
+                               {{ old('elgiopay_enabled', ($elgiopayEnabled ?? false) ? '1' : '0') == '1' ? 'checked' : '' }}
+                               class="sr-only peer">
+                        <div class="w-16 h-8 bg-dark-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-orange-500/20 rounded-full peer peer-checked:after:translate-x-8 peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[4px] after:bg-white after:rounded-full after:h-7 after:w-7 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-orange-500 peer-checked:to-orange-600 shadow-inner"></div>
+                        <span class="ml-3 text-sm font-medium text-gray-300">
+                            <span x-show="$el.previousElementSibling.querySelector('input').checked" class="text-orange-400">Activé</span>
+                            <span x-show="!$el.previousElementSibling.querySelector('input').checked" class="text-gray-500">Désactivé</span>
+                        </span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Statut + Test de connexion -->
+            @php
+                $elgiopayConfigured = !empty($elgiopayConfig['public_key']);
+                $elgiopayMode = $elgiopayConfig['mode'] ?? 'live';
+            @endphp
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div class="bg-dark-100 rounded-xl border border-dark-200 p-4 flex items-center">
+                    <div class="w-10 h-10 rounded-lg flex items-center justify-center mr-3 {{ $elgiopayConfigured ? 'bg-green-500/15 text-green-400' : 'bg-yellow-500/15 text-yellow-400' }}">
+                        <i class="fas {{ $elgiopayConfigured ? 'fa-check' : 'fa-exclamation' }}"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs text-gray-400">Clés API</p>
+                        <p class="text-sm font-semibold {{ $elgiopayConfigured ? 'text-green-400' : 'text-yellow-400' }}">{{ $elgiopayConfigured ? 'Configurées' : 'À renseigner' }}</p>
+                    </div>
+                </div>
+                <div class="bg-dark-100 rounded-xl border border-dark-200 p-4 flex items-center">
+                    <div class="w-10 h-10 rounded-lg flex items-center justify-center mr-3 {{ $elgiopayMode === 'live' ? 'bg-red-500/15 text-red-400' : 'bg-blue-500/15 text-blue-400' }}">
+                        <i class="fas fa-{{ $elgiopayMode === 'live' ? 'rocket' : 'flask' }}"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs text-gray-400">Environnement</p>
+                        <p class="text-sm font-semibold text-white">{{ $elgiopayMode === 'live' ? 'Production' : 'Sandbox (test)' }}</p>
+                    </div>
+                </div>
+                <div class="bg-dark-100 rounded-xl border border-dark-200 p-4 flex items-center justify-between">
+                    <div>
+                        <p class="text-xs text-gray-400">Connexion</p>
+                        <p id="elgiopay-test-result" class="text-sm font-semibold text-gray-300">Non testée</p>
+                    </div>
+                    <button type="button" id="elgiopay-test-btn"
+                            class="ml-2 px-3 py-2 bg-orange-500/20 text-orange-300 rounded-lg hover:bg-orange-500/30 transition-all text-sm whitespace-nowrap">
+                        <i class="fas fa-plug mr-1"></i> Tester
+                    </button>
+                </div>
+            </div>
+
+            <!-- Important Notice -->
+            <div class="bg-orange-500/10 border border-orange-500/30 rounded-xl p-4 mb-6">
+                <div class="flex items-start">
+                    <i class="fas fa-info-circle text-orange-500 text-xl"></i>
+                    <p class="ml-3 text-sm text-orange-300">
+                        <strong>Un seul prestataire Mobile Money à la fois :</strong> activer ElgioPay désactive KPay (et inversement).
+                        ElgioPay ne couvre que le <strong>Cameroun</strong> : l'application ne proposera alors que MTN MoMo et Orange Money Cameroun.
+                        Les transactions déjà lancées chez l'autre prestataire continuent d'être suivies jusqu'à leur terme.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Configuration Card -->
+            <div class="bg-dark-100 rounded-xl shadow-lg border border-dark-200 p-6 mb-6">
+                <h4 class="text-lg font-semibold text-white mb-6 flex items-center">
+                    <i class="fas fa-cog text-orange-500 mr-2"></i>
+                    Configuration de l'API ElgioPay
+                </h4>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label for="elgiopay_mode" class="block text-sm font-medium text-gray-300 mb-2">
+                            <i class="fas fa-server text-orange-400 mr-1"></i> Environnement
+                        </label>
+                        <select name="elgiopay_mode" id="elgiopay_mode"
+                                class="w-full px-4 py-3 bg-dark-50 border border-dark-300 rounded-lg text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all">
+                            <option value="live" {{ old('elgiopay_mode', $elgiopayMode) == 'live' ? 'selected' : '' }}>Production (live) — api.elgiopay.com</option>
+                            <option value="sandbox" {{ old('elgiopay_mode', $elgiopayMode) == 'sandbox' ? 'selected' : '' }}>Sandbox (test) — sandbox-api.elgiopay.com</option>
+                        </select>
+                        <p class="mt-1 text-xs text-gray-500">Doit correspondre au préfixe des clés (pk_live_ / pk_test_).</p>
+                    </div>
+
+                    <div>
+                        <label for="elgiopay_public_key" class="block text-sm font-medium text-gray-300 mb-2">
+                            <i class="fas fa-key text-orange-400 mr-1"></i> Clé publique (public_key) <span class="text-red-500">*</span>
+                        </label>
+                        <input type="text" name="elgiopay_public_key" id="elgiopay_public_key"
+                               value="{{ old('elgiopay_public_key', $elgiopayConfig['public_key'] ?? '') }}"
+                               class="w-full px-4 py-3 bg-dark-50 border border-dark-300 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all"
+                               placeholder="pk_live_...">
+                        <p class="mt-1 text-xs text-gray-500">Utilisée en <code>Authorization: Bearer</code> pour tous les appels API.</p>
+                    </div>
+
+                    <div>
+                        <label for="elgiopay_secret_key" class="block text-sm font-medium text-gray-300 mb-2">
+                            <i class="fas fa-lock text-orange-400 mr-1"></i> Clé secrète (secret_key)
+                        </label>
+                        <div class="relative">
+                            <input type="password" name="elgiopay_secret_key" id="elgiopay_secret_key" value=""
+                                   class="w-full px-4 py-3 bg-dark-50 border border-dark-300 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all"
+                                   placeholder="{{ !empty($elgiopayConfig['secret_key']) ? '•••••••• (laisser vide pour conserver)' : 'sk_live_...' }}">
+                            <button type="button" onclick="togglePassword('elgiopay_secret_key')"
+                                    class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                        <p class="mt-1 text-xs text-gray-500">Sert à vérifier la signature des webhooks si aucun secret dédié n'est fourni.</p>
+                    </div>
+
+                    <div>
+                        <label for="elgiopay_webhook_secret" class="block text-sm font-medium text-gray-300 mb-2">
+                            <i class="fas fa-shield-alt text-orange-400 mr-1"></i> Webhook Secret (optionnel)
+                        </label>
+                        <div class="relative">
+                            <input type="password" name="elgiopay_webhook_secret" id="elgiopay_webhook_secret" value=""
+                                   class="w-full px-4 py-3 bg-dark-50 border border-dark-300 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all"
+                                   placeholder="{{ !empty($elgiopayConfig['webhook_secret']) ? '•••••••• (laisser vide pour conserver)' : 'Secret de signature affiché dans le dashboard ElgioPay' }}">
+                            <button type="button" onclick="togglePassword('elgiopay_webhook_secret')"
+                                    class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                        <p class="mt-1 text-xs text-gray-500">Renseigné, il rend la signature <code>X-Elgiopay-Signature</code> obligatoire (401 sinon).</p>
+                    </div>
+
+                    <div class="md:col-span-2">
+                        <label for="elgiopay_webhook_url" class="block text-sm font-medium text-gray-300 mb-2">
+                            <i class="fas fa-link text-orange-400 mr-1"></i> URL de webhook (à déclarer dans le dashboard ElgioPay)
+                        </label>
+                        <input type="url" name="elgiopay_webhook_url" id="elgiopay_webhook_url"
+                               value="{{ old('elgiopay_webhook_url', $elgiopayConfig['webhook_url'] ?? url('/api/v1/elgiopay/callback')) }}"
+                               class="w-full px-4 py-3 bg-dark-50 border border-dark-300 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all"
+                               placeholder="https://.../api/v1/elgiopay/callback">
+                        <p class="mt-1 text-xs text-gray-500">URL publique déclarée côté ElgioPay (en local : tunnel ngrok vers <code>/api/v1/elgiopay/callback</code>). Les événements sont traités en file <code>deposits</code> / <code>withdrawals</code>.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Submit Buttons -->
+            <div class="flex justify-between items-center">
+                <a href="{{ route('admin.settings.index') }}"
+                   class="px-6 py-3 bg-dark-300 text-white rounded-lg hover:bg-dark-400 transition-all shadow-md">
+                    <i class="fas fa-arrow-left mr-2"></i> Retour
+                </a>
+                <button type="submit"
+                        class="px-8 py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg hover:from-orange-600 hover:to-orange-700 transition-all shadow-lg hover:shadow-xl">
+                    <i class="fas fa-save mr-2"></i> Enregistrer la configuration
+                </button>
+            </div>
+        </form>
+    </div>
+
     <!-- Encaissement direct Tab (Stripe carte + minimums par moyen) -->
     <div x-show="activePayment === 'direct'" x-cloak>
         <form action="{{ route('admin.settings.payments.update') }}" method="POST">
@@ -555,6 +747,35 @@ function togglePassword(fieldId) {
             }).join('');
         } catch (e) {
             box.innerHTML = '<p class="text-red-400">✗ Erreur réseau</p>';
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = original;
+        }
+    });
+})();
+
+// Test de connexion ElgioPay (AJAX)
+(function () {
+    const btn = document.getElementById('elgiopay-test-btn');
+    const result = document.getElementById('elgiopay-test-result');
+    if (!btn) return;
+    btn.addEventListener('click', async function () {
+        const original = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Test...';
+        result.textContent = 'Test en cours…';
+        result.className = 'text-sm font-semibold text-gray-300';
+        try {
+            const res = await fetch('{{ route('admin.settings.payments.test-elgiopay') }}', {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
+            });
+            const data = await res.json();
+            result.textContent = (data.success ? '✓ ' : '✗ ') + (data.message || (data.success ? 'Connexion réussie' : 'Échec'));
+            result.className = 'text-sm font-semibold ' + (data.success ? 'text-green-400' : 'text-red-400');
+        } catch (e) {
+            result.textContent = '✗ Erreur réseau';
+            result.className = 'text-sm font-semibold text-red-400';
         } finally {
             btn.disabled = false;
             btn.innerHTML = original;

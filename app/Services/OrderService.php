@@ -885,7 +885,7 @@ class OrderService
 
             $order->update(["{$col}_currency" => $payCurrency, "{$col}_amount" => $payAmount]);
 
-            $kpayResult = app(\App\Services\KPayService::class)->initializePayment([
+            $kpayResult = app(\App\Services\MobileMoneyGateway::class)->initializePayment([
                 'amount' => $payAmount,
                 'provider' => $kpayProvider,
                 'phone_number' => $kpayPhone,

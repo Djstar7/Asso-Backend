@@ -21,7 +21,8 @@ use App\Models\Setting;
  *  - Aucun solde de portefeuille n'intervient ici : ce sont des rails directs.
  *
  * Activation (« enabled ») = source de vérité réelle de chaque rail :
- *  - kpay   : KPayService::isConfigured() (reflète service_configurations.is_active)
+ *  - kpay   : MobileMoneyGateway::isConfigured() — rail Mobile Money servi par le
+ *             prestataire actif (KPay OU ElgioPay, exclusifs)
  *  - stripe : Setting `stripe_enabled` ET clés Stripe présentes (carte NATIVE, PaymentIntent)
  *
  * NB : le rail PayPal a été RETIRÉ (encaissement + retrait). Les colonnes de solde
@@ -99,7 +100,7 @@ class PaymentMethodService
                 $reason = 'below_min';
             }
 
-            $methods[] = [
+            $method = [
                 'code' => $code,
                 'label' => $rail['label'],
                 'subtitle' => $rail['subtitle'],
@@ -112,6 +113,12 @@ class PaymentMethodService
                 'target_currency' => $targetCurrency,
                 'converted_amount' => $convertedAmount !== null ? round($convertedAmount, 2) : null,
             ];
+
+            if ($code === 'kpay') {
+                $method = array_merge($method, self::mobileMoneyScope());
+            }
+
+            $methods[] = $method;
         }
 
         return $methods;
@@ -148,6 +155,25 @@ class PaymentMethodService
         ];
     }
 
+    /**
+     * Périmètre du rail Mobile Money selon le prestataire ACTIF (un seul à la fois) :
+     * le mobile ne propose que ces opérateurs / pays.
+     *   gateway   : 'kpay' | 'elgiopay' | null
+     *   providers : codes opérateurs acceptés (ex. MTN_MOMO_CMR)
+     *   countries : pays ISO3 couverts (ex. CMR)
+     */
+    public static function mobileMoneyScope(): array
+    {
+        $gateway = app(MobileMoneyGateway::class);
+        $active = $gateway->activeGateway();
+
+        return [
+            'gateway' => $active,
+            'providers' => $gateway->allowedProviders(),
+            'countries' => $gateway->allowedCountries(),
+        ] + ($active === 'elgiopay' ? ['subtitle' => 'MTN MoMo, Orange Money (Cameroun)'] : []);
+    }
+
     /** Minimum (pivot XAF) d'un rail, pour la validation serveur d'un paiement. */
     public static function minPivotFor(string $code): float
     {
@@ -161,7 +187,7 @@ class PaymentMethodService
     public static function isEnabled(string $code): bool
     {
         return match ($code) {
-            'kpay' => (new KPayService())->isConfigured(),
+            'kpay' => app(MobileMoneyGateway::class)->isConfigured(),
             'stripe' => (bool) Setting::get('stripe_enabled', false) && (new StripeService())->isConfigured(),
             default => false,
         };
@@ -171,7 +197,8 @@ class PaymentMethodService
     public static function currencyFor(string $code): ?string
     {
         return match ($code) {
-            'kpay' => null,
+            // ElgioPay n'encaisse qu'en XAF ; KPay : devise de l'opérateur choisi.
+            'kpay' => app(MobileMoneyGateway::class)->activeGateway() === 'elgiopay' ? ElgioPayService::CURRENCY : null,
             'stripe' => strtoupper((string) Setting::get('stripe_currency', 'USD')),
             default => null,
         };

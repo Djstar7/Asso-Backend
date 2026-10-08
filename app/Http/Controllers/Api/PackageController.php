@@ -301,9 +301,14 @@ class PackageController extends Controller
             $subscription->refresh();
         }
 
+        // Mobile Money refusé : motif de l'opérateur (wrong_network, insufficient_funds…).
+        $paymentFailure = $subscription->status === 'failed' && $subscription->payment_method === 'kpay_direct'
+            ? app(\App\Services\MobileMoneyGateway::class)->failureFor($subscription->payment_reference)
+            : null;
+
         return response()->json([
             'success' => true,
-            'data' => $this->subscriptionPayload($subscription),
+            'data' => $this->subscriptionPayload($subscription) + ['payment_failure' => $paymentFailure],
         ]);
     }
 
