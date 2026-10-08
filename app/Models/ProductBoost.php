@@ -155,12 +155,8 @@ class ProductBoost extends Model
 
     public function statusLabel(): string
     {
-        return match ($this->status) {
-            self::ACTIVE => 'En diffusion',
-            self::COMPLETED => 'Terminée (audience atteinte)',
-            self::EXPIRED => 'Terminée (échéance)',
-            self::CANCELLED => 'Annulée',
-            default => ucfirst($this->status),
-        };
+        return in_array($this->status, [self::ACTIVE, self::COMPLETED, self::EXPIRED, self::CANCELLED], true)
+            ? __("boosts.status.{$this->status}")
+            : ucfirst($this->status);
     }
 }

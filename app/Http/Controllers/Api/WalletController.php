@@ -158,7 +158,7 @@ class WalletController extends Controller
                     'amount' => $chargeAmount, // montant dans la devise de l'opérateur
                     'balance_before' => $currentBalance,
                     'balance_after' => $currentBalance, // Pas encore crédité
-                    'description' => "Recharge wallet via KPay ($targetCurrency)",
+                    'description' => \App\Models\WalletTransaction::label('topup_kpay', ['currency' => $targetCurrency]),
                     'status' => 'pending',
                     'provider' => 'kpay',
                     'metadata' => [
@@ -267,7 +267,7 @@ class WalletController extends Controller
                     'amount' => $creditXaf, // crédité en XAF au succès
                     'balance_before' => $currentBalance,
                     'balance_after' => $currentBalance, // pas encore crédité
-                    'description' => 'Recharge wallet par carte bancaire (Stripe)',
+                    'description' => \App\Models\WalletTransaction::label('topup_card'),
                     'status' => 'pending',
                     'provider' => 'stripe',
                     'metadata' => [
@@ -603,7 +603,7 @@ class WalletController extends Controller
                 'amount' => $amount,
                 'balance_before' => $currentBalance,
                 'balance_after' => $currentBalance - $amount, // Débit immédiat
-                'description' => "Retrait {$paymentMethod} vers {$phone}",
+                'description' => \App\Models\WalletTransaction::label('withdrawal_mobile', ['method' => $paymentMethod, 'phone' => $phone]),
                 'status' => 'pending',
                 'provider' => 'kpay',
                 'reference_type' => 'platform_withdrawal',
@@ -701,8 +701,8 @@ class WalletController extends Controller
             try {
                 $this->fcmService->sendToUser(
                     $user,
-                    $user->translate('notifications.wallet_withdrawal_processing_kpay.title'),
-                    $user->translate('notifications.wallet_withdrawal_processing_kpay.body', [
+                    $user->localized('notifications.wallet_withdrawal_processing_kpay.title'),
+                    $user->localized('notifications.wallet_withdrawal_processing_kpay.body', [
                         'amount' => $amount,
                         'currency' => $currency,
                         'phone' => $phone,
@@ -1013,10 +1013,13 @@ class WalletController extends Controller
                 'amount' => $amount,
                 'balance_before' => $currentBalance,
                 'balance_after' => $currentBalance - $amount,
-                'description' => "Virement IBAN ****{$ibanLast4}"
-                    . ($sourceCurrency !== $payoutCurrency
-                        ? ' (' . number_format($payoutAmount, 2, ',', ' ') . " {$payoutCurrency})"
-                        : ''),
+                'description' => $sourceCurrency !== $payoutCurrency
+                    ? \App\Models\WalletTransaction::label('bank_transfer_converted', [
+                        'last4' => $ibanLast4,
+                        'amount' => number_format($payoutAmount, 2, ',', ' '),
+                        'currency' => $payoutCurrency,
+                    ])
+                    : \App\Models\WalletTransaction::label('bank_transfer', ['last4' => $ibanLast4]),
                 'status' => 'pending',
                 'provider' => 'stripe',
                 'reference_type' => 'platform_withdrawal',
@@ -1107,8 +1110,8 @@ class WalletController extends Controller
             try {
                 $this->fcmService->sendToUser(
                     $user,
-                    $user->translate('notifications.wallet_withdrawal_processing_bank.title'),
-                    $user->translate('notifications.wallet_withdrawal_processing_bank.body', [
+                    $user->localized('notifications.wallet_withdrawal_processing_bank.title'),
+                    $user->localized('notifications.wallet_withdrawal_processing_bank.body', [
                         'amount' => number_format($payoutAmount, 2, ',', ' '),
                         'currency' => $payoutCurrency,
                         'iban_last4' => $ibanLast4,
@@ -1388,7 +1391,7 @@ class WalletController extends Controller
                     'user_id' => $user->id,
                     'type' => 'credit',
                     'amount' => (float) $withdrawal->amount_requested,
-                    'description' => "Remboursement — virement IBAN non abouti (réf. {$withdrawal->transaction_reference})",
+                    'description' => \App\Models\WalletTransaction::label('refund_bank_transfer_failed_ref', ['reference' => $withdrawal->transaction_reference]),
                     'status' => 'completed',
                     'provider' => 'stripe',
                     'reference_type' => 'platform_withdrawal',
@@ -1598,8 +1601,8 @@ class WalletController extends Controller
             if ($user) {
                 $this->fcmService->sendToUser(
                     $user,
-                    $user->translate('notifications.wallet_deposit_success_card.title'),
-                    $user->translate('notifications.wallet_deposit_success_card.body', [
+                    $user->localized('notifications.wallet_deposit_success_card.title'),
+                    $user->localized('notifications.wallet_deposit_success_card.body', [
                         'amount' => number_format((float) $tx->amount, 0, ',', ' '),
                     ]),
                     [

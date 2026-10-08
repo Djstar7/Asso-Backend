@@ -136,8 +136,8 @@ class ProcessDepositStatusJob implements ShouldQueue
                     try {
                         $fcmResult = $fcmService->sendToUser(
                             $user,
-                            $user->translate('notifications.wallet_credit.title'),
-                            $user->translate('notifications.wallet_credit.body', ['amount' => $deposit->amount]),
+                            $user->localized('notifications.wallet_credit.title'),
+                            $user->localized('notifications.wallet_credit.body', ['amount' => $deposit->amount]),
                             [
                                 'type' => 'wallet_credit',
                                 'wallet_transaction_id' => (string) $deposit->id,
@@ -187,10 +187,10 @@ class ProcessDepositStatusJob implements ShouldQueue
                         $user = $deposit->user;
                         $fcmResult = $fcmService->sendToUser(
                             $user,
-                            $user->translate('notifications.wallet_credit_failed.title'),
-                            $user->translate('notifications.wallet_credit_failed.body', [
+                            $user->localized('notifications.wallet_credit_failed.title'),
+                            $user->localized('notifications.wallet_credit_failed.body', [
                                 'amount' => $deposit->amount,
-                                'reason' => $reason ?? $user->translate('notifications.wallet_credit_failed.unknown_reason'),
+                                'reason' => $reason ?? $user->localized('notifications.wallet_credit_failed.unknown_reason'),
                             ]),
                             [
                                 'type' => 'wallet_credit_failed',

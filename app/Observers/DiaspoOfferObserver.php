@@ -35,10 +35,11 @@ class DiaspoOfferObserver
 
             try {
                 $fcmService = app(FirebaseMessagingService::class);
-                $fcmService->sendToTopic(
-                    'all_users',
-                    'Nouvelle offre DIASPO disponible',
-                    "{$offer->departure_city} → {$offer->arrival_city}",
+                $route = "{$offer->departure_city} → {$offer->arrival_city}";
+                $fcmService->sendToTopicsLocalized(
+                    collect(\App\Http\Middleware\SetLocale::SUPPORTED)
+                        ->mapWithKeys(fn ($l) => [$l => [__('notifications.new_diaspo_offer.title', [], $l), $route]])
+                        ->all(),
                     [
                         'type' => 'new_diaspo_offer',
                         'offer_id' => (string) $offer->id,

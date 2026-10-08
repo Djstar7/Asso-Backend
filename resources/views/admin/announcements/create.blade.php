@@ -38,34 +38,13 @@
 
                     <div class="space-y-4">
                         <!-- Title -->
-                        <div>
-                            <label for="title" class="block text-sm font-medium text-gray-300 mb-2">
-                                <i class="fas fa-heading text-primary-400 mr-1"></i>
-                                Titre (optionnel)
-                            </label>
-                            <input type="text" name="title" id="title" value="{{ old('title') }}"
-                                   class="w-full px-4 py-3 bg-dark-50 border border-dark-300 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
-                                   placeholder="Ex: Nouvelle promotion">
-                            <p class="mt-1 text-xs text-gray-400">Titre de l'annonce (facultatif)</p>
-                            @error('title')
-                                <p class="mt-1 text-sm text-red-400">{{ $message }}</p>
-                            @enderror
-                        </div>
+                        <x-admin.translatable name="title" label="Titre (optionnel)" :model="null"
+                            placeholder="Ex: Nouvelle promotion" help="Titre de l'annonce (facultatif)" />
 
                         <!-- Message -->
-                        <div>
-                            <label for="message" class="block text-sm font-medium text-gray-300 mb-2">
-                                <i class="fas fa-paragraph text-primary-400 mr-1"></i>
-                                Message <span class="text-red-500">*</span>
-                            </label>
-                            <textarea name="message" id="message" rows="6" required
-                                      class="w-full px-4 py-3 bg-dark-50 border border-dark-300 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
-                                      placeholder="Écrivez votre message ici...">{{ old('message') }}</textarea>
-                            <p class="mt-1 text-xs text-gray-400">Le contenu de votre annonce</p>
-                            @error('message')
-                                <p class="mt-1 text-sm text-red-400">{{ $message }}</p>
-                            @enderror
-                        </div>
+                        <x-admin.translatable name="message" label="Message" :model="null" type="textarea" rows="6" required
+                            placeholder="Écrivez votre message ici..."
+                            help="Les utilisateurs en anglais reçoivent la version anglaise ; à défaut, le français." />
                     </div>
                 </div>
 

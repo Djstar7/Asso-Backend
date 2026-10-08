@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasTranslations;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -10,6 +11,19 @@ use Illuminate\Support\Str;
 
 class Product extends Model
 {
+    use HasTranslations;
+
+    /** Champs traduisibles (voir HasTranslations). */
+    protected array $translatable = ['name', 'description', 'characteristics', 'commercial_information'];
+
+    /** Règles des traductions saisies par le vendeur (voir ContentLocale::rules). */
+    public const TRANSLATION_RULES = [
+        'name' => 'string|max:255',
+        'description' => 'string|max:10000',
+        'characteristics' => 'string|max:10000',
+        'commercial_information' => 'string|max:10000',
+    ];
+
     /**
      * Weight categories matching DeliveryPricelist system
      */
@@ -112,6 +126,9 @@ class Product extends Model
         // Commande avec acompte : acompte en % du prix acheteur (cf. DepositOrderService).
         'deposit_enabled',
         'deposit_rate',
+        // Délai de livraison annoncé, en jours ouvrables (cf. App\Support\DeliveryDelay).
+        'delivery_days_min',
+        'delivery_days_max',
         'tier_mix_variants',
         // Référence de l'application pour un produit saisi hors ligne (idempotence).
         'client_reference',
@@ -130,6 +147,8 @@ class Product extends Model
         'deposit_rate' => 'float',
         'tier_mix_variants' => 'boolean',
         'min_order_quantity' => 'integer',
+        'delivery_days_min' => 'integer',
+        'delivery_days_max' => 'integer',
         'sizes' => 'array',
         'variant_options' => 'array',
     ];
@@ -149,7 +168,8 @@ class Product extends Model
 
         static::updating(function ($product) {
             if ($product->isDirty('name') && !$product->isDirty('slug')) {
-                $product->slug = Str::slug($product->name);
+                // Valeur française saisie, pas la traduction de la requête.
+                $product->slug = Str::slug($product->getAttributes()['name']);
             }
         });
 

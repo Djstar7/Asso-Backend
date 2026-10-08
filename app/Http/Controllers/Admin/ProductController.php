@@ -101,6 +101,12 @@ class ProductController extends Controller
             'description' => 'nullable|string',
             'characteristics' => 'nullable|string|max:10000',
             'commercial_information' => 'nullable|string|max:10000',
+            // Versions dans les autres langues (facultatives).
+            'translations' => 'sometimes|array',
+            'translations.*.name' => 'nullable|string|max:255',
+            'translations.*.description' => 'nullable|string|max:10000',
+            'translations.*.characteristics' => 'nullable|string|max:10000',
+            'translations.*.commercial_information' => 'nullable|string|max:10000',
             'currency' => 'nullable|string|size:3|exists:currencies,code',
             'price_type' => 'required|in:fixed,variable',
             'price' => 'required_if:price_type,fixed|nullable|numeric|min:0',
@@ -139,7 +145,7 @@ class ProductController extends Controller
             // Vidéo déjà envoyée par morceaux (ProductVideoController) : on ne reçoit que son id.
             'video_id' => 'nullable|integer|exists:product_videos,id',
             'remove_video' => 'nullable|boolean',
-        ] + ProductVariantService::rules());
+        ] + ProductVariantService::rules() + \App\Support\DeliveryDelay::rules());
 
         $this->assertDistinctTierThresholds($validated['tiers'] ?? []);
 
@@ -185,6 +191,7 @@ class ProductController extends Controller
 
         // Create product
         $product = Product::create($validated);
+        $product->syncTranslations($validated['translations'] ?? null);
 
         // Paliers de prix (module GROS)
         $this->syncPriceTiers($product, $tiers);
@@ -243,6 +250,12 @@ class ProductController extends Controller
             'description' => 'nullable|string',
             'characteristics' => 'nullable|string|max:10000',
             'commercial_information' => 'nullable|string|max:10000',
+            // Versions dans les autres langues (facultatives).
+            'translations' => 'sometimes|array',
+            'translations.*.name' => 'nullable|string|max:255',
+            'translations.*.description' => 'nullable|string|max:10000',
+            'translations.*.characteristics' => 'nullable|string|max:10000',
+            'translations.*.commercial_information' => 'nullable|string|max:10000',
             'currency' => 'nullable|string|size:3|exists:currencies,code',
             'price_type' => 'required|in:fixed,variable',
             'price' => 'required_if:price_type,fixed|nullable|numeric|min:0',
@@ -281,7 +294,7 @@ class ProductController extends Controller
             // Vidéo déjà envoyée par morceaux (ProductVideoController) : on ne reçoit que son id.
             'video_id' => 'nullable|integer|exists:product_videos,id',
             'remove_video' => 'nullable|boolean',
-        ] + ProductVariantService::rules());
+        ] + ProductVariantService::rules() + \App\Support\DeliveryDelay::rules());
 
         $this->assertDistinctTierThresholds($validated['tiers'] ?? []);
 
@@ -333,6 +346,7 @@ class ProductController extends Controller
 
         // Update product
         $product->update($validated);
+        $product->syncTranslations($validated['translations'] ?? null);
 
         // Paliers de prix (module GROS) — remplace intégralement l'ancienne liste
         $this->syncPriceTiers($product, $tiers);

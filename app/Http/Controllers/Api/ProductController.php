@@ -37,7 +37,10 @@ class ProductController extends Controller
             $query->where(function ($q) use ($search) {
                 // Use PostgreSQL f_unaccent function for accent-insensitive search
                 $q->whereRaw('f_unaccent(name) ILIKE ?', ['%' . $search . '%'])
-                    ->orWhereRaw('f_unaccent(description) ILIKE ?', ['%' . $search . '%']);
+                    ->orWhereRaw('f_unaccent(description) ILIKE ?', ['%' . $search . '%'])
+                    // Version anglaise saisie par le vendeur.
+                    ->orWhereHas('translations', fn ($t) => $t->whereIn('field', ['name', 'description'])
+                        ->whereRaw('f_unaccent(value) ILIKE ?', ['%' . $search . '%']));
             });
         }
 
@@ -408,7 +411,9 @@ class ProductController extends Controller
             'images.*' => 'file|image|mimes:jpeg,png,jpg,gif,webp|max:5120',
             // Livraison gratuite : absent/null = suit la boutique.
             'free_delivery' => 'nullable|boolean',
-        ] + \App\Services\DepositOrderService::productRules('nullable') + ProductVariantService::rules());
+        ] + \App\Services\DepositOrderService::productRules('nullable') + ProductVariantService::rules()
+            + \App\Support\Translation\ContentLocale::rules(Product::TRANSLATION_RULES)
+            + \App\Support\DeliveryDelay::rules());
 
         \Log::info('[PRODUCT_STORE] Validation passed');
 
@@ -490,6 +495,9 @@ class ProductController extends Controller
         if (isset($validated['free_delivery'])) {
             $productData['free_delivery'] = (bool) $validated['free_delivery'];
         }
+        // Délai de livraison (jours ouvrables) ; vide = délai de la catégorie.
+        $productData['delivery_days_min'] = $validated['delivery_days_min'] ?? null;
+        $productData['delivery_days_max'] = $validated['delivery_days_max'] ?? null;
         // Commande avec acompte (produit sur commande / importé).
         $productData += \App\Services\DepositOrderService::productAttributes($validated);
 
@@ -516,6 +524,7 @@ class ProductController extends Controller
         if (!empty($validated['variants'])) {
             app(ProductVariantService::class)->sync($product, $validated['variants'], $validated['variant_options'] ?? null);
         }
+        $product->syncTranslations($validated['translations'] ?? null);
 
         \Log::info('[PRODUCT_STORE] Product created:', [
             'product_id' => $product->id,
@@ -579,7 +588,7 @@ class ProductController extends Controller
         return response()->json([
             'success' => true,
             'message' => __('products.created'),
-            'product' => $this->formatProduct($product, []),
+            'product' => $this->formatProduct($product, []) + ['translations' => $product->translationsPayload()],
             'storage_info' => [
                 'used_mb' => round($totalImageSizeMb, 2),
                 'remaining_mb' => round($vendorPackage->storage_remaining_mb, 2),
@@ -605,7 +614,7 @@ class ProductController extends Controller
             'success' => true,
             'message' => __('products.already_created'),
             'replayed' => true,
-            'product' => $this->formatProduct($product, []),
+            'product' => $this->formatProduct($product, []) + ['translations' => $product->translationsPayload()],
             'storage_info' => [
                 'used_mb' => 0,
                 'remaining_mb' => $vendorPackage ? round($vendorPackage->storage_remaining_mb, 2) : 0,
@@ -665,6 +674,10 @@ class ProductController extends Controller
             'is_sponsored' => false,
             // Livraison gratuite offerte par le vendeur (produit, sinon boutique).
             'free_delivery' => $product->hasFreeDelivery(),
+            // Délai de livraison annoncé (jours ouvrables) : produit → catégorie → défaut.
+            'delivery_delay' => \App\Support\DeliveryDelay::forProduct($product),
+            'delivery_days_min' => $product->delivery_days_min,
+            'delivery_days_max' => $product->delivery_days_max,
             // Commande avec acompte : % du prix payé à la commande, solde après vérification ASSO.
             ...\App\Services\DepositOrderService::productInfo($product),
             'primary_image' => $product->primaryImage ? $this->getImageUrl($product->primaryImage->image_path) : null,

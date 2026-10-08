@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Subcategory;
+use App\Support\DeliveryDelay;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -31,11 +32,13 @@ class CategorySettingsController extends Controller
             'name_en' => 'required|string|max:255',
             'svg_icon' => 'nullable|string',
             'description' => 'nullable|string',
-        ]);
+            'translations.en.description' => 'nullable|string',
+        ] + DeliveryDelay::rules());
 
         $validated['slug'] = Str::slug($validated['name']);
 
-        Category::create($validated);
+        $category = Category::create($validated);
+        $category->syncTranslations($validated['translations'] ?? null);
 
         return redirect()->back()->with('success', 'Catégorie créée avec succès!');
     }
@@ -50,11 +53,13 @@ class CategorySettingsController extends Controller
             'name_en' => 'required|string|max:255',
             'svg_icon' => 'nullable|string',
             'description' => 'nullable|string',
-        ]);
+            'translations.en.description' => 'nullable|string',
+        ] + DeliveryDelay::rules());
 
         $validated['slug'] = Str::slug($validated['name']);
 
         $category->update($validated);
+        $category->syncTranslations($validated['translations'] ?? null);
 
         return redirect()->back()->with('success', 'Catégorie mise à jour avec succès!');
     }

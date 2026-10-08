@@ -76,6 +76,10 @@ class SearchController extends Controller
 
             // Strategy 3: Exact phrase match (bonus)
             $q->orWhereRaw("f_unaccent(name) ILIKE ?", ['%' . $searchQuery . '%']);
+
+            // Strategy 4: nom ou description saisis dans une autre langue (anglais)
+            $q->orWhereHas('translations', fn ($t) => $t->whereIn('field', ['name', 'description'])
+                ->whereRaw('f_unaccent(value) ILIKE f_unaccent(?)', ['%' . $searchQuery . '%']));
         });
 
         // 4. Calculate relevance score

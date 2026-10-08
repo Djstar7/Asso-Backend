@@ -304,8 +304,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/vendor/package/current', [PackageController::class, 'currentPackage']);
 
         // Vendor shop management
-        Route::get('/vendor/shop', [ShopController::class, 'show']);
-        Route::put('/vendor/shop', [ShopController::class, 'update']);
+        Route::get('/vendor/shop', [ShopController::class, 'show'])->middleware('content.source');
+        Route::put('/vendor/shop', [ShopController::class, 'update'])->middleware('content.source');
         Route::put('/vendor/shop/free-delivery', [ShopController::class, 'updateFreeDelivery']);
         Route::get('/vendor/shops', [ShopController::class, 'index']);
         Route::get('/vendor/shop/location-requests', [ShopController::class, 'getLocationRequests']);
@@ -372,10 +372,10 @@ Route::middleware('auth:sanctum')->group(function () {
         });
 
         // Product creation (for vendors)
-        Route::post('/products', [ProductController::class, 'store']);
+        Route::post('/products', [ProductController::class, 'store'])->middleware('content.source');
 
-        // Vendor product management
-        Route::prefix('vendor/products')->group(function () {
+        // Vendor product management (texte français saisi + traductions à part)
+        Route::prefix('vendor/products')->middleware('content.source')->group(function () {
             Route::get('/', [VendorProductController::class, 'index']);
             Route::put('/{id}', [VendorProductController::class, 'update']);
             Route::post('/{id}', [VendorProductController::class, 'update']); // Support POST avec _method=PUT pour multipart

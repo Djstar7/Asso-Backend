@@ -35,8 +35,8 @@ class ShopVerificationController extends Controller
             $fcmService = app(FirebaseMessagingService::class);
             $fcmService->sendToUser(
                 $shop->user,
-                $shop->user->translate('notifications.shop_verified.title'),
-                $shop->user->translate('notifications.shop_verified.body', ['shop' => $shop->name]),
+                $shop->user->localized('notifications.shop_verified.title'),
+                $shop->user->localized('notifications.shop_verified.body', ['shop' => $shop->name]),
                 [
                     'type' => 'shop_verified',
                     'shop_id' => (string) $shop->id,
@@ -85,8 +85,8 @@ class ShopVerificationController extends Controller
             $fcmService = app(FirebaseMessagingService::class);
             $fcmService->sendToUser(
                 $shop->user,
-                $shop->user->translate('notifications.shop_rejected.title'),
-                $shop->user->translate('notifications.shop_rejected.body', ['shop' => $shop->name, 'reason' => $request->reason]),
+                $shop->user->localized('notifications.shop_rejected.title'),
+                $shop->user->localized('notifications.shop_rejected.body', ['shop' => $shop->name, 'reason' => $request->reason]),
                 [
                     'type' => 'shop_rejected',
                     'shop_id' => (string) $shop->id,
@@ -131,8 +131,8 @@ class ShopVerificationController extends Controller
             if ($newStatus === 'active') {
                 $fcmService->sendToUser(
                     $shop->user,
-                    $shop->user->translate('notifications.shop_activated.title'),
-                    $shop->user->translate('notifications.shop_activated.body', ['shop' => $shop->name]),
+                    $shop->user->localized('notifications.shop_activated.title'),
+                    $shop->user->localized('notifications.shop_activated.body', ['shop' => $shop->name]),
                     [
                         'type' => 'shop_activated',
                         'shop_id' => (string) $shop->id,
@@ -142,8 +142,8 @@ class ShopVerificationController extends Controller
             } else {
                 $fcmService->sendToUser(
                     $shop->user,
-                    $shop->user->translate('notifications.shop_deactivated.title'),
-                    $shop->user->translate('notifications.shop_deactivated.body', ['shop' => $shop->name]),
+                    $shop->user->localized('notifications.shop_deactivated.title'),
+                    $shop->user->localized('notifications.shop_deactivated.body', ['shop' => $shop->name]),
                     [
                         'type' => 'shop_deactivated',
                         'shop_id' => (string) $shop->id,

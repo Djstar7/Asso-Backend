@@ -55,32 +55,12 @@
                             @error('shop_id')<p class="mt-1 text-sm text-red-400">{{ $message }}</p>@enderror
                         </div>
 
-                        <!-- Product Name -->
-                        <div>
-                            <label class="block text-sm font-medium text-white mb-2">
-                                <i class="fas fa-tag text-primary-500 mr-1"></i>
-                                Nom du Produit <span class="text-red-500">*</span>
-                            </label>
-                            <input type="text" name="name" value="{{ old('name') }}" required
-                                   class="w-full px-4 py-2 bg-dark-50 border border-dark-300 rounded-lg focus:ring-2 focus:ring-primary-500 @error('name') border-red-500 @enderror"
-                                   placeholder="Ex: iPhone 15 Pro">
-                            @error('name')<p class="mt-1 text-sm text-red-400">{{ $message }}</p>@enderror
-                        </div>
-
-                        <!-- Description -->
-                        <div>
-                            <label class="block text-sm font-medium text-white mb-2">
-                                <i class="fas fa-align-left text-primary-500 mr-1"></i>
-                                Description
-                            </label>
-                            <textarea name="description" rows="4"
-                                      class="w-full px-4 py-2 bg-dark-50 border border-dark-300 rounded-lg focus:ring-2 focus:ring-primary-500 @error('description') border-red-500 @enderror"
-                                      placeholder="Décrivez le produit...">{{ old('description') }}</textarea>
-                            @error('description')<p class="mt-1 text-sm text-red-400">{{ $message }}</p>@enderror
-                        </div>
+                        <!-- Product Name / Description (FR + EN) -->
+                        <x-admin.translatable class="mb-4" name="name" label="Nom du produit" :model="null" required placeholder="Ex: iPhone 15 Pro" />
+                        <x-admin.translatable class="mb-4" name="description" label="Description" :model="null" type="textarea" placeholder="Décrivez le produit..." />
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div><label class="block text-sm font-medium text-white mb-2">Caractéristiques</label><textarea name="characteristics" rows="4" class="w-full px-4 py-2 bg-dark-50 border border-dark-300 rounded-lg" placeholder="Matière, puissance, dimensions…">{{ old('characteristics') }}</textarea></div>
-                            <div><label class="block text-sm font-medium text-white mb-2">Informations commerciales</label><textarea name="commercial_information" rows="4" class="w-full px-4 py-2 bg-dark-50 border border-dark-300 rounded-lg" placeholder="Garantie, délai, conditionnement…">{{ old('commercial_information') }}</textarea></div>
+                            <x-admin.translatable name="characteristics" label="Caractéristiques" :model="null" type="textarea" placeholder="Matière, puissance, dimensions…" />
+                            <x-admin.translatable name="commercial_information" label="Informations commerciales" :model="null" type="textarea" placeholder="Garantie, délai, conditionnement…" />
                         </div>
                     </div>
                 </div>
@@ -353,6 +333,7 @@
                 </div>
 
                 @include('admin.products._free_delivery')
+                @include('admin.products._delivery_delay')
                 @include('admin.products._deposit')
 
                 <!-- Submit Button -->

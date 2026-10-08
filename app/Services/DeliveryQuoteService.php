@@ -526,7 +526,7 @@ class DeliveryQuoteService
                 'zone_id' => $zone->id,
                 'zone_name' => $zone->name,
                 'route_id' => null,
-                'route_label' => $zone->city ? "Livraison dans {$zone->city}" : $zone->name,
+                'route_label' => $zone->city ? __('delivery.quote.in_city', ['city' => $zone->city]) : $zone->name,
                 'city' => $zone->city,
                 'zone_latitude' => (float) $zone->center_latitude,
                 'zone_longitude' => (float) $zone->center_longitude,
@@ -558,7 +558,7 @@ class DeliveryQuoteService
     {
         switch ($pricelist->pricing_type) {
             case DeliveryPricelist::PRICING_TYPE_FIXED:
-                return ['price' => (float) ($pricelist->pricing_data['price'] ?? 0), 'range_label' => 'Forfait', 'grid' => null, 'describe' => []];
+                return ['price' => (float) ($pricelist->pricing_data['price'] ?? 0), 'range_label' => __('delivery.quote.flat_rate'), 'grid' => null, 'describe' => []];
             case DeliveryPricelist::PRICING_TYPE_VOLUMETRIC_WEIGHT:
                 // Tranches de poids réel (kg) — nom historique du type conservé.
                 $grid = WeightGrid::price($pricelist->pricing_data ?? [], $cart['weight_kg']);
@@ -573,7 +573,7 @@ class DeliveryQuoteService
                 // Ancien type par catégorie de colis : conservé pour les grilles existantes.
                 return [
                     'price' => $pricelist->calculatePrice(['category' => $cart['weight_category']]),
-                    'range_label' => 'Catégorie ' . $cart['weight_category'],
+                    'range_label' => __('delivery.quote.weight_category', ['category' => $cart['weight_category']]),
                     'grid' => null,
                     'describe' => [],
                 ];
@@ -699,7 +699,9 @@ class DeliveryQuoteService
                         // L'acheteur a choisi sa position sur la carte : pas de détail des quartiers.
                         'zone_name' => $grid->zoneLabel($destZone, 0),
                         'route_id' => null,
-                        'route_label' => "Livraison à domicile à {$grid->city} · " . $grid->zoneLabel($originZone, 0) . ' → ' . $grid->zoneLabel($destZone, 0),
+                        'route_label' => __('delivery.quote.home_in_city_zones', [
+                            'city' => $grid->city, 'from' => $grid->zoneLabel($originZone, 0), 'to' => $grid->zoneLabel($destZone, 0),
+                        ]),
                         'city' => $grid->city,
                         'distance_km' => null,
                         'lead_time' => $vehicle['lead_time'] ?? null,
@@ -714,7 +716,7 @@ class DeliveryQuoteService
                         'destination_zone' => $destZone,
                         // Comparatif des véhicules pour ce trajet.
                         'price_grid' => collect($grid->vehicles)->map(fn ($v) => [
-                            'label' => $v['label'] . (!empty($v['max_weight_kg']) ? " (jusqu'à " . $this->formatKg((float) $v['max_weight_kg']) . ')' : ''),
+                            'label' => $v['label'] . (!empty($v['max_weight_kg']) ? ' (' . __('delivery.quote.up_to', ['weight' => $this->formatKg((float) $v['max_weight_kg'])]) . ')' : ''),
                             'price' => $grid->price($v['code'], $originZone, $destZone) ?? 0,
                         ])->filter(fn ($r) => $r['price'] > 0)->values()->all(),
                         'sort_group' => 0,
@@ -798,8 +800,8 @@ class DeliveryQuoteService
             ];
             $routeLeg = [
                 'label' => $company->service_mode === DelivererCompany::MODE_AGENCY
-                    ? 'Transport ' . $route->label() . " (d'agence à agence)"
-                    : 'Transport ' . $route->label(),
+                    ? __('delivery.quote.transport_agency', ['route' => $route->label()])
+                    : __('delivery.quote.transport', ['route' => $route->label()]),
                 'price' => round($grid['price']),
             ];
 
@@ -840,8 +842,10 @@ class DeliveryQuoteService
                             'legs' => [
                                 $routeLeg,
                                 [
-                                    'label' => 'Livraison à domicile en ' . mb_strtolower($gridLeg['vehicle']['label'])
-                                        . " depuis l'agence vers " . $cityGrid->zoneLabel($gridLeg['zone'], 0),
+                                    'label' => __('delivery.quote.home_by_vehicle_from_agency', [
+                                        'vehicle' => mb_strtolower($gridLeg['vehicle']['label']),
+                                        'zone' => $cityGrid->zoneLabel($gridLeg['zone'], 0),
+                                    ]),
                                     'price' => round($gridLeg['price']),
                                 ],
                             ],
@@ -867,7 +871,9 @@ class DeliveryQuoteService
                     'legs' => [
                         $routeLeg,
                         [
-                            'label' => 'Livraison à domicile' . ($zoneCity ? " à {$zoneCity}" : '') . " depuis l'agence",
+                            'label' => $zoneCity
+                                ? __('delivery.quote.home_from_agency_in_city', ['city' => $zoneCity])
+                                : __('delivery.quote.home_from_agency'),
                             'price' => round($lastMile['price']['price']),
                         ],
                     ],
@@ -901,13 +907,11 @@ class DeliveryQuoteService
             'company_description' => $company->description,
             'company_logo' => $company->logo ? media_url($company->logo) : null,
             'service_type' => $extra['service_type'],
-            'service_type_label' => DelivererCompany::SERVICE_TYPES[$extra['service_type']],
+            'service_type_label' => DelivererCompany::serviceTypeLabel($extra['service_type']),
             'service_mode' => $extra['service_mode'],
-            'service_mode_label' => DelivererCompany::SERVICE_MODES[$extra['service_mode']] ?? $extra['service_mode'],
+            'service_mode_label' => DelivererCompany::serviceModeLabel($extra['service_mode']),
             'delivery_option' => $extra['delivery_option'] ?? 'home_delivery',
-            'delivery_option_label' => ($extra['delivery_option'] ?? 'home_delivery') === 'agency_pickup'
-                ? 'Retrait en agence'
-                : 'Livraison à domicile',
+            'delivery_option_label' => __('delivery.options.' . (($extra['delivery_option'] ?? 'home_delivery') === 'agency_pickup' ? 'agency_pickup' : 'home_delivery')),
             'conditions' => $company->conditions,
             'max_weight_kg' => $company->max_weight_kg,
             'has_tracking_link' => (bool) $company->tracking_url_template,

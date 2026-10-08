@@ -54,28 +54,12 @@
                         </select>
                     </div>
 
-                    <!-- Product Name -->
-                    <div class="mb-4">
-                        <label for="name" class="block text-sm font-medium text-white mb-2">
-                            Nom du produit <span class="text-red-500">*</span>
-                        </label>
-                        <input type="text" name="name" id="name" value="{{ old('name', $product->name) }}" required
-                               class="w-full px-4 py-2 bg-dark-50 border border-dark-300 rounded-lg text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                               placeholder="Ex: Laptop Dell XPS 15">
-                    </div>
-
-                    <!-- Description -->
-                    <div class="mb-4">
-                        <label for="description" class="block text-sm font-medium text-white mb-2">
-                            Description
-                        </label>
-                        <textarea name="description" id="description" rows="4"
-                                  class="w-full px-4 py-2 bg-dark-50 border border-dark-300 rounded-lg text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                                  placeholder="Description détaillée du produit...">{{ old('description', $product->description) }}</textarea>
-                    </div>
+                    <!-- Product Name / Description (FR + EN) -->
+                    <x-admin.translatable class="mb-4" name="name" label="Nom du produit" :model="$product" required placeholder="Ex: iPhone 15 Pro" />
+                    <x-admin.translatable class="mb-4" name="description" label="Description" :model="$product" type="textarea" placeholder="Décrivez le produit..." />
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div><label class="block text-sm font-medium text-white mb-2">Caractéristiques</label><textarea name="characteristics" rows="4" class="w-full px-4 py-2 bg-dark-50 border border-dark-300 rounded-lg">{{ old('characteristics', $product->characteristics) }}</textarea></div>
-                        <div><label class="block text-sm font-medium text-white mb-2">Informations commerciales</label><textarea name="commercial_information" rows="4" class="w-full px-4 py-2 bg-dark-50 border border-dark-300 rounded-lg">{{ old('commercial_information', $product->commercial_information) }}</textarea></div>
+                        <x-admin.translatable name="characteristics" label="Caractéristiques" :model="$product" type="textarea" placeholder="Matière, puissance, dimensions…" />
+                        <x-admin.translatable name="commercial_information" label="Informations commerciales" :model="$product" type="textarea" placeholder="Garantie, délai, conditionnement…" />
                     </div>
                 </div>
 
@@ -355,6 +339,7 @@
                 </div>
 
                 @include('admin.products._free_delivery')
+                @include('admin.products._delivery_delay')
                 @include('admin.products._deposit')
 
                 <!-- Status -->

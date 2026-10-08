@@ -65,23 +65,11 @@
                     </div>
 
                     <!-- App Slogan -->
-                    <div>
-                        <label for="app_slogan" class="block text-sm font-medium text-gray-300 mb-2">
-                            Slogan
-                        </label>
-                        <input type="text" name="app_slogan" id="app_slogan"
-                               value="{{ old('app_slogan', $generalSettings['app_slogan']->value ?? '') }}"
-                               class="w-full px-4 py-2 bg-dark-50 border border-dark-300 rounded-lg text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent">
-                    </div>
+                    <x-admin.translatable name="app_slogan" field="value" label="Slogan" :model="$generalSettings['app_slogan'] ?? null" />
 
                     <!-- App Description -->
-                    <div>
-                        <label for="app_description" class="block text-sm font-medium text-gray-300 mb-2">
-                            Description
-                        </label>
-                        <textarea name="app_description" id="app_description" rows="4"
-                                  class="w-full px-4 py-2 bg-dark-50 border border-dark-300 rounded-lg text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent">{{ old('app_description', $generalSettings['app_description']->value ?? '') }}</textarea>
-                    </div>
+                    <x-admin.translatable name="app_description" field="value" label="Description" type="textarea"
+                        :model="$generalSettings['app_description'] ?? null" />
 
                     <h3 class="text-lg font-semibold text-white mb-4 mt-8">Informations de Contact</h3>
 
@@ -109,14 +97,8 @@
                     </div>
 
                     <!-- Contact Address -->
-                    <div>
-                        <label for="contact_address" class="block text-sm font-medium text-gray-300 mb-2">
-                            Adresse
-                        </label>
-                        <input type="text" name="contact_address" id="contact_address"
-                               value="{{ old('contact_address', $generalSettings['contact_address']->value ?? '') }}"
-                               class="w-full px-4 py-2 bg-dark-50 border border-dark-300 rounded-lg text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent">
-                    </div>
+                    <x-admin.translatable name="contact_address" field="value" label="Adresse"
+                        :model="$generalSettings['contact_address'] ?? null" />
 
                     <!-- Submit Button -->
                     <div class="flex justify-end pt-4">

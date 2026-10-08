@@ -22,7 +22,7 @@ class DisputeEvent extends Model
     {
         return [
             'type' => $this->type,
-            'label' => $this->label,
+            'label' => \App\Support\Translation\StoredLabel::translate($this->label, ['disputes.events', 'disputes.shipment_steps']),
             'note' => $this->note,
             'actor_type' => $this->actor_type,
             'occurred_at' => $this->occurred_at?->toIso8601String(),

@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Category;
 use App\Models\Shop;
+use App\Support\Translation\ContentLocale;
 use App\Models\ShopLocationRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -203,7 +205,7 @@ class ShopController extends Controller
             'shop_longitude' => 'sometimes|numeric|between:-180,180',
             'categories' => 'sometimes|nullable|array',
             'categories.*' => 'string',
-        ]);
+        ] + ContentLocale::rules(Shop::TRANSLATION_RULES));
 
         Log::info('[VENDOR-SHOP-UPDATE] Validation completed', [
             'validated_data' => $validated,
@@ -274,7 +276,7 @@ class ShopController extends Controller
                 $updateData['longitude'] = $validated['shop_longitude'];
             }
             if (array_key_exists('categories', $validated)) {
-                $updateData['categories'] = $validated['categories'] ?? [];
+                $updateData['categories'] = Category::sourceNames($validated['categories'] ?? []);
                 Log::info('[VENDOR-SHOP-UPDATE] Categories to update', [
                     'old_categories' => $shop->categories,
                     'new_categories' => $validated['categories'],
@@ -297,6 +299,9 @@ class ShopController extends Controller
             ]);
 
             $shop->update($updateData);
+            if (array_key_exists('translations', $validated)) {
+                $shop->syncTranslations($validated['translations']);
+            }
             $shop->refresh();
 
             Log::info('[VENDOR-SHOP-UPDATE] Shop updated, refreshed from DB', [
@@ -348,6 +353,7 @@ class ShopController extends Controller
             'name' => $shop->name,
             'slug' => $shop->slug,
             'description' => $shop->description,
+            'translations' => $shop->translationsPayload(),
             'logo' => $shop->logo ? media_url($shop->logo) : null,
             'address' => $shop->address,
             'city' => $shop->city,
@@ -355,7 +361,7 @@ class ShopController extends Controller
             'location_label' => $shop->location_label,
             'latitude' => $shop->latitude,
             'longitude' => $shop->longitude,
-            'categories' => $shop->categories ?? [],
+            'categories' => Category::displayNames($shop->categories),
             'status' => $shop->status,
             'is_certified' => (bool) $shop->is_certified,
             'free_delivery' => (bool) $shop->free_delivery,
@@ -425,7 +431,7 @@ class ShopController extends Controller
             'location_label' => $shop->location_label,
             'latitude' => $shop->latitude,
             'longitude' => $shop->longitude,
-            'categories' => $shop->categories ?? [],
+            'categories' => Category::displayNames($shop->categories),
             'is_certified' => (bool) $shop->is_certified,
             'free_delivery' => (bool) $shop->free_delivery,
             'phone' => $shop->phone ?? $shop->user->phone,
@@ -493,7 +499,7 @@ class ShopController extends Controller
             'location_label' => $shop->location_label,
             'latitude' => $shop->latitude,
             'longitude' => $shop->longitude,
-            'categories' => $shop->categories ?? [],
+            'categories' => Category::displayNames($shop->categories),
             'is_certified' => (bool) $shop->is_certified,
             'free_delivery' => (bool) $shop->free_delivery,
             'phone' => $shop->phone ?? $shop->user->phone,
