@@ -2,12 +2,18 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasTranslations;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class DelivererCompany extends Model
 {
+    use HasTranslations;
+
+    /** Champs traduisibles (voir HasTranslations). */
+    protected array $translatable = ['description', 'conditions'];
+
     protected $fillable = [
         'user_id',
         'name',
@@ -47,6 +53,17 @@ class DelivererCompany extends Model
         self::MODE_DOOR => 'Livraison à domicile',
         self::MODE_AGENCY => "D'agence en agence (dépôt et retrait en agence)",
     ];
+
+    /** Libellés dans la langue de la requête (les constantes restent ceux du back-office). */
+    public static function serviceTypeLabel(?string $type): ?string
+    {
+        return $type !== null && isset(self::SERVICE_TYPES[$type]) ? __("delivery.service_types.{$type}") : $type;
+    }
+
+    public static function serviceModeLabel(?string $mode): ?string
+    {
+        return $mode !== null && isset(self::SERVICE_MODES[$mode]) ? __("delivery.service_modes.{$mode}") : $mode;
+    }
 
     public function isCarrier(): bool
     {

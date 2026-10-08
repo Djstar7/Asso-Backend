@@ -70,12 +70,19 @@
     </div>
 
     @foreach($grid->vehicles as $vehicle)
-        @php $code = $vehicle['code']; @endphp
+        @php
+            $code = $vehicle['code'];
+            $vehicleEn = $grid->getTranslation('vehicles', 'en')[$code] ?? [];
+        @endphp
         <div x-show="tab === '{{ $code }}'" x-cloak class="mb-6">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-3 mb-3">
                 <div>
                     <label class="block text-xs text-gray-400 mb-1">Nom affiché</label>
                     <input type="text" name="vehicles[{{ $code }}][label]" value="{{ $vehicle['label'] }}" required class="{{ $input }}">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Nom affiché (EN)</label>
+                    <input type="text" name="translations[en][vehicles][{{ $code }}][label]" value="{{ $vehicleEn['label'] ?? '' }}" placeholder="Facultatif" class="{{ $input }}">
                 </div>
                 <div>
                     <label class="block text-xs text-gray-400 mb-1">Poids max. (kg)</label>
@@ -84,6 +91,10 @@
                 <div>
                     <label class="block text-xs text-gray-400 mb-1">Délai estimé affiché</label>
                     <input type="text" name="vehicles[{{ $code }}][lead_time]" value="{{ $vehicle['lead_time'] ?? '' }}" placeholder="1 h à 3 h" class="{{ $input }}">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Délai affiché (EN)</label>
+                    <input type="text" name="translations[en][vehicles][{{ $code }}][lead_time]" value="{{ $vehicleEn['lead_time'] ?? '' }}" placeholder="1 to 3 h" class="{{ $input }}">
                 </div>
             </div>
             <div class="overflow-x-auto">

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\ImportCountry;
 use App\Models\ImportShippingOption;
+use App\Support\Translation\ContentLocale;
 use Illuminate\Http\Request;
 
 class ImportShippingOptionController extends Controller
@@ -20,7 +21,7 @@ class ImportShippingOptionController extends Controller
 
         return response()->json([
             'success' => true,
-            'shipping_options' => $options,
+            'shipping_options' => $options->map(fn ($option) => $this->present($option))->values(),
         ]);
     }
 
@@ -39,7 +40,7 @@ class ImportShippingOptionController extends Controller
             // Transporteur (DHL, FedEx…) et lien de suivi ({number} = n° saisi à l'expédition)
             'carrier'          => 'nullable|string|max:100',
             'tracking_url_template' => 'nullable|string|max:255',
-        ]);
+        ] + ContentLocale::rules(['expedition_note' => 'string|max:255']));
 
         // updateOrCreate sur (country_code, mode) : empêche les doublons de mode
         // pour un même pays — si "air" existe déjà, on le met à jour au lieu de dupliquer.
@@ -59,7 +60,9 @@ class ImportShippingOptionController extends Controller
             ]
         );
 
-        return response()->json(['success' => true, 'shipping_option' => $option]);
+        $option->syncTranslations($validated['translations'] ?? null);
+
+        return response()->json(['success' => true, 'shipping_option' => $this->present($option)]);
     }
 
     /**
@@ -79,11 +82,12 @@ class ImportShippingOptionController extends Controller
             // Transporteur (DHL, FedEx…) et lien de suivi ({number} = n° saisi à l'expédition)
             'carrier'          => 'nullable|string|max:100',
             'tracking_url_template' => 'nullable|string|max:255',
-        ]);
+        ] + ContentLocale::rules(['expedition_note' => 'string|max:255']));
 
         $shippingOption->update($validated);
+        $shippingOption->syncTranslations($validated['translations'] ?? null);
 
-        return response()->json(['success' => true, 'shipping_option' => $shippingOption]);
+        return response()->json(['success' => true, 'shipping_option' => $this->present($shippingOption)]);
     }
 
     /**
@@ -116,5 +120,11 @@ class ImportShippingOptionController extends Controller
     private function ensureBelongsTo(ImportCountry $importCountry, ImportShippingOption $shippingOption): void
     {
         abort_unless($shippingOption->country_code === $importCountry->code, 404);
+    }
+
+    /** Option + ses traductions, pour pré-remplir le formulaire. */
+    private function present(ImportShippingOption $option): array
+    {
+        return $option->toArray() + ['translations' => $option->translationsPayload()];
     }
 }

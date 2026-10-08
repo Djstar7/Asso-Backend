@@ -603,7 +603,7 @@ class OrderController extends Controller
                     'id' => $dispute->id,
                     'number' => $dispute->number,
                     'status' => $dispute->status,
-                    'status_label' => \App\Models\Dispute::STATUSES[$dispute->status] ?? $dispute->status,
+                    'status_label' => \App\Models\Dispute::statusLabel($dispute->status),
                 ] : null,
                 'can_report' => $controlOpen && !$disputes->has($item->id),
             ]),

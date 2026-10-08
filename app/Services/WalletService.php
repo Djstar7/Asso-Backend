@@ -170,11 +170,11 @@ class WalletService
     {
         // On ne peut rembourser qu'un débit
         if ($originalTransaction->type !== 'debit') {
-            throw new \Exception("Seuls les débits peuvent être remboursés");
+            throw new \Exception(__('wallet.refund_debit_only'));
         }
 
         if ($originalTransaction->status !== 'completed') {
-            throw new \Exception("Seules les transactions complétées peuvent être remboursées");
+            throw new \Exception(__('wallet.refund_completed_only'));
         }
 
         $user = $originalTransaction->user;
@@ -266,7 +266,7 @@ class WalletService
 
             // Ne pas permettre de balance négative
             if ($balanceAfter < 0) {
-                throw new \Exception("L'ajustement rendrait le solde négatif");
+                throw new \Exception(__('wallet.adjustment_negative'));
             }
 
             $row->balance = $balanceAfter;
@@ -468,7 +468,7 @@ class WalletService
             $lockedBefore = (float) $row->locked_balance;
 
             if ($lockedBefore < $amount) {
-                throw new \Exception("Impossible de débloquer {$amount} FCFA. Seulement {$lockedBefore} FCFA bloqué.");
+                throw new \Exception(__('wallet.unlock_insufficient', ['amount' => $amount, 'locked' => $lockedBefore]));
             }
 
             $lockedAfter = $lockedBefore - $amount;
@@ -524,7 +524,7 @@ class WalletService
             $lockedBefore = (float) $row->locked_balance;
 
             if ($lockedBefore < $amount) {
-                throw new \Exception("Montant bloqué insuffisant pour libération. Bloqué: {$lockedBefore} FCFA, Requis: {$amount} FCFA");
+                throw new \Exception(__('wallet.release_insufficient', ['locked' => $lockedBefore, 'amount' => $amount]));
             }
 
             // Débloquer + débiter en même temps

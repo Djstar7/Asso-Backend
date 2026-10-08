@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\ImportCountry;
 use App\Support\ImportHub;
+use App\Support\Translation\ContentLocale;
 use Illuminate\Http\Request;
 
 /**
@@ -44,18 +45,19 @@ class ImportCountryController extends Controller
             'name' => 'required|string|max:255',
             'flag' => 'nullable|string|max:16',
             'sort_order' => 'nullable|integer|min:0',
-        ], [
+        ] + ContentLocale::rules(['name' => 'string|max:255']), [
             'code.size' => 'Le code pays doit faire 2 lettres (ISO2, ex. CN, TR, AE).',
             'code.unique' => 'Ce code pays existe déjà.',
         ]);
 
-        ImportCountry::create([
+        $country = ImportCountry::create([
             'code' => strtoupper($validated['code']),
             'name' => $validated['name'],
             'flag' => $validated['flag'] ?? null,
             'sort_order' => $validated['sort_order'] ?? 0,
             'is_active' => true,
         ]);
+        $country->syncTranslations($validated['translations'] ?? null);
 
         return redirect()->route('admin.import-countries.index')
             ->with('success', 'Pays ajouté avec succès.');
@@ -68,7 +70,7 @@ class ImportCountryController extends Controller
             'name' => 'required|string|max:255',
             'flag' => 'nullable|string|max:16',
             'sort_order' => 'nullable|integer|min:0',
-        ], [
+        ] + ContentLocale::rules(['name' => 'string|max:255']), [
             'code.size' => 'Le code pays doit faire 2 lettres (ISO2, ex. CN, TR, AE).',
             'code.unique' => 'Ce code pays existe déjà.',
         ]);
@@ -79,6 +81,7 @@ class ImportCountryController extends Controller
             'flag' => $validated['flag'] ?? null,
             'sort_order' => $validated['sort_order'] ?? 0,
         ]);
+        $importCountry->syncTranslations($validated['translations'] ?? null);
 
         return redirect()->route('admin.import-countries.index')
             ->with('success', 'Pays mis à jour avec succès.');

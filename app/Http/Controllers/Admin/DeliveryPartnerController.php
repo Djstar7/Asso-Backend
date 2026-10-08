@@ -10,6 +10,7 @@ use App\Models\Setting;
 use App\Services\DeliveryQuoteService;
 use App\Support\CountryCode;
 use App\Support\DeliveryDelay;
+use App\Support\Translation\ContentLocale;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -59,7 +60,9 @@ class DeliveryPartnerController extends Controller
 
     public function store(Request $request)
     {
-        $company = DelivererCompany::create($this->validatePartner($request) + ['is_active' => false]);
+        $validated = $this->validatePartner($request);
+        $company = DelivererCompany::create($validated + ['is_active' => false]);
+        $company->syncTranslations($validated['translations'] ?? null);
 
         return redirect()->route('admin.delivery-partners.edit', $company)
             ->with('success', "Partenaire « {$company->name} » créé. Ajoutez ses trajets puis activez-le.");
@@ -78,16 +81,19 @@ class DeliveryPartnerController extends Controller
 
     public function update(Request $request, DelivererCompany $partner)
     {
-        $partner->update($this->validatePartner($request, $partner) + [
+        $validated = $this->validatePartner($request, $partner);
+        $partner->update($validated + [
             'is_active' => $request->boolean('is_active'),
         ]);
+        $partner->syncTranslations($validated['translations'] ?? null);
 
         return back()->with('success', 'Partenaire mis à jour.');
     }
 
     public function storeRoute(Request $request, DelivererCompany $partner)
     {
-        $partner->deliveryRoutes()->create($this->validateRoute($request));
+        $route = $partner->deliveryRoutes()->create($this->validateRoute($request));
+        $route->syncTranslations($request->validate(ContentLocale::rules(['lead_time' => 'string|max:60']))['translations'] ?? null);
 
         return back()->with('success', 'Trajet ajouté.');
     }
@@ -96,6 +102,7 @@ class DeliveryPartnerController extends Controller
     {
         abort_unless($route->deliverer_company_id === $partner->id, 404);
         $route->update($this->validateRoute($request));
+        $route->syncTranslations($request->validate(ContentLocale::rules(['lead_time' => 'string|max:60']))['translations'] ?? null);
 
         return back()->with('success', 'Trajet « ' . $route->label() . ' » mis à jour.');
     }
@@ -174,6 +181,9 @@ class DeliveryPartnerController extends Controller
             'vehicles.*.lead_time' => 'nullable|string|max:60',
             'vehicles.*.prices' => 'nullable|array',
             'vehicles.*.prices.*' => 'nullable|numeric|min:0',
+            'translations.*.vehicles' => 'nullable|array',
+            'translations.*.vehicles.*.label' => 'nullable|string|max:60',
+            'translations.*.vehicles.*.lead_time' => 'nullable|string|max:60',
             'agency_zone' => 'nullable|integer|min:1',
         ]);
 
@@ -222,6 +232,15 @@ class DeliveryPartnerController extends Controller
             'agency_zone' => $validated['agency_zone'] ?? null,
             'is_active' => $request->boolean('is_active'),
         ]);
+        // Libellés et délais des véhicules dans les autres langues : {code: {label, lead_time}}.
+        foreach (ContentLocale::targets() as $locale) {
+            if (isset($validated['translations'][$locale]['vehicles'])) {
+                $grid->setTranslation('vehicles', $locale, collect($validated['translations'][$locale]['vehicles'])
+                    ->map(fn ($v) => array_filter(['label' => $v['label'] ?? null, 'lead_time' => $v['lead_time'] ?? null], 'filled'))
+                    ->filter()
+                    ->all());
+            }
+        }
 
         // Lien avec les vendeurs : quartier de chaque boutique de la ville recalculé.
         $linked = 0;
@@ -283,7 +302,7 @@ class DeliveryPartnerController extends Controller
             'conditions' => 'nullable|string|max:3000',
             'max_weight_kg' => 'nullable|numeric|min:0.1',
             'tracking_url_template' => 'nullable|string|max:255',
-        ]);
+        ] + ContentLocale::rules(['description' => 'string|max:1000', 'conditions' => 'string|max:3000']));
 
         return $validated + ['prices_exclude_vat' => $request->boolean('prices_exclude_vat')];
     }
@@ -304,6 +323,7 @@ class DeliveryPartnerController extends Controller
             'extra_per_kg' => 'nullable|numeric|min:0',
             'ranges' => 'required|array|min:1',
             'ranges.*.label' => 'nullable|string|max:60',
+            'ranges.*.label_en' => 'nullable|string|max:60',
             'ranges.*.min' => 'nullable|numeric|min:0',
             'ranges.*.max' => 'nullable|numeric|min:0.001',
             'ranges.*.price' => 'nullable|numeric|min:0',
@@ -316,6 +336,7 @@ class DeliveryPartnerController extends Controller
                 'max' => (float) $r['max'],
                 'price' => (float) $r['price'],
                 'label' => trim((string) ($r['label'] ?? '')),
+                'label_en' => trim((string) ($r['label_en'] ?? '')),
             ])
             ->sortBy('max')
             ->values()

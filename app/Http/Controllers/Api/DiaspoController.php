@@ -647,7 +647,7 @@ class DiaspoController extends Controller
 
         $converted = ExchangeRateService::convertAmount($currency, PaymentMethodService::PIVOT, $amount);
         if ($converted === null) {
-            throw new \RuntimeException("Taux {$currency} → " . PaymentMethodService::PIVOT . ' indisponible');
+            throw new \RuntimeException(__('payments.rate_unavailable', ['currency' => $currency, 'pivot' => PaymentMethodService::PIVOT]));
         }
 
         return round($converted, 2);

@@ -2,7 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Middleware\SetLocale;
 use App\Models\LegalPage;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\App;
 
 /**
  * Pages légales (CGU, CGV, confidentialité…) rédigées dans le back-office.
@@ -14,10 +17,15 @@ use App\Models\LegalPage;
 class PublicLegalPageController extends Controller
 {
     /**
-     * GET /legal/{slug}
+     * GET /legal/{slug}?lang=en
+     *
+     * Page web hors API : la langue vient du paramètre lang (français par défaut).
      */
-    public function show(string $slug)
+    public function show(Request $request, string $slug)
     {
+        $lang = (string) $request->query('lang', 'fr');
+        App::setLocale(in_array($lang, SetLocale::SUPPORTED, true) ? $lang : 'fr');
+
         $page = LegalPage::findActiveBySlug($slug);
         abort_unless($page, 404);
 
@@ -45,7 +53,7 @@ class PublicLegalPageController extends Controller
     {
         $page = LegalPage::findActiveBySlug($slug);
         if (!$page) {
-            return response()->json(['success' => false, 'message' => 'Page introuvable.'], 404);
+            return response()->json(['success' => false, 'message' => __('legal.not_found')], 404);
         }
 
         return response()->json([
@@ -54,12 +62,20 @@ class PublicLegalPageController extends Controller
         ]);
     }
 
+    /** Lien public de la page, dans la langue courante. */
+    public static function url(string $slug): string
+    {
+        $locale = App::getLocale();
+
+        return route('legal.show', $locale === 'fr' ? $slug : ['slug' => $slug, 'lang' => $locale]);
+    }
+
     public static function summary(LegalPage $page): array
     {
         return [
             'slug' => $page->slug,
             'title' => $page->title,
-            'url' => route('legal.show', $page->slug),
+            'url' => self::url($page->slug),
             'updated_at' => $page->updated_at?->toIso8601String(),
         ];
     }

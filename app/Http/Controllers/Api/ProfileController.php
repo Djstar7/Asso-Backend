@@ -131,7 +131,7 @@ class ProfileController extends Controller
             'country' => $request->shop_country,
             'latitude' => $request->shop_latitude,
             'longitude' => $request->shop_longitude,
-            'categories' => $request->categories ?? [],
+            'categories' => \App\Models\Category::sourceNames($request->categories ?? []),
             'status' => 'inactive', // Shop starts as inactive, admin will activate after verification
         ];
 
@@ -208,7 +208,7 @@ class ProfileController extends Controller
                     'location_label' => $shop->location_label,
                     'latitude' => $shop->latitude,
                     'longitude' => $shop->longitude,
-                    'categories' => $shop->categories,
+                    'categories' => \App\Models\Category::displayNames($shop->categories),
                     'status' => $shop->status,
                     'is_certified' => (bool) $shop->is_certified,
                 ],
@@ -444,7 +444,7 @@ class ProfileController extends Controller
                     'location_label' => $shop->location_label,
                         'latitude' => $shop->latitude,
                         'longitude' => $shop->longitude,
-                        'categories' => $shop->categories,
+                        'categories' => \App\Models\Category::displayNames($shop->categories),
                         'status' => $shop->status,
                         'is_certified' => (bool) $shop->is_certified,
                     ],

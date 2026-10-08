@@ -28,7 +28,7 @@ class DeviceTokenController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => __('common.validation_failed'),
                 'errors' => $validator->errors(),
             ], 422);
         }
@@ -104,7 +104,7 @@ class DeviceTokenController extends Controller
         if (!$deviceToken) {
             return response()->json([
                 'success' => false,
-                'message' => 'Device token not found',
+                'message' => __('devices.token_not_found'),
             ], 404);
         }
 
@@ -112,7 +112,7 @@ class DeviceTokenController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Device token deleted successfully',
+            'message' => __('devices.token_deleted'),
         ]);
     }
 
@@ -131,7 +131,7 @@ class DeviceTokenController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => __('common.validation_failed'),
                 'errors' => $validator->errors(),
             ], 422);
         }
@@ -145,13 +145,13 @@ class DeviceTokenController extends Controller
         if ($deleted) {
             return response()->json([
                 'success' => true,
-                'message' => 'Device token deleted successfully',
+                'message' => __('devices.token_deleted'),
             ]);
         }
 
         return response()->json([
             'success' => false,
-            'message' => 'Device token not found',
+            'message' => __('devices.token_not_found'),
         ], 404);
     }
 
@@ -173,7 +173,7 @@ class DeviceTokenController extends Controller
         if (!$deviceToken) {
             return response()->json([
                 'success' => false,
-                'message' => 'Device token not found',
+                'message' => __('devices.token_not_found'),
             ], 404);
         }
 
@@ -181,7 +181,7 @@ class DeviceTokenController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Device token deactivated successfully',
+            'message' => __('devices.token_deactivated'),
             'data' => $deviceToken->fresh(),
         ]);
     }
@@ -204,7 +204,7 @@ class DeviceTokenController extends Controller
         if (!$deviceToken) {
             return response()->json([
                 'success' => false,
-                'message' => 'Device token not found',
+                'message' => __('devices.token_not_found'),
             ], 404);
         }
 
@@ -212,7 +212,7 @@ class DeviceTokenController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Device token activated successfully',
+            'message' => __('devices.token_activated'),
             'data' => $deviceToken->fresh(),
         ]);
     }

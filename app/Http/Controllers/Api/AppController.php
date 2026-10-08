@@ -27,7 +27,8 @@ class AppController extends Controller
                 'contact' => [
                     'email' => 'contact@asso.app',
                     'phone' => '+229 01 00 00 00',
-                    'address' => 'Cotonou, Bénin',
+                    // Adresse saisie dans le back-office (traduisible), sinon celle d'origine.
+                    'address' => \App\Models\Setting::get('contact_address') ?: 'Cotonou, Bénin',
                     'website' => 'https://asso.app',
                 ],
                 'social' => [
@@ -62,7 +63,7 @@ class AppController extends Controller
                 'force_update' => false,
                 'update_available' => false,
                 'update_url' => null,
-                'release_notes' => 'Version initiale.',
+                'release_notes' => __('app.release_notes_initial'),
             ],
         ]);
     }

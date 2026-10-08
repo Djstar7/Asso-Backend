@@ -30,6 +30,12 @@ class OrderTrackingService
         'cancelled' => 'Commande annulée',
     ];
 
+    /** Libellé d'une étape dans la langue de la requête (STEPS reste le libellé enregistré). */
+    public static function stepLabel(?string $step): ?string
+    {
+        return $step !== null && isset(self::STEPS[$step]) ? __("tracking.steps.{$step}") : null;
+    }
+
     /** Étapes qu'un vendeur ou l'admin saisit pendant l'acheminement transporteur. */
     public const CARRIER_UPDATE_STEPS = ['in_transit', 'customs', 'arrived', 'ready_for_pickup'];
 

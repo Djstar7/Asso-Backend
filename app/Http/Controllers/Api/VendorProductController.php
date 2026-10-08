@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use App\Models\DeliveryPricelist;
 use App\Services\ProductVariantService;
+use App\Support\Translation\ContentLocale;
 
 class VendorProductController extends Controller
 {
@@ -21,7 +22,7 @@ class VendorProductController extends Controller
     {
         $user = $request->user();
 
-        $query = Product::with(['images', 'primaryImage', 'category', 'subcategory', 'shop', 'variants'])
+        $query = Product::with(['images', 'primaryImage', 'category', 'subcategory', 'shop', 'variants', 'translations'])
             ->where('user_id', $user->id)
             // Départage par id : sans lui, les produits créés à la même
             // seconde s'ordonnent librement d'une requête à l'autre, et la
@@ -119,6 +120,7 @@ class VendorProductController extends Controller
             // Livraison gratuite : null = suit la boutique.
             'free_delivery' => 'sometimes|nullable|boolean',
         ] + \App\Services\DepositOrderService::productRules() + ProductVariantService::rules()
+            + ContentLocale::rules(Product::TRANSLATION_RULES)
             + \App\Support\DeliveryDelay::rules());
 
         \Log::info('[VENDOR_PRODUCT_UPDATE] Received data:', [
@@ -170,7 +172,7 @@ class VendorProductController extends Controller
             $updateData = $validated;
             $variants = $updateData['variants'] ?? ($request->boolean('replace_variants') ? [] : null);
             $variantOptions = $updateData['variant_options'] ?? null;
-            unset($updateData['images'], $updateData['variants'], $updateData['variant_options'], $updateData['replace_variants']);
+            unset($updateData['images'], $updateData['variants'], $updateData['variant_options'], $updateData['replace_variants'], $updateData['translations']);
             unset($updateData['deposit_enabled'], $updateData['deposit_rate']);
             $updateData += \App\Services\DepositOrderService::productAttributes($validated);
 
@@ -198,6 +200,9 @@ class VendorProductController extends Controller
             ]);
 
             $product->update($updateData);
+            if (array_key_exists('translations', $validated)) {
+                $product->syncTranslations($validated['translations']);
+            }
             if ($variants !== null) {
                 app(ProductVariantService::class)->sync($product, $variants, $variantOptions);
             }
@@ -473,6 +478,8 @@ class VendorProductController extends Controller
             'description' => $product->description,
             'characteristics' => $product->characteristics,
             'commercial_information' => $product->commercial_information,
+            // Versions dans les autres langues, pour le formulaire du vendeur.
+            'translations' => $product->translationsPayload(),
             'price' => (float) $product->price,
             'currency' => $product->currency ?? 'XAF',
             'price_xaf' => $product->price_xaf !== null ? (float) $product->price_xaf : (float) $product->price,

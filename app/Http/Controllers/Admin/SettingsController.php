@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\CommissionRange;
 use App\Models\ServiceConfiguration;
 use App\Models\Setting;
+use App\Support\Translation\ContentLocale;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -57,7 +58,7 @@ class SettingsController extends Controller
                     'contact_email' => 'required|email',
                     'contact_phone' => 'nullable|string|max:20',
                     'contact_address' => 'nullable|string|max:255',
-                ]);
+                ] + ContentLocale::rules(Setting::TRANSLATABLE_KEYS));
             }
 
             // Onglet Système
@@ -82,8 +83,8 @@ class SettingsController extends Controller
 
             // Mettre à jour tous les paramètres
             foreach ($validated as $key => $value) {
-                if ($key === 'app_logo') {
-                    continue; // Déjà géré ci-dessus
+                if ($key === 'app_logo' || $key === 'translations') {
+                    continue; // Déjà géré ci-dessus / plus bas
                 }
 
                 $type = in_array($key, ['app_description']) ? 'text' : 'string';
@@ -93,6 +94,15 @@ class SettingsController extends Controller
                 $group = in_array($key, ['timezone', 'default_language', 'currency', 'currency_symbol', 'min_deposit_amount', 'min_withdrawal_amount']) ? 'system' : 'general';
 
                 Setting::set($key, $value, $type, $group);
+            }
+
+            // Versions des textes publics dans les autres langues.
+            foreach (ContentLocale::targets() as $locale) {
+                foreach (($validated['translations'][$locale] ?? []) as $key => $value) {
+                    $setting = Setting::where('key', $key)->first();
+                    $setting?->setTranslation('value', $locale, $value);
+                    Setting::forgetCached($key, $setting?->group);
+                }
             }
 
             return redirect()->route('admin.settings.index')

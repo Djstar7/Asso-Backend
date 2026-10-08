@@ -27,6 +27,7 @@ class WeightGrid
                 'max' => (float) $r['max'],
                 'price' => (float) $r['price'],
                 'label' => trim((string) ($r['label'] ?? '')),
+                'label_en' => trim((string) ($r['label_en'] ?? '')),
             ])
             ->sortBy('max')
             ->values();
@@ -79,6 +80,7 @@ class WeightGrid
                     'min' => (float) ($r['min'] ?? 0),
                     'max' => (float) ($r['max'] ?? 0),
                     'label' => trim((string) ($r['label'] ?? '')),
+                    'label_en' => trim((string) ($r['label_en'] ?? '')),
                 ]),
                 'price' => (float) ($r['price'] ?? 0),
             ])
@@ -88,9 +90,11 @@ class WeightGrid
 
     private static function label(array $range): string
     {
-        $bounds = self::kg($range['min']) . ' à ' . self::kg($range['max']) . ' kg';
+        $bounds = __('delivery.quote.kg_range', ['min' => self::kg($range['min']), 'max' => self::kg($range['max'])]);
+        // Libellé saisi en français, avec sa version anglaise facultative (label_en).
+        $label = app()->getLocale() === 'en' && ($range['label_en'] ?? '') !== '' ? $range['label_en'] : $range['label'];
 
-        return $range['label'] !== '' ? "{$range['label']} ({$bounds})" : $bounds;
+        return $label !== '' ? "{$label} ({$bounds})" : $bounds;
     }
 
     private static function kg(float $value): string

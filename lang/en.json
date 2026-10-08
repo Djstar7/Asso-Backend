@@ -315,7 +315,12 @@
         "kpay_not_configured": "KPay not configured (missing API keys).",
         "connection_error": "Error connecting to the payment service",
         "kpay_payment_init_error": "Error while initializing the payment",
-        "kpay_withdrawal_init_error": "Error while initializing the withdrawal"
+        "kpay_withdrawal_init_error": "Error while initializing the withdrawal",
+        "invalid_amount": "Invalid payment amount.",
+        "invalid_payout_amount": "Invalid payout amount.",
+        "rate_unavailable": "Exchange rate :currency → :pivot is unavailable.",
+        "kpay_payment_initiated": "Payment initiated",
+        "kpay_withdrawal_initiated": "Withdrawal initiated"
     },
     "notifications": {
         "diaspo_booking_paid": {
@@ -687,7 +692,20 @@
         "dispute_resolved_vendor": {
             "title": "Replacement validated",
             "body": "Claim :number: the replacement is validated, the product's funds are released."
-        }
+        },
+        "new_diaspo_offer": {
+            "title": "New DIASPO offer available"
+        },
+        "new_product": {
+            "title": "New product available",
+            "body": ":shop has published: :product"
+        },
+        "sponsored_product": {
+            "title": "Featured product",
+            "body": ":shop presents: :product"
+        },
+        "default_shop_name": "A shop",
+        "announcement_default_title": "New announcement"
     },
     "orders": {
         "created_confirm_on_phone": "Order created. Confirm the payment on your phone (USSD).",
@@ -779,7 +797,10 @@
         "not_found_short": "Product not found.",
         "default_name": "Product",
         "deposit_enabled": "Deposit ordering enabled for this product.",
-        "deposit_disabled": "Deposit ordering disabled: standard payment."
+        "deposit_disabled": "Deposit ordering disabled: standard payment.",
+        "image_analyzed": "Image analyzed.",
+        "image_analysis_failed": "An error occurred while analyzing the image.",
+        "categories_fetch_failed": "Could not load the categories."
     },
     "shops": {
         "not_a_vendor": "You are not a vendor",
@@ -885,7 +906,38 @@
         "zone_available": "Delivery zone available",
         "partners_fetch_error": "Error while fetching delivery partners",
         "agency_label": "Agency :company",
-        "announced_lead_time": "Announced lead time: :lead_time"
+        "announced_lead_time": "Announced lead time: :lead_time",
+        "quote": {
+            "in_city": "Delivery in :city",
+            "flat_rate": "Flat rate",
+            "weight_category": "Category :category",
+            "home_in_city_zones": "Home delivery in :city · :from → :to",
+            "up_to": "up to :weight",
+            "transport": "Transport :route",
+            "transport_agency": "Transport :route (agency to agency)",
+            "home_by_vehicle_from_agency": "Home delivery by :vehicle from the agency to :zone",
+            "home_from_agency_in_city": "Home delivery in :city from the agency",
+            "home_from_agency": "Home delivery from the agency",
+            "kg_range": ":min to :max kg"
+        },
+        "options": {
+            "agency_pickup": "Agency pickup",
+            "home_delivery": "Home delivery"
+        },
+        "service_types": {
+            "local": "Local (same city)",
+            "intercity": "Intercity (Cameroon)",
+            "international": "International delivery"
+        },
+        "service_modes": {
+            "door_to_door": "Home delivery",
+            "agency_to_agency": "Agency to agency (drop-off and pickup at the agency)"
+        },
+        "import_modes": {
+            "air": "Air",
+            "sea": "Sea",
+            "express": "Express"
+        }
     },
     "common": {
         "unauthorized": "Unauthorized",
@@ -910,7 +962,8 @@
     "app": {
         "copyright": "© 2026 ASSO. All rights reserved.",
         "support_account_unavailable": "Support account unavailable.",
-        "description": "ASSO is the community marketplace connecting sellers, buyers and delivery people, with a mutual-aid space and a diaspora service."
+        "description": "ASSO is the community marketplace connecting sellers, buyers and delivery people, with a mutual-aid space and a diaspora service.",
+        "release_notes_initial": "Initial release."
     },
     "posts": {
         "not_found": "Post not found",
@@ -964,7 +1017,20 @@
         },
         "boost_campaign_not_found": "Campaign not found.",
         "boost_campaign_not_running": "This campaign is no longer running.",
-        "boost_campaign_stopped": "Campaign stopped."
+        "boost_campaign_stopped": "Campaign stopped.",
+        "sales_code_required": "Enter a sales code.",
+        "sales_code_unknown": "This sales code does not exist or is no longer active.",
+        "duration": {
+            "day": "1 day",
+            "days": ":count days",
+            "month": "1 month",
+            "months": ":count months",
+            "years": ":count year(s)"
+        },
+        "storage": {
+            "gb": ":size GB",
+            "mb": ":size MB"
+        }
     },
     "wallet": {
         "insufficient_available_balance": "Insufficient available KPay balance. Available: :available FCFA, required amount: :amount FCFA",
@@ -1007,7 +1073,12 @@
             "deleted": "Withdrawal details deleted."
         },
         "can_pay": "Payment possible with KPay wallet",
-        "insufficient_balance_missing": "Insufficient available KPay balance. You are missing :missing FCFA"
+        "insufficient_balance_missing": "Insufficient available KPay balance. You are missing :missing FCFA",
+        "refund_debit_only": "Only debits can be refunded.",
+        "refund_completed_only": "Only completed transactions can be refunded.",
+        "adjustment_negative": "This adjustment would make the balance negative.",
+        "unlock_insufficient": "Cannot unlock :amount FCFA: only :locked FCFA is on hold.",
+        "release_insufficient": "Not enough funds on hold: :locked FCFA held, :amount FCFA required."
     },
     "tracking": {
         "steps": {
@@ -1022,7 +1093,9 @@
             "arrived": "Arrived in the destination city",
             "ready_for_pickup": "Ready for pickup at the agency",
             "delivered": "Delivered — receipt confirmed",
-            "cancelled": "Order cancelled"
+            "cancelled": "Order cancelled",
+            "conformity_confirmed": "Order approved by the customer — everything is as described",
+            "auto_validated": "Order approved automatically (48 h without a claim)"
         }
     },
     "disputes": {
@@ -1043,6 +1116,101 @@
         "return_validated": "Your return request is approved. A delivery partner will contact you to collect the product. You pay no return fees.",
         "evidence_sent": "Your information has been sent to ASSO.",
         "confirm_on_phone": "Confirm the delivery payment on your phone.",
-        "shipment_paid": "Delivery paid. The partner takes over."
+        "shipment_paid": "Delivery paid. The partner takes over.",
+        "status": {
+            "new": "New",
+            "in_review": "Under review",
+            "vendor_contacted": "Seller contacted",
+            "replacement": "Replacement",
+            "return": "Return",
+            "refunded": "Refunded",
+            "rejected": "Rejected",
+            "resolved": "Resolved",
+            "closed": "Closed"
+        },
+        "events": {
+            "opened": "Claim recorded — seller funds on hold",
+            "in_review": "Under review by ASSO",
+            "vendor_contacted": "Seller contacted by ASSO",
+            "vendor_reply": "Seller's reply",
+            "asso_evidence": "Document added by ASSO",
+            "internal_note": "Internal note",
+            "decision_unfounded": "Claim not upheld — seller funds released, dispute closed",
+            "decision_founded": "Claim upheld — replacement or return to arrange",
+            "replacement_authorized": "Replacement approved — delivery paid by the seller",
+            "return_after_replacement": "Replacement not as described — return and refund",
+            "return_case_b": "Product return and refund — return delivery paid by the seller",
+            "replacement_rejected": "The customer reports the replacement as not as described",
+            "return_paid_asso": "Return delivery paid by ASSO — courier selected",
+            "return_paid_vendor": "Return delivery paid by the seller — courier selected",
+            "replacement_paid_asso": "Replacement delivery paid by ASSO — courier selected",
+            "replacement_paid_vendor": "Replacement delivery paid by the seller — courier selected",
+            "refunded": "Customer refunded to their ASSO Wallet — case refunded / closed",
+            "replacement_conform": "Replacement as described — seller funds released",
+            "replacement_auto_validated": "No action after 48 h — replacement approved automatically"
+        },
+        "shipment_steps": {
+            "return": {
+                "awaiting_payment": "Return requested — delivery to be paid by the seller",
+                "courier_selected": "Courier selected",
+                "pickup_scheduled": "Pickup scheduled",
+                "picked_up": "Product picked up from the customer",
+                "in_transit": "On its way back",
+                "delivered_to_vendor": "Delivered to the seller",
+                "confirmed": "Return confirmed"
+            },
+            "replacement": {
+                "awaiting_payment": "Replacement approved — delivery to be paid by the seller",
+                "courier_selected": "Courier selected",
+                "shipped": "Replacement product shipped",
+                "delivered": "Replacement product delivered"
+            }
+        }
+    },
+    "legal": {
+        "not_found": "Page not found.",
+        "updated_on": "Last updated: :date",
+        "other_documents": "Other documents"
+    },
+    "otp": {
+        "none_configured": "No code delivery service is set up. Please contact the administrator.",
+        "sent_whatsapp": "OTP code sent via WhatsApp.",
+        "sent_sms": "OTP code sent by SMS.",
+        "sms_not_configured": "SMS service is not set up. Please contact the administrator.",
+        "whatsapp_not_configured": "WhatsApp service is not set up.",
+        "sms_failed": "The SMS could not be sent. Please try again.",
+        "sms_error": "Error while sending the SMS: :error",
+        "sms_text": "Use \":code\" to continue on Asso. Valid for 5 minutes. Do not share it with anyone."
+    },
+    "devices": {
+        "token_not_found": "Device token not found.",
+        "token_deleted": "Device token deleted.",
+        "token_deactivated": "Device token deactivated.",
+        "token_activated": "Device token activated."
+    },
+    "boosts": {
+        "status": {
+            "active": "Running",
+            "completed": "Finished (audience reached)",
+            "expired": "Finished (end date)",
+            "cancelled": "Cancelled"
+        }
+    },
+    "mail": {
+        "otp": {
+            "subject": "Verification code - ASSO",
+            "tagline": "Marketplace - Your market in your pocket",
+            "greeting": "Hello,",
+            "intro": "You asked for a verification code to access your ASSO account. Use the code below to continue:",
+            "code_label": "Your verification code",
+            "important": "Important:",
+            "expiry": "This code expires in <strong>5 minutes</strong>.",
+            "security_title": "Security",
+            "security_text": "If you did not ask for this code, please ignore this email. Never share this code with anyone. The ASSO team will never ask you for your verification code.",
+            "thanks": "Thank you for using ASSO!",
+            "regards": "Kind regards,",
+            "team": "The ASSO team",
+            "rights": "All rights reserved."
+        }
     }
 }

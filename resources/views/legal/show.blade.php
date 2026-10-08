@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="{{ app()->getLocale() }}">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -32,17 +32,17 @@
 <body class="{{ request()->boolean('app') ? 'in-app' : '' }}">
 <main>
     <h1>{{ $page->title }}</h1>
-    <p class="updated">Dernière mise à jour : {{ $page->updated_at?->format('d/m/Y') }}</p>
+    <p class="updated">{{ __('legal.updated_on', ['date' => $page->updated_at?->format('d/m/Y')]) }}</p>
 
     {{-- Contenu HTML rédigé par l'administration (éditeur Quill). --}}
     <div class="content">{!! $page->content !!}</div>
 
     @if($others->isNotEmpty())
         <nav>
-            <strong>Autres documents</strong>
+            <strong>{{ __('legal.other_documents') }}</strong>
             <ul>
                 @foreach($others as $other)
-                    <li><a href="{{ route('legal.show', $other->slug) }}{{ request()->boolean('app') ? '?app=1' : '' }}">{{ $other->title }}</a></li>
+                    <li><a href="{{ route('legal.show', array_filter(['slug' => $other->slug, 'lang' => app()->getLocale() === 'fr' ? null : app()->getLocale(), 'app' => request()->boolean('app') ? 1 : null])) }}">{{ $other->title }}</a></li>
                 @endforeach
             </ul>
         </nav>

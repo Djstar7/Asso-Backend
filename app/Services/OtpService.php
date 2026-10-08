@@ -74,7 +74,7 @@ class OtpService
         Log::error('OtpService: No OTP service is enabled');
         return [
             'success' => false,
-            'message' => 'Aucun service d\'envoi d\'OTP n\'est configuré. Contactez l\'administrateur.',
+            'message' => __('otp.none_configured'),
             'channel' => 'none',
         ];
     }
@@ -100,7 +100,7 @@ class OtpService
             if ($result['success']) {
                 return [
                     'success' => true,
-                    'message' => 'Code OTP envoyé par WhatsApp.',
+                    'message' => __('otp.sent_whatsapp'),
                     'channel' => 'whatsapp',
                     'data' => $result['data'] ?? null,
                 ];
@@ -137,7 +137,7 @@ class OtpService
                 Log::error('OtpService: SMS service not configured');
                 return [
                     'success' => false,
-                    'message' => 'Service SMS non configuré. Contactez l\'administrateur.',
+                    'message' => __('otp.sms_not_configured'),
                     'channel' => 'sms',
                 ];
             }
@@ -162,7 +162,7 @@ class OtpService
 
             return [
                 'success' => false,
-                'message' => 'Erreur lors de l\'envoi du SMS: ' . $e->getMessage(),
+                'message' => __('otp.sms_error', ['error' => $e->getMessage()]),
                 'channel' => 'sms',
             ];
         }

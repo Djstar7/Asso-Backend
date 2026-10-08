@@ -315,7 +315,12 @@
         "kpay_not_configured": "KPay non configuré (clés API manquantes).",
         "connection_error": "Erreur de connexion au service de paiement",
         "kpay_payment_init_error": "Erreur lors de l'initialisation du paiement",
-        "kpay_withdrawal_init_error": "Erreur lors de l'initialisation du retrait"
+        "kpay_withdrawal_init_error": "Erreur lors de l'initialisation du retrait",
+        "invalid_amount": "Montant de paiement invalide.",
+        "invalid_payout_amount": "Montant de virement invalide.",
+        "rate_unavailable": "Taux de change :currency → :pivot indisponible.",
+        "kpay_payment_initiated": "Paiement initié",
+        "kpay_withdrawal_initiated": "Retrait initié"
     },
     "notifications": {
         "diaspo_booking_paid": {
@@ -687,7 +692,20 @@
         "dispute_resolved_vendor": {
             "title": "Remplacement validé",
             "body": "Réclamation :number : le remplacement est validé, les fonds du produit sont débloqués."
-        }
+        },
+        "new_diaspo_offer": {
+            "title": "Nouvelle offre DIASPO disponible"
+        },
+        "new_product": {
+            "title": "Nouveau produit disponible",
+            "body": ":shop a publié : :product"
+        },
+        "sponsored_product": {
+            "title": "Produit à la une",
+            "body": ":shop vous présente : :product"
+        },
+        "default_shop_name": "Une boutique",
+        "announcement_default_title": "Nouvelle annonce"
     },
     "orders": {
         "created_confirm_on_phone": "Commande créée. Validez le paiement sur votre téléphone (USSD).",
@@ -779,7 +797,10 @@
         "not_found_short": "Produit introuvable.",
         "default_name": "Produit",
         "deposit_enabled": "Commande avec acompte activée pour ce produit.",
-        "deposit_disabled": "Commande avec acompte désactivée : paiement classique."
+        "deposit_disabled": "Commande avec acompte désactivée : paiement classique.",
+        "image_analyzed": "Image analysée.",
+        "image_analysis_failed": "Une erreur est survenue pendant l'analyse de l'image.",
+        "categories_fetch_failed": "Impossible de charger les catégories."
     },
     "shops": {
         "not_a_vendor": "Vous n'êtes pas vendeur",
@@ -885,7 +906,38 @@
         "zone_available": "Zone de livraison disponible",
         "partners_fetch_error": "Erreur lors de la récupération des partenaires de livraison",
         "agency_label": "Agence :company",
-        "announced_lead_time": "Délai annoncé : :lead_time"
+        "announced_lead_time": "Délai annoncé : :lead_time",
+        "quote": {
+            "in_city": "Livraison dans :city",
+            "flat_rate": "Forfait",
+            "weight_category": "Catégorie :category",
+            "home_in_city_zones": "Livraison à domicile à :city · :from → :to",
+            "up_to": "jusqu'à :weight",
+            "transport": "Transport :route",
+            "transport_agency": "Transport :route (d'agence à agence)",
+            "home_by_vehicle_from_agency": "Livraison à domicile en :vehicle depuis l'agence vers :zone",
+            "home_from_agency_in_city": "Livraison à domicile à :city depuis l'agence",
+            "home_from_agency": "Livraison à domicile depuis l'agence",
+            "kg_range": ":min à :max kg"
+        },
+        "options": {
+            "agency_pickup": "Retrait en agence",
+            "home_delivery": "Livraison à domicile"
+        },
+        "service_types": {
+            "local": "Urbain (même ville)",
+            "intercity": "Interurbain (Cameroun)",
+            "international": "Livraison internationale"
+        },
+        "service_modes": {
+            "door_to_door": "Livraison à domicile",
+            "agency_to_agency": "D'agence en agence (dépôt et retrait en agence)"
+        },
+        "import_modes": {
+            "air": "Avion",
+            "sea": "Bateau",
+            "express": "Express"
+        }
     },
     "common": {
         "unauthorized": "Non autorisé",
@@ -910,7 +962,8 @@
     "app": {
         "copyright": "© 2026 ASSO. Tous droits réservés.",
         "support_account_unavailable": "Compte support indisponible.",
-        "description": "ASSO est la marketplace communautaire qui connecte vendeurs, acheteurs et livreurs, avec un espace d'entraide et un service diaspo."
+        "description": "ASSO est la marketplace communautaire qui connecte vendeurs, acheteurs et livreurs, avec un espace d'entraide et un service diaspo.",
+        "release_notes_initial": "Version initiale."
     },
     "posts": {
         "not_found": "Publication introuvable",
@@ -964,7 +1017,20 @@
         },
         "boost_campaign_not_found": "Campagne introuvable.",
         "boost_campaign_not_running": "Cette campagne n'est plus en cours.",
-        "boost_campaign_stopped": "Campagne arrêtée."
+        "boost_campaign_stopped": "Campagne arrêtée.",
+        "sales_code_required": "Saisissez un code commercial.",
+        "sales_code_unknown": "Ce code commercial n'existe pas ou n'est plus actif.",
+        "duration": {
+            "day": "1 jour",
+            "days": ":count jours",
+            "month": "1 mois",
+            "months": ":count mois",
+            "years": ":count an(s)"
+        },
+        "storage": {
+            "gb": ":size Go",
+            "mb": ":size Mo"
+        }
     },
     "wallet": {
         "insufficient_available_balance": "Solde KPay disponible insuffisant. Disponible: :available FCFA, Montant requis: :amount FCFA",
@@ -1007,7 +1073,12 @@
             "deleted": "Coordonnées de retrait supprimées."
         },
         "can_pay": "Paiement possible avec wallet KPay",
-        "insufficient_balance_missing": "Solde KPay disponible insuffisant. Il vous manque :missing FCFA"
+        "insufficient_balance_missing": "Solde KPay disponible insuffisant. Il vous manque :missing FCFA",
+        "refund_debit_only": "Seuls les débits peuvent être remboursés.",
+        "refund_completed_only": "Seules les transactions terminées peuvent être remboursées.",
+        "adjustment_negative": "L'ajustement rendrait le solde négatif.",
+        "unlock_insufficient": "Impossible de débloquer :amount FCFA : seulement :locked FCFA sont bloqués.",
+        "release_insufficient": "Montant bloqué insuffisant : :locked FCFA bloqués, :amount FCFA requis."
     },
     "tracking": {
         "steps": {
@@ -1022,7 +1093,9 @@
             "arrived": "Arrivé dans la ville de destination",
             "ready_for_pickup": "Disponible au retrait en agence",
             "delivered": "Livré — réception confirmée",
-            "cancelled": "Commande annulée"
+            "cancelled": "Commande annulée",
+            "conformity_confirmed": "Commande validée par le client — tout est conforme",
+            "auto_validated": "Commande validée automatiquement (48 h sans réclamation)"
         }
     },
     "disputes": {
@@ -1043,6 +1116,101 @@
         "return_validated": "Votre demande de retour est validée. Un partenaire de livraison vous contactera pour récupérer le produit. Aucun frais de retour à payer.",
         "evidence_sent": "Vos éléments ont été transmis à ASSO.",
         "confirm_on_phone": "Confirmez le paiement de la livraison sur votre téléphone.",
-        "shipment_paid": "Livraison payée. Le partenaire prend le relais."
+        "shipment_paid": "Livraison payée. Le partenaire prend le relais.",
+        "status": {
+            "new": "Nouveau",
+            "in_review": "En analyse",
+            "vendor_contacted": "Vendeur contacté",
+            "replacement": "Remplacement",
+            "return": "Retour",
+            "refunded": "Remboursé",
+            "rejected": "Rejeté",
+            "resolved": "Résolu",
+            "closed": "Fermé"
+        },
+        "events": {
+            "opened": "Réclamation enregistrée — fonds vendeur bloqués",
+            "in_review": "Analyse par ASSO",
+            "vendor_contacted": "Vendeur contacté par ASSO",
+            "vendor_reply": "Réponse du vendeur",
+            "asso_evidence": "Pièce ajoutée par ASSO",
+            "internal_note": "Note interne",
+            "decision_unfounded": "Réclamation non fondée — fonds vendeur débloqués, litige clôturé",
+            "decision_founded": "Réclamation fondée — remplacement ou retour à organiser",
+            "replacement_authorized": "Remplacement autorisé — frais de livraison à la charge du vendeur",
+            "return_after_replacement": "Remplacement non conforme — retour et remboursement (Cas B)",
+            "return_case_b": "Retour du produit et remboursement (Cas B) — livraison retour payée par le vendeur",
+            "replacement_rejected": "Le client signale le remplacement comme non conforme",
+            "return_paid_asso": "Livraison retour payée par ASSO — livreur sélectionné",
+            "return_paid_vendor": "Livraison retour payée par le vendeur — livreur sélectionné",
+            "replacement_paid_asso": "Livraison du remplacement payée par ASSO — livreur sélectionné",
+            "replacement_paid_vendor": "Livraison du remplacement payée par le vendeur — livreur sélectionné",
+            "refunded": "Client remboursé sur son Wallet ASSO — dossier remboursé / clôturé",
+            "replacement_conform": "Remplacement conforme — fonds vendeur débloqués",
+            "replacement_auto_validated": "Aucune action après 48 h — remplacement validé automatiquement"
+        },
+        "shipment_steps": {
+            "return": {
+                "awaiting_payment": "Retour demandé — paiement de la course par le vendeur",
+                "courier_selected": "Livreur sélectionné",
+                "pickup_scheduled": "Collecte programmée",
+                "picked_up": "Produit récupéré chez le client",
+                "in_transit": "En retour",
+                "delivered_to_vendor": "Livré au vendeur",
+                "confirmed": "Retour confirmé"
+            },
+            "replacement": {
+                "awaiting_payment": "Remplacement autorisé — paiement de la course par le vendeur",
+                "courier_selected": "Livreur sélectionné",
+                "shipped": "Produit de remplacement expédié",
+                "delivered": "Produit de remplacement livré"
+            }
+        }
+    },
+    "legal": {
+        "not_found": "Page introuvable.",
+        "updated_on": "Dernière mise à jour : :date",
+        "other_documents": "Autres documents"
+    },
+    "otp": {
+        "none_configured": "Aucun service d'envoi de code n'est configuré. Contactez l'administrateur.",
+        "sent_whatsapp": "Code OTP envoyé par WhatsApp.",
+        "sent_sms": "Code OTP envoyé par SMS.",
+        "sms_not_configured": "Service SMS non configuré. Contactez l'administrateur.",
+        "whatsapp_not_configured": "Service WhatsApp non configuré.",
+        "sms_failed": "Impossible d'envoyer le SMS. Veuillez réessayer.",
+        "sms_error": "Erreur lors de l'envoi du SMS : :error",
+        "sms_text": "Utilisez \":code\" pour poursuivre l'opération sur Asso. Valable pendant 5 minutes. Ne le partagez avec personne."
+    },
+    "devices": {
+        "token_not_found": "Appareil introuvable.",
+        "token_deleted": "Appareil retiré.",
+        "token_deactivated": "Notifications désactivées pour cet appareil.",
+        "token_activated": "Notifications activées pour cet appareil."
+    },
+    "boosts": {
+        "status": {
+            "active": "En diffusion",
+            "completed": "Terminée (audience atteinte)",
+            "expired": "Terminée (échéance)",
+            "cancelled": "Annulée"
+        }
+    },
+    "mail": {
+        "otp": {
+            "subject": "Code de Vérification - ASSO",
+            "tagline": "Marketplace - Ton marché dans ta poche",
+            "greeting": "Bonjour,",
+            "intro": "Vous avez demandé un code de vérification pour accéder à votre compte ASSO. Utilisez le code ci-dessous pour continuer :",
+            "code_label": "Votre code de vérification",
+            "important": "Important :",
+            "expiry": "Ce code expirera dans <strong>5 minutes</strong>.",
+            "security_title": "Sécurité",
+            "security_text": "Si vous n'avez pas demandé ce code, veuillez ignorer cet email. Ne partagez jamais ce code avec qui que ce soit. L'équipe ASSO ne vous demandera jamais votre code de vérification.",
+            "thanks": "Merci d'utiliser ASSO !",
+            "regards": "Cordialement,",
+            "team": "L'équipe ASSO",
+            "rights": "Tous droits réservés."
+        }
     }
 }
