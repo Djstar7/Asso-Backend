@@ -355,6 +355,8 @@ class ImportController extends Controller
 
         if ($full) {
             // Les images sont déjà exposées dans la liste pour permettre la galerie mobile.
+            // Délai de livraison annoncé (jours ouvrables) : produit → catégorie → défaut.
+            $data['delivery_delay'] = \App\Support\DeliveryDelay::forProduct($p);
         }
 
         return $data;

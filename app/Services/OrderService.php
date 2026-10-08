@@ -19,6 +19,7 @@ use App\Services\DeliveryQuoteService;
 use App\Services\OrderTrackingService;
 use App\Services\FirebaseMessagingService;
 use App\Support\CountryCode;
+use App\Support\DeliveryDelay;
 use App\Support\ImportHub;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -101,9 +102,11 @@ class OrderService
             $itemRates = [];
             $orderItems = [];
             $sellers = [];
+            $orderedProducts = [];
 
             foreach ($items as $item) {
                 $product = Product::lockForUpdate()->findOrFail($item['product_id']);
+                $orderedProducts[] = $product;
 
                 if (!in_array($product->status, ['published', 'active'])) {
                     throw new \Exception(__('orders.product_unavailable', ['product' => $product->name]));
@@ -305,7 +308,7 @@ class OrderService
                 'delivery_vehicle' => $quote['vehicle'],
                 'shipping_weight_kg' => $quote['weight_kg'],
                 'delivery_vat_amount' => $quote['breakdown']['vat_amount'],
-                'delivery_breakdown' => $this->deliverySnapshot($quote),
+                'delivery_breakdown' => $this->deliverySnapshot($quote, $orderedProducts),
                 'payment_method' => match (true) {
                     $isKpayDirect => 'kpay_direct',
                     $isStripeDirect => 'stripe_direct',
@@ -443,8 +446,10 @@ class OrderService
                 $productTotals[$productId] = ($productTotals[$productId] ?? 0) + (int) $item['quantity'];
             }
 
+            $orderedProducts = [];
             foreach ($items as $index => $item) {
                 $product = Product::lockForUpdate()->findOrFail($item['product_id']);
+                $orderedProducts[] = $product;
                 if (!$product->is_wholesale || $product->status !== 'active') {
                     throw new \Exception(__('orders.wholesale_unavailable', ['product' => $product->name]));
                 }
@@ -602,7 +607,7 @@ class OrderService
                 'delivery_city_grid_id' => $quote['grid_id'],
                 'delivery_vehicle' => $quote['vehicle'],
                 'delivery_vat_amount' => $quote['breakdown']['vat_amount'],
-                'delivery_breakdown' => $this->deliverySnapshot($quote) + [
+                'delivery_breakdown' => $this->deliverySnapshot($quote, $orderedProducts) + [
                     'import_leg' => $this->importLeg($shipping, $shippingCost, $countryCode),
                 ],
                 'sale_commission_rate' => $saleCommission['rate'],
@@ -1323,8 +1328,13 @@ class OrderService
         ];
     }
 
-    /** Détail de la livraison figé sur la commande (affiché à l'acheteur, au vendeur, à l'admin). */
-    private function deliverySnapshot(array $quote): array
+    /**
+     * Détail de la livraison figé sur la commande (affiché à l'acheteur, au vendeur, à l'admin),
+     * avec le délai annoncé : le plus long des articles, en jours ouvrables depuis la commande.
+     *
+     * @param  array<Product>  $products
+     */
+    private function deliverySnapshot(array $quote, array $products = []): array
     {
         return [
             'company_name' => $quote['company_name'],
@@ -1339,7 +1349,7 @@ class OrderService
             'lead_time' => $quote['lead_time'],
             'conditions' => $quote['conditions'],
             'price_grid' => $quote['price_grid'],
-        ] + $quote['breakdown'];
+        ] + DeliveryDelay::estimate(DeliveryDelay::forProducts($products)) + $quote['breakdown'];
     }
 
     private function notifyLateRefund(Order $order): void

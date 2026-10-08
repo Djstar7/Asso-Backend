@@ -145,7 +145,7 @@ class ProductController extends Controller
             // Vidéo déjà envoyée par morceaux (ProductVideoController) : on ne reçoit que son id.
             'video_id' => 'nullable|integer|exists:product_videos,id',
             'remove_video' => 'nullable|boolean',
-        ] + ProductVariantService::rules());
+        ] + ProductVariantService::rules() + \App\Support\DeliveryDelay::rules());
 
         $this->assertDistinctTierThresholds($validated['tiers'] ?? []);
 
@@ -294,7 +294,7 @@ class ProductController extends Controller
             // Vidéo déjà envoyée par morceaux (ProductVideoController) : on ne reçoit que son id.
             'video_id' => 'nullable|integer|exists:product_videos,id',
             'remove_video' => 'nullable|boolean',
-        ] + ProductVariantService::rules());
+        ] + ProductVariantService::rules() + \App\Support\DeliveryDelay::rules());
 
         $this->assertDistinctTierThresholds($validated['tiers'] ?? []);
 

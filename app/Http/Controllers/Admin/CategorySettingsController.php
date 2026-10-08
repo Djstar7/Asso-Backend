@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Subcategory;
+use App\Support\DeliveryDelay;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -32,7 +33,7 @@ class CategorySettingsController extends Controller
             'svg_icon' => 'nullable|string',
             'description' => 'nullable|string',
             'translations.en.description' => 'nullable|string',
-        ]);
+        ] + DeliveryDelay::rules());
 
         $validated['slug'] = Str::slug($validated['name']);
 
@@ -53,7 +54,7 @@ class CategorySettingsController extends Controller
             'svg_icon' => 'nullable|string',
             'description' => 'nullable|string',
             'translations.en.description' => 'nullable|string',
-        ]);
+        ] + DeliveryDelay::rules());
 
         $validated['slug'] = Str::slug($validated['name']);
 
