@@ -368,6 +368,22 @@ class SettingsController extends Controller
                 'exchange_rate_api_key' => 'nullable|string',
             ]);
 
+            // Paire de clés Stripe incohérente (pk_test + sk_live…) : la Payment Sheet
+            // mobile ne s'ouvrirait plus. Refus avant toute écriture.
+            if ($form === 'stripe') {
+                $current = ServiceConfiguration::getRawConfig(ServiceConfiguration::SERVICE_STRIPE) ?? [];
+                $publishable = ($validated['stripe_publishable_key'] ?? null) ?: ($current['publishable_key'] ?? null);
+                $secret = ($validated['stripe_secret_key'] ?? null) ?: ($current['secret_key'] ?? null);
+                // Une clé publique encore absente reste permise (saisie en plusieurs fois) :
+                // seul un mélange test / live est refusé ici.
+                $problem = $publishable
+                    ? \App\Services\StripeService::keyPairProblem($publishable, $secret)
+                    : null;
+                if ($problem) {
+                    return redirect()->back()->with('error', $problem)->withInput();
+                }
+            }
+
             foreach ($validated as $key => $value) {
                 // KPay, exchange-rate et les CLÉS Stripe sont stockés dans
                 // service_configurations (source de vérité), pas dans la table settings.
