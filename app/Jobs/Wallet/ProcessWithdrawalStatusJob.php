@@ -4,7 +4,7 @@ namespace App\Jobs\Wallet;
 
 use App\Models\PlatformWithdrawal;
 use App\Models\WalletTransaction;
-use App\Services\KPayService;
+use App\Services\MobileMoneyGateway;
 use App\Services\FirebaseMessagingService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -30,7 +30,7 @@ class ProcessWithdrawalStatusJob implements ShouldQueue
         public int $withdrawalId
     ) {}
 
-    public function handle(KPayService $kpayService, FirebaseMessagingService $fcmService)
+    public function handle(MobileMoneyGateway $kpayService, FirebaseMessagingService $fcmService)
     {
         $withdrawal = PlatformWithdrawal::find($this->withdrawalId);
 
@@ -171,7 +171,7 @@ class ProcessWithdrawalStatusJob implements ShouldQueue
 
                     // Marquer comme échoué
                     $withdrawal->status = 'failed';
-                    $withdrawal->failure_code = 'KPAY_' . $status;
+                    $withdrawal->failure_code = strtoupper(MobileMoneyGateway::gatewayOfReference($withdrawal->kpay_reference)) . '_' . $status;
                     $withdrawal->failure_reason = $reason ?? 'Withdrawal failed';
                     $withdrawal->save();
 

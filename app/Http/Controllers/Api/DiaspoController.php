@@ -9,7 +9,6 @@ use App\Models\DiaspoVerification;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\ExchangeRateService;
-use App\Services\KPayService;
 use App\Services\PaymentMethodService;
 use App\Services\StripeService;
 use Illuminate\Http\Request;
@@ -271,7 +270,7 @@ class DiaspoController extends Controller
     /** Initie l'encaissement KPay (Mobile Money) et renvoie la réponse de réservation. */
     private function initKpayBooking(DiaspoBooking $booking, array $data, float $total)
     {
-        $result = (new KPayService())->initializePayment([
+        $result = app(\App\Services\MobileMoneyGateway::class)->initializePayment([
             'amount' => (float) round($total),
             'provider' => $data['provider'],
             'phone_number' => $data['phone_number'],
@@ -362,7 +361,7 @@ class DiaspoController extends Controller
             if ($method === 'stripe') {
                 $this->syncStripeBooking($booking);
             } else {
-                $result = (new KPayService())->checkPaymentStatus($booking->payment_reference);
+                $result = app(\App\Services\MobileMoneyGateway::class)->checkPaymentStatus($booking->payment_reference);
                 $status = strtoupper($result['status'] ?? 'UNKNOWN');
                 if (in_array($status, ['SUCCESS', 'SUCCESSFUL', 'COMPLETED'])) {
                     $this->confirmBookingPayment($booking);

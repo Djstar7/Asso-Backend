@@ -160,6 +160,11 @@ Route::post('/v1/payments/webhook/kpay', [PaymentController::class, 'webhookKpay
 // Alias court (certaines configs KPay utilisent cette forme)
 Route::post('/webhooks/kpay', [PaymentController::class, 'webhookKpay']);
 
+// Webhook ElgioPay (Mobile Money Cameroun) — signature X-Elgiopay-Signature +
+// re-vérification du statut auprès de l'API ; traitement en file deposits/withdrawals.
+Route::post('/v1/elgiopay/callback', [App\Http\Controllers\Api\ElgioPayWebhookController::class, 'handle'])
+    ->middleware('throttle:300,1');
+
 // Webhook Stripe (no auth — protégé par vérification de signature Stripe).
 // Finalise les virements IBAN : payout.paid → completed ; payout.failed → refund.
 Route::post('/v1/stripe/webhook', [App\Http\Controllers\Api\StripeWebhookController::class, 'handle']);

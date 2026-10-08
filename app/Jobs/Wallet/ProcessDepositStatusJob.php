@@ -4,7 +4,7 @@ namespace App\Jobs\Wallet;
 
 use App\Models\WalletTransaction;
 use App\Models\User;
-use App\Services\KPayService;
+use App\Services\MobileMoneyGateway;
 use App\Services\FirebaseMessagingService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -30,7 +30,7 @@ class ProcessDepositStatusJob implements ShouldQueue
         public int $walletTransactionId
     ) {}
 
-    public function handle(KPayService $kpayService, FirebaseMessagingService $fcmService)
+    public function handle(MobileMoneyGateway $kpayService, FirebaseMessagingService $fcmService)
     {
         $deposit = WalletTransaction::find($this->walletTransactionId);
 

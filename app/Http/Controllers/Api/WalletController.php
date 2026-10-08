@@ -175,7 +175,7 @@ class WalletController extends Controller
                 ]);
 
                 // Appeler KPay pour initier le paiement USSD (montant en devise opérateur)
-                $kpayService = app(\App\Services\KPayService::class);
+                $kpayService = app(\App\Services\MobileMoneyGateway::class);
 
                 $paymentResult = $kpayService->initializePayment([
                     'amount' => $chargeAmount,
@@ -213,6 +213,18 @@ class WalletController extends Controller
                 $walletTransaction->save();
 
                 DB::commit();
+
+                // Suivi asynchrone rapproché (file `deposits`) en plus du webhook et du
+                // scheduler : le premier qui voit le statut final l'applique (idempotent).
+                // Ne doit jamais faire échouer la réponse : le paiement est déjà initié.
+                try {
+                    foreach ([20, 60, 180] as $delay) {
+                        \App\Jobs\Wallet\ProcessDepositStatusJob::dispatch($walletTransaction->id)
+                            ->onQueue('deposits')->delay(now()->addSeconds($delay));
+                    }
+                } catch (\Throwable $e) {
+                    Log::warning('[WalletController] Suivi asynchrone du dépôt non planifié: ' . $e->getMessage());
+                }
 
                 Log::info("[WalletController] ✅ KPay payment initiated", [
                     'transaction_id' => $walletTransaction->id,
@@ -442,7 +454,8 @@ class WalletController extends Controller
             // État de CONFIGURATION de chaque rail (clés API présentes côté plateforme).
             // Permet au mobile de GRISER un moyen non configuré au lieu de laisser
             // l'utilisateur tenter un retrait qui échouerait par une erreur.
-            $kpayConfigured = app(\App\Services\KPayService::class)->isConfigured();
+            $mobileMoney = app(\App\Services\MobileMoneyGateway::class);
+            $kpayConfigured = $mobileMoney->isConfigured();
             $stripeService = app(\App\Services\StripeService::class);
             $stripeConfigured = $stripeService->isConfigured();
 
@@ -477,6 +490,9 @@ class WalletController extends Controller
                     'methods' => [
                         'kpay' => [
                             'configured' => $kpayConfigured,
+                            'gateway' => $mobileMoney->activeGateway(),
+                            'providers' => $mobileMoney->allowedProviders(),
+                            'countries' => $mobileMoney->allowedCountries(),
                             'available' => max(0, $xafAvailable),
                             'currency' => 'XAF',
                         ],
@@ -657,7 +673,7 @@ class WalletController extends Controller
             ]);
 
             // Appeler KPay pour initier le retrait (payout USSD)
-            $kpayService = app(\App\Services\KPayService::class);
+            $kpayService = app(\App\Services\MobileMoneyGateway::class);
 
             $disbursementResult = $kpayService->initiateDisbursement([
                 'amount' => $amount,
@@ -665,6 +681,7 @@ class WalletController extends Controller
                 'phone_number' => $phone,
                 'description' => "Retrait wallet #{$withdrawal->id}",
                 'external_reference' => "WITHDRAW-{$withdrawal->id}",
+                'recipient_name' => $user->name,
             ]);
 
             if (!$disbursementResult['success']) {
@@ -693,6 +710,17 @@ class WalletController extends Controller
             ]);
 
             DB::commit();
+
+            // Suivi asynchrone rapproché (file `withdrawals`), cf. recharge.
+            // Ne doit jamais faire échouer la réponse : le retrait est déjà engagé.
+            try {
+                foreach ([30, 120, 600] as $delay) {
+                    \App\Jobs\Wallet\ProcessWithdrawalStatusJob::dispatch($withdrawal->id)
+                        ->onQueue('withdrawals')->delay(now()->addSeconds($delay));
+                }
+            } catch (\Throwable $e) {
+                Log::warning('[WalletController] Suivi asynchrone du retrait non planifié: ' . $e->getMessage());
+            }
 
             // Récupérer le nouveau solde après débit
             $user->refresh();

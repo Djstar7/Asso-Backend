@@ -185,7 +185,7 @@ class OrderController extends Controller
         if ($order->payment_status === 'pending'
             && $order->payment_method === 'kpay_direct'
             && $order->payment_reference) {
-            $result = (new \App\Services\KPayService())->checkPaymentStatus($order->payment_reference);
+            $result = app(\App\Services\MobileMoneyGateway::class)->checkPaymentStatus($order->payment_reference);
             $status = strtoupper($result['status'] ?? 'UNKNOWN');
 
             if (in_array($status, ['SUCCESS', 'SUCCESSFUL', 'COMPLETED'])) {
