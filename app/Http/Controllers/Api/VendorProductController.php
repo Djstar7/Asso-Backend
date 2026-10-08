@@ -118,7 +118,8 @@ class VendorProductController extends Controller
             'replace_variants' => 'sometimes|boolean',
             // Livraison gratuite : null = suit la boutique.
             'free_delivery' => 'sometimes|nullable|boolean',
-        ] + \App\Services\DepositOrderService::productRules() + ProductVariantService::rules());
+        ] + \App\Services\DepositOrderService::productRules() + ProductVariantService::rules()
+            + \App\Support\DeliveryDelay::rules());
 
         \Log::info('[VENDOR_PRODUCT_UPDATE] Received data:', [
             'product_id' => $id,
@@ -484,6 +485,10 @@ class VendorProductController extends Controller
             'weight_category' => $product->weight_category ?? 'X-small',
             'stock' => $product->stock,
             'weight' => $product->weight,
+            // Délai de livraison : saisi (null = hérité) et délai effectivement annoncé.
+            'delivery_days_min' => $product->delivery_days_min,
+            'delivery_days_max' => $product->delivery_days_max,
+            'delivery_delay' => \App\Support\DeliveryDelay::forProduct($product),
             'variants' => $product->variants
                 ->map(fn ($variant) => app(ProductVariantService::class)->presentVariant($variant, $product))->values(),
             'variant_options' => app(ProductVariantService::class)->presentOptions($product),

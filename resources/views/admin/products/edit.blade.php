@@ -355,6 +355,7 @@
                 </div>
 
                 @include('admin.products._free_delivery')
+                @include('admin.products._delivery_delay')
                 @include('admin.products._deposit')
 
                 <!-- Status -->

@@ -112,6 +112,9 @@ class Product extends Model
         // Commande avec acompte : acompte en % du prix acheteur (cf. DepositOrderService).
         'deposit_enabled',
         'deposit_rate',
+        // Délai de livraison annoncé, en jours ouvrables (cf. App\Support\DeliveryDelay).
+        'delivery_days_min',
+        'delivery_days_max',
         'tier_mix_variants',
         // Référence de l'application pour un produit saisi hors ligne (idempotence).
         'client_reference',
@@ -130,6 +133,8 @@ class Product extends Model
         'deposit_rate' => 'float',
         'tier_mix_variants' => 'boolean',
         'min_order_quantity' => 'integer',
+        'delivery_days_min' => 'integer',
+        'delivery_days_max' => 'integer',
         'sizes' => 'array',
         'variant_options' => 'array',
     ];
