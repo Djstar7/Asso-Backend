@@ -320,11 +320,11 @@ class DepositOrderService
 
         try {
             if ($order->balance_payment_method === 'kpay_direct') {
-                $result = (new KPayService())->checkPaymentStatus($order->balance_payment_reference);
+                $result = app(MobileMoneyGateway::class)->checkPaymentStatus($order->balance_payment_reference);
                 $status = strtoupper($result['status'] ?? 'UNKNOWN');
                 if (in_array($status, ['SUCCESS', 'SUCCESSFUL', 'COMPLETED'], true)) {
                     $this->confirmBalancePayment($order);
-                } elseif (in_array($status, ['FAILED', 'FAILURE', 'ERROR', 'REJECTED', 'CANCELLED', 'CANCELED'], true)) {
+                } elseif (in_array($status, ['FAILED', 'FAILURE', 'REJECTED', 'CANCELLED', 'CANCELED'], true)) {
                     $this->failBalancePayment($order);
                 }
             } elseif ($order->balance_payment_method === 'stripe_direct') {

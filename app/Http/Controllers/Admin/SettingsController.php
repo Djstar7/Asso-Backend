@@ -176,7 +176,15 @@ class SettingsController extends Controller
         $stripeService = ServiceConfiguration::where('service_name', ServiceConfiguration::SERVICE_STRIPE)->first();
         $stripeConfig = $stripeService->configuration ?? [];
 
-        return view('admin.settings.payments', compact('paymentSettings', 'kpayConfig', 'kpayEnabled', 'exchangeRateApiKey', 'stripeConfig'));
+        // ElgioPay (Mobile Money Cameroun) — exclusif avec KPay.
+        $elgiopayService = ServiceConfiguration::where('service_name', ServiceConfiguration::SERVICE_ELGIOPAY)->first();
+        $elgiopayConfig = $elgiopayService->configuration ?? [];
+        $elgiopayEnabled = (bool) ($elgiopayService->is_active ?? false);
+
+        return view('admin.settings.payments', compact(
+            'paymentSettings', 'kpayConfig', 'kpayEnabled', 'exchangeRateApiKey', 'stripeConfig',
+            'elgiopayConfig', 'elgiopayEnabled'
+        ));
     }
 
     /**
@@ -290,6 +298,14 @@ class SettingsController extends Controller
     }
 
     /**
+     * Tester la connexion à l'API ElgioPay (AJAX).
+     */
+    public function testElgiopay()
+    {
+        return response()->json(app(\App\Services\ElgioPayService::class)->testConnection());
+    }
+
+    /**
      * Mettre à jour les paramètres de paiement.
      *
      * @param Request $request
@@ -302,7 +318,7 @@ class SettingsController extends Controller
             // QUEL gateway est réécrit dans service_configurations : soumettre le
             // formulaire KPay ne doit jamais toucher is_active/clés de Stripe et
             // inversement (sinon l'autre gateway devient « non configuré » et grisé).
-            $form = $request->input('_form'); // 'kpay' | 'stripe' | null
+            $form = $request->input('_form'); // 'kpay' | 'elgiopay' | 'stripe' | null
 
             $validated = $request->validate([
                 // Fedapay
@@ -323,6 +339,13 @@ class SettingsController extends Controller
                 'kpay_secret_key' => 'nullable|string',
                 'kpay_webhook_secret' => 'nullable|string',
                 'kpay_base_currency' => 'nullable|string|size:3',
+                // ElgioPay (Mobile Money Cameroun — Bearer pk_…, webhooks signés)
+                'elgiopay_enabled' => 'nullable|boolean',
+                'elgiopay_mode' => 'nullable|in:sandbox,live',
+                'elgiopay_public_key' => 'nullable|string',
+                'elgiopay_secret_key' => 'nullable|string',
+                'elgiopay_webhook_secret' => 'nullable|string',
+                'elgiopay_webhook_url' => 'nullable|url',
                 // Stripe (carte bancaire — encaissement inbound)
                 'stripe_enabled' => 'nullable|boolean',
                 'stripe_currency' => 'nullable|string|size:3',
@@ -345,11 +368,27 @@ class SettingsController extends Controller
                 'exchange_rate_api_key' => 'nullable|string',
             ]);
 
+            // Paire de clés Stripe incohérente (pk_test + sk_live…) : la Payment Sheet
+            // mobile ne s'ouvrirait plus. Refus avant toute écriture.
+            if ($form === 'stripe') {
+                $current = ServiceConfiguration::getRawConfig(ServiceConfiguration::SERVICE_STRIPE) ?? [];
+                $publishable = ($validated['stripe_publishable_key'] ?? null) ?: ($current['publishable_key'] ?? null);
+                $secret = ($validated['stripe_secret_key'] ?? null) ?: ($current['secret_key'] ?? null);
+                // Une clé publique encore absente reste permise (saisie en plusieurs fois) :
+                // seul un mélange test / live est refusé ici.
+                $problem = $publishable
+                    ? \App\Services\StripeService::keyPairProblem($publishable, $secret)
+                    : null;
+                if ($problem) {
+                    return redirect()->back()->with('error', $problem)->withInput();
+                }
+            }
+
             foreach ($validated as $key => $value) {
                 // KPay, exchange-rate et les CLÉS Stripe sont stockés dans
                 // service_configurations (source de vérité), pas dans la table settings.
                 // (stripe_enabled / stripe_currency / pay_min_stripe restent en settings.)
-                if (str_starts_with($key, 'kpay_') || str_starts_with($key, 'exchange_rate_')
+                if (str_starts_with($key, 'kpay_') || str_starts_with($key, 'elgiopay_') || str_starts_with($key, 'exchange_rate_')
                     || in_array($key, [
                         'stripe_mode', 'stripe_publishable_key', 'stripe_secret_key',
                         'stripe_webhook_secret', 'stripe_webhook_secret_connect',
@@ -585,12 +624,17 @@ class SettingsController extends Controller
                 $kpayConfig['base_currency'] = 'XAF';
             }
 
+            $kpayOn = isset($validated['kpay_enabled']) && $validated['kpay_enabled'];
             ServiceConfiguration::setConfig(
                 ServiceConfiguration::SERVICE_KPAY,
                 $kpayConfig,
-                isset($validated['kpay_enabled']) && $validated['kpay_enabled'],
+                $kpayOn,
                 'KPay - Paiements et retraits Mobile Money'
             );
+            // Un seul prestataire Mobile Money actif : activer KPay coupe ElgioPay.
+            if ($kpayOn) {
+                ServiceConfiguration::toggleService(ServiceConfiguration::SERVICE_ELGIOPAY, false);
+            }
 
             // Clé exchangerate-api.com (conversion de devises) — conservée si laissée vide.
             if (!empty($validated['exchange_rate_api_key'])) {
@@ -601,6 +645,42 @@ class SettingsController extends Controller
                     true,
                     'Conversion de devises (exchangerate-api.com)'
                 );
+            }
+
+            return;
+        }
+
+        // ElgioPay : uniquement quand son formulaire est soumis.
+        if ($form === 'elgiopay') {
+            $existing = ServiceConfiguration::getRawConfig(ServiceConfiguration::SERVICE_ELGIOPAY) ?? [];
+            $config = array_merge([
+                'mode' => 'live',
+                'public_key' => '',
+                'secret_key' => '',
+                'webhook_secret' => '',
+                'webhook_url' => '',
+            ], $existing);
+
+            if (!empty($validated['elgiopay_mode'])) {
+                $config['mode'] = $validated['elgiopay_mode'];
+            }
+            // Champs vides = valeur existante conservée.
+            foreach (['public_key', 'secret_key', 'webhook_secret', 'webhook_url'] as $field) {
+                if (!empty($validated['elgiopay_' . $field])) {
+                    $config[$field] = trim($validated['elgiopay_' . $field]);
+                }
+            }
+
+            $on = isset($validated['elgiopay_enabled']) && $validated['elgiopay_enabled'];
+            ServiceConfiguration::setConfig(
+                ServiceConfiguration::SERVICE_ELGIOPAY,
+                $config,
+                $on,
+                'ElgioPay - Mobile Money Cameroun (MTN, Orange)'
+            );
+            // Un seul prestataire Mobile Money actif : activer ElgioPay coupe KPay.
+            if ($on) {
+                ServiceConfiguration::toggleService(ServiceConfiguration::SERVICE_KPAY, false);
             }
 
             return;

@@ -420,7 +420,7 @@ class DisputeService
                     }
                     $payAmount = (float) round($converted);
                 }
-                $result = app(KPayService::class)->initializePayment([
+                $result = app(MobileMoneyGateway::class)->initializePayment([
                     'amount' => $payAmount,
                     'provider' => $provider,
                     'phone_number' => $phone,
@@ -597,10 +597,10 @@ class DisputeService
         }
         try {
             if ($shipment->payment_mode === 'kpay_direct') {
-                $status = strtoupper((new KPayService())->checkPaymentStatus($shipment->payment_reference)['status'] ?? 'UNKNOWN');
+                $status = strtoupper(app(MobileMoneyGateway::class)->checkPaymentStatus($shipment->payment_reference)['status'] ?? 'UNKNOWN');
                 if (in_array($status, ['SUCCESS', 'SUCCESSFUL', 'COMPLETED'], true)) {
                     $this->confirmPayment($shipment);
-                } elseif (in_array($status, ['FAILED', 'FAILURE', 'ERROR', 'REJECTED', 'CANCELLED', 'CANCELED'], true)) {
+                } elseif (in_array($status, ['FAILED', 'FAILURE', 'REJECTED', 'CANCELLED', 'CANCELED'], true)) {
                     $this->failPayment($shipment);
                 }
             } elseif ($shipment->payment_mode === 'stripe_direct') {
@@ -616,7 +616,7 @@ class DisputeService
         }
     }
 
-    /** Course d'un litige payée par cette référence KPay (webhook), sinon null. */
+    /** Course d'un litige payée par cette référence Mobile Money (webhook), sinon null. */
     public static function shipmentForKpayReference(string $externalId): ?DisputeShipment
     {
         if (!str_starts_with($externalId, self::KPAY_PREFIX)) {

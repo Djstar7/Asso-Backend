@@ -49,4 +49,14 @@ return [
         'timeout' => (int) env('FFMPEG_TIMEOUT', 75),
     ],
 
+    // ElgioPay (Orange Money, MTN MoMo Cameroun). Valeurs par défaut : la
+    // configuration admin (service_configurations « elgiopay ») l'emporte.
+    // Attention : l'API s'authentifie avec la clé PUBLIQUE (pk_…).
+    'elgiopay' => [
+        'mode' => env('ELGIOPAY_ENV', 'prod') === 'sandbox' ? 'sandbox' : 'live',
+        'public_key' => env('ELGIOPAY_PUBLISHABLE_KEY', env('ELGIOPAY_PUBLIC_KEY')),
+        'secret_key' => env('ELGIOPAY_SECRET_KEY'),
+        'webhook_secret' => env('ELGIOPAY_WEBHOOK_SECRET'),
+    ],
+
 ];

@@ -22,6 +22,8 @@ class StripeService
     private ?string $publishableKey;
     private ?string $webhookSecret;
     private ?string $webhookSecretConnect;
+    /** @var string[] */
+    private array $webhookSecretsExtra;
     private string $mode;
     private ?StripeClient $client = null;
 
@@ -36,7 +38,12 @@ class StripeService
         // vendeurs) proviennent d'un endpoint Stripe DISTINCT, donc d'un secret de
         // signature distinct : les deux sont acceptés à la vérification.
         $this->webhookSecretConnect = $config['webhook_secret_connect'] ?? env('STRIPE_WEBHOOK_SECRET_CONNECT');
-        $this->mode = $config['mode'] ?? (str_starts_with((string) $this->secretKey, 'sk_live_') ? 'live' : 'test');
+        // Endpoints supplémentaires vers la même URL (Stripe ne permet pas de relire
+        // un secret : on garde ceux dont on ignore l'endpoint d'origine).
+        $this->webhookSecretsExtra = array_filter((array) ($config['webhook_secrets_extra'] ?? []), 'is_string');
+        // Le préfixe de la clé secrète fait foi : un champ `mode` resté sur « test »
+        // à côté de clés live faisait passer la prod pour un environnement de test.
+        $this->mode = self::keyMode($this->secretKey) ?? $config['mode'] ?? 'test';
 
         Log::debug('[StripeService] Initialized', [
             'mode' => $this->mode,
@@ -61,6 +68,42 @@ class StripeService
         return $this->publishableKey;
     }
 
+    /** Mode d'une clé Stripe d'après son préfixe (pk_live_, sk_test_, rk_live_…), null si inconnu. */
+    public static function keyMode(?string $key): ?string
+    {
+        return match (true) {
+            (bool) preg_match('/^(pk|sk|rk)_live_/', (string) $key) => 'live',
+            (bool) preg_match('/^(pk|sk|rk)_test_/', (string) $key) => 'test',
+            default => null,
+        };
+    }
+
+    /**
+     * Incohérence entre clé publique et clé secrète, ou null si la paire est utilisable.
+     *
+     * Le PaymentIntent est créé avec la clé secrète et confirmé par l'app avec la
+     * clé publique : si elles ne sont pas du même mode (pk_test + sk_live…), ou si
+     * la clé publique manque, la Payment Sheet ne s'ouvre jamais côté mobile.
+     */
+    public static function keyPairProblem(?string $publishableKey, ?string $secretKey): ?string
+    {
+        if (empty($publishableKey)) {
+            return 'Clé publique Stripe (pk_…) manquante.';
+        }
+        $public = self::keyMode($publishableKey);
+        $secret = self::keyMode($secretKey);
+        if ($public !== null && $secret !== null && $public !== $secret) {
+            return "Clés Stripe incohérentes : clé publique en mode {$public}, clé secrète en mode {$secret}.";
+        }
+        return null;
+    }
+
+    /** Incohérence de la paire de clés configurée, ou null. */
+    public function keysProblem(): ?string
+    {
+        return self::keyPairProblem($this->publishableKey, $this->secretKey);
+    }
+
     public function webhookSecret(): ?string
     {
         return $this->webhookSecret;
@@ -71,12 +114,13 @@ class StripeService
         return $this->webhookSecretConnect;
     }
 
-    /** Secrets de signature acceptés (compte plateforme + Connect), sans doublon. */
+    /** Secrets de signature acceptés (compte plateforme + Connect + extras), sans doublon. */
     public function webhookSecrets(): array
     {
         return array_values(array_unique(array_filter([
             $this->webhookSecret,
             $this->webhookSecretConnect,
+            ...$this->webhookSecretsExtra,
         ])));
     }
 
@@ -115,6 +159,9 @@ class StripeService
     {
         if (!$this->isConfigured()) {
             return ['success' => false, 'message' => 'Clés API Stripe manquantes.'];
+        }
+        if ($problem = $this->keysProblem()) {
+            return ['success' => false, 'message' => $problem];
         }
         try {
             $account = $this->client()->accounts->retrieve();
@@ -845,6 +892,12 @@ class StripeService
 
         if ($minor <= 0) {
             throw new \InvalidArgumentException(__('payments.invalid_amount'));
+        }
+
+        // Inutile de créer une intention que l'app ne pourra pas confirmer.
+        if ($problem = $this->keysProblem()) {
+            Log::error('[StripeService] Paiement carte impossible : ' . $problem, ['mode' => $this->mode]);
+            throw new \RuntimeException(__('payments.stripe_init_failed'));
         }
 
         $intent = $this->client()->paymentIntents->create([
