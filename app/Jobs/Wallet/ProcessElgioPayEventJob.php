@@ -8,6 +8,9 @@ use App\Models\Order;
 use App\Models\PackageSubscription;
 use App\Models\PlatformWithdrawal;
 use App\Models\WalletTransaction;
+use App\Models\DisputeShipment;
+use App\Services\DepositOrderService;
+use App\Services\DisputeService;
 use App\Services\ElgioPayService;
 use App\Services\MobileMoneyGateway;
 use App\Services\OrderService;
@@ -128,6 +131,36 @@ class ProcessElgioPayEventJob implements ShouldQueue
             return;
         }
 
+        // Course d'un litige payée par le vendeur (LITIGE-{shipmentId}).
+        if ($shipment = DisputeService::shipmentForKpayReference($reference)) {
+            if (!$shipment->isPaid() && $shipment->payment_mode === 'kpay_direct' && $shipment->payment_reference) {
+                $status = $this->authoritativeStatus($gateway, $shipment->payment_reference);
+                $disputes = app(DisputeService::class);
+                if (in_array($status, ['COMPLETED', 'SUCCESS', 'SUCCESSFUL'], true)) {
+                    $disputes->confirmPayment($shipment);
+                } elseif (in_array($status, ['FAILED', 'CANCELLED'], true)) {
+                    $disputes->failPayment($shipment);
+                }
+            }
+            return;
+        }
+
+        // Solde d'une commande avec acompte ({order_number}-SOLDE).
+        if ($balanceOrder = DepositOrderService::orderForBalanceReference($reference)) {
+            if ($balanceOrder->balance_status === Order::BALANCE_UNLOCKED
+                && $balanceOrder->balance_payment_method === 'kpay_direct'
+                && $balanceOrder->balance_payment_reference) {
+                $status = $this->authoritativeStatus($gateway, $balanceOrder->balance_payment_reference);
+                $deposits = app(DepositOrderService::class);
+                if (in_array($status, ['COMPLETED', 'SUCCESS', 'SUCCESSFUL'], true)) {
+                    $deposits->confirmBalancePayment($balanceOrder);
+                } elseif (in_array($status, ['FAILED', 'CANCELLED'], true)) {
+                    $deposits->failBalancePayment($balanceOrder);
+                }
+            }
+            return;
+        }
+
         $order = $reference !== ''
             ? Order::where('order_number', $reference)->where('payment_method', 'kpay_direct')->first()
             : null;
@@ -157,6 +190,12 @@ class ProcessElgioPayEventJob implements ShouldQueue
         }
         if ($id = PackageSubscription::where('payment_reference', $stored)->value('id')) {
             return "SUB-{$id}";
+        }
+        if ($id = DisputeShipment::where('payment_reference', $stored)->value('id')) {
+            return DisputeService::KPAY_PREFIX . $id;
+        }
+        if ($balanceOrder = Order::where('balance_payment_reference', $stored)->first()) {
+            return DepositOrderService::balanceReference($balanceOrder);
         }
         return Order::where('payment_reference', $stored)->value('order_number');
     }

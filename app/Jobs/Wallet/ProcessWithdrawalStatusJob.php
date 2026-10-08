@@ -166,7 +166,7 @@ class ProcessWithdrawalStatusJob implements ShouldQueue
                         ]);
                     }
 
-                } elseif (in_array($status, ['FAILED', 'FAILURE', 'ERROR', 'REJECTED', 'CANCELLED', 'CANCELED'])) {
+                } elseif (in_array($status, ['FAILED', 'FAILURE', 'REJECTED', 'CANCELLED', 'CANCELED'])) {
                     Log::warning('⚠️ [PROCESS-WITHDRAWAL] Withdrawal FAILED', [
                         'withdrawal_id' => $withdrawal->id,
                         'reason' => $reason,

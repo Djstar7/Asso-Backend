@@ -168,7 +168,7 @@ class ProcessDepositStatusJob implements ShouldQueue
                         ]);
                     }
 
-                } elseif (in_array($status, ['FAILED', 'FAILURE', 'ERROR', 'REJECTED', 'CANCELLED', 'CANCELED'])) {
+                } elseif (in_array($status, ['FAILED', 'FAILURE', 'REJECTED', 'CANCELLED', 'CANCELED'])) {
                     Log::warning('⚠️ [PROCESS-DEPOSIT] Payment FAILED', [
                         'wallet_transaction_id' => $deposit->id,
                         'reason' => $reason,

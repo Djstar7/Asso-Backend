@@ -1568,6 +1568,10 @@ class WalletController extends Controller
                     'failure_reason' => $walletTransaction->status === 'failed'
                         ? ($walletTransaction->metadata['capture_error'] ?? 'Unknown error')
                         : null,
+                    // Mobile Money refusé : motif ramené à un code (wrong_network…).
+                    'payment_failure' => $walletTransaction->status === 'failed'
+                        ? \App\Services\MobileMoneyGateway::failureCode($walletTransaction->metadata['failure_reason'] ?? null)
+                        : null,
                 ],
             ]);
         } catch (\Exception $e) {

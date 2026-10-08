@@ -201,7 +201,7 @@ class PackageSubscriptionService
                 $status = strtoupper($result['status'] ?? 'UNKNOWN');
                 if (in_array($status, ['SUCCESS', 'SUCCESSFUL', 'COMPLETED'])) {
                     $this->confirm($subscription);
-                } elseif (in_array($status, ['FAILED', 'FAILURE', 'ERROR', 'REJECTED', 'CANCELLED', 'CANCELED'])) {
+                } elseif (in_array($status, ['FAILED', 'FAILURE', 'REJECTED', 'CANCELLED', 'CANCELED'])) {
                     $this->fail($subscription);
                 }
                 break;

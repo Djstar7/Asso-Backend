@@ -367,16 +367,27 @@ class DiaspoController extends Controller
                 $status = strtoupper($result['status'] ?? 'UNKNOWN');
                 if (in_array($status, ['SUCCESS', 'SUCCESSFUL', 'COMPLETED'])) {
                     $this->confirmBookingPayment($booking);
-                } elseif (in_array($status, ['FAILED', 'FAILURE', 'ERROR', 'REJECTED', 'CANCELLED', 'CANCELED'])) {
+                } elseif (in_array($status, ['FAILED', 'FAILURE', 'REJECTED', 'CANCELLED', 'CANCELED'])) {
                     $this->failBookingPayment($booking);
                 }
             }
             $booking->refresh();
         }
 
+        // Mobile Money refusé : motif de l'opérateur (wrong_network, insufficient_funds…).
+        $paymentFailure = $booking->status === 'cancelled' && $booking->payment_status === 'pending'
+            && ($booking->payment_method ?: 'kpay') !== 'stripe'
+            ? app(\App\Services\MobileMoneyGateway::class)->failureFor($booking->payment_reference)
+            : null;
+
         return response()->json([
             'success' => true,
-            'data' => ['booking_id' => $booking->id, 'payment_status' => $booking->payment_status, 'status' => $booking->status],
+            'data' => [
+                'booking_id' => $booking->id,
+                'payment_status' => $booking->payment_status,
+                'status' => $booking->status,
+                'payment_failure' => $paymentFailure,
+            ],
         ]);
     }
 

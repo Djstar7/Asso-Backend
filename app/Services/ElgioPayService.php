@@ -32,6 +32,16 @@ class ElgioPayService
         'ORANGE_CMR' => 'orange_money',
     ];
 
+    /**
+     * Codes opérateurs → canal ElgioPay (`channel_code`, cf. GET /api/v1/channels)
+     * pour les encaissements. Préféré à l'ancien `payment_method` : c'est le
+     * canal qui route vers l'opérateur actif du compte (repris d'ABBEV, en prod).
+     */
+    public const PROVIDER_CHANNELS = [
+        'MTN_MOMO_CMR' => 'MTN_CMR',
+        'ORANGE_CMR' => 'ORANGE_CMR',
+    ];
+
     public const CURRENCY = 'XAF';
 
     private string $baseUrl;
@@ -46,11 +56,11 @@ class ElgioPayService
         $config = $service->configuration ?? [];
 
         $this->active = (bool) ($service->is_active ?? false);
-        $this->publicKey = ($config['public_key'] ?? null) ?: env('ELGIOPAY_PUBLIC_KEY');
-        $this->secretKey = ($config['secret_key'] ?? null) ?: env('ELGIOPAY_SECRET_KEY');
-        $this->webhookSecret = ($config['webhook_secret'] ?? null) ?: env('ELGIOPAY_WEBHOOK_SECRET');
+        $this->publicKey = ($config['public_key'] ?? null) ?: config('services.elgiopay.public_key');
+        $this->secretKey = ($config['secret_key'] ?? null) ?: config('services.elgiopay.secret_key');
+        $this->webhookSecret = ($config['webhook_secret'] ?? null) ?: config('services.elgiopay.webhook_secret');
 
-        $mode = $config['mode'] ?? 'live';
+        $mode = ($config['mode'] ?? null) ?: config('services.elgiopay.mode', 'live');
         $default = $mode === 'sandbox' ? 'https://sandbox-api.elgiopay.com' : 'https://api.elgiopay.com';
         $this->baseUrl = rtrim(($config['base_url'] ?? null) ?: $default, '/');
     }
@@ -135,15 +145,15 @@ class ElgioPayService
             return ['success' => false, 'message' => 'ElgioPay non configuré (clé publique manquante).'];
         }
 
-        $method = self::PROVIDER_METHODS[$params['provider'] ?? ''] ?? null;
-        if (!$method) {
+        $channel = self::PROVIDER_CHANNELS[$params['provider'] ?? ''] ?? null;
+        if (!$channel) {
             return ['success' => false, 'message' => 'Opérateur non pris en charge par ElgioPay (Cameroun uniquement).'];
         }
 
         $payload = [
             'amount' => (int) round((float) $params['amount']), // XAF : pas de décimales
             'currency' => self::CURRENCY,
-            'payment_method' => $method,
+            'channel_code' => $channel,
             'customer_phone' => self::normalizePhone($params['phone_number']),
             'reference' => $params['external_reference'],
             'description' => $params['description'] ?? 'Paiement ASSO',
@@ -337,8 +347,11 @@ class ElgioPayService
     }
 
     /**
-     * Normalise un numéro camerounais en +2376XXXXXXXX (formats acceptés :
-     * 6XXXXXXXX, 2376XXXXXXXX, +237 6XX XX XX XX, 00237…).
+     * Numéro camerounais au format attendu par ElgioPay : les 9 chiffres
+     * locaux, SANS indicatif (ex : 658895572). Avec « +237 », l'opérateur
+     * refuse l'encaissement (« Authentication error when connecting to
+     * service »), constaté en production sur ABBEV. Formats acceptés :
+     * 6XXXXXXXX, 2376XXXXXXXX, +237 6XX XX XX XX, 00237…
      */
     public static function normalizePhone(string $phone): string
     {
@@ -347,9 +360,9 @@ class ElgioPayService
             $digits = substr($digits, 2);
         }
         if (preg_match('/^(?:237)?([2368]\d{8})$/', $digits, $m)) {
-            return '+237' . $m[1];
+            return $m[1];
         }
-        return str_starts_with($phone, '+') ? $phone : '+' . $digits;
+        return $digits;
     }
 
     /**

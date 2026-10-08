@@ -184,8 +184,9 @@ class ElgioPayIntegrationTest extends TestCase
         $this->assertSame('pending', $tx->status, 'suivi asynchrone : toujours en attente côté opérateur');
 
         Http::assertSent(fn (HttpRequest $r) => $r->method() === 'POST' && $r->url() === self::API . '/payments'
-            && $r['payment_method'] === 'orange_money'
-            && $r['customer_phone'] === '+237690000000'
+            && $r['channel_code'] === 'ORANGE_CMR'
+            && !isset($r['payment_method'])
+            && $r['customer_phone'] === '690000000'
             && $r['amount'] === 5000
             && $r['currency'] === 'XAF'
             && $r['reference'] === 'WALLET-' . $tx->id);
@@ -284,7 +285,7 @@ class ElgioPayIntegrationTest extends TestCase
 
         Http::assertSent(fn (HttpRequest $r) => $r->method() === 'POST' && $r->url() === self::API . '/payouts'
             && $r['payout_method'] === 'mtn_mobile_money'
-            && $r['recipient_phone'] === '+237670000000'
+            && $r['recipient_phone'] === '670000000'
             && $r['recipient_name'] === 'Jean Mballa'
             && $r['reference'] === 'WITHDRAW-' . $withdrawal->id);
 
@@ -318,9 +319,10 @@ class ElgioPayIntegrationTest extends TestCase
         $this->assertSame('CANCELLED', ElgioPayService::normalizeStatus('cancelled'));
         $this->assertSame('PENDING', ElgioPayService::normalizeStatus('processing'));
 
-        $this->assertSame('+237670000000', ElgioPayService::normalizePhone('670000000'));
-        $this->assertSame('+237670000000', ElgioPayService::normalizePhone('237670000000'));
-        $this->assertSame('+237670000000', ElgioPayService::normalizePhone('+237 670 00 00 00'));
-        $this->assertSame('+237670000000', ElgioPayService::normalizePhone('00237670000000'));
+        // 9 chiffres sans indicatif : avec +237 l'opérateur refuse (constaté en prod).
+        $this->assertSame('670000000', ElgioPayService::normalizePhone('670000000'));
+        $this->assertSame('670000000', ElgioPayService::normalizePhone('237670000000'));
+        $this->assertSame('670000000', ElgioPayService::normalizePhone('+237 670 00 00 00'));
+        $this->assertSame('670000000', ElgioPayService::normalizePhone('00237670000000'));
     }
 }

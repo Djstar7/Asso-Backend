@@ -68,6 +68,34 @@ class MobileMoneyGateway
         return str_starts_with((string) $reference, self::ELGIOPAY_PREFIX) ? 'elgiopay' : 'kpay';
     }
 
+    /**
+     * Motif d'échec de l'opérateur ramené à un code que le mobile sait expliquer :
+     * wrong_network | insufficient_funds | expired | declined, ou null si inconnu.
+     */
+    public static function failureCode(?string $reason): ?string
+    {
+        $reason = strtolower((string) $reason);
+        return match (true) {
+            $reason === '' => null,
+            str_contains($reason, 'not registered'), str_contains($reason, 'invalid phone'),
+            str_contains($reason, 'not found on'), str_contains($reason, 'wrong network') => 'wrong_network',
+            str_contains($reason, 'insufficient'), str_contains($reason, 'not enough') => 'insufficient_funds',
+            str_contains($reason, 'expir'), str_contains($reason, 'timeout'), str_contains($reason, 'timed out') => 'expired',
+            str_contains($reason, 'cancel'), str_contains($reason, 'declin'), str_contains($reason, 'reject') => 'declined',
+            default => null,
+        };
+    }
+
+    /** Code du motif d'échec d'un paiement Mobile Money refusé (cf. failureCode). */
+    public function failureFor(?string $reference): ?string
+    {
+        if (!$reference) {
+            return null;
+        }
+        $result = $this->checkPaymentStatus($reference);
+        return self::failureCode($result['reason'] ?? $result['message'] ?? null);
+    }
+
     public function initializePayment(array $params): array
     {
         return match ($this->activeGateway()) {

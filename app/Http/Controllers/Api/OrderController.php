@@ -181,6 +181,7 @@ class OrderController extends Controller
     public function paymentStatus(Request $request, $id)
     {
         $order = Order::where('user_id', $request->user()->id)->findOrFail($id);
+        $result = null;
 
         if ($order->payment_status === 'pending'
             && $order->payment_method === 'kpay_direct'
@@ -191,7 +192,8 @@ class OrderController extends Controller
             if (in_array($status, ['SUCCESS', 'SUCCESSFUL', 'COMPLETED'])) {
                 $this->orderService->confirmKpayOrderPayment($order);
                 $order->refresh();
-            } elseif (in_array($status, ['FAILED', 'FAILURE', 'ERROR', 'REJECTED', 'CANCELLED', 'CANCELED'])) {
+            } elseif (in_array($status, ['FAILED', 'FAILURE', 'REJECTED', 'CANCELLED', 'CANCELED'])) {
+                // ERROR (prestataire injoignable) n'est pas un refus : on revérifiera.
                 $this->orderService->failKpayOrderPayment($order);
                 $order->refresh();
             }
@@ -209,12 +211,23 @@ class OrderController extends Controller
             $order->refresh();
         }
 
+        // Paiement Mobile Money refusé : motif de l'opérateur, pour que l'acheteur sache
+        // quoi corriger (souvent un numéro d'un autre réseau que l'opérateur choisi).
+        $paymentFailure = null;
+        if ($order->payment_status === 'failed' && $order->payment_method === 'kpay_direct' && $order->payment_reference) {
+            $paymentFailure = $result
+                ? \App\Services\MobileMoneyGateway::failureCode($result['reason'] ?? $result['message'] ?? null)
+                : app(\App\Services\MobileMoneyGateway::class)->failureFor($order->payment_reference);
+        }
+
         return response()->json([
             'success' => true,
             'data' => [
                 'order_id' => $order->id,
                 'order_number' => $order->order_number,
                 'payment_status' => $order->payment_status, // pending | paid | failed
+                // wrong_network | insufficient_funds | expired | declined | null
+                'payment_failure' => $paymentFailure,
                 'status' => $order->status,
                 'balance_status' => $order->balance_status, // null | locked | unlocked | paid | cancelled
                 // Paiement du solde lancé et pas encore confirmé (Mobile Money / carte).

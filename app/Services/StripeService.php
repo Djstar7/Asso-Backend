@@ -22,6 +22,8 @@ class StripeService
     private ?string $publishableKey;
     private ?string $webhookSecret;
     private ?string $webhookSecretConnect;
+    /** @var string[] */
+    private array $webhookSecretsExtra;
     private string $mode;
     private ?StripeClient $client = null;
 
@@ -36,6 +38,9 @@ class StripeService
         // vendeurs) proviennent d'un endpoint Stripe DISTINCT, donc d'un secret de
         // signature distinct : les deux sont acceptés à la vérification.
         $this->webhookSecretConnect = $config['webhook_secret_connect'] ?? env('STRIPE_WEBHOOK_SECRET_CONNECT');
+        // Endpoints supplémentaires vers la même URL (Stripe ne permet pas de relire
+        // un secret : on garde ceux dont on ignore l'endpoint d'origine).
+        $this->webhookSecretsExtra = array_filter((array) ($config['webhook_secrets_extra'] ?? []), 'is_string');
         $this->mode = $config['mode'] ?? (str_starts_with((string) $this->secretKey, 'sk_live_') ? 'live' : 'test');
 
         Log::debug('[StripeService] Initialized', [
@@ -71,12 +76,13 @@ class StripeService
         return $this->webhookSecretConnect;
     }
 
-    /** Secrets de signature acceptés (compte plateforme + Connect), sans doublon. */
+    /** Secrets de signature acceptés (compte plateforme + Connect + extras), sans doublon. */
     public function webhookSecrets(): array
     {
         return array_values(array_unique(array_filter([
             $this->webhookSecret,
             $this->webhookSecretConnect,
+            ...$this->webhookSecretsExtra,
         ])));
     }
 
