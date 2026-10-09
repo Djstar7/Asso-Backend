@@ -36,7 +36,10 @@ class StripeService
         // vendeurs) proviennent d'un endpoint Stripe DISTINCT, donc d'un secret de
         // signature distinct : les deux sont acceptés à la vérification.
         $this->webhookSecretConnect = $config['webhook_secret_connect'] ?? env('STRIPE_WEBHOOK_SECRET_CONNECT');
-        $this->mode = $config['mode'] ?? (str_starts_with((string) $this->secretKey, 'sk_live_') ? 'live' : 'test');
+        // Le mode suit TOUJOURS la clé secrète : la valeur `mode` stockée (« test » par
+        // défaut à l'enregistrement du formulaire admin) pouvait rester à « test »
+        // alors qu'une clé sk_live_ était en place.
+        $this->mode = str_starts_with((string) $this->secretKey, 'sk_live_') ? 'live' : 'test';
 
         Log::debug('[StripeService] Initialized', [
             'mode' => $this->mode,
@@ -59,6 +62,66 @@ class StripeService
     public function publishableKey(): ?string
     {
         return $this->publishableKey;
+    }
+
+    /**
+     * Incohérence entre clé publique et clé secrète, ou null si le couple est sain.
+     *
+     * La Payment Sheet mobile s'initialise avec la clé publique renvoyée par l'API :
+     * un PaymentIntent créé en live (sk_live_) est introuvable pour une pk_test_ (et
+     * inversement), et la feuille ne s'ouvre tout simplement pas — sans aucune trace
+     * côté serveur.
+     */
+    public function keysMismatch(): ?string
+    {
+        return self::keyPairProblem($this->secretKey, $this->publishableKey);
+    }
+
+    /** Contrôle d'un couple de clés (réutilisé par le formulaire admin). */
+    public static function keyPairProblem(?string $secretKey, ?string $publishableKey): ?string
+    {
+        if (empty($secretKey)) {
+            return 'Clé secrète Stripe absente.';
+        }
+        if (empty($publishableKey)) {
+            return 'Clé publique Stripe (pk_...) absente : la Payment Sheet mobile ne peut pas s\'ouvrir.';
+        }
+
+        $secretMode = str_starts_with($secretKey, 'sk_live_') || str_starts_with($secretKey, 'rk_live_') ? 'live' : 'test';
+        $publicMode = str_starts_with($publishableKey, 'pk_live_') ? 'live' : 'test';
+
+        if ($secretMode !== $publicMode) {
+            return "Clés Stripe incohérentes : clé secrète en mode {$secretMode}, clé publique en mode {$publicMode}.";
+        }
+
+        return null;
+    }
+
+    /**
+     * L'erreur Stripe indique-t-elle un compte Connect inexistant pour la clé
+     * actuelle ? Cas typique : compte créé en mode test, puis passage en live.
+     */
+    public static function isMissingAccountError(\Throwable $e): bool
+    {
+        $message = strtolower($e->getMessage());
+
+        return ($e instanceof \Stripe\Exception\ApiErrorException && $e->getStripeCode() === 'account_invalid')
+            || str_contains($message, 'does not have access to account')
+            || str_contains($message, 'no such account');
+    }
+
+    /**
+     * L'erreur Stripe vient-elle de la configuration de la PLATEFORME (et non des
+     * données saisies par le vendeur) ?
+     */
+    public static function isPlatformConfigError(\Throwable $e): bool
+    {
+        $message = strtolower($e->getMessage());
+
+        return str_contains($message, 'platform profile')
+            || str_contains($message, 'test bank account')
+            || str_contains($message, 'livemode')
+            || str_contains($message, 'signed up for connect');
     }
 
     public function webhookSecret(): ?string
@@ -294,6 +357,8 @@ class StripeService
             'disabled_reason' => null,
             'ready' => false,
             'error' => null,
+            // true = le compte n'existe pas pour la clé actuelle (ex. créé en test).
+            'missing' => false,
         ];
 
         try {
@@ -303,7 +368,10 @@ class StripeService
                 'account_id' => $accountId,
                 'error' => $e->getMessage(),
             ]);
-            return array_merge($unknown, ['error' => $e->getMessage()]);
+            return array_merge($unknown, [
+                'error' => $e->getMessage(),
+                'missing' => self::isMissingAccountError($e),
+            ]);
         }
 
         $transfers = (string) ($account->capabilities->transfers ?? 'unknown');
@@ -322,6 +390,7 @@ class StripeService
             // `ready` = Stripe accepterait un Transfer + un Payout vers l'IBAN.
             'ready' => $transfers === 'active' && (bool) ($account->payouts_enabled ?? false),
             'error' => null,
+            'missing' => false,
         ];
     }
 
@@ -845,6 +914,13 @@ class StripeService
 
         if ($minor <= 0) {
             throw new \InvalidArgumentException('Montant de paiement invalide.');
+        }
+
+        // Inutile de créer un PaymentIntent que la Payment Sheet ne pourra pas ouvrir.
+        // Le détail technique reste dans le log ; l'utilisateur reçoit un message neutre.
+        if ($problem = $this->keysMismatch()) {
+            Log::error('[StripeService] Paiement carte impossible : ' . $problem, ['mode' => $this->mode]);
+            throw new \RuntimeException(__('payments.card_temporarily_unavailable'));
         }
 
         $intent = $this->client()->paymentIntents->create([

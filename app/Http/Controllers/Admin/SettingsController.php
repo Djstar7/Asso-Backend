@@ -335,6 +335,19 @@ class SettingsController extends Controller
                 'exchange_rate_api_key' => 'nullable|string',
             ]);
 
+            // Stripe : refuser un couple pk/sk de modes différents AVANT toute écriture
+            // (une pk_test_ avec une sk_live_ empêche la Payment Sheet mobile de s'ouvrir).
+            if ($form === 'stripe') {
+                $stripeExisting = ServiceConfiguration::getRawConfig(ServiceConfiguration::SERVICE_STRIPE) ?? [];
+                $problem = \App\Services\StripeService::keyPairProblem(
+                    ($validated['stripe_secret_key'] ?? null) ?: ($stripeExisting['secret_key'] ?? null),
+                    ($validated['stripe_publishable_key'] ?? null) ?: ($stripeExisting['publishable_key'] ?? null),
+                );
+                if ($problem) {
+                    return redirect()->back()->with('error', $problem)->withInput();
+                }
+            }
+
             foreach ($validated as $key => $value) {
                 // KPay, exchange-rate et les CLÉS Stripe sont stockés dans
                 // service_configurations (source de vérité), pas dans la table settings.
@@ -622,6 +635,11 @@ class SettingsController extends Controller
             }
             if (!empty($validated['stripe_webhook_secret_connect'])) {
                 $stripeConfig['webhook_secret_connect'] = $validated['stripe_webhook_secret_connect'];
+            }
+
+            // Le mode suit la clé secrète réellement enregistrée (cf. StripeService).
+            if (!empty($stripeConfig['secret_key'])) {
+                $stripeConfig['mode'] = str_starts_with($stripeConfig['secret_key'], 'sk_live_') ? 'live' : 'test';
             }
 
             ServiceConfiguration::setConfig(

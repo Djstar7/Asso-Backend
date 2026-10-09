@@ -138,6 +138,7 @@ class StripeConnectOnboardingTest extends TestCase
     {
         $this->mockStripe(function ($mock) {
             $mock->shouldReceive('isConfigured')->andReturn(true);
+            $mock->shouldReceive('accountState')->andReturn(['missing' => false]);
             $mock->shouldReceive('createCustomAccountWithBank')->never();
             $mock->shouldReceive('replaceExternalAccount')->never();
         });
@@ -170,6 +171,7 @@ class StripeConnectOnboardingTest extends TestCase
     {
         $this->mockStripe(function ($mock) {
             $mock->shouldReceive('isConfigured')->andReturn(true);
+            $mock->shouldReceive('accountState')->andReturn(['missing' => false]);
             $mock->shouldReceive('createCustomAccountWithBank')->never();
             $mock->shouldReceive('replaceExternalAccount')->once()->andReturn([
                 'external_last4' => '9999',
@@ -233,6 +235,97 @@ class StripeConnectOnboardingTest extends TestCase
             // L'état réel Stripe est remonté au vendeur (vérification en cours).
             ->assertJsonPath('data.stripe.ready', false)
             ->assertJsonPath('data.stripe.verification', 'Vérification en cours chez Stripe (quelques minutes).');
+    }
+
+    /**
+     * Compte Connect créé en mode test puis passage aux clés live : il est
+     * introuvable pour la clé actuelle. Le renvoi de l'IBAN doit créer un NOUVEAU
+     * compte (même si le statut ASSO était « approved »), au lieu d'échouer
+     * indéfiniment sur « does not have access to account ».
+     */
+    public function test_resubmit_recreates_account_missing_for_current_key(): void
+    {
+        $this->mockStripe(function ($mock) {
+            $mock->shouldReceive('isConfigured')->andReturn(true);
+            $mock->shouldReceive('mode')->andReturn('live');
+            $mock->shouldReceive('accountState')->with('acct_from_test_mode')->andReturn(['missing' => true]);
+            $mock->shouldReceive('replaceExternalAccount')->never();
+            $mock->shouldReceive('createCustomAccountWithBank')->once()->andReturn([
+                'id' => 'acct_live_new',
+                'external_last4' => '0189',
+                'bank_country' => 'FR',
+                'account_holder_name' => 'Jean Dupont',
+            ]);
+        });
+
+        $user = User::factory()->create();
+        $user->forceFill([
+            'stripe_account_id' => 'acct_from_test_mode',
+            'stripe_account_status' => 'approved',
+        ])->saveQuietly();
+
+        $this->actingAs($user, 'sanctum')
+            ->postJson('/api/v1/stripe/connect/submit', $this->payload())
+            ->assertOk()
+            ->assertJsonPath('data.status', 'pending');
+
+        $user->refresh();
+        $this->assertSame('acct_live_new', $user->stripe_account_id);
+        $this->assertSame('pending', $user->stripe_account_status);
+    }
+
+    /**
+     * Profil plateforme Connect non rempli en live : ce n'est pas la faute du
+     * vendeur, il ne doit pas lire « informations invalides ».
+     */
+    public function test_platform_config_error_is_not_blamed_on_vendor(): void
+    {
+        $this->mockStripe(function ($mock) {
+            $mock->shouldReceive('isConfigured')->andReturn(true);
+            $mock->shouldReceive('mode')->andReturn('live');
+            $mock->shouldReceive('createCustomAccountWithBank')->once()->andThrow(
+                new \Stripe\Exception\InvalidRequestException(
+                    'You must complete your platform profile to use Connect and create live connected accounts.'
+                )
+            );
+        });
+
+        $user = User::factory()->create();
+
+        $this->actingAs($user, 'sanctum')
+            ->postJson('/api/v1/stripe/connect/submit', $this->payload())
+            ->assertStatus(422)
+            ->assertJsonPath('message', __('payments.stripe_connect.error_unavailable'));
+    }
+
+    public function test_status_reopens_form_when_account_missing_for_current_key(): void
+    {
+        $this->mockStripe(function ($mock) {
+            $mock->shouldReceive('isConfigured')->andReturn(true);
+            $mock->shouldReceive('accountState')->andReturn([
+                'exists' => false,
+                'transfers' => 'unknown',
+                'payouts_enabled' => false,
+                'charges_enabled' => false,
+                'requirements_due' => [],
+                'disabled_reason' => null,
+                'ready' => false,
+                'error' => "does not have access to account 'acct_x'",
+                'missing' => true,
+            ]);
+        });
+
+        $user = User::factory()->create();
+        $user->forceFill([
+            'stripe_account_id' => 'acct_x',
+            'stripe_account_status' => 'approved',
+        ])->saveQuietly();
+
+        $this->actingAs($user, 'sanctum')
+            ->getJson('/api/v1/stripe/connect/status')
+            ->assertOk()
+            ->assertJsonPath('data.has_account', false)
+            ->assertJsonPath('data.status', null);
     }
 
     protected function tearDown(): void
