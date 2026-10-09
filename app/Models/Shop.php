@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasTranslations;
 use App\Support\LocationFormatter;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -9,6 +10,17 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Shop extends Model
 {
+    use HasTranslations;
+
+    /** Champs traduisibles (voir HasTranslations). */
+    protected array $translatable = ['name', 'description'];
+
+    /** Règles des traductions saisies par le vendeur (voir ContentLocale::rules). */
+    public const TRANSLATION_RULES = [
+        'name' => 'string|max:255',
+        'description' => 'string|max:10000',
+    ];
+
     protected $fillable = [
         'user_id',
         'name',

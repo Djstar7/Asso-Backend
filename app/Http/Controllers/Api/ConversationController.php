@@ -405,7 +405,7 @@ class ConversationController extends Controller
                 $notificationTitle = $sender->name;
                 $notificationBody = $message->message
                     ? (strlen($message->message) > 100 ? substr($message->message, 0, 100) . '...' : $message->message)
-                    : ($message->image_path ? $recipient->translate('notifications.new_message.photo_body') : $recipient->translate('notifications.new_message.text_body'));
+                    : ($message->image_path ? $recipient->localized('notifications.new_message.photo_body') : $recipient->localized('notifications.new_message.text_body'));
 
                 // Données supplémentaires pour la navigation
                 $notificationData = [

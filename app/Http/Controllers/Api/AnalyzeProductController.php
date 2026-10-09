@@ -36,7 +36,7 @@ class AnalyzeProductController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => __('common.validation_failed'),
                 'errors' => $validator->errors(),
             ], 422);
         }
@@ -69,7 +69,7 @@ class AnalyzeProductController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Image analyzed successfully',
+                'message' => __('products.image_analyzed'),
                 'data' => [
                     'suggested_data' => $analysis['suggested_data'],
                     'confidence' => $analysis['confidence'],
@@ -89,7 +89,7 @@ class AnalyzeProductController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'An error occurred while analyzing the image',
+                'message' => __('products.image_analysis_failed'),
                 'error' => config('app.debug') ? $e->getMessage() : null,
             ], 500);
         }
@@ -119,7 +119,7 @@ class AnalyzeProductController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch categories',
+                'message' => __('products.categories_fetch_failed'),
             ], 500);
         }
     }

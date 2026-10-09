@@ -48,13 +48,7 @@
                class="w-4 h-4 rounded border-dark-300 bg-dark-50 text-primary-500">
         <label for="prices_exclude_vat" class="text-sm text-gray-300">Grille hors taxe (la TVA est ajoutée)</label>
     </div>
-    <div class="md:col-span-3">
-        <label class="block text-sm text-gray-400 mb-1">Conditions affichées à l'acheteur</label>
-        <textarea name="conditions" rows="3" class="{{ $input }}"
-                  placeholder="Dépôt et retrait en agence, délais hors week-end, objets interdits…">{{ old('conditions', $partner?->conditions) }}</textarea>
-    </div>
-    <div class="md:col-span-3">
-        <label class="block text-sm text-gray-400 mb-1">Description</label>
-        <input type="text" name="description" value="{{ old('description', $partner?->description) }}" class="{{ $input }}">
-    </div>
+    <x-admin.translatable class="md:col-span-3" name="conditions" label="Conditions affichées à l'acheteur" :model="$partner" type="textarea" rows="3"
+        placeholder="Dépôt et retrait en agence, délais hors week-end, objets interdits…" />
+    <x-admin.translatable class="md:col-span-3" name="description" label="Description" :model="$partner" />
 </div>

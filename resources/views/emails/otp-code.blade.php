@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="{{ app()->getLocale() }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Code de Vérification - ASSO</title>
+    <title>{{ __('mail.otp.subject') }}</title>
     <style>
         body {
             margin: 0;
@@ -135,49 +135,48 @@
         <!-- Header -->
         <div class="header">
             <h1>ASSO</h1>
-            <p>Marketplace - Ton marché dans ta poche</p>
+            <p>{{ __('mail.otp.tagline') }}</p>
         </div>
 
         <!-- Content -->
         <div class="content">
             <div class="greeting">
-                Bonjour,
+                {{ __('mail.otp.greeting') }}
             </div>
 
             <div class="message">
-                <p>Vous avez demandé un code de vérification pour accéder à votre compte ASSO. Utilisez le code ci-dessous pour continuer :</p>
+                <p>{{ __('mail.otp.intro') }}</p>
             </div>
 
             <!-- OTP Code -->
             <div class="otp-container">
-                <div class="otp-label">Votre code de vérification</div>
+                <div class="otp-label">{{ __('mail.otp.code_label') }}</div>
                 <div class="otp-code">{{ $otpCode }}</div>
             </div>
 
             <!-- Expiry Notice -->
             <div class="expiry-notice">
-                <p><strong>⏱️ Important :</strong> Ce code expirera dans <strong>5 minutes</strong>.</p>
+                <p><strong>⏱️ {{ __('mail.otp.important') }}</strong> {!! __('mail.otp.expiry') !!}</p>
             </div>
 
             <!-- Security Notice -->
             <div class="security-notice">
-                <h3>🔒 Sécurité</h3>
+                <h3>🔒 {{ __('mail.otp.security_title') }}</h3>
                 <p>
-                    Si vous n'avez pas demandé ce code, veuillez ignorer cet email.
-                    Ne partagez jamais ce code avec qui que ce soit. L'équipe ASSO ne vous demandera jamais votre code de vérification.
+                    {{ __('mail.otp.security_text') }}
                 </p>
             </div>
 
             <div class="message" style="margin-top: 30px;">
-                <p>Merci d'utiliser ASSO !</p>
-                <p style="margin-top: 20px;">Cordialement,<br><strong>L'équipe ASSO</strong></p>
+                <p>{{ __('mail.otp.thanks') }}</p>
+                <p style="margin-top: 20px;">{{ __('mail.otp.regards') }}<br><strong>{{ __('mail.otp.team') }}</strong></p>
             </div>
         </div>
 
         <!-- Footer -->
         <div class="footer">
-            <p>&copy; {{ date('Y') }} ASSO. Tous droits réservés.</p>
-            <p>Marketplace - Ton marché dans ta poche</p>
+            <p>&copy; {{ date('Y') }} ASSO. {{ __('mail.otp.rights') }}</p>
+            <p>{{ __('mail.otp.tagline') }}</p>
         </div>
     </div>
 </body>

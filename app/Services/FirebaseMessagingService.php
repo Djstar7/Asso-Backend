@@ -2,9 +2,11 @@
 
 namespace App\Services;
 
+use App\Http\Middleware\SetLocale;
 use App\Models\DeviceToken;
 use App\Models\User;
 use App\Models\Notification as NotificationModel;
+use App\Support\Translation\LocalizedText;
 use Kreait\Firebase\Factory;
 use Kreait\Firebase\Messaging\CloudMessage;
 use Kreait\Firebase\Messaging\Notification;
@@ -16,6 +18,64 @@ use Exception;
 class FirebaseMessagingService
 {
     protected $messaging;
+
+    /** Topic des annonces des anciennes versions de l'app (français). */
+    public const TOPIC_ALL = 'all_users';
+
+    /** Topic des annonces dans une langue (all_users_fr, all_users_en). */
+    public static function localeTopic(string $locale): string
+    {
+        return self::TOPIC_ALL . '_' . $locale;
+    }
+
+    /** @return array<int, string> */
+    public static function announcementTopics(): array
+    {
+        return array_merge([self::TOPIC_ALL], array_map(fn ($l) => self::localeTopic($l), SetLocale::SUPPORTED));
+    }
+
+    /**
+     * Annonce à tous dans la langue de chacun : un envoi par topic de langue,
+     * plus le français sur all_users pour les versions de l'app qui ne
+     * connaissent pas encore les topics par langue.
+     *
+     * @param  array<string, array{0: string, 1: string}>  $texts  langue => [titre, texte]
+     */
+    public function sendToTopicsLocalized(array $texts, array $data = []): array
+    {
+        $fr = $texts['fr'];
+        $results = [self::TOPIC_ALL => $this->sendToTopic(self::TOPIC_ALL, $fr[0], $fr[1], $data)];
+        foreach (SetLocale::SUPPORTED as $locale) {
+            [$title, $body] = $texts[$locale] ?? $fr;
+            $results[self::localeTopic($locale)] = $this->sendToTopic(self::localeTopic($locale), $title, $body, $data);
+        }
+
+        $success = collect($results)->contains(fn ($r) => $r['success'] ?? false);
+
+        return [
+            'success' => $success,
+            'message' => $success ? 'Notification sent to topics' : ($results[self::TOPIC_ALL]['message'] ?? 'Topic send failed'),
+            'results' => $results,
+        ];
+    }
+
+    /**
+     * Comme sendToAll, mais chaque utilisateur garde dans son historique le
+     * texte de sa langue.
+     *
+     * @param  array<string, array{0: string, 1: string}>  $texts  langue => [titre, texte]
+     */
+    public function sendToAllLocalized(array $texts, array $data = []): array
+    {
+        User::query()->select(['id', 'locale'])->chunkById(500, function ($users) use ($texts, $data) {
+            foreach ($users as $user) {
+                [$title, $body] = $texts[$user->locale] ?? $texts['fr'];
+                $this->saveNotificationToDatabase($user->id, $title, $body, $data);
+            }
+        });
+
+        return $this->sendToTopicsLocalized($texts, $data);
+    }
 
     public function __construct()
     {
@@ -40,18 +100,23 @@ class FirebaseMessagingService
     /**
      * Envoie une notification à un utilisateur spécifique
      *
+     * Un titre ou un texte LocalizedText est enregistré avec sa clé : l'historique
+     * le rédige à nouveau dans la langue courante de l'utilisateur.
+     *
      * @param User $user
-     * @param string $title
-     * @param string $body
+     * @param string|LocalizedText $title
+     * @param string|LocalizedText $body
      * @param array $data
      * @param string|null $platform
      * @return array
      */
-    public function sendToUser(User $user, string $title, string $body, array $data = [], ?string $platform = null): array
+    public function sendToUser(User $user, string|LocalizedText $title, string|LocalizedText $body, array $data = [], ?string $platform = null): array
     {
         // Enregistrée d'abord : l'app reçoit l'id et peut marquer la notification lue.
         $notificationId = $this->saveNotificationToDatabase($user->id, $title, $body, $data);
         $data = self::stringifyData($data + ($notificationId ? ['notification_id' => $notificationId] : []));
+        $title = (string) $title;
+        $body = (string) $body;
 
         $tokens = $user->deviceTokens()->active();
 
@@ -426,20 +491,20 @@ class FirebaseMessagingService
      * Enregistre une notification dans la base de données
      *
      * @param int $userId
-     * @param string $title
-     * @param string $body
+     * @param string|LocalizedText $title
+     * @param string|LocalizedText $body
      * @param array $data
-     * @return void
+     * @return int|null
      */
-    private function saveNotificationToDatabase(int $userId, string $title, string $body, array $data = []): ?int
+    private function saveNotificationToDatabase(int $userId, string|LocalizedText $title, string|LocalizedText $body, array $data = []): ?int
     {
         try {
             $notification = NotificationModel::create([
                 'user_id' => $userId,
-                'title' => $title,
-                'body' => $body,
+                'title' => (string) $title,
+                'body' => (string) $body,
                 'type' => $data['type'] ?? null,
-                'data' => $data,
+                'data' => NotificationModel::withI18n($data, $title, $body),
                 'is_read' => false,
                 'sent_at' => now(),
             ]);

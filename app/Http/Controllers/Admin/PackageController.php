@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Package;
+use App\Support\Translation\ContentLocale;
 use Illuminate\Http\Request;
 
 class PackageController extends Controller
@@ -95,7 +96,7 @@ class PackageController extends Controller
             'is_active' => 'boolean',
             'is_popular' => 'boolean',
             'order' => 'nullable|integer|min:0',
-        ]);
+        ] + ContentLocale::rules(self::TRANSLATION_RULES) + ['translations.*.benefits.*' => 'nullable|string|max:500']);
 
         $validated['is_active'] = $request->has('is_active');
         $validated['is_popular'] = $request->has('is_popular');
@@ -119,7 +120,8 @@ class PackageController extends Controller
             $validated['benefits'] = null;
         }
 
-        Package::create($validated);
+        $package = Package::create($validated);
+        $package->syncTranslations($this->translations($validated));
 
         return redirect()->route('admin.packages.index')
             ->with('success', 'Package créé avec succès.');
@@ -161,7 +163,7 @@ class PackageController extends Controller
             'is_active' => 'boolean',
             'is_popular' => 'boolean',
             'order' => 'nullable|integer|min:0',
-        ]);
+        ] + ContentLocale::rules(self::TRANSLATION_RULES) + ['translations.*.benefits.*' => 'nullable|string|max:500']);
 
         $validated['is_active'] = $request->has('is_active');
         $validated['is_popular'] = $request->has('is_popular');
@@ -186,9 +188,29 @@ class PackageController extends Controller
         }
 
         $package->update($validated);
+        $package->syncTranslations($this->translations($validated));
 
         return redirect()->route('admin.packages.index')
             ->with('success', 'Package mis à jour avec succès.');
+    }
+
+    private const TRANSLATION_RULES = [
+        'name' => 'string|max:255',
+        'description' => 'string',
+        'benefits' => 'array',
+    ];
+
+    /** Traductions du formulaire ; les avantages ne valent que pour une certification. */
+    private function translations(array $validated): array
+    {
+        $translations = $validated['translations'] ?? [];
+        if ($validated['type'] !== 'certification') {
+            foreach (ContentLocale::targets() as $locale) {
+                $translations[$locale]['benefits'] = null;
+            }
+        }
+
+        return $translations;
     }
 
     /**

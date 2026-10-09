@@ -69,18 +69,7 @@
         <div class="bg-dark-100 rounded-lg shadow-sm border border-dark-200 p-6">
             <div class="space-y-6">
                 <!-- Title -->
-                <div>
-                    <label for="title" class="block text-sm font-medium text-gray-300 mb-2">
-                        Titre de la page <span class="text-red-500">*</span>
-                    </label>
-                    <input type="text" name="title" id="title"
-                           value="{{ old('title', $legalPage->title) }}"
-                           class="w-full px-4 py-2 bg-dark-50 border border-dark-300 rounded-lg text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                           required>
-                    @error('title')
-                        <p class="mt-1 text-sm text-red-500">{{ $message }}</p>
-                    @enderror
-                </div>
+                <x-admin.translatable name="title" label="Titre de la page" :model="$legalPage" required />
 
                 <!-- Slug -->
                 <div>
@@ -103,17 +92,7 @@
                 </div>
 
                 <!-- Content -->
-                <div>
-                    <label for="content" class="block text-sm font-medium text-gray-300 mb-2">
-                        Contenu <span class="text-red-500">*</span>
-                    </label>
-                    <div id="editor-container"></div>
-                    <input type="hidden" name="content" id="content" required>
-                    <p class="mt-1 text-xs text-gray-400">Utilisez les outils de mise en forme ci-dessus pour rédiger le contenu</p>
-                    @error('content')
-                        <p class="mt-1 text-sm text-red-500">{{ $message }}</p>
-                    @enderror
-                </div>
+                @include('admin.legal-pages._content', ['legalPage' => $legalPage])
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <!-- Order -->
@@ -163,58 +142,6 @@
 </div>
 
 @push('scripts')
-<!-- Quill Editor JS -->
-<script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Initialize Quill editor
-        var toolbarOptions = [
-            [{ 'header': [1, 2, 3, 4, false] }],
-            ['bold', 'italic', 'underline', 'strike'],
-            [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-            [{ 'indent': '-1'}, { 'indent': '+1' }],
-            [{ 'align': [] }],
-            [{ 'color': [] }, { 'background': [] }],
-            ['link', 'blockquote', 'code-block'],
-            ['clean']
-        ];
-
-        var quill = new Quill('#editor-container', {
-            theme: 'snow',
-            modules: {
-                toolbar: toolbarOptions
-            },
-            placeholder: 'Rédigez le contenu de votre page légale ici...'
-        });
-
-        // Charger le contenu existant
-        @if(old('content'))
-            quill.root.innerHTML = {!! json_encode(old('content')) !!};
-        @else
-            quill.root.innerHTML = {!! json_encode($legalPage->content) !!};
-        @endif
-
-        // Fonction pour mettre à jour le champ hidden
-        function updateHiddenField() {
-            var contentInput = document.getElementById('content');
-            contentInput.value = quill.root.innerHTML;
-            console.log('Contenu mis à jour:', contentInput.value.substring(0, 100) + '...');
-        }
-
-        // Mettre à jour à chaque changement de texte
-        quill.on('text-change', function() {
-            updateHiddenField();
-        });
-
-        // Mettre à jour aussi lors de la soumission du formulaire
-        var form = document.querySelector('form');
-        form.addEventListener('submit', function(e) {
-            updateHiddenField();
-        });
-
-        // Initialiser le champ hidden au chargement
-        updateHiddenField();
-    });
-</script>
+@include('admin.legal-pages._editor_script')
 @endpush
 @endsection

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\LegalPage;
+use App\Support\Translation\ContentLocale;
 use Illuminate\Http\Request;
 
 class LegalPageController extends Controller
@@ -45,7 +46,7 @@ class LegalPageController extends Controller
                 'content' => 'required|string',
                 'is_active' => 'nullable|boolean',
                 'order' => 'nullable|integer|min:0',
-            ]);
+            ] + ContentLocale::rules(['title' => 'string|max:255', 'content' => 'string']));
 
             // Générer un slug si non fourni
             if (empty($validated['slug'])) {
@@ -55,7 +56,8 @@ class LegalPageController extends Controller
             $validated['is_active'] = $request->has('is_active');
             $validated['order'] = $validated['order'] ?? 0;
 
-            LegalPage::create($validated);
+            $legalPage = LegalPage::create($validated);
+            $legalPage->syncTranslations($validated['translations'] ?? null);
 
             return redirect()->route('admin.legal-pages.index')
                 ->with('success', 'Page légale créée avec succès');
@@ -93,12 +95,13 @@ class LegalPageController extends Controller
                 'content' => 'required|string',
                 'is_active' => 'nullable|boolean',
                 'order' => 'nullable|integer|min:0',
-            ]);
+            ] + ContentLocale::rules(['title' => 'string|max:255', 'content' => 'string']));
 
             $validated['is_active'] = $request->has('is_active');
             $validated['order'] = $validated['order'] ?? $legalPage->order;
 
             $legalPage->update($validated);
+            $legalPage->syncTranslations($validated['translations'] ?? null);
 
             return redirect()->route('admin.legal-pages.index')
                 ->with('success', 'Page légale mise à jour avec succès');

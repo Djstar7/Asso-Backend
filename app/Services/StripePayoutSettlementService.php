@@ -103,7 +103,7 @@ class StripePayoutSettlementService
                     'amount' => $amount,
                     'balance_before' => $balanceBefore,
                     'balance_after' => $balanceBefore + $amount,
-                    'description' => 'Remboursement virement bancaire échoué',
+                    'description' => WalletTransaction::label('refund_bank_transfer_failed'),
                     'status' => 'completed',
                     'provider' => 'stripe',
                     'reference_type' => 'platform_withdrawal',
@@ -195,8 +195,8 @@ class StripePayoutSettlementService
                 return;
             }
             // Textes dans la langue du destinataire.
-            $title = $user->translate($titleKey, $replace);
-            $body = $user->translate($bodyKey, $replace);
+            $title = $user->localized($titleKey, $replace);
+            $body = $user->localized($bodyKey, $replace);
             $this->fcm->sendToUser($user, $title, $body, [
                 'type' => $type,
                 'provider' => 'stripe',

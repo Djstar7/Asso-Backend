@@ -4,7 +4,7 @@ namespace App\Jobs\Wallet;
 
 use App\Models\PlatformWithdrawal;
 use App\Models\WalletTransaction;
-use App\Services\KPayService;
+use App\Services\MobileMoneyGateway;
 use App\Services\FirebaseMessagingService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -30,7 +30,7 @@ class ProcessWithdrawalStatusJob implements ShouldQueue
         public int $withdrawalId
     ) {}
 
-    public function handle(KPayService $kpayService, FirebaseMessagingService $fcmService)
+    public function handle(MobileMoneyGateway $kpayService, FirebaseMessagingService $fcmService)
     {
         $withdrawal = PlatformWithdrawal::find($this->withdrawalId);
 
@@ -138,8 +138,8 @@ class ProcessWithdrawalStatusJob implements ShouldQueue
                         $user = $withdrawal->user;
                         $fcmService->sendToUser(
                             $user,
-                            $user->translate('notifications.wallet_withdrawal_completed.title'),
-                            $user->translate('notifications.wallet_withdrawal_completed.body', [
+                            $user->localized('notifications.wallet_withdrawal_completed.title'),
+                            $user->localized('notifications.wallet_withdrawal_completed.body', [
                                 'amount' => $withdrawal->amount_sent,
                                 'account' => $withdrawal->payment_account,
                             ]),
@@ -166,7 +166,7 @@ class ProcessWithdrawalStatusJob implements ShouldQueue
                         ]);
                     }
 
-                } elseif (in_array($status, ['FAILED', 'FAILURE', 'ERROR', 'REJECTED', 'CANCELLED', 'CANCELED'])) {
+                } elseif (in_array($status, ['FAILED', 'FAILURE', 'REJECTED', 'CANCELLED', 'CANCELED'])) {
                     Log::warning('⚠️ [PROCESS-WITHDRAWAL] Withdrawal FAILED', [
                         'withdrawal_id' => $withdrawal->id,
                         'reason' => $reason,
@@ -174,7 +174,7 @@ class ProcessWithdrawalStatusJob implements ShouldQueue
 
                     // Marquer comme échoué
                     $withdrawal->status = 'failed';
-                    $withdrawal->failure_code = 'KPAY_' . $status;
+                    $withdrawal->failure_code = strtoupper(MobileMoneyGateway::gatewayOfReference($withdrawal->kpay_reference)) . '_' . $status;
                     $withdrawal->failure_reason = $reason ?? 'Withdrawal failed';
                     $withdrawal->save();
 
@@ -201,10 +201,10 @@ class ProcessWithdrawalStatusJob implements ShouldQueue
                         $user = $withdrawal->user;
                         $fcmService->sendToUser(
                             $user,
-                            $user->translate('notifications.wallet_withdrawal_failed.title'),
-                            $user->translate('notifications.wallet_withdrawal_failed.body', [
+                            $user->localized('notifications.wallet_withdrawal_failed.title'),
+                            $user->localized('notifications.wallet_withdrawal_failed.body', [
                                 'amount' => $withdrawal->amount_sent,
-                                'reason' => $reason ?? $user->translate('notifications.wallet_withdrawal_failed.default_reason'),
+                                'reason' => $reason ?? $user->localized('notifications.wallet_withdrawal_failed.default_reason'),
                             ]),
                             [
                                 'type' => 'wallet_withdrawal_failed',
@@ -302,7 +302,7 @@ class ProcessWithdrawalStatusJob implements ShouldQueue
                 'amount' => $refundAmount,
                 'balance_before' => $balanceBefore,
                 'balance_after' => $balanceBefore + $refundAmount,
-                'description' => "Remboursement retrait échoué - {$withdrawal->payment_method} ({$withdrawal->payment_account})",
+                'description' => WalletTransaction::label('refund_withdrawal_failed', ['method' => $withdrawal->payment_method, 'account' => $withdrawal->payment_account]),
                 'reference_type' => 'platform_withdrawal_refund',
                 'reference_id' => $withdrawal->id,
                 'status' => 'completed',

@@ -2,12 +2,16 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasTranslations;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Package extends Model
 {
-    use HasFactory;
+    use HasFactory, HasTranslations;
+
+    /** Champs traduisibles (voir HasTranslations). */
+    protected array $translatable = ['name', 'description', 'benefits'];
 
     protected $fillable = [
         'type',
@@ -117,10 +121,10 @@ class Package extends Model
         if (!$this->storage_size_mb) return '';
 
         if ($this->storage_size_mb >= 1024) {
-            return number_format($this->storage_size_mb / 1024, 1) . ' Go';
+            return __('packages.storage.gb', ['size' => number_format($this->storage_size_mb / 1024, 1)]);
         }
 
-        return $this->storage_size_mb . ' Mo';
+        return __('packages.storage.mb', ['size' => $this->storage_size_mb]);
     }
 
     /**
@@ -129,15 +133,15 @@ class Package extends Model
     public function getFormattedDurationAttribute(): string
     {
         if ($this->duration_days === 1) {
-            return '1 jour';
+            return __('packages.duration.day');
         } elseif ($this->duration_days < 30) {
-            return $this->duration_days . ' jours';
+            return __('packages.duration.days', ['count' => $this->duration_days]);
         } elseif ($this->duration_days === 30) {
-            return '1 mois';
+            return __('packages.duration.month');
         } elseif ($this->duration_days < 365) {
-            return round($this->duration_days / 30) . ' mois';
+            return __('packages.duration.months', ['count' => round($this->duration_days / 30)]);
         } else {
-            return round($this->duration_days / 365) . ' an(s)';
+            return __('packages.duration.years', ['count' => round($this->duration_days / 365)]);
         }
     }
 }

@@ -9,6 +9,8 @@ use App\Models\Product;
 use App\Models\ProductVideo;
 use App\Models\Shop;
 use App\Models\User;
+use App\Models\Package;
+use App\Models\VendorPackage;
 use App\Services\FcmService;
 use App\Services\FirebaseMessagingService;
 use App\Services\VideoProcessingService;
@@ -21,8 +23,8 @@ use Symfony\Component\Process\Process;
 use Tests\TestCase;
 
 /**
- * Vidéo de présentation des produits grossistes : envoi par morceaux depuis
- * l'admin, traitement (affiche, aperçu, version fiche), rattachement au
+ * Vidéo de présentation des produits : envoi par morceaux depuis
+ * l'admin ou l'app vendeur, traitement (affiche, aperçu, version fiche), rattachement au
  * produit et diffusion à l'app.
  */
 class ProductVideoTest extends TestCase
@@ -270,10 +272,9 @@ class ProductVideoTest extends TestCase
         $this->assertSame($product->id, $video->fresh()->product_id);
     }
 
-    public function test_une_video_sur_un_produit_local_est_supprimee(): void
+    public function test_une_video_est_rattachee_aussi_a_un_produit_local(): void
     {
         [$shop, $category] = $this->shopAndCategory();
-        Storage::disk('public')->put('products/videos/uploads/local.mp4', 'x');
         $video = ProductVideo::create(['original_path' => 'products/videos/uploads/local.mp4', 'status' => ProductVideo::READY]);
 
         $this->actingAs($this->admin())
@@ -282,8 +283,8 @@ class ProductVideoTest extends TestCase
             ]))
             ->assertRedirect(route('admin.products.index'));
 
-        $this->assertNull(ProductVideo::find($video->id));
-        $this->assertFalse(Storage::disk('public')->exists('products/videos/uploads/local.mp4'));
+        $product = Product::where('name', 'Balle robes premium')->firstOrFail();
+        $this->assertSame($product->id, $video->fresh()->product_id);
     }
 
     public function test_remplacer_puis_retirer_la_video_a_la_mise_a_jour(): void
@@ -395,6 +396,198 @@ class ProductVideoTest extends TestCase
 
         $this->get("/api/v1/import/videos/{$orphan->id}/video")->assertNotFound();
         $this->get("/api/v1/import/videos/{$orphan->id}/other")->assertNotFound();
+    }
+
+    // ------------------------------------------------------------------
+    // App vendeur (tous produits)
+    // ------------------------------------------------------------------
+
+    private function localProduct(): Product
+    {
+        [$shop, $category] = $this->shopAndCategory();
+
+        return Product::create([
+            'user_id' => $shop->user_id,
+            'shop_id' => $shop->id,
+            'category_id' => $category->id,
+            'name' => 'Robe wax',
+            'price' => 15000,
+            'stock' => 3,
+            'status' => 'active',
+            'weight' => 1,
+        ]);
+    }
+
+    public function test_le_vendeur_envoie_une_video_par_morceaux_depuis_l_app(): void
+    {
+        Queue::fake();
+        $vendor = User::factory()->create(['role' => 'vendeur']);
+        $this->storagePackage($vendor);
+        $uploadId = (string) Str::uuid();
+        $send = fn (int $i, string $content) => $this->actingAs($vendor, 'sanctum')->post('/api/v1/vendor/product-videos/chunks', [
+            'upload_id' => $uploadId, 'index' => $i, 'total' => 2, 'size' => 8, 'name' => 'robe.mp4',
+            'chunk' => UploadedFile::fake()->createWithContent("robe{$i}", $content),
+        ], ['Accept' => 'application/json']);
+
+        $send(0, 'AAAA')->assertOk()->assertJsonPath('complete', false);
+        $response = $send(1, 'BBBB')->assertCreated()->assertJsonPath('video.status', ProductVideo::PENDING);
+
+        $video = ProductVideo::findOrFail($response->json('video.id'));
+        $this->assertSame($vendor->id, (int) $video->uploaded_by);
+        Queue::assertPushed(ProcessProductVideo::class);
+
+        $this->actingAs($vendor, 'sanctum')->getJson("/api/v1/vendor/product-videos/{$video->id}")
+            ->assertOk()->assertJsonPath('video.id', $video->id);
+        $this->actingAs(User::factory()->create(['role' => 'vendeur']), 'sanctum')
+            ->getJson("/api/v1/vendor/product-videos/{$video->id}")->assertNotFound();
+    }
+
+    public function test_le_vendeur_rattache_sa_video_a_un_produit_local_et_l_app_la_lit(): void
+    {
+        $product = $this->localProduct();
+        $vendor = $product->user;
+        Storage::disk('public')->put('products/videos/5/video.mp4', str_repeat('x', 100));
+        $video = ProductVideo::create([
+            'uploaded_by' => $vendor->id, 'path' => 'products/videos/5/video.mp4', 'status' => ProductVideo::READY,
+        ]);
+
+        $this->actingAs($vendor, 'sanctum')
+            ->postJson("/api/v1/vendor/products/{$product->id}", ['_method' => 'PUT', 'video_id' => $video->id])
+            ->assertOk()
+            ->assertJsonPath('product.video.id', $video->id);
+        $this->assertSame($product->id, $video->fresh()->product_id);
+
+        // Fiche publique et lecture du fichier, sans être un produit grossiste.
+        $this->getJson("/api/v1/products/{$product->id}")->assertOk()->assertJsonPath('product.video.id', $video->id);
+        $this->get("/api/v1/import/videos/{$video->id}/video")->assertOk();
+
+        $this->actingAs($vendor, 'sanctum')
+            ->postJson("/api/v1/vendor/products/{$product->id}", ['_method' => 'PUT', 'remove_video' => true])
+            ->assertOk()
+            ->assertJsonPath('product.video', null);
+        $this->assertNull(ProductVideo::find($video->id));
+    }
+
+    public function test_un_vendeur_ne_peut_pas_rattacher_la_video_d_un_autre(): void
+    {
+        $product = $this->localProduct();
+        $other = User::factory()->create(['role' => 'vendeur']);
+        $video = ProductVideo::create(['uploaded_by' => $other->id, 'path' => 'v.mp4', 'status' => ProductVideo::READY]);
+
+        $this->actingAs($product->user, 'sanctum')
+            ->postJson("/api/v1/vendor/products/{$product->id}", ['_method' => 'PUT', 'video_id' => $video->id])
+            ->assertOk();
+
+        $this->assertNull($video->fresh()->product_id);
+    }
+
+    // ------------------------------------------------------------------
+    // Espace du forfait vendeur
+    // ------------------------------------------------------------------
+
+    private function storagePackage(User $vendor, float $remainingMb = 100): VendorPackage
+    {
+        return VendorPackage::create([
+            'user_id' => $vendor->id,
+            'package_id' => Package::create([
+                'type' => 'storage', 'name' => 'Stockage', 'price' => 1000,
+                'duration_days' => 30, 'storage_size_mb' => 100, 'is_active' => true,
+            ])->id,
+            'storage_total_mb' => 100,
+            'storage_used_mb' => 100 - $remainingMb,
+            'storage_remaining_mb' => $remainingMb,
+            'purchased_at' => now(),
+            'expires_at' => now()->addDays(30),
+            'status' => 'active',
+        ]);
+    }
+
+    private function vendorVideo(User $vendor, int $bytes): ProductVideo
+    {
+        return ProductVideo::create([
+            'uploaded_by' => $vendor->id, 'path' => 'v.mp4', 'size_bytes' => $bytes, 'status' => ProductVideo::READY,
+        ]);
+    }
+
+    public function test_la_video_est_decomptee_du_forfait_puis_rendue_au_remplacement_et_au_retrait(): void
+    {
+        $product = $this->localProduct();
+        $vendor = $product->user;
+        $package = $this->storagePackage($vendor);
+        $first = $this->vendorVideo($vendor, 10 * 1048576);
+        $put = fn (array $data) => $this->actingAs($vendor, 'sanctum')
+            ->postJson("/api/v1/vendor/products/{$product->id}", ['_method' => 'PUT'] + $data)
+            ->assertOk();
+
+        $put(['video_id' => $first->id]);
+        $this->assertEqualsWithDelta(90, $package->fresh()->storage_remaining_mb, 0.01);
+        $this->assertEqualsWithDelta(10, $first->fresh()->storage_charged_mb, 0.01);
+
+        // Remplacée : l'ancienne rend ses 10 Mo, la nouvelle en prend 4.
+        $second = $this->vendorVideo($vendor, 4 * 1048576);
+        $put(['video_id' => $second->id]);
+        $this->assertEqualsWithDelta(96, $package->fresh()->storage_remaining_mb, 0.01);
+
+        // La conversion change la taille du fichier : on rend ce qui a été pris.
+        $second->update(['size_bytes' => 1048576]);
+        $put(['remove_video' => true]);
+        $this->assertEqualsWithDelta(100, $package->fresh()->storage_remaining_mb, 0.01);
+        $this->assertEqualsWithDelta(0, $package->fresh()->storage_used_mb, 0.01);
+    }
+
+    public function test_supprimer_le_produit_rend_l_espace_de_la_video(): void
+    {
+        $product = $this->localProduct();
+        $vendor = $product->user;
+        $package = $this->storagePackage($vendor);
+        $video = $this->vendorVideo($vendor, 20 * 1048576);
+        $this->actingAs($vendor, 'sanctum')
+            ->postJson("/api/v1/vendor/products/{$product->id}", ['_method' => 'PUT', 'video_id' => $video->id])
+            ->assertOk();
+        $this->assertEqualsWithDelta(80, $package->fresh()->storage_remaining_mb, 0.01);
+
+        $this->actingAs($vendor, 'sanctum')->deleteJson("/api/v1/vendor/products/{$product->id}")->assertOk();
+
+        $this->assertNull(ProductVideo::find($video->id));
+        $this->assertEqualsWithDelta(100, $package->fresh()->storage_remaining_mb, 0.01);
+    }
+
+    public function test_une_video_trop_lourde_pour_le_forfait_est_refusee(): void
+    {
+        $product = $this->localProduct();
+        $vendor = $product->user;
+        $this->storagePackage($vendor, 5);
+
+        // Dès le premier morceau, avant d'envoyer le reste.
+        $this->actingAs($vendor, 'sanctum')->post('/api/v1/vendor/product-videos/chunks', [
+            'upload_id' => (string) Str::uuid(), 'index' => 0, 'total' => 3,
+            'size' => 10 * 1048576, 'name' => 'robe.mp4',
+            'chunk' => UploadedFile::fake()->createWithContent('robe0', 'x'),
+        ], ['Accept' => 'application/json'])
+            ->assertForbidden()
+            ->assertJsonPath('error_code', 'INSUFFICIENT_STORAGE');
+
+        // Et au rattachement, si l'espace a été pris entre-temps.
+        $video = $this->vendorVideo($vendor, 10 * 1048576);
+        $this->actingAs($vendor, 'sanctum')
+            ->postJson("/api/v1/vendor/products/{$product->id}", ['_method' => 'PUT', 'video_id' => $video->id])
+            ->assertForbidden()
+            ->assertJsonPath('error_code', 'INSUFFICIENT_STORAGE');
+        $this->assertNull($video->fresh()->product_id);
+    }
+
+    public function test_une_video_envoyee_par_l_admin_n_est_pas_decomptee(): void
+    {
+        $product = $this->localProduct();
+        $package = $this->storagePackage($product->user);
+        $video = ProductVideo::create([
+            'uploaded_by' => $this->admin()->id, 'path' => 'a.mp4', 'size_bytes' => 30 * 1048576, 'status' => ProductVideo::READY,
+        ]);
+
+        app(\App\Services\ProductVideoUploadService::class)->syncForProduct($product, $video->id, false);
+
+        $this->assertSame($product->id, $video->fresh()->product_id);
+        $this->assertEqualsWithDelta(100, $package->fresh()->storage_remaining_mb, 0.01);
     }
 
     // ------------------------------------------------------------------

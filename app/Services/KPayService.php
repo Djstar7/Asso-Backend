@@ -20,10 +20,15 @@ class KPayService
     private string $baseUrl;
     private ?string $apiKey;
     private ?string $secretKey;
+    private bool $active;
 
     public function __construct()
     {
-        $config = \App\Models\ServiceConfiguration::getConfig('kpay') ?? [];
+        // Clés lues même si KPay est désactivé : les transactions déjà initiées
+        // doivent pouvoir être suivies après une bascule vers ElgioPay. Seul
+        // isConfigured() (nouveaux paiements) dépend de l'activation.
+        $config = \App\Models\ServiceConfiguration::getRawConfig('kpay') ?? [];
+        $this->active = \App\Models\ServiceConfiguration::isActive('kpay');
 
         $this->apiKey = $config['api_key'] ?? env('KPAY_API_KEY');
         $this->secretKey = $config['secret_key'] ?? env('KPAY_SECRET_KEY');
@@ -36,8 +41,14 @@ class KPayService
         ]);
     }
 
-    /** Whether the service has credentials configured. */
+    /** Activé par l'admin ET clés présentes (nouveaux paiements). */
     public function isConfigured(): bool
+    {
+        return $this->active && $this->hasCredentials();
+    }
+
+    /** Clés présentes, indépendamment de l'activation. */
+    public function hasCredentials(): bool
     {
         return !empty($this->apiKey) && !empty($this->secretKey);
     }
@@ -48,7 +59,7 @@ class KPayService
      */
     public function testConnection(): array
     {
-        if (!$this->isConfigured()) {
+        if (!$this->hasCredentials()) {
             return ['success' => false, 'message' => 'Clés API KPay manquantes.'];
         }
         try {
@@ -121,7 +132,7 @@ class KPayService
                     'id' => $data['id'] ?? null,                 // pay_xxx — used for status polling
                     'reference' => $data['reference'] ?? null,   // KPAY-... (human ref)
                     'status' => $data['status'] ?? 'PENDING',
-                    'message' => $data['message'] ?? 'Paiement initié',
+                    'message' => $data['message'] ?? __('payments.kpay_payment_initiated'),
                     'data' => $data,
                 ];
             }
@@ -218,7 +229,7 @@ class KPayService
                     'status' => $data['status'] ?? 'PENDING',
                     'net_amount' => $data['netAmount'] ?? null,
                     'fee_amount' => $data['feeAmount'] ?? null,
-                    'message' => $data['message'] ?? 'Retrait initié',
+                    'message' => $data['message'] ?? __('payments.kpay_withdrawal_initiated'),
                     'data' => $data,
                 ];
             }
@@ -317,7 +328,7 @@ class KPayService
         if (empty($signature)) {
             return false;
         }
-        $config = \App\Models\ServiceConfiguration::getConfig('kpay') ?? [];
+        $config = \App\Models\ServiceConfiguration::getRawConfig('kpay') ?? [];
         $secret = $config['webhook_secret'] ?? env('KPAY_WEBHOOK_SECRET');
         if (empty($secret)) {
             return false;

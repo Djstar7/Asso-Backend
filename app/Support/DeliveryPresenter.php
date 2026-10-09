@@ -29,17 +29,25 @@ class DeliveryPresenter
             'is_carrier' => $isCarrier,
             'company_name' => $snapshot['company_name'] ?? $company?->name,
             'service_type' => $snapshot['service_type'] ?? null,
-            'service_type_label' => $snapshot['service_type_label'] ?? null,
+            // Libellés recalculés depuis les codes figés : chacun les lit dans sa langue.
+            'service_type_label' => DelivererCompany::serviceTypeLabel($snapshot['service_type'] ?? null) ?? ($snapshot['service_type_label'] ?? null),
             'service_mode' => $snapshot['service_mode'] ?? $company?->service_mode,
-            'service_mode_label' => $snapshot['service_mode_label']
-                ?? ($company ? (DelivererCompany::SERVICE_MODES[$company->service_mode] ?? null) : null),
+            'service_mode_label' => DelivererCompany::serviceModeLabel($snapshot['service_mode'] ?? $company?->service_mode)
+                ?? ($snapshot['service_mode_label'] ?? null),
             'route_label' => $snapshot['route_label'] ?? null,
             'vehicle' => $order->delivery_vehicle,
             'vehicle_label' => $snapshot['vehicle_label'] ?? null,
             'delivery_option' => $snapshot['delivery_option'] ?? ($isCarrier && !$order->hasLastMileDelivery() ? 'agency_pickup' : 'home_delivery'),
-            'delivery_option_label' => $snapshot['delivery_option_label'] ?? null,
+            'delivery_option_label' => in_array($snapshot['delivery_option'] ?? null, ['home_delivery', 'agency_pickup'], true)
+                ? __("delivery.options.{$snapshot['delivery_option']}")
+                : ($snapshot['delivery_option_label'] ?? null),
             'last_mile' => $order->hasLastMileDelivery(),
             'lead_time' => $snapshot['lead_time'] ?? null,
+            // Délai annoncé (jours ouvrables) et fourchette de dates estimée, figés à la commande.
+            'delivery_days_min' => $snapshot['delivery_days_min'] ?? null,
+            'delivery_days_max' => $snapshot['delivery_days_max'] ?? null,
+            'estimated_delivery_from' => $snapshot['estimated_delivery_from'] ?? null,
+            'estimated_delivery_to' => $snapshot['estimated_delivery_to'] ?? null,
             'conditions' => $snapshot['conditions'] ?? null,
             'price_grid' => $snapshot['price_grid'] ?? [],
             'weight_kg' => $order->shipping_weight_kg,
@@ -53,7 +61,7 @@ class DeliveryPresenter
             'carrier_tracking_number' => $order->carrier_tracking_number,
             'carrier_tracking_url' => $trackingUrl,
             'tracking_status' => $order->tracking_status,
-            'tracking_status_label' => $order->tracking_status ? (OrderTrackingService::STEPS[$order->tracking_status] ?? null) : null,
+            'tracking_status_label' => OrderTrackingService::stepLabel($order->tracking_status),
             // Acheteur : confirmer le retrait en agence. À domicile, le coursier clôture
             // avec le code à 6 chiffres.
             'can_confirm_reception' => $isCarrier && !$order->hasLastMileDelivery() && $order->status === 'shipped',

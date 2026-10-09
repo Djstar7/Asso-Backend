@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\ServiceConfiguration;
 use App\Models\Setting;
 use App\Models\User;
+use App\Services\StripeService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -111,5 +112,47 @@ class StripePaymentSettingsTest extends TestCase
         $config = ServiceConfiguration::getConfig(ServiceConfiguration::SERVICE_STRIPE) ?? [];
         $this->assertSame('whsec_existing', $config['webhook_secret_connect'] ?? null);
         $this->assertSame('sk_test_existing', $config['secret_key'] ?? null);
+    }
+
+    /** pk_test + sk_live : la Payment Sheet mobile ne s'ouvrirait plus, la paire est refusée. */
+    public function test_mixed_test_and_live_keys_are_refused(): void
+    {
+        ServiceConfiguration::setConfig(ServiceConfiguration::SERVICE_STRIPE, [
+            'mode' => 'live',
+            'publishable_key' => 'pk_live_existing',
+            'secret_key' => 'sk_live_existing',
+        ], true, 'Stripe');
+
+        $this->actingAs($this->admin())
+            ->put(route('admin.settings.payments.update'), [
+                '_form' => 'stripe',
+                'stripe_enabled' => 1,
+                'stripe_publishable_key' => 'pk_test_new',
+            ])
+            ->assertSessionHas('error');
+
+        $config = ServiceConfiguration::getConfig(ServiceConfiguration::SERVICE_STRIPE) ?? [];
+        $this->assertSame('pk_live_existing', $config['publishable_key'] ?? null);
+    }
+
+    public function test_key_pair_problem_detection(): void
+    {
+        $this->assertNull(StripeService::keyPairProblem('pk_live_a', 'sk_live_b'));
+        $this->assertNull(StripeService::keyPairProblem('pk_test_a', 'rk_test_b'));
+        $this->assertNotNull(StripeService::keyPairProblem('pk_test_a', 'sk_live_b'));
+        $this->assertNotNull(StripeService::keyPairProblem('', 'sk_live_b'));
+        $this->assertNotNull(StripeService::keyPairProblem(null, 'sk_test_b'));
+    }
+
+    /** Le mode suit la clé secrète, même si le champ « mode » est resté sur test. */
+    public function test_mode_follows_secret_key_prefix(): void
+    {
+        ServiceConfiguration::setConfig(ServiceConfiguration::SERVICE_STRIPE, [
+            'mode' => 'test',
+            'publishable_key' => 'pk_live_a',
+            'secret_key' => 'sk_live_b',
+        ], true, 'Stripe');
+
+        $this->assertSame('live', (new StripeService())->mode());
     }
 }

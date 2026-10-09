@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasTranslations;
 use App\Support\CountryCode;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -12,6 +13,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class DeliveryRoute extends Model
 {
+    use HasTranslations;
+
+    /** Champs traduisibles (voir HasTranslations). */
+    protected array $translatable = ['lead_time'];
+
     protected $fillable = [
         'deliverer_company_id',
         'origin_country',

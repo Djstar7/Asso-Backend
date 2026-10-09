@@ -19,7 +19,7 @@ class SalesCodeController extends Controller
     public function show(Request $request, string $code)
     {
         if (mb_strlen($code) > 32) {
-            return response()->json(['success' => false, 'message' => "Ce code commercial n'existe pas ou n'est plus actif."], 404);
+            return response()->json(['success' => false, 'message' => __('packages.sales_code_unknown')], 404);
         }
 
         try {
@@ -29,7 +29,7 @@ class SalesCodeController extends Controller
         }
 
         if (! $agent) {
-            return response()->json(['success' => false, 'message' => 'Saisissez un code commercial.'], 404);
+            return response()->json(['success' => false, 'message' => __('packages.sales_code_required')], 404);
         }
 
         return response()->json([

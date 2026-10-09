@@ -203,8 +203,8 @@ class VendorOrderController extends Controller
         // Notification au livreur
         $this->fcmService->sendToUser(
             $deliveryPerson,
-            $deliveryPerson->translate('notifications.delivery_assigned.title'),
-            $deliveryPerson->translate('notifications.delivery_assigned.body', [
+            $deliveryPerson->localized('notifications.delivery_assigned.title'),
+            $deliveryPerson->localized('notifications.delivery_assigned.body', [
                 'order_number' => $order->order_number,
                 'address' => $order->delivery_address,
                 'details' => $order->delivery_address_details ? " ({$order->delivery_address_details})" : '',
@@ -405,8 +405,8 @@ class VendorOrderController extends Controller
             if ($sync->user) {
                 $this->fcmService->sendToUser(
                     $sync->user,
-                    $sync->user->translate('notifications.new_delivery_request.title'),
-                    $sync->user->translate('notifications.new_delivery_request.body', [
+                    $sync->user->localized('notifications.new_delivery_request.title'),
+                    $sync->user->localized('notifications.new_delivery_request.body', [
                         'order_number' => $order->order_number,
                         'address' => $order->delivery_address,
                         'fee' => number_format($order->deliveryPriceShown(), 0, ',', ' '),

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasTranslations;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -10,6 +11,11 @@ use Illuminate\Database\Eloquent\Model;
  */
 class ImportCountry extends Model
 {
+    use HasTranslations;
+
+    /** Champs traduisibles (voir HasTranslations). */
+    protected array $translatable = ['name'];
+
     protected $fillable = [
         'code',
         'name',

@@ -163,6 +163,11 @@ Route::post('/v1/payments/webhook/kpay', [PaymentController::class, 'webhookKpay
 // Alias court (certaines configs KPay utilisent cette forme)
 Route::post('/webhooks/kpay', [PaymentController::class, 'webhookKpay']);
 
+// Webhook ElgioPay (Mobile Money Cameroun) — signature X-Elgiopay-Signature +
+// re-vérification du statut auprès de l'API ; traitement en file deposits/withdrawals.
+Route::post('/v1/elgiopay/callback', [App\Http\Controllers\Api\ElgioPayWebhookController::class, 'handle'])
+    ->middleware('throttle:300,1');
+
 // Webhook Stripe (no auth — protégé par vérification de signature Stripe).
 // Finalise les virements IBAN : payout.paid → completed ; payout.failed → refund.
 Route::post('/v1/stripe/webhook', [App\Http\Controllers\Api\StripeWebhookController::class, 'handle']);
@@ -304,8 +309,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/vendor/package/current', [PackageController::class, 'currentPackage']);
 
         // Vendor shop management
-        Route::get('/vendor/shop', [ShopController::class, 'show']);
-        Route::put('/vendor/shop', [ShopController::class, 'update']);
+        Route::get('/vendor/shop', [ShopController::class, 'show'])->middleware('content.source');
+        Route::put('/vendor/shop', [ShopController::class, 'update'])->middleware('content.source');
         Route::put('/vendor/shop/free-delivery', [ShopController::class, 'updateFreeDelivery']);
         Route::get('/vendor/shops', [ShopController::class, 'index']);
         Route::get('/vendor/shop/location-requests', [ShopController::class, 'getLocationRequests']);
@@ -372,10 +377,17 @@ Route::middleware('auth:sanctum')->group(function () {
         });
 
         // Product creation (for vendors)
-        Route::post('/products', [ProductController::class, 'store']);
+        Route::post('/products', [ProductController::class, 'store'])->middleware('content.source');
 
-        // Vendor product management
-        Route::prefix('vendor/products')->group(function () {
+        // Vidéo produit : envoi par morceaux avant l'enregistrement du produit (video_id).
+        Route::prefix('vendor/product-videos')->group(function () {
+            Route::post('/chunks', [App\Http\Controllers\Api\VendorProductVideoController::class, 'chunk']);
+            Route::get('/{video}', [App\Http\Controllers\Api\VendorProductVideoController::class, 'show']);
+            Route::delete('/{video}', [App\Http\Controllers\Api\VendorProductVideoController::class, 'destroy']);
+        });
+
+        // Vendor product management (texte français saisi + traductions à part)
+        Route::prefix('vendor/products')->middleware('content.source')->group(function () {
             Route::get('/', [VendorProductController::class, 'index']);
             Route::put('/{id}', [VendorProductController::class, 'update']);
             Route::post('/{id}', [VendorProductController::class, 'update']); // Support POST avec _method=PUT pour multipart
@@ -439,11 +451,13 @@ Route::middleware('auth:sanctum')->group(function () {
             // Send test notification to yourself
             Route::post('/test', [NotificationController::class, 'sendTestNotification']);
 
-            // Admin only routes (will be checked in controller or middleware)
-            Route::post('/send-to-user', [NotificationController::class, 'sendToUser']);
-            Route::post('/send-to-users', [NotificationController::class, 'sendToUsers']);
-            Route::post('/send-to-all', [NotificationController::class, 'sendToAll']);
-            Route::post('/send-to-topic', [NotificationController::class, 'sendToTopic']);
+            // Envoi à d'autres utilisateurs : compte admin uniquement.
+            Route::middleware('api.admin')->group(function () {
+                Route::post('/send-to-user', [NotificationController::class, 'sendToUser']);
+                Route::post('/send-to-users', [NotificationController::class, 'sendToUsers']);
+                Route::post('/send-to-all', [NotificationController::class, 'sendToAll']);
+                Route::post('/send-to-topic', [NotificationController::class, 'sendToTopic']);
+            });
         });
     });
 });

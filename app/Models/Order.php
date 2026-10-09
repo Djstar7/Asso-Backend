@@ -288,8 +288,8 @@ class Order extends Model
         foreach (User::whereIn('id', $sellerIds)->get() as $seller) {
             app(\App\Services\FirebaseMessagingService::class)->sendToUser(
                 $seller,
-                $seller->translate($titleKey, $replace),
-                $seller->translate($bodyKey, $replace),
+                $seller->localized($titleKey, $replace),
+                $seller->localized($bodyKey, $replace),
                 $data + [
                     'order_id' => (string) $this->id,
                     'order_number' => (string) $this->order_number,

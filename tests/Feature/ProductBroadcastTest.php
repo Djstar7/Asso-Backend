@@ -18,7 +18,8 @@ use Tests\TestCase;
 
 /**
  * Chaque produit publié et chaque produit sponsorisé est annoncé à tous les
- * utilisateurs, en un seul envoi sur le topic Firebase `all_users`.
+ * utilisateurs : un envoi par topic de langue (all_users_fr, all_users_en),
+ * plus le français sur `all_users` pour les anciennes versions de l'app.
  */
 class ProductBroadcastTest extends TestCase
 {
@@ -33,7 +34,8 @@ class ProductBroadcastTest extends TestCase
 
         Storage::fake('public');
 
-        $this->mock(FirebaseMessagingService::class, function ($mock) {
+        // Partiel : sendToTopicsLocalized est le vrai, seul sendToTopic est intercepté.
+        $this->partialMock(FirebaseMessagingService::class, function ($mock) {
             $mock->shouldReceive('sendToUser')->andReturn([]);
             $mock->shouldReceive('sendToTopic')->andReturnUsing(
                 function (string $topic, string $title, string $body, array $data = []) {
@@ -100,12 +102,14 @@ class ProductBroadcastTest extends TestCase
             'images' => [UploadedFile::fake()->image('sac.jpg')],
         ], ['Accept' => 'application/json'])->assertCreated();
 
-        $this->assertCount(1, $this->topicSends);
+        $this->assertSame(['all_users', 'all_users_fr', 'all_users_en'], array_column($this->topicSends, 'topic'));
         $send = $this->topicSends[0];
-        $this->assertSame('all_users', $send['topic']);
         $this->assertSame('new_product', $send['data']['type']);
         $this->assertSame((string) Product::first()->id, $send['data']['product_id']);
         $this->assertStringContainsString('Sac en cuir', $send['body']);
+        $this->assertSame('Nouveau produit disponible', $send['title']);
+        $this->assertSame('New product available', $this->topicSends[2]['title']);
+        $this->assertSame('Boutique Test has published: Sac en cuir', $this->topicSends[2]['body']);
         // FCM refuse toute valeur non textuelle dans `data`.
         $this->assertContainsOnly('string', $send['data']);
     }
@@ -145,9 +149,8 @@ class ProductBroadcastTest extends TestCase
             'payment_mode' => 'wallet',
         ])->assertStatus(201);
 
-        $this->assertCount(1, $this->topicSends);
+        $this->assertSame(['all_users', 'all_users_fr', 'all_users_en'], array_column($this->topicSends, 'topic'));
         $send = $this->topicSends[0];
-        $this->assertSame('all_users', $send['topic']);
         $this->assertSame('sponsored_product', $send['data']['type']);
         $this->assertSame((string) $product->id, $send['data']['product_id']);
         $this->assertContainsOnly('string', $send['data']);

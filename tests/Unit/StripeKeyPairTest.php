@@ -14,16 +14,16 @@ class StripeKeyPairTest extends TestCase
 {
     public function test_matching_pairs_are_accepted(): void
     {
-        $this->assertNull(StripeService::keyPairProblem('sk_live_abc', 'pk_live_abc'));
-        $this->assertNull(StripeService::keyPairProblem('sk_test_abc', 'pk_test_abc'));
+        $this->assertNull(StripeService::keyPairProblem('pk_live_abc', 'sk_live_abc'));
+        $this->assertNull(StripeService::keyPairProblem('pk_test_abc', 'sk_test_abc'));
     }
 
     public function test_mixed_modes_and_missing_publishable_key_are_rejected(): void
     {
-        $this->assertNotNull(StripeService::keyPairProblem('sk_live_abc', 'pk_test_abc'));
-        $this->assertNotNull(StripeService::keyPairProblem('sk_test_abc', 'pk_live_abc'));
-        $this->assertNotNull(StripeService::keyPairProblem('sk_live_abc', ''));
-        $this->assertNotNull(StripeService::keyPairProblem(null, 'pk_live_abc'));
+        $this->assertNotNull(StripeService::keyPairProblem('pk_test_abc', 'sk_live_abc'));
+        $this->assertNotNull(StripeService::keyPairProblem('pk_live_abc', 'sk_test_abc'));
+        $this->assertNotNull(StripeService::keyPairProblem('', 'sk_live_abc'));
+        $this->assertNotNull(StripeService::keyPairProblem(null, 'sk_live_abc'));
     }
 
     public function test_account_created_in_another_mode_is_detected_as_missing(): void

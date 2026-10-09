@@ -26,7 +26,7 @@
     <!-- Réglages globaux -->
     <div class="bg-dark-100 rounded-xl shadow-lg border border-dark-200 p-6 mb-6">
         <h2 class="text-lg font-semibold text-white mb-4"><i class="fas fa-sliders-h mr-2 text-primary-400"></i>Réglages de livraison</h2>
-        <form action="{{ route('admin.delivery-partners.settings') }}" method="POST" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+        <form action="{{ route('admin.delivery-partners.settings') }}" method="POST" class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
             @csrf
             @method('PUT')
             <div>
@@ -49,6 +49,18 @@
                        value="{{ old('delivery_default_weight_kg', $defaultWeightKg) }}"
                        class="w-full px-3 py-2 bg-dark-50 border border-dark-200 rounded-lg text-white focus:border-primary-500 focus:outline-none">
                 <p class="mt-1 text-xs text-gray-500">Utilisé pour chiffrer la livraison quand le vendeur n'a pas renseigné le poids du produit.</p>
+            </div>
+            <div>
+                <label class="block text-sm text-gray-400 mb-1">Délai de livraison par défaut (jours ouvrables)</label>
+                <div class="grid grid-cols-2 gap-2">
+                    <input type="number" name="delivery_days_min" min="1" max="20" step="1" required
+                           value="{{ old('delivery_days_min', $defaultDelay['min']) }}" aria-label="Minimum"
+                           class="w-full px-3 py-2 bg-dark-50 border border-dark-200 rounded-lg text-white focus:border-primary-500 focus:outline-none">
+                    <input type="number" name="delivery_days_max" min="1" max="20" step="1" required
+                           value="{{ old('delivery_days_max', $defaultDelay['max']) }}" aria-label="Maximum"
+                           class="w-full px-3 py-2 bg-dark-50 border border-dark-200 rounded-lg text-white focus:border-primary-500 focus:outline-none">
+                </div>
+                <p class="mt-1 text-xs text-gray-500">Minimum et maximum, de 1 à 20 jours. Annoncé pour les produits sans délai propre ni délai de catégorie.</p>
             </div>
             <div>
                 <button type="submit" class="w-full px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600">

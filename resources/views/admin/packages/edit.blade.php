@@ -38,26 +38,12 @@
                 </div>
 
                 <!-- Nom -->
-                <div class="col-span-2">
-                    <label for="name" class="block text-sm font-medium text-gray-300 mb-2">Nom du package <span class="text-red-500">*</span></label>
-                    <input type="text" id="name" name="name" value="{{ old('name', $package->name) }}" required
-                        class="w-full px-4 py-2 bg-dark-50 border border-dark-200 rounded-lg text-gray-100 focus:ring-2 focus:ring-blue-500 @error('name') border-red-500 @enderror"
-                        placeholder="Ex: Premium Pro, Boost 1000, Certification Or">
-                    @error('name')
-                        <p class="text-red-500 text-sm mt-1">{{ $message }}</p>
-                    @enderror
-                </div>
+                <x-admin.translatable class="col-span-2" name="name" label="Nom du package" :model="$package" required
+                    placeholder="Ex: Premium Pro, Boost 1000, Certification Or" />
 
                 <!-- Description -->
-                <div class="col-span-2">
-                    <label for="description" class="block text-sm font-medium text-gray-300 mb-2">Description</label>
-                    <textarea id="description" name="description" rows="4"
-                        class="w-full px-4 py-2 bg-dark-50 border border-dark-200 rounded-lg text-gray-100 focus:ring-2 focus:ring-blue-500 @error('description') border-red-500 @enderror"
-                        placeholder="Décrivez les avantages et caractéristiques de ce package">{{ old('description', $package->description) }}</textarea>
-                    @error('description')
-                        <p class="text-red-500 text-sm mt-1">{{ $message }}</p>
-                    @enderror
-                </div>
+                <x-admin.translatable class="col-span-2" name="description" label="Description" :model="$package" type="textarea"
+                    placeholder="Décrivez les avantages et caractéristiques de ce package" />
 
                 <!-- Prix -->
                 <div>
@@ -104,35 +90,7 @@
                 </div>
 
                 <!-- Bénéfices (visible uniquement pour type=certification) -->
-                <div id="benefits_field" class="col-span-2 hidden">
-                    <label for="benefits" class="block text-sm font-medium text-gray-300 mb-2">Bénéfices</label>
-                    <div id="benefits_container" class="space-y-2">
-                        @php
-                            $benefits = old('benefits', $package->benefits ?? []);
-                        @endphp
-                        @if($benefits)
-                            @foreach($benefits as $index => $benefit)
-                                <div class="benefit-item flex gap-2">
-                                    <input type="text" name="benefits[]" value="{{ $benefit }}"
-                                        class="flex-1 px-4 py-2 bg-dark-50 border border-dark-200 rounded-lg text-gray-100 focus:ring-2 focus:ring-blue-500"
-                                        placeholder="Ex: Badge de certification visible">
-                                    <button type="button" onclick="removeBenefit(this)"
-                                        class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </div>
-                            @endforeach
-                        @endif
-                    </div>
-                    <button type="button" onclick="addBenefit()"
-                        class="mt-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
-                        <i class="fas fa-plus mr-2"></i>
-                        Ajouter un bénéfice
-                    </button>
-                    @error('benefits')
-                        <p class="text-red-500 text-sm mt-1">{{ $message }}</p>
-                    @enderror
-                </div>
+                @include('admin.packages._benefits', ['package' => $package])
 
                 <!-- Ordre d'affichage -->
                 <div>
@@ -219,12 +177,12 @@
     document.getElementById('type').dispatchEvent(new Event('change'));
 
     // Gestion des bénéfices
-    function addBenefit() {
-        const container = document.getElementById('benefits_container');
+    function addBenefit(locale) {
+        const container = document.getElementById('benefits_container_' + locale);
         const div = document.createElement('div');
         div.className = 'benefit-item flex gap-2';
         div.innerHTML = `
-            <input type="text" name="benefits[]"
+            <input type="text" name="${container.dataset.inputName}"
                 class="flex-1 px-4 py-2 bg-dark-50 border border-dark-200 rounded-lg text-gray-100 focus:ring-2 focus:ring-blue-500"
                 placeholder="Ex: Badge de certification visible">
             <button type="button" onclick="removeBenefit(this)"

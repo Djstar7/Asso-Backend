@@ -55,6 +55,7 @@ class ServiceConfiguration extends Model
     const SERVICE_PAYPAL = 'paypal';
     const SERVICE_KPAY = 'kpay';
     const SERVICE_STRIPE = 'stripe';
+    const SERVICE_ELGIOPAY = 'elgiopay';
 
     /**
      * Get configuration for a specific service type (new method matching Estuaire Emploi)

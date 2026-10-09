@@ -51,7 +51,7 @@ class SearchController extends Controller
 
         // 2. Build the intelligent search query
         $query = Product::query()
-            ->with(['images', 'primaryImage', 'category', 'subcategory', 'shop', 'user'])
+            ->with(['images', 'primaryImage', 'video', 'category', 'subcategory', 'shop', 'user'])
             ->where('status', 'active')
             ->where(function ($q) {
                 $q->whereNull('origin_country')
@@ -80,6 +80,10 @@ class SearchController extends Controller
 
             // Strategy 3: Exact phrase match (bonus)
             $q->orWhereRaw("f_unaccent(name) ILIKE ?", ['%' . $searchQuery . '%']);
+
+            // Strategy 4: nom ou description saisis dans une autre langue (anglais)
+            $q->orWhereHas('translations', fn ($t) => $t->whereIn('field', ['name', 'description'])
+                ->whereRaw('f_unaccent(value) ILIKE f_unaccent(?)', ['%' . $searchQuery . '%']));
         });
 
         // 4. Calculate relevance score
@@ -374,6 +378,7 @@ class SearchController extends Controller
                 'url' => $this->getImageUrl($img->image_path),
                 'is_primary' => (bool) $img->is_primary,
             ]),
+            'video' => $product->video?->toApi(),
             'category' => $product->category ? [
                 'id' => $product->category->id,
                 'name' => $product->category->name,

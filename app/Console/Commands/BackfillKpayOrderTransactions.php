@@ -75,7 +75,7 @@ class BackfillKpayOrderTransactions extends Command
                     'amount' => (float) $order->total,
                     'balance_before' => $buyerBalance,
                     'balance_after' => $buyerBalance,
-                    'description' => "Achat - Commande #{$order->order_number}",
+                    'description' => WalletTransaction::label('purchase', ['order_number' => $order->order_number]),
                     'reference_type' => 'order',
                     'reference_id' => $order->id,
                     'metadata' => [

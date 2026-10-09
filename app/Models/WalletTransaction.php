@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Support\Translation\ContentLocale;
+use App\Support\Translation\LocalizedText;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -55,6 +57,49 @@ class WalletTransaction extends Model
         'admin_id',
         'provider', // kpay, paypal
     ];
+
+    /** Libellé traduisible en attente d'enregistrement (voir setDescriptionAttribute). */
+    private ?LocalizedText $pendingLabel = null;
+
+    protected static function booted(): void
+    {
+        // metadata peut être rempli après description : la clé est ajoutée au dernier moment.
+        static::saving(function (self $transaction) {
+            if ($transaction->pendingLabel !== null) {
+                $transaction->metadata = array_merge(
+                    $transaction->metadata ?? [],
+                    ['label' => $transaction->pendingLabel->toArray()]
+                );
+                $transaction->pendingLabel = null;
+            }
+        });
+    }
+
+    /** Libellé traduisible : clé wallet.transactions.<code> de lang/*.json. */
+    public static function label(string $code, array $replace = []): LocalizedText
+    {
+        return new LocalizedText("wallet.transactions.{$code}", $replace);
+    }
+
+    /**
+     * La colonne garde le libellé en français (back-office, exports, repli) ;
+     * un LocalizedText laisse en plus sa clé dans metadata.label.
+     */
+    public function setDescriptionAttribute(string|LocalizedText|null $value): void
+    {
+        if ($value instanceof LocalizedText) {
+            $this->pendingLabel = $value;
+            $value = $value->render(ContentLocale::SOURCE);
+        }
+
+        $this->attributes['description'] = $value;
+    }
+
+    /** Libellé dans la langue de la requête quand sa clé est connue, sinon le texte enregistré. */
+    public function getDescriptionAttribute(?string $value): ?string
+    {
+        return LocalizedText::renderStored($this->metadata['label'] ?? null, $value);
+    }
 
     protected function casts(): array
     {

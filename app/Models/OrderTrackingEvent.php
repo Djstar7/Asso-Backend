@@ -33,7 +33,7 @@ class OrderTrackingEvent extends Model
         return [
             'id' => $this->id,
             'step' => $this->step,
-            'label' => $this->label,
+            'label' => \App\Services\OrderTrackingService::stepLabel($this->step) ?? $this->label,
             'location' => $this->location,
             'note' => $this->note,
             'actor_type' => $this->actor_type,

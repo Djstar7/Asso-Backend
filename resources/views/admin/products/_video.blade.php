@@ -1,5 +1,5 @@
 {{--
-    Vidéo de présentation d'un produit grossiste (Chine / Turquie / Dubaï).
+    Vidéo de présentation d'un produit (tous produits, grossistes compris).
 
     La vidéo part dès qu'elle est choisie, par morceaux de 4 Mo, sans attendre
     l'enregistrement du formulaire : barre de progression réelle, reprise d'un
@@ -30,7 +30,7 @@
         <span class="text-gray-400 font-normal">(optionnelle)</span>
     </h3>
     <p class="text-xs text-gray-400 mb-3">
-        Lue en boucle et sans le son sur la carte du catalogue grossiste, avec le son sur la fiche produit.
+        Lue en boucle et sans le son sur la carte du produit, avec le son sur la fiche produit.
         Format vertical (filmé au téléphone) conseillé · {{ \App\Models\ProductVideo::MAX_SIZE_MB }} Mo max.
     </p>
 

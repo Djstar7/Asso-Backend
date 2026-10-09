@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Support\Translation\LocalizedText;
 use Illuminate\Contracts\Translation\HasLocalePreference;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -147,6 +148,16 @@ class User extends Authenticatable implements HasLocalePreference
     public function translate(string $key, array $replace = []): string
     {
         return __($key, $replace, $this->preferredLocale());
+    }
+
+    /**
+     * Comme translate(), mais garde la clé et les valeurs : une notification
+     * enregistrée avec ce texte sera rédigée à nouveau dans la langue que
+     * l'utilisateur aura choisie au moment de la relire.
+     */
+    public function localized(string $key, array $replace = []): LocalizedText
+    {
+        return new LocalizedText($key, $replace, $this->preferredLocale());
     }
 
     public function getNameAttribute(): string

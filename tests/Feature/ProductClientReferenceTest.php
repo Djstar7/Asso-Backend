@@ -34,7 +34,8 @@ class ProductClientReferenceTest extends TestCase
 
         $this->mock(FirebaseMessagingService::class, function ($mock) {
             $mock->shouldReceive('sendToUser')->andReturn([]);
-            $mock->shouldReceive('sendToTopic')->andReturnUsing(function () {
+            // Une annonce = un envoi groupé sur les topics de chaque langue.
+            $mock->shouldReceive('sendToTopicsLocalized')->andReturnUsing(function () {
                 $this->broadcasts++;
 
                 return ['success' => true];

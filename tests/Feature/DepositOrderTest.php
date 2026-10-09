@@ -223,7 +223,7 @@ class DepositOrderTest extends TestCase
         $order = $this->presentedOrder($c);
         $this->actingAs($this->admin())->post("/admin/deposit-orders/{$order->id}/validate")->assertRedirect();
 
-        $this->mock(KPayService::class, function ($mock) {
+        $this->mock(\App\Services\MobileMoneyGateway::class, function ($mock) {
             $mock->shouldReceive('initializePayment')->once()
                 ->withArgs(fn ($p) => $p['external_reference'] === Order::first()->order_number . '-SOLDE' && (float) $p['amount'] === 16800.0)
                 ->andReturn(['success' => true, 'id' => 'kp-balance-1']);
@@ -237,7 +237,11 @@ class DepositOrderTest extends TestCase
         $this->assertSame(Order::BALANCE_UNLOCKED, $order->fresh()->balance_status);
         $this->assertEquals(0, $this->bal($c['seller']));
 
-        \Illuminate\Support\Facades\Cache::put('service_config_kpay', ['webhook_secret' => 'secret'], 60);
+        \App\Models\ServiceConfiguration::updateOrCreate(['service_name' => 'kpay'], [
+            'display_name' => 'KPay',
+            'is_active' => false,
+            'configuration' => ['webhook_secret' => 'secret'],
+        ]);
         $body = json_encode(['externalId' => $order->order_number . '-SOLDE', 'status' => 'COMPLETED']);
         $this->call('POST', '/api/v1/payments/webhook/kpay', [], [], [], [
             'CONTENT_TYPE' => 'application/json',
@@ -250,6 +254,48 @@ class DepositOrderTest extends TestCase
         // Wallet : seul l'acompte était bloqué, il est prélevé au règlement.
         $this->assertEquals(50000 - 4700, $this->bal($order->user));
         $this->assertEquals(0, $this->locked($order->user));
+    }
+
+    /** ElgioPay actif : le solde passe par ElgioPay et son webhook (sans notre référence) le règle. */
+    public function test_balance_paid_through_elgiopay_webhook(): void
+    {
+        \App\Models\ServiceConfiguration::setConfig('elgiopay', [
+            'mode' => 'live', 'public_key' => 'pk_live_test', 'secret_key' => 'sk_live_test',
+        ], true);
+        $remoteStatus = 'pending';
+        \Illuminate\Support\Facades\Http::fake(function ($request) use (&$remoteStatus) {
+            if ($request->method() === 'POST' && str_ends_with($request->url(), '/api/v1/payments')) {
+                return \Illuminate\Support\Facades\Http::response(['success' => true, 'transaction_id' => 'TXBAL', 'status' => 'pending']);
+            }
+            if (preg_match('#/payments/TXBAL(/verify)?$#', $request->url())) {
+                return \Illuminate\Support\Facades\Http::response(['transaction_id' => 'TXBAL', 'status' => $remoteStatus]);
+            }
+            return \Illuminate\Support\Facades\Http::response([], 500);
+        });
+
+        $c = $this->catalog();
+        User::factory()->create(['email' => 'admin@asso.com']);
+        $order = $this->presentedOrder($c);
+        $this->actingAs($this->admin())->post("/admin/deposit-orders/{$order->id}/validate")->assertRedirect();
+
+        $this->actingAs($order->user, 'sanctum')->postJson("/api/v1/orders/{$order->id}/pay-balance", [
+            'payment_mode' => 'kpay_direct',
+            'provider' => 'MTN_MOMO_CMR',
+            'phone_number' => '237670000001',
+        ])->assertOk()->assertJsonPath('payment_reference', 'elgiopay:TXBAL');
+        $this->assertSame(Order::BALANCE_UNLOCKED, $order->fresh()->balance_status);
+
+        $remoteStatus = 'completed';
+        $raw = json_encode(['id' => 'evt_bal', 'event' => 'payment.completed', 'data' => ['transaction_id' => 'TXBAL', 'status' => 'completed']]);
+        $t = time();
+        $this->call('POST', '/api/v1/elgiopay/callback', [], [], [], [
+            'CONTENT_TYPE' => 'application/json',
+            'HTTP_X_ELGIOPAY_SIGNATURE' => 't=' . $t . ',v1=' . hash_hmac('sha256', $t . '.' . $raw, 'sk_live_test'),
+        ], $raw)->assertOk();
+
+        $order->refresh();
+        $this->assertSame(Order::BALANCE_PAID, $order->balance_status);
+        $this->assertEquals(20000, $this->bal($c['seller']));
     }
 
     public function test_employee_closes_order_with_case_by_case_deposit_split(): void

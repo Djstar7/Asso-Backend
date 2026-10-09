@@ -4,7 +4,7 @@ namespace App\Jobs\Wallet;
 
 use App\Models\WalletTransaction;
 use App\Models\User;
-use App\Services\KPayService;
+use App\Services\MobileMoneyGateway;
 use App\Services\FirebaseMessagingService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -30,7 +30,7 @@ class ProcessDepositStatusJob implements ShouldQueue
         public int $walletTransactionId
     ) {}
 
-    public function handle(KPayService $kpayService, FirebaseMessagingService $fcmService)
+    public function handle(MobileMoneyGateway $kpayService, FirebaseMessagingService $fcmService)
     {
         $deposit = WalletTransaction::find($this->walletTransactionId);
 
@@ -136,8 +136,8 @@ class ProcessDepositStatusJob implements ShouldQueue
                     try {
                         $fcmResult = $fcmService->sendToUser(
                             $user,
-                            $user->translate('notifications.wallet_credit.title'),
-                            $user->translate('notifications.wallet_credit.body', ['amount' => $deposit->amount]),
+                            $user->localized('notifications.wallet_credit.title'),
+                            $user->localized('notifications.wallet_credit.body', ['amount' => $deposit->amount]),
                             [
                                 'type' => 'wallet_credit',
                                 'wallet_transaction_id' => (string) $deposit->id,
@@ -168,7 +168,7 @@ class ProcessDepositStatusJob implements ShouldQueue
                         ]);
                     }
 
-                } elseif (in_array($status, ['FAILED', 'FAILURE', 'ERROR', 'REJECTED', 'CANCELLED', 'CANCELED'])) {
+                } elseif (in_array($status, ['FAILED', 'FAILURE', 'REJECTED', 'CANCELLED', 'CANCELED'])) {
                     Log::warning('⚠️ [PROCESS-DEPOSIT] Payment FAILED', [
                         'wallet_transaction_id' => $deposit->id,
                         'reason' => $reason,
@@ -187,10 +187,10 @@ class ProcessDepositStatusJob implements ShouldQueue
                         $user = $deposit->user;
                         $fcmResult = $fcmService->sendToUser(
                             $user,
-                            $user->translate('notifications.wallet_credit_failed.title'),
-                            $user->translate('notifications.wallet_credit_failed.body', [
+                            $user->localized('notifications.wallet_credit_failed.title'),
+                            $user->localized('notifications.wallet_credit_failed.body', [
                                 'amount' => $deposit->amount,
-                                'reason' => $reason ?? $user->translate('notifications.wallet_credit_failed.unknown_reason'),
+                                'reason' => $reason ?? $user->localized('notifications.wallet_credit_failed.unknown_reason'),
                             ]),
                             [
                                 'type' => 'wallet_credit_failed',

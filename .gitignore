@@ -37,3 +37,6 @@ Thumbs.db
 /storage/logs/*
 !/storage/logs/.gitkeep
 /storage/app/private/firebase/service-account.json
+
+# Notes / SQL ElgioPay contenant des clés live : ne jamais committer
+/elgiopay

@@ -284,8 +284,8 @@ class StripeWebhookController extends Controller
 
             $this->notifyUser(
                 $user,
-                $user->translate('notifications.stripe_account_requirements.title'),
-                $user->translate('notifications.stripe_account_requirements.body'),
+                $user->localized('notifications.stripe_account_requirements.title'),
+                $user->localized('notifications.stripe_account_requirements.body'),
                 ['type' => 'stripe_account_requirements', 'action' => 'open_stripe_connect'],
             );
         }

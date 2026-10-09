@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\Transaction;
 use App\Services\KPayService;
+use App\Services\MobileMoneyGateway;
 use App\Services\PaymentMethodService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -103,7 +104,7 @@ class PaymentController extends Controller
             ->findOrFail($request->order_id);
 
         if ($request->payment_method === 'kpay' || $request->payment_method === 'mobile') {
-            $kpay = new KPayService();
+            $kpay = app(MobileMoneyGateway::class);
             $result = $kpay->initializePayment([
                 'amount' => (int) $order->total,
                 'provider' => $request->provider,
@@ -174,8 +175,7 @@ class PaymentController extends Controller
     public function status(Request $request, $reference)
     {
         // $reference = id KPay (pay_xxx) conservé côté client (metadata.kpay_id)
-        $kpay = new KPayService();
-        $result = $kpay->checkPaymentStatus($reference);
+        $result = app(MobileMoneyGateway::class)->checkPaymentStatus($reference);
 
         return response()->json([
             'success' => true,

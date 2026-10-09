@@ -93,6 +93,12 @@
                            class="w-full px-3 py-2 bg-dark-50 border border-dark-200 rounded-lg text-white focus:border-primary-500 focus:outline-none">
                 </div>
                 <div>
+                    <label class="block text-sm text-gray-400 mb-1">Nom (EN)</label>
+                    <input type="text" name="translations[en][name]" placeholder="India"
+                           value="{{ old('translations.en.name') }}"
+                           class="w-full px-3 py-2 bg-dark-50 border border-dark-200 rounded-lg text-white focus:border-primary-500 focus:outline-none">
+                </div>
+                <div>
                     <label class="block text-sm text-gray-400 mb-1">Drapeau (emoji)</label>
                     <input type="text" name="flag" maxlength="16" placeholder="🇮🇳"
                            value="{{ old('flag') }}"
@@ -159,6 +165,7 @@
                                             data-shipping
                                             data-id="{{ $country->id }}"
                                             data-name="{{ $country->name }}"
+                                            data-name-en="{{ $country->getTranslation('name', 'en') }}"
                                             data-flag="{{ $country->flag }}">
                                             <i class="fas fa-ship"></i>
                                         </a>
@@ -169,6 +176,7 @@
                                            data-id="{{ $country->id }}"
                                            data-code="{{ $country->code }}"
                                            data-name="{{ $country->name }}"
+                                            data-name-en="{{ $country->getTranslation('name', 'en') }}"
                                            data-flag="{{ $country->flag }}"
                                            data-sort="{{ $country->sort_order }}">
                                             <i class="fas fa-edit"></i>
@@ -223,6 +231,11 @@
                 <div>
                     <label class="block text-sm text-gray-400 mb-1">Nom</label>
                     <input type="text" name="name" id="edit_name" required
+                           class="w-full px-3 py-2 bg-dark-50 border border-dark-200 rounded-lg text-white focus:border-primary-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">Nom (EN)</label>
+                    <input type="text" name="translations[en][name]" id="edit_name_en" placeholder="Facultatif"
                            class="w-full px-3 py-2 bg-dark-50 border border-dark-200 rounded-lg text-white focus:border-primary-500 focus:outline-none">
                 </div>
                 <div>
@@ -298,6 +311,12 @@
                            class="w-full px-3 py-2 bg-dark-50 border border-dark-200 rounded-lg text-white text-sm">
                 </div>
                 <div class="md:col-span-2">
+                    <label class="block text-xs text-gray-400 mb-1">Note (EN)</label>
+                    <input type="text" id="shipping_note_en"
+                           placeholder="Facultatif"
+                           class="w-full px-3 py-2 bg-dark-50 border border-dark-200 rounded-lg text-white text-sm">
+                </div>
+                <div class="md:col-span-2">
                     <label class="block text-xs text-gray-400 mb-1">Transporteur</label>
                     <input type="text" name="carrier" id="shipping_carrier" placeholder="DHL, FedEx…"
                            class="w-full px-3 py-2 bg-dark-50 border border-dark-200 rounded-lg text-white text-sm">
@@ -335,6 +354,7 @@
             document.getElementById('editForm').action = editBaseUrl + '/' + this.dataset.id;
             document.getElementById('edit_code').value = this.dataset.code;
             document.getElementById('edit_name').value = this.dataset.name;
+            document.getElementById('edit_name_en').value = this.dataset.nameEn ?? '';
             document.getElementById('edit_flag').value = this.dataset.flag;
             document.getElementById('edit_sort').value = this.dataset.sort;
             const m = document.getElementById('editModal');
@@ -420,6 +440,7 @@ document.getElementById('shippingForm').addEventListener('submit', function (e) 
         rate_amount: document.getElementById('shipping_rate_amount').value,
         lead_time_days: document.getElementById('shipping_lead_time').value,
         expedition_note: document.getElementById('shipping_note').value,
+        translations: { en: { expedition_note: document.getElementById('shipping_note_en').value } },
         carrier: document.getElementById('shipping_carrier').value,
         tracking_url_template: document.getElementById('shipping_tracking_url').value,
     };
@@ -458,6 +479,7 @@ function editShippingOption(id) {
     document.getElementById('shipping_rate_amount').value = option.rate_amount;
     document.getElementById('shipping_lead_time').value = option.lead_time_days;
     document.getElementById('shipping_note').value = option.expedition_note ?? '';
+    document.getElementById('shipping_note_en').value = option.translations?.en?.expedition_note ?? '';
     document.getElementById('shipping_carrier').value = option.carrier ?? '';
     document.getElementById('shipping_tracking_url').value = option.tracking_url_template ?? '';
     document.getElementById('shipping_submit_label').textContent = 'Mettre à jour';

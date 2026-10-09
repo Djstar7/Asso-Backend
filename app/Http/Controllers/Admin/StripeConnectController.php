@@ -141,8 +141,8 @@ class StripeConnectController extends Controller
 
             $this->notify(
                 $user,
-                $user->translate('notifications.stripe_account_approved.title'),
-                $user->translate('notifications.stripe_account_approved.body'),
+                $user->localized('notifications.stripe_account_approved.title'),
+                $user->localized('notifications.stripe_account_approved.body'),
                 ['type' => 'stripe_account_approved', 'action' => 'open_wallet']
             );
 
@@ -204,8 +204,8 @@ class StripeConnectController extends Controller
 
             $this->notify(
                 $user,
-                $user->translate('notifications.stripe_account_rejected.title'),
-                $user->translate('notifications.stripe_account_rejected.body', ['reason' => $request->reason]),
+                $user->localized('notifications.stripe_account_rejected.title'),
+                $user->localized('notifications.stripe_account_rejected.body', ['reason' => $request->reason]),
                 ['type' => 'stripe_account_rejected', 'action' => 'open_wallet', 'reason' => $request->reason]
             );
 
@@ -287,8 +287,8 @@ class StripeConnectController extends Controller
 
         $this->notify(
             $user,
-            $user->translate('notifications.stripe_account_approved.title'),
-            $user->translate('notifications.stripe_account_approved.body'),
+            $user->localized('notifications.stripe_account_approved.title'),
+            $user->localized('notifications.stripe_account_approved.body'),
             ['type' => 'stripe_account_approved', 'action' => 'open_wallet']
         );
 
@@ -324,8 +324,8 @@ class StripeConnectController extends Controller
 
         $this->notify(
             $user,
-            $user->translate('notifications.stripe_account_rejected.title'),
-            $user->translate('notifications.stripe_account_rejected.body', ['reason' => $request->reason]),
+            $user->localized('notifications.stripe_account_rejected.title'),
+            $user->localized('notifications.stripe_account_rejected.body', ['reason' => $request->reason]),
             ['type' => 'stripe_account_rejected', 'action' => 'open_wallet', 'reason' => $request->reason]
         );
 

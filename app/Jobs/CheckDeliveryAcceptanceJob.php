@@ -66,8 +66,8 @@ class CheckDeliveryAcceptanceJob implements ShouldQueue
             if ($seller) {
                 $fcmService->sendToUser(
                     $seller,
-                    $seller->translate('notifications.delivery_timeout.title'),
-                    $seller->translate('notifications.delivery_timeout.body', ['order_number' => $order->order_number]),
+                    $seller->localized('notifications.delivery_timeout.title'),
+                    $seller->localized('notifications.delivery_timeout.body', ['order_number' => $order->order_number]),
                     [
                         'type' => 'delivery_timeout',
                         'order_id' => (string) $order->id,
@@ -84,8 +84,8 @@ class CheckDeliveryAcceptanceJob implements ShouldQueue
         if ($client) {
             $fcmService->sendToUser(
                 $client,
-                $client->translate('notifications.delivery_timeout_client.title'),
-                $client->translate('notifications.delivery_timeout_client.body', ['order_number' => $order->order_number]),
+                $client->localized('notifications.delivery_timeout_client.title'),
+                $client->localized('notifications.delivery_timeout_client.body', ['order_number' => $order->order_number]),
                 [
                     'type' => 'delivery_timeout_client',
                     'order_id' => (string) $order->id,

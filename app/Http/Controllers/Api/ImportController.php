@@ -187,7 +187,7 @@ class ImportController extends Controller
     public function video(ProductVideo $video, string $kind)
     {
         $video->loadMissing('product');
-        abort_unless($video->product?->is_wholesale && $video->isReady(), 404);
+        abort_unless($video->product && $video->isReady(), 404);
 
         $path = $video->absolutePath($kind);
         abort_unless($path, 404);
@@ -355,6 +355,8 @@ class ImportController extends Controller
 
         if ($full) {
             // Les images sont déjà exposées dans la liste pour permettre la galerie mobile.
+            // Délai de livraison annoncé (jours ouvrables) : produit → catégorie → défaut.
+            $data['delivery_delay'] = \App\Support\DeliveryDelay::forProduct($p);
         }
 
         return $data;

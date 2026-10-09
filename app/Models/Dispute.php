@@ -36,6 +36,12 @@ class Dispute extends Model
         self::STATUS_CLOSED => 'Fermé',
     ];
 
+    /** Libellé du statut dans la langue de la requête (STATUSES reste le libellé du back-office). */
+    public static function statusLabel(?string $status): ?string
+    {
+        return $status !== null && array_key_exists($status, self::STATUSES) ? __("disputes.status.{$status}") : $status;
+    }
+
     /** Litige encore en cours : la part de l'article reste bloquée. */
     public const OPEN_STATUSES = [
         self::STATUS_NEW, self::STATUS_IN_REVIEW, self::STATUS_VENDOR_CONTACTED,

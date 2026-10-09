@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\User;
 use App\Models\Notification;
+use App\Support\Translation\LocalizedText;
 use Illuminate\Support\Facades\Log;
 use Kreait\Firebase\Factory;
 use Kreait\Firebase\Messaging\CloudMessage;
@@ -86,22 +87,22 @@ class FcmService
     /**
      * Send push notification and create notification record
      */
-    public function sendAndStore(User $user, string $type, string $title, string $body, array $data = []): ?Notification
+    public function sendAndStore(User $user, string $type, string|LocalizedText $title, string|LocalizedText $body, array $data = []): ?Notification
     {
         // Create notification record
         $notification = Notification::create([
             'user_id' => $user->id,
             'type' => $type,
-            'title' => $title,
-            'body' => $body,
-            'data' => $data,
+            'title' => (string) $title,
+            'body' => (string) $body,
+            'data' => Notification::withI18n($data, $title, $body),
             'is_read' => false,
             'is_sent' => false,
         ]);
 
         // Send FCM push notification only if messaging is initialized
         if ($this->messaging !== null) {
-            $sent = $this->sendToUser($user, $title, $body, array_merge($data, [
+            $sent = $this->sendToUser($user, (string) $title, (string) $body, array_merge($data, [
                 'notification_id' => $notification->id,
             ]));
 
@@ -131,8 +132,8 @@ class FcmService
         $storageTotal = $packageData['storage_total'] ?? '0';
         $expiresAt = $packageData['expires_at'] ?? '';
 
-        $title = $user->translate('notifications.package_purchase.title');
-        $body = $user->translate('notifications.package_purchase.body', [
+        $title = $user->localized('notifications.package_purchase.title');
+        $body = $user->localized('notifications.package_purchase.body', [
             'package' => $packageName,
             'storage' => $storageTotal,
         ]);
@@ -157,8 +158,8 @@ class FcmService
      */
     public function sendPackageExpiringNotification(User $user, int $daysRemaining): ?Notification
     {
-        $title = $user->translate('notifications.package_expiring.title');
-        $body = $user->translate(
+        $title = $user->localized('notifications.package_expiring.title');
+        $body = $user->localized(
             $daysRemaining > 1 ? 'notifications.package_expiring.body_plural' : 'notifications.package_expiring.body_singular',
             ['days' => $daysRemaining]
         );
@@ -187,8 +188,8 @@ class FcmService
             ? 'order_status_' . $orderStatus
             : 'order_status_update';
 
-        $title = $user->translate("notifications.{$event}.title");
-        $body = $user->translate("notifications.{$event}.body", ['order_number' => $orderNumber]);
+        $title = $user->localized("notifications.{$event}.title");
+        $body = $user->localized("notifications.{$event}.body", ['order_number' => $orderNumber]);
 
         return $this->sendAndStore(
             $user,

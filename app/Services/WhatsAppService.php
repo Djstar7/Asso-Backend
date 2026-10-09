@@ -61,7 +61,7 @@ class WhatsAppService
                 Log::warning('WhatsAppService: Service not configured');
                 return [
                     'success' => false,
-                    'message' => 'Service WhatsApp non configuré',
+                    'message' => __('otp.whatsapp_not_configured'),
                     'data' => null
                 ];
             }

@@ -28,7 +28,7 @@ class OtpCodeMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Code de Vérification - ASSO',
+            subject: __('mail.otp.subject'),
         );
     }
 
