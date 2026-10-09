@@ -5,12 +5,14 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Models\ProductImage;
+use App\Models\ProductVideo;
 use App\Models\Inventory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use App\Models\DeliveryPricelist;
 use App\Services\ProductVariantService;
+use App\Services\ProductVideoUploadService;
 use App\Support\Translation\ContentLocale;
 
 class VendorProductController extends Controller
@@ -22,7 +24,7 @@ class VendorProductController extends Controller
     {
         $user = $request->user();
 
-        $query = Product::with(['images', 'primaryImage', 'category', 'subcategory', 'shop', 'variants', 'translations'])
+        $query = Product::with(['images', 'primaryImage', 'video', 'category', 'subcategory', 'shop', 'variants', 'translations'])
             ->where('user_id', $user->id)
             // Départage par id : sans lui, les produits créés à la même
             // seconde s'ordonnent librement d'une requête à l'autre, et la
@@ -115,6 +117,9 @@ class VendorProductController extends Controller
             'images.*' => 'file|image|mimes:jpeg,png,jpg,gif,webp|max:5120',
             'deleted_image_ids' => 'sometimes|array',
             'deleted_image_ids.*' => 'integer|exists:product_images,id',
+            // Vidéo envoyée à part par morceaux (/vendor/product-videos/chunks).
+            'video_id' => 'sometimes|nullable|integer|exists:product_videos,id',
+            'remove_video' => 'sometimes|boolean',
             // Multipart ne sait pas envoyer une liste vide : ce drapeau permet de retirer toutes les variantes.
             'replace_variants' => 'sometimes|boolean',
             // Livraison gratuite : null = suit la boutique.
@@ -140,6 +145,28 @@ class VendorProductController extends Controller
             $totalNewImageSizeMb = 0;
             $deletedStorageMb = 0;
 
+            // Nouvelle vidéo : sa taille compte, moins celle de la vidéo qu'elle remplace.
+            $newVideoId = $request->integer('video_id') ?: null;
+            $videoNetMb = app(ProductVideoUploadService::class)->pendingChargeMb($newVideoId, $user->id);
+            if ($videoNetMb > 0) {
+                $videoNetMb -= (float) ProductVideo::where('product_id', $product->id)
+                    ->where('id', '!=', $newVideoId)
+                    ->sum('storage_charged_mb');
+            }
+
+            if ($videoNetMb > 0 && !$request->hasFile('images')) {
+                $vendorPackage = $user->activeVendorPackage;
+                if (!$vendorPackage || !$vendorPackage->hasEnoughStorage($videoNetMb)) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => __('products.storage_insufficient_subscribe'),
+                        'error_code' => $vendorPackage ? 'INSUFFICIENT_STORAGE' : 'NO_ACTIVE_PACKAGE',
+                        'required_mb' => round($videoNetMb, 2),
+                        'available_mb' => round($vendorPackage?->storage_remaining_mb ?? 0, 2),
+                    ], 403);
+                }
+            }
+
             // Check if new images are being added
             if ($request->hasFile('images')) {
                 $vendorPackage = $user->activeVendorPackage;
@@ -156,13 +183,14 @@ class VendorProductController extends Controller
                     $totalNewImageSizeMb += $image->getSize() / 1048576;
                 }
 
-                // Check if enough storage
-                if (!$vendorPackage->hasEnoughStorage($totalNewImageSizeMb)) {
+                // Check if enough storage (photos + vidéo nouvelle, le cas échéant)
+                $neededMb = $totalNewImageSizeMb + max(0, $videoNetMb);
+                if (!$vendorPackage->hasEnoughStorage($neededMb)) {
                     return response()->json([
                         'success' => false,
                         'message' => __('products.storage_insufficient_for_images'),
                         'error_code' => 'INSUFFICIENT_STORAGE',
-                        'required_mb' => round($totalNewImageSizeMb, 2),
+                        'required_mb' => round($neededMb, 2),
                         'available_mb' => round($vendorPackage->storage_remaining_mb, 2),
                     ], 403);
                 }
@@ -174,6 +202,7 @@ class VendorProductController extends Controller
             $variantOptions = $updateData['variant_options'] ?? null;
             unset($updateData['images'], $updateData['variants'], $updateData['variant_options'], $updateData['replace_variants'], $updateData['translations']);
             unset($updateData['deposit_enabled'], $updateData['deposit_rate']);
+            unset($updateData['video_id'], $updateData['remove_video']);
             $updateData += \App\Services\DepositOrderService::productAttributes($validated);
 
             // Convert empty strings to null for weight fields
@@ -297,8 +326,17 @@ class VendorProductController extends Controller
                 $vendorPackage->deductStorage($totalNewImageSizeMb);
             }
 
+            if ($request->filled('video_id') || $request->boolean('remove_video')) {
+                app(ProductVideoUploadService::class)->syncForProduct(
+                    $product,
+                    $request->integer('video_id') ?: null,
+                    $request->boolean('remove_video'),
+                    $user->id,
+                );
+            }
+
             // Load relations for response
-            $product->load(['images', 'primaryImage', 'category', 'subcategory', 'shop', 'variants']);
+            $product->load(['images', 'primaryImage', 'video', 'category', 'subcategory', 'shop', 'variants']);
 
             $responseData = [
                 'success' => true,
@@ -306,9 +344,10 @@ class VendorProductController extends Controller
                 'product' => $this->formatProduct($product),
             ];
 
-            // Add storage info if images were deleted or added
-            if ($deletedStorageMb > 0 || $totalNewImageSizeMb > 0) {
-                $vendorPackage = $user->activeVendorPackage;
+            // Add storage info if images were deleted or added, or the video changed
+            if ($deletedStorageMb > 0 || $totalNewImageSizeMb > 0 || $request->filled('video_id') || $request->boolean('remove_video')) {
+                // Relu : la vidéo décompte (ou rend) son espace sur une autre instance.
+                $vendorPackage = $user->activeVendorPackage()->first();
                 if ($vendorPackage) {
                     $responseData['storage_info'] = [
                         'deleted_mb' => round($deletedStorageMb, 2),
@@ -370,6 +409,11 @@ class VendorProductController extends Controller
                 }
             }
 
+            // Vidéos supprimées une à une : fichiers effacés et espace rendu au
+            // forfait (la suppression en cascade de la base ne le ferait pas).
+            $videoRefundMb = (float) ProductVideo::where('product_id', $product->id)->sum('storage_charged_mb');
+            ProductVideo::where('product_id', $product->id)->get()->each->delete();
+
             // Delete product (images will be deleted via cascade or manually)
             $product->images()->delete();
             $product->delete();
@@ -383,7 +427,7 @@ class VendorProductController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => __('products.deleted'),
-                'storage_restored_mb' => round($totalImageSizeMb, 2),
+                'storage_restored_mb' => round($totalImageSizeMb + $videoRefundMb, 2),
             ]);
         } catch (\Exception $e) {
             \Log::error('[VENDOR_PRODUCT_DELETE] Error:', [
@@ -415,7 +459,7 @@ class VendorProductController extends Controller
                 ? __('products.reactivated')
                 : __('products.deactivated'),
             'product' => $this->formatProduct($product->load([
-                'images', 'primaryImage', 'category', 'subcategory', 'shop', 'variants',
+                'images', 'primaryImage', 'video', 'category', 'subcategory', 'shop', 'variants',
             ])),
         ]);
     }
@@ -432,7 +476,7 @@ class VendorProductController extends Controller
 
         $product = Product::where('user_id', $request->user()->id)->findOrFail($id);
         $product->update(['free_delivery' => $validated['free_delivery'] === null ? null : (bool) $validated['free_delivery']]);
-        $product->load(['images', 'primaryImage', 'category', 'subcategory', 'shop', 'variants']);
+        $product->load(['images', 'primaryImage', 'video', 'category', 'subcategory', 'shop', 'variants']);
 
         return response()->json([
             'success' => true,
@@ -453,7 +497,7 @@ class VendorProductController extends Controller
 
         $product = Product::where('user_id', $request->user()->id)->findOrFail($id);
         $product->update(\App\Services\DepositOrderService::productAttributes($validated));
-        $product->load(['images', 'primaryImage', 'category', 'subcategory', 'shop', 'variants']);
+        $product->load(['images', 'primaryImage', 'video', 'category', 'subcategory', 'shop', 'variants']);
 
         return response()->json([
             'success' => true,
@@ -508,6 +552,9 @@ class VendorProductController extends Controller
                 'url' => $this->getImageUrl($img->image_path),
                 'is_primary' => (bool) $img->is_primary,
             ]),
+            // Vidéo exposée une fois traitée ; le statut permet d'afficher « en cours ».
+            'video' => $product->video?->toApi(),
+            'video_status' => $product->video?->status,
             'category' => $product->category ? [
                 'id' => $product->category->id,
                 'name' => $product->category->name,

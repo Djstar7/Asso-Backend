@@ -9,6 +9,7 @@ use App\Models\DeliveryPricelist;
 use App\Models\Inventory;
 use App\Services\ProductBroadcastService;
 use App\Services\ProductVariantService;
+use App\Services\ProductVideoUploadService;
 use Illuminate\Http\Request;
 use Illuminate\Database\UniqueConstraintViolationException;
 
@@ -19,7 +20,7 @@ class ProductController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Product::with(['images', 'primaryImage', 'category', 'subcategory', 'shop', 'user', 'variants'])
+        $query = Product::with(['images', 'primaryImage', 'video', 'category', 'subcategory', 'shop', 'user', 'variants'])
             ->where('status', 'active')
             // Catalogue local par défaut ; les produits importés restent accessibles via ?origin_country=XX.
             ->when(!$request->filled('origin_country'), fn ($query) => $query->where(function ($q) {
@@ -203,7 +204,7 @@ class ProductController extends Controller
 
         // For now, return random active products
         // TODO: Implement actual location-based filtering when location data is available
-        $products = Product::with(['images', 'primaryImage', 'category', 'subcategory', 'shop', 'user', 'variants'])
+        $products = Product::with(['images', 'primaryImage', 'video', 'category', 'subcategory', 'shop', 'user', 'variants'])
             ->where('status', 'active')
             ->whereHas('shop', function ($q) {
                 $q->where('status', 'active');
@@ -231,7 +232,7 @@ class ProductController extends Controller
             ? $request->user()->favorites()->pluck('product_id')->toArray()
             : [];
 
-        $products = Product::with(['images', 'primaryImage', 'category', 'subcategory', 'shop', 'user', 'variants'])
+        $products = Product::with(['images', 'primaryImage', 'video', 'category', 'subcategory', 'shop', 'user', 'variants'])
             ->where('status', 'active')
             ->where(function ($q) {
                 $q->whereNull('origin_country')
@@ -255,7 +256,7 @@ class ProductController extends Controller
      */
     public function show(Request $request, $id)
     {
-        $product = Product::with(['images', 'primaryImage', 'category', 'subcategory', 'shop', 'user', 'reviews.user', 'variants'])
+        $product = Product::with(['images', 'primaryImage', 'video', 'category', 'subcategory', 'shop', 'user', 'reviews.user', 'variants'])
             ->where('status', 'active')
             ->where(function ($q) {
                 $q->whereNull('origin_country')
@@ -331,7 +332,7 @@ class ProductController extends Controller
             ->where('user_id', $user->id)
             ->pluck('product_id');
 
-        $products = Product::with(['images', 'primaryImage', 'category', 'shop', 'user'])
+        $products = Product::with(['images', 'primaryImage', 'video', 'category', 'shop', 'user'])
             ->whereIn('id', $favoriteProductIds)
             ->where('status', 'active')
             ->paginate($request->get('per_page', 20));
@@ -409,6 +410,8 @@ class ProductController extends Controller
             'sizes.*' => 'string|in:' . implode(',', Product::AVAILABLE_SIZES),
             'images' => 'required|array|min:1',
             'images.*' => 'file|image|mimes:jpeg,png,jpg,gif,webp|max:5120',
+            // Vidéo envoyée à part par morceaux (/vendor/product-videos/chunks).
+            'video_id' => 'nullable|integer|exists:product_videos,id',
             // Livraison gratuite : absent/null = suit la boutique.
             'free_delivery' => 'nullable|boolean',
         ] + \App\Services\DepositOrderService::productRules('nullable') + ProductVariantService::rules()
@@ -435,13 +438,17 @@ class ProductController extends Controller
             }
         }
 
+        // La vidéo déjà envoyée compte aussi (décomptée à son rattachement).
+        $videoSizeMb = app(ProductVideoUploadService::class)
+            ->pendingChargeMb($validated['video_id'] ?? null, $request->user()->id);
+
         // 3. Check if enough storage space
-        if (!$vendorPackage->hasEnoughStorage($totalImageSizeMb)) {
+        if (!$vendorPackage->hasEnoughStorage($totalImageSizeMb + $videoSizeMb)) {
             return response()->json([
                 'success' => false,
                 'message' => __('products.storage_insufficient_subscribe'),
                 'error_code' => 'INSUFFICIENT_STORAGE',
-                'required_mb' => round($totalImageSizeMb, 2),
+                'required_mb' => round($totalImageSizeMb + $videoSizeMb, 2),
                 'available_mb' => round($vendorPackage->storage_remaining_mb, 2),
             ], 403);
         }
@@ -552,6 +559,18 @@ class ProductController extends Controller
         // 4. Deduct storage space from package
         $vendorPackage->deductStorage($totalImageSizeMb);
 
+        // Vidéo rattachée après les photos : elle décompte sa taille du même
+        // forfait, relu ensuite pour ne pas écraser ce décompte.
+        if (!empty($validated['video_id'])) {
+            app(ProductVideoUploadService::class)->syncForProduct(
+                $product,
+                (int) $validated['video_id'],
+                false,
+                $request->user()->id,
+            );
+            $vendorPackage->refresh();
+        }
+
         \Log::info('[PRODUCT_STORE] Storage deducted:', [
             'deducted_mb' => round($totalImageSizeMb, 2),
             'remaining_mb' => round($vendorPackage->storage_remaining_mb, 2),
@@ -575,7 +594,7 @@ class ProductController extends Controller
         }
 
         // Load relations for response
-        $product->load(['images', 'primaryImage', 'category', 'subcategory', 'user', 'shop']);
+        $product->load(['images', 'primaryImage', 'video', 'category', 'subcategory', 'user', 'shop']);
 
         \Log::info('[PRODUCT_STORE] Product loaded with relations');
 
@@ -590,7 +609,7 @@ class ProductController extends Controller
             'message' => __('products.created'),
             'product' => $this->formatProduct($product, []) + ['translations' => $product->translationsPayload()],
             'storage_info' => [
-                'used_mb' => round($totalImageSizeMb, 2),
+                'used_mb' => round($totalImageSizeMb + (float) ($product->video?->storage_charged_mb ?? 0), 2),
                 'remaining_mb' => round($vendorPackage->storage_remaining_mb, 2),
             ],
         ], 201);
@@ -607,7 +626,7 @@ class ProductController extends Controller
             'client_reference' => $product->client_reference,
         ]);
 
-        $product->load(['images', 'primaryImage', 'category', 'subcategory', 'user', 'shop']);
+        $product->load(['images', 'primaryImage', 'video', 'category', 'subcategory', 'user', 'shop']);
         $vendorPackage = $request->user()->activeVendorPackage;
 
         return response()->json([
@@ -686,6 +705,8 @@ class ProductController extends Controller
                 'url' => $this->getImageUrl($img->image_path),
                 'is_primary' => (bool) $img->is_primary,
             ]),
+            // Vidéo de présentation, exposée seulement une fois traitée (null sinon).
+            'video' => $product->video?->toApi(),
             'category' => $product->category ? [
                 'id' => $product->category->id,
                 'name' => $product->category->name,

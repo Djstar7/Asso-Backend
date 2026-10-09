@@ -97,7 +97,7 @@ class ShopController extends Controller
             'user',
             'products' => function ($query) {
                 $query->where('status', 'active')
-                      ->with(['images', 'primaryImage', 'category'])
+                      ->with(['images', 'primaryImage', 'video', 'category'])
                       ->orderBy('created_at', 'desc');
             }
         ]);
@@ -476,6 +476,7 @@ class ShopController extends Controller
                 'stock' => (int) $product->stock,
                 'primary_image' => $product->primaryImage ? media_url($product->primaryImage->image_path) : null,
                 'images' => $images,
+                'video' => $product->video?->toApi(),
                 'category' => $product->category,
                 'condition' => $product->condition,
                 'latitude' => $latitude,

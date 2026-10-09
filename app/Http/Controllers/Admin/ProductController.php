@@ -13,6 +13,7 @@ use App\Models\Shop;
 use App\Models\Subcategory;
 use App\Services\ProductBroadcastService;
 use App\Services\ProductVariantService;
+use App\Services\ProductVideoUploadService;
 use App\Support\ImportHub;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
@@ -393,46 +394,14 @@ class ProductController extends Controller
             : 'Produit masqué de la plateforme.');
     }
 
-    /**
-     * Rattache la vidéo envoyée au produit, ou retire l'ancienne.
-     *
-     * Réservé pour l'instant aux produits grossistes (pays d'import + vente en
-     * gros) : sur tout autre produit, une vidéo envoyée est supprimée plutôt
-     * que laissée orpheline.
-     */
+    /** Rattache la vidéo envoyée au produit, ou retire l'ancienne. */
     private function syncVideo(Product $product, Request $request): void
     {
-        $isImport = $product->is_wholesale && ! empty($product->origin_country);
-        $newId = $request->integer('video_id') ?: null;
-
-        $current = ProductVideo::where('product_id', $product->id)->get();
-        $replaceOrRemove = ! $isImport
-            || $request->boolean('remove_video')
-            || ($newId && ! $current->contains('id', $newId));
-
-        if ($replaceOrRemove) {
-            $current->reject(fn (ProductVideo $v) => $v->id === $newId)->each->delete();
-        }
-
-        if (! $newId) {
-            return;
-        }
-
-        // Seule une vidéo encore libre (ou déjà la sienne) peut être rattachée.
-        $video = ProductVideo::whereKey($newId)
-            ->where(fn ($q) => $q->whereNull('product_id')->orWhere('product_id', $product->id))
-            ->first();
-
-        if (! $video) {
-            return;
-        }
-
-        // `remove_video` vise l'ancienne vidéo : une nouvelle envoyée en même temps la remplace.
-        if ($isImport) {
-            $video->update(['product_id' => $product->id]);
-        } elseif ($video->product_id === null) {
-            $video->delete();
-        }
+        app(ProductVideoUploadService::class)->syncForProduct(
+            $product,
+            $request->integer('video_id') ?: null,
+            $request->boolean('remove_video'),
+        );
     }
 
     /**

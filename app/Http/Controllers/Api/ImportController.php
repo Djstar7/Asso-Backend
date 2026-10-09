@@ -187,7 +187,7 @@ class ImportController extends Controller
     public function video(ProductVideo $video, string $kind)
     {
         $video->loadMissing('product');
-        abort_unless($video->product?->is_wholesale && $video->isReady(), 404);
+        abort_unless($video->product && $video->isReady(), 404);
 
         $path = $video->absolutePath($kind);
         abort_unless($path, 404);

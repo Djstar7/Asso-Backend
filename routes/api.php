@@ -379,6 +379,13 @@ Route::middleware('auth:sanctum')->group(function () {
         // Product creation (for vendors)
         Route::post('/products', [ProductController::class, 'store'])->middleware('content.source');
 
+        // Vidéo produit : envoi par morceaux avant l'enregistrement du produit (video_id).
+        Route::prefix('vendor/product-videos')->group(function () {
+            Route::post('/chunks', [App\Http\Controllers\Api\VendorProductVideoController::class, 'chunk']);
+            Route::get('/{video}', [App\Http\Controllers\Api\VendorProductVideoController::class, 'show']);
+            Route::delete('/{video}', [App\Http\Controllers\Api\VendorProductVideoController::class, 'destroy']);
+        });
+
         // Vendor product management (texte français saisi + traductions à part)
         Route::prefix('vendor/products')->middleware('content.source')->group(function () {
             Route::get('/', [VendorProductController::class, 'index']);

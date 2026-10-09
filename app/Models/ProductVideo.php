@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\Storage;
 
 /**
- * Vidéo de présentation d'un produit grossiste.
+ * Vidéo de présentation d'un produit (admin ou app vendeur).
  *
  * Trois fichiers sont produits par ProcessProductVideo à partir de l'envoi :
  *  - `path`         : version de la fiche produit (720p max, son conservé) ;
@@ -41,6 +41,7 @@ class ProductVideo extends Model
         'poster_path',
         'original_name',
         'size_bytes',
+        'storage_charged_mb',
         'width',
         'height',
         'duration',
@@ -50,6 +51,7 @@ class ProductVideo extends Model
 
     protected $casts = [
         'size_bytes' => 'integer',
+        'storage_charged_mb' => 'float',
         'width' => 'integer',
         'height' => 'integer',
         'duration' => 'float',
@@ -130,6 +132,17 @@ class ProductVideo extends Model
         ];
     }
 
+    /** Rend au forfait du vendeur l'espace décompté pour cette vidéo. */
+    public function refundStorage(): void
+    {
+        if ($this->storage_charged_mb <= 0 || !$this->uploaded_by) {
+            return;
+        }
+
+        User::find($this->uploaded_by)?->activeVendorPackage?->addStorage($this->storage_charged_mb);
+        $this->storage_charged_mb = 0;
+    }
+
     /** Supprime les fichiers du disque (la ligne reste à supprimer par l'appelant). */
     public function deleteFiles(): void
     {
@@ -147,7 +160,11 @@ class ProductVideo extends Model
 
     protected static function booted(): void
     {
-        // Pas de fichiers orphelins : une ligne supprimée emporte ses fichiers.
-        static::deleting(fn (ProductVideo $video) => $video->deleteFiles());
+        // Pas de fichiers orphelins : une ligne supprimée emporte ses fichiers,
+        // et l'espace décompté du forfait du vendeur lui est rendu.
+        static::deleting(function (ProductVideo $video) {
+            $video->deleteFiles();
+            $video->refundStorage();
+        });
     }
 }
