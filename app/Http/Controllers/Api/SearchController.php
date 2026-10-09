@@ -51,7 +51,7 @@ class SearchController extends Controller
 
         // 2. Build the intelligent search query
         $query = Product::query()
-            ->with(['images', 'primaryImage', 'category', 'subcategory', 'shop', 'user'])
+            ->with(['images', 'primaryImage', 'video', 'category', 'subcategory', 'shop', 'user'])
             ->where('status', 'active')
             ->whereHas('shop', function ($q) {
                 $q->where('status', 'active');
@@ -370,6 +370,7 @@ class SearchController extends Controller
                 'url' => $this->getImageUrl($img->image_path),
                 'is_primary' => (bool) $img->is_primary,
             ]),
+            'video' => $product->video?->toApi(),
             'category' => $product->category ? [
                 'id' => $product->category->id,
                 'name' => $product->category->name,

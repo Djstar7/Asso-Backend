@@ -342,7 +342,7 @@ class Product extends Model
     }
 
     /**
-     * Vidéo de présentation (produits grossistes uniquement pour l'instant).
+     * Vidéo de présentation (envoyée depuis l'admin ou l'app vendeur).
      *
      * Une seule par produit ; seule une vidéo `ready` est exposée à l'app.
      */
