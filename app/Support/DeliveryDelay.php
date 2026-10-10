@@ -12,13 +12,18 @@ use Illuminate\Support\Carbon;
  * Délai de livraison annoncé au client, en jours ouvrables (lundi → vendredi).
  *
  * Ordre de résolution : délai du produit → délai de sa catégorie → défaut global
- * (réglé dans le Dashboard, page Partenaires de livraison). Toujours borné à 1–20 jours.
+ * (réglé dans le Dashboard, page Partenaires de livraison). Au moins 1 jour, sans maximum
+ * métier (décision ASSO du 2026-10-10) ; seul un garde-fou technique écarte les saisies aberrantes.
  */
 class DeliveryDelay
 {
     public const MIN_DAYS = 1;
 
-    public const MAX_DAYS = 20;
+    /** Garde-fou technique (≈ 38 ans), pas une limite métier. */
+    public const MAX_DAYS = 9999;
+
+    /** Délai par défaut tant qu'ASSO n'en a pas réglé un. */
+    public const FALLBACK_MAX_DAYS = 20;
 
     public const DEFAULT_MIN_KEY = 'delivery_default_days_min';
 
@@ -38,7 +43,7 @@ class DeliveryDelay
     {
         return self::normalize(
             Setting::get(self::DEFAULT_MIN_KEY, self::MIN_DAYS),
-            Setting::get(self::DEFAULT_MAX_KEY, self::MAX_DAYS),
+            Setting::get(self::DEFAULT_MAX_KEY, self::FALLBACK_MAX_DAYS),
         );
     }
 
