@@ -765,6 +765,7 @@
         "balance_already_paid": "Le solde de cette commande est déjà payé.",
         "balance_locked_until_verification": "Le solde sera payable après la livraison et la vérification de votre produit avec ASSO.",
         "deposit_split_exceeds": "La répartition dépasse l'acompte encaissé (:amount FCFA).",
+        "deposit_transport_refund": "Commande en gros : le transport (:amount FCFA) est à la charge d'ASSO et doit être rendu au client.",
         "verification_transition_invalid": "Cette action n'est pas possible à cette étape de la vérification.",
         "balance_due_before_handover": "Le solde doit être payé avant la remise du produit.",
         "balance_confirm_on_phone": "Confirmez le paiement du solde sur votre téléphone.",

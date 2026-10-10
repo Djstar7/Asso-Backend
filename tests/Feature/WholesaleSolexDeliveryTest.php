@@ -233,23 +233,27 @@ class WholesaleSolexDeliveryTest extends TestCase
         $this->assertSame(0, Order::count());
     }
 
-    public function test_wholesale_deposit_order_charges_deposit_plus_import_and_solex(): void
+    private function depositOrder(): Order
     {
         $this->product->update(['deposit_enabled' => true, 'deposit_rate' => 20]);
-        $this->getJson('/api/v1/import/products/' . $this->product->id)
-            ->assertJsonPath('product.deposit_enabled', true)
-            ->assertJsonPath('product.deposit_rate', 20);
 
-        $orderId = $this->order([
+        return Order::findOrFail($this->order([
             'delivery_company_id' => $this->grid->deliverer_company_id,
             'delivery_grid_id' => $this->grid->id,
             'delivery_vehicle' => 'moto',
             'delivery_quarter' => 'Makèpè',
             'delivery_city' => 'Douala',
             'delivery_address' => 'Makèpè, Douala',
-        ])->assertCreated()->json('order_id');
+        ])->assertCreated()->json('order_id'));
+    }
 
-        $order = Order::findOrFail($orderId);
+    public function test_wholesale_deposit_order_charges_deposit_plus_import_and_solex(): void
+    {
+        $order = $this->depositOrder();
+        $this->getJson('/api/v1/import/products/' . $this->product->id)
+            ->assertJsonPath('product.deposit_enabled', true)
+            ->assertJsonPath('product.deposit_rate', 20);
+
         // Total 66 789 ; acompte = 20 % de 50 000 + bateau 15 000 + SOLEX 1 789.
         $this->assertTrue($order->isDepositOrder());
         $this->assertEquals(66789, (float) $order->total);
@@ -258,5 +262,23 @@ class WholesaleSolexDeliveryTest extends TestCase
         $this->assertSame(Order::BALANCE_LOCKED, $order->balance_status);
         $this->assertSame(Order::VERIFICATION_PENDING, $order->verification_status);
         $this->assertEquals(26789, (float) WalletBalance::where('user_id', $this->buyer->id)->value('locked_balance'));
+    }
+
+    public function test_failed_wholesale_deposit_order_refunds_transport_borne_by_asso(): void
+    {
+        $order = $this->depositOrder();
+        $admin = User::factory()->create(['role' => 'admin', 'roles' => ['admin']]);
+
+        // Acompte 26 789 dont transport 16 789 (bateau + SOLEX) : il revient au client.
+        $this->actingAs($admin)->post("/admin/deposit-orders/{$order->id}/close", [
+            'refund_amount' => 10000, 'vendor_amount' => 0, 'delivery_amount' => 0, 'note' => 'Marchandise non conforme',
+        ])->assertSessionHas('error');
+        $this->assertNotSame('cancelled', $order->fresh()->status);
+
+        $this->actingAs($admin)->post("/admin/deposit-orders/{$order->id}/close", [
+            'refund_amount' => 16789, 'vendor_amount' => 5000, 'delivery_amount' => 0, 'note' => 'Marchandise non conforme',
+        ])->assertSessionHas('success');
+        $this->assertSame('cancelled', $order->fresh()->status);
+        $this->assertEquals(1_000_000 - 26789 + 16789, (float) WalletBalance::where('user_id', $this->buyer->id)->value('balance'));
     }
 }
