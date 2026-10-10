@@ -340,13 +340,13 @@
                 <div>
                     <label class="block text-sm font-medium text-white mb-2">
                         <i class="fas fa-clock text-gray-500 mr-1"></i>
-                        Délai de livraison (jours ouvrables, 1 à 20)
+                        Délai de livraison (jours ouvrables, 1 minimum)
                     </label>
                     <div class="grid grid-cols-2 gap-3">
-                        <input type="number" name="delivery_days_min" id="category_delivery_days_min" min="1" max="20" step="1"
+                        <input type="number" name="delivery_days_min" id="category_delivery_days_min" min="1" step="1"
                                class="w-full px-4 py-2 bg-dark-50 border border-dark-300 text-white placeholder-gray-400 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                                placeholder="Minimum">
-                        <input type="number" name="delivery_days_max" id="category_delivery_days_max" min="1" max="20" step="1"
+                        <input type="number" name="delivery_days_max" id="category_delivery_days_max" min="1" step="1"
                                class="w-full px-4 py-2 bg-dark-50 border border-dark-300 text-white placeholder-gray-400 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                                placeholder="Maximum">
                     </div>

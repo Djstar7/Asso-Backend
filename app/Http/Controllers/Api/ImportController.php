@@ -335,6 +335,8 @@ class ImportController extends Controller
             'stock' => $p->stock,
             // Livraison gratuite offerte par le vendeur : course SOLEX offerte.
             'free_delivery' => $p->hasFreeDelivery(),
+            // Vente avec acompte (deposit_enabled, deposit_rate).
+            ...\App\Services\DepositOrderService::productInfo($p),
             'variants' => ($p->relationLoaded('variants') ? $p->variants : collect())
                 ->where('is_active', true)
                 ->map(fn ($variant) => app(ProductVariantService::class)->presentVariant($variant, $p))->values(),

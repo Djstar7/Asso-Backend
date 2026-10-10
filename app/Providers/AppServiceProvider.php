@@ -92,6 +92,11 @@ class AppServiceProvider extends ServiceProvider
             // Réclamations clients pas encore prises en analyse.
             $newDisputesCount = \App\Models\Dispute::where('status', \App\Models\Dispute::STATUS_NEW)->count();
 
+            // Litiges en gros : courses à payer par ASSO (le vendeur, c'est ASSO).
+            $assoShipmentsToPay = \App\Models\DisputeShipment::where('payer', 'asso')
+                ->where('payment_status', '!=', \App\Models\DisputeShipment::PAYMENT_PAID)
+                ->count();
+
             // Changements d'emplacement de boutique à valider.
             $pendingLocationRequests = \App\Models\ShopLocationRequest::pending()->count();
 
@@ -129,6 +134,14 @@ class AppServiceProvider extends ServiceProvider
                     'url' => route('admin.disputes.index', ['status' => 'new']),
                 ];
             }
+            if ($assoShipmentsToPay > 0) {
+                $notifications[] = [
+                    'icon' => 'fa-truck',
+                    'color' => 'text-red-400',
+                    'title' => $assoShipmentsToPay.' course'.($assoShipmentsToPay > 1 ? 's' : '').' de litige en gros à payer par ASSO',
+                    'url' => route('admin.disputes.index', ['status' => 'all', 'asso_payment' => 1]),
+                ];
+            }
             if ($pendingShopsCount > 0) {
                 $notifications[] = [
                     'icon' => 'fa-store',
@@ -152,7 +165,7 @@ class AppServiceProvider extends ServiceProvider
             $view->with('wholesaleToValidateCount', $wholesaleToValidateCount);
             $view->with('depositToContactCount', $depositToContactCount);
             $view->with('newDisputesCount', $newDisputesCount);
-            $view->with('adminNotificationsCount', $pendingShopsCount + $openTicketsCount + $wholesaleToValidateCount + $depositToContactCount + $newDisputesCount + $pendingLocationRequests);
+            $view->with('adminNotificationsCount', $pendingShopsCount + $openTicketsCount + $wholesaleToValidateCount + $depositToContactCount + $newDisputesCount + $pendingLocationRequests + $assoShipmentsToPay);
         });
     }
 }

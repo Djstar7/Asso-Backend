@@ -30,6 +30,12 @@ class DisputeController extends Controller
             $query->where('status', $status);
         }
 
+        // Gros : courses que l'équipe ASSO doit payer à la place du vendeur.
+        if ($request->boolean('asso_payment')) {
+            $query->whereHas('shipments', fn ($s) => $s->where('payer', 'asso')
+                ->where('payment_status', '!=', \App\Models\DisputeShipment::PAYMENT_PAID));
+        }
+
         if ($request->filled('search')) {
             $like = '%' . mb_strtolower(addcslashes(trim($request->input('search')), '%_\\')) . '%';
             $query->where(fn ($q) => $q->whereRaw('LOWER(number) LIKE ?', [$like])
