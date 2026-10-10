@@ -266,11 +266,10 @@ class DisputeService
 
         $dispute->refresh();
         $this->notifyClient($dispute, 'dispute_return_validated', ['number' => $dispute->number]);
-        if ($shipment->payer === 'vendor') {
-            $this->notifySeller($dispute, 'dispute_shipment_payment_required', [
-                'number' => $dispute->number,
-            ], ['shipment_id' => (string) $shipment->id]);
-        }
+        // Vendeur (ou, en gros, l'équipe ASSO) : course à payer.
+        $this->notifySeller($dispute, 'dispute_shipment_payment_required', [
+            'number' => $dispute->number,
+        ], ['shipment_id' => (string) $shipment->id]);
 
         return $shipment;
     }
@@ -1013,11 +1012,25 @@ class DisputeService
 
     private function notifySeller(Dispute $dispute, string $type, array $replace, array $data = []): void
     {
-        // Import en gros : le « vendeur » est ASSO, qui suit le dossier depuis le back-office.
+        // Import en gros : le « vendeur » est ASSO. Les employés en charge des litiges
+        // sont prévenus à sa place et agissent depuis le back-office.
         if ($dispute->order?->is_wholesale) {
+            foreach (self::disputeStaff() as $employee) {
+                $this->notify($employee, $dispute, $type, $replace, $data + ['role' => 'staff']);
+            }
+
             return;
         }
         $this->notify($dispute->seller_id ? User::find($dispute->seller_id) : null, $dispute, $type, $replace, $data + ['role' => 'vendor']);
+    }
+
+    /** Comptes back-office ayant accès à la section Litiges. */
+    public static function disputeStaff(): \Illuminate\Support\Collection
+    {
+        return User::whereIn('role', config('admin_access.staff_roles', []))
+            ->get()
+            ->filter(fn (User $user) => $user->hasAdminPermission('disputes'))
+            ->values();
     }
 
     private function notify(?User $user, Dispute $dispute, string $type, array $replace, array $data = []): void

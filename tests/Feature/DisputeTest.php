@@ -247,19 +247,33 @@ class DisputeTest extends TestCase
     {
         $order = $this->deliveredOrder();
         $order->update(['is_wholesale' => true]);
+        $admin = $this->admin();
+
+        // Le « vendeur » étant ASSO, ce sont les employés des litiges qui sont prévenus.
+        $notified = [];
+        $this->mock(FirebaseMessagingService::class, function ($mock) use (&$notified) {
+            $mock->shouldReceive('sendToUser')->andReturnUsing(function (User $user, $title, $body, array $data = []) use (&$notified) {
+                $notified[] = [$user->id, $data['type']];
+
+                return [];
+            });
+        });
+
         $dispute = $this->openDispute($order);
         $service = app(DisputeService::class);
-        $service->decide($dispute, $this->admin(), Dispute::DECISION_FOUNDED, 'Défaut confirmé.');
+        $service->decide($dispute, $admin, Dispute::DECISION_FOUNDED, 'Défaut confirmé.');
+        $this->assertContains([$admin->id, 'dispute_opened'], $notified);
+        $this->assertNotContains($this->seller->id, array_column($notified, 0));
 
         $actions = $service->actions($dispute->fresh(), 'vendor');
         $this->assertTrue($actions['replace']);
         $this->assertTrue($actions['organize_return']);
 
         // Le « vendeur » est ASSO : remplacement lancé et course payée depuis le back-office.
-        $admin = $this->admin();
         $this->actingAs($admin)->post("/admin/disputes/{$dispute->id}/replace")->assertSessionHas('success');
         $shipment = $dispute->fresh()->shipment(DisputeShipment::TYPE_REPLACEMENT);
         $this->assertSame('asso', $shipment->payer);
+        $this->actingAs($admin)->get('/admin/disputes?status=all&asso_payment=1')->assertOk()->assertSee($dispute->number);
 
         $this->priceShipment($shipment);
         $this->actingAs($admin)->post(route('admin.disputes.shipments.pay-by-asso', $shipment))->assertSessionHas('success');
