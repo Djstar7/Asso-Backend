@@ -765,7 +765,6 @@
         "balance_already_paid": "The balance of this order has already been paid.",
         "balance_locked_until_verification": "The balance can be paid once your product has been delivered and checked with ASSO.",
         "deposit_split_exceeds": "The split exceeds the deposit collected (:amount FCFA).",
-        "deposit_transport_refund": "Wholesale order: transport (:amount FCFA) is borne by ASSO and must be refunded to the customer.",
         "verification_transition_invalid": "This action is not possible at this verification step.",
         "balance_due_before_handover": "The balance must be paid before the product is handed over.",
         "balance_confirm_on_phone": "Confirm the balance payment on your phone.",

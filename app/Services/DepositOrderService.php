@@ -362,12 +362,6 @@ class DepositOrderService
             if ($refund < 0 || $vendorShare < 0 || $deliveryShare < 0 || round($refund + $vendorShare + $deliveryShare, 2) > $deposit) {
                 throw new \Exception(__('orders.deposit_split_exceeds', ['amount' => number_format($deposit, 0, ',', ' ')]));
             }
-            // Gros : ASSO est en charge du transport (expédition + SOLEX) ; en cas
-            // d'échec, elle en supporte le coût et la part transport est rendue au client.
-            $transportRefund = self::minimumRefund($locked, $deposit);
-            if ($refund < $transportRefund) {
-                throw new \Exception(__('orders.deposit_transport_refund', ['amount' => number_format($transportRefund, 0, ',', ' ')]));
-            }
             $assoShare = round($deposit - $refund - $vendorShare - $deliveryShare, 2);
 
             // Paiement Wallet : l'acompte est encore bloqué → la part rendue est débloquée,
@@ -426,15 +420,6 @@ class DepositOrderService
         ]);
 
         return $closed;
-    }
-
-    /**
-     * Part de l'acompte toujours rendue au client à la clôture : en gros, le
-     * transport payé à la commande (ASSO en supporte le coût en cas d'échec).
-     */
-    public static function minimumRefund(Order $order, float $collected): float
-    {
-        return $order->is_wholesale ? round(min($collected, (float) $order->delivery_fee), 2) : 0.0;
     }
 
     /**

@@ -149,10 +149,6 @@
                 <div class="bg-dark-100 rounded-xl border border-red-500/30 p-6 text-sm">
                     <h2 class="text-lg font-semibold text-white mb-1">Clôturer la commande</h2>
                     <p class="text-xs text-gray-400 mb-3">Acompte encaissé : {{ $fcfa($depositCollected) }}. Ce qui n'est ni rendu au client, ni versé au vendeur ou au livreur reste à ASSO. Irréversible.</p>
-                    @php($transportRefund = \App\Services\DepositOrderService::minimumRefund($order, $depositCollected))
-                    @if($transportRefund > 0)
-                        <p class="text-xs text-amber-300 mb-3"><i class="fas fa-truck mr-1"></i>Commande en gros : ASSO prend en charge le transport. Au moins {{ $fcfa($transportRefund) }} (expédition + livraison SOLEX) doivent être rendus au client.</p>
-                    @endif
                     <form method="POST" action="{{ route('admin.deposit-orders.close', $order) }}" class="space-y-2"
                           onsubmit="return confirm('Clôturer la commande et répartir l\'acompte ?')">
                         @csrf
