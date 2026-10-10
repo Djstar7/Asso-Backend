@@ -890,8 +890,8 @@ class DisputeService
 
         return [
             'add_evidence' => $dispute->isOpen(),
-            'replace' => $founded && $dispute->replacement_count < Dispute::MAX_REPLACEMENTS && $dispute->order?->is_wholesale !== true,
-            'organize_return' => $founded && $dispute->order?->is_wholesale !== true,
+            'replace' => $founded && $dispute->replacement_count < Dispute::MAX_REPLACEMENTS,
+            'organize_return' => $founded,
             'pay_shipment' => $current && $current->payer === 'vendor' && !$current->isPaid(),
             'pending_shipment_id' => $current && !$current->isPaid() ? $current->id : null,
             'mark_shipped' => $current && $current->type === DisputeShipment::TYPE_REPLACEMENT && in_array('shipped', $current->nextSteps(), true),
@@ -901,12 +901,11 @@ class DisputeService
 
     private function createShipment(Dispute $dispute, string $type): DisputeShipment
     {
-        // Import en gros : ASSO est le revendeur et prend la course à sa charge.
-        $payer = $dispute->order?->is_wholesale ? 'asso' : 'vendor';
-
+        // Gros comme classique : la course est à la charge du vendeur (en gros,
+        // la boutique ASSO de Douala).
         return $dispute->shipments()->create([
             'type' => $type,
-            'payer' => $payer,
+            'payer' => 'vendor',
             'payment_status' => DisputeShipment::PAYMENT_PENDING,
             'status' => 'awaiting_payment',
         ]);
@@ -1012,10 +1011,6 @@ class DisputeService
 
     private function notifySeller(Dispute $dispute, string $type, array $replace, array $data = []): void
     {
-        // Import en gros : le « vendeur » est ASSO, qui suit le dossier depuis le back-office.
-        if ($dispute->order?->is_wholesale) {
-            return;
-        }
         $this->notify($dispute->seller_id ? User::find($dispute->seller_id) : null, $dispute, $type, $replace, $data + ['role' => 'vendor']);
     }
 

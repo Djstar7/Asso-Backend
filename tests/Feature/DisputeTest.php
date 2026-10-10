@@ -243,6 +243,23 @@ class DisputeTest extends TestCase
         $service->startReplacement($dispute->fresh(), 'vendor', $this->seller->id);
     }
 
+    public function test_wholesale_dispute_follows_the_same_rules_as_a_regular_one(): void
+    {
+        $order = $this->deliveredOrder();
+        $order->update(['is_wholesale' => true]);
+        $dispute = $this->openDispute($order);
+        $service = app(DisputeService::class);
+        $service->decide($dispute, $this->admin(), Dispute::DECISION_FOUNDED, 'Défaut confirmé.');
+
+        $actions = $service->actions($dispute->fresh(), 'vendor');
+        $this->assertTrue($actions['replace']);
+        $this->assertTrue($actions['organize_return']);
+
+        $this->actingAs($this->seller, 'sanctum')->postJson("/api/v1/vendor/disputes/{$dispute->id}/replace")
+            ->assertOk()->assertJsonPath('dispute.status', Dispute::STATUS_REPLACEMENT);
+        $this->assertSame('vendor', $dispute->fresh()->shipment(DisputeShipment::TYPE_REPLACEMENT)->payer);
+    }
+
     public function test_replacement_validated_by_client_releases_the_item_share(): void
     {
         $dispute = $this->openDispute($this->deliveredOrder());
