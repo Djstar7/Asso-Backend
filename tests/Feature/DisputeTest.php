@@ -255,9 +255,15 @@ class DisputeTest extends TestCase
         $this->assertTrue($actions['replace']);
         $this->assertTrue($actions['organize_return']);
 
-        $this->actingAs($this->seller, 'sanctum')->postJson("/api/v1/vendor/disputes/{$dispute->id}/replace")
-            ->assertOk()->assertJsonPath('dispute.status', Dispute::STATUS_REPLACEMENT);
-        $this->assertSame('vendor', $dispute->fresh()->shipment(DisputeShipment::TYPE_REPLACEMENT)->payer);
+        // Le « vendeur » est ASSO : remplacement lancé et course payée depuis le back-office.
+        $admin = $this->admin();
+        $this->actingAs($admin)->post("/admin/disputes/{$dispute->id}/replace")->assertSessionHas('success');
+        $shipment = $dispute->fresh()->shipment(DisputeShipment::TYPE_REPLACEMENT);
+        $this->assertSame('asso', $shipment->payer);
+
+        $this->priceShipment($shipment);
+        $this->actingAs($admin)->post(route('admin.disputes.shipments.pay-by-asso', $shipment))->assertSessionHas('success');
+        $this->assertTrue($shipment->fresh()->isPaid());
     }
 
     public function test_replacement_validated_by_client_releases_the_item_share(): void

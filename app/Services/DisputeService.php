@@ -901,11 +901,13 @@ class DisputeService
 
     private function createShipment(Dispute $dispute, string $type): DisputeShipment
     {
-        // Gros comme classique : la course est à la charge du vendeur (en gros,
-        // la boutique ASSO de Douala).
+        // Gros : mêmes règles que le classique, mais le « vendeur » est ASSO
+        // (boutique de Douala) : la course est payée depuis le back-office.
+        $payer = $dispute->order?->is_wholesale ? 'asso' : 'vendor';
+
         return $dispute->shipments()->create([
             'type' => $type,
-            'payer' => 'vendor',
+            'payer' => $payer,
             'payment_status' => DisputeShipment::PAYMENT_PENDING,
             'status' => 'awaiting_payment',
         ]);
@@ -1011,6 +1013,10 @@ class DisputeService
 
     private function notifySeller(Dispute $dispute, string $type, array $replace, array $data = []): void
     {
+        // Import en gros : le « vendeur » est ASSO, qui suit le dossier depuis le back-office.
+        if ($dispute->order?->is_wholesale) {
+            return;
+        }
         $this->notify($dispute->seller_id ? User::find($dispute->seller_id) : null, $dispute, $type, $replace, $data + ['role' => 'vendor']);
     }
 
