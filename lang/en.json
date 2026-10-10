@@ -709,7 +709,49 @@
             "body": ":shop presents: :product"
         },
         "default_shop_name": "A shop",
-        "announcement_default_title": "New announcement"
+        "announcement_default_title": "New announcement",
+        "dispute_staff": {
+            "dispute_opened": {
+                "title": "Wholesale dispute opened",
+                "body": "The customer opened claim :number (wholesale order #:order_number). Review it from the back office."
+            },
+            "dispute_vendor_contacted": {
+                "title": "Wholesale dispute: seller response expected",
+                "body": "Claim :number: ASSO is the seller, add your explanations and evidence from the back office."
+            },
+            "dispute_unfounded_vendor": {
+                "title": "Wholesale dispute unfounded",
+                "body": "Claim :number was found unfounded: the product funds are released."
+            },
+            "dispute_founded_vendor": {
+                "title": "Wholesale dispute founded: action required",
+                "body": "Claim :number is founded: start the replacement or the return from the back office."
+            },
+            "dispute_shipment_payment_required": {
+                "title": "Wholesale dispute: delivery to be paid by ASSO",
+                "body": "Claim :number: choose a partner and click “Pay by ASSO” in the back office so the case can move on."
+            },
+            "dispute_shipment_paid": {
+                "title": "Wholesale dispute: delivery paid",
+                "body": "Claim :number: the delivery is paid, the partner takes over."
+            },
+            "dispute_shipment_payment_failed": {
+                "title": "Wholesale dispute: payment failed",
+                "body": "Claim :number: the delivery payment did not go through. Try again from the back office."
+            },
+            "dispute_return_delivered": {
+                "title": "Wholesale dispute: product returned",
+                "body": "Claim :number: the product has come back. Confirm receipt from the back office."
+            },
+            "dispute_refunded_vendor": {
+                "title": "Wholesale dispute closed",
+                "body": "Claim :number: the return is confirmed and the customer refunded."
+            },
+            "dispute_resolved_vendor": {
+                "title": "Wholesale dispute: replacement validated",
+                "body": "Claim :number: the customer validated the replacement, the case is resolved."
+            }
+        }
     },
     "orders": {
         "created_confirm_on_phone": "Order created. Confirm the payment on your phone (USSD).",
@@ -1260,6 +1302,15 @@
             "regards": "Kind regards,",
             "team": "The ASSO team",
             "rights": "All rights reserved."
+        },
+        "dispute_staff": {
+            "greeting": "Hello :name,",
+            "intro": "A dispute on a wholesale order needs the ASSO team's attention (ASSO is the seller of these products).",
+            "claim": "Claim",
+            "order": "Order",
+            "cta": "Open the dispute in the back office",
+            "footer": "This email was sent automatically, please do not reply.",
+            "team": "The ASSO team"
         }
     }
 }

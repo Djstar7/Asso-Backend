@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Mail\DisputeStaffAlertMail;
 use App\Models\DelivererCompany;
 use App\Models\Dispute;
 use App\Models\DisputeAttachment;
@@ -16,6 +17,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 /**
  * Réclamations & litiges (document « Gestion des réclamations & litiges »).
@@ -1013,10 +1015,10 @@ class DisputeService
     private function notifySeller(Dispute $dispute, string $type, array $replace, array $data = []): void
     {
         // Import en gros : le « vendeur » est ASSO. Les employés en charge des litiges
-        // sont prévenus à sa place et agissent depuis le back-office.
+        // sont prévenus à sa place (push + e-mail) et agissent depuis le back-office.
         if ($dispute->order?->is_wholesale) {
             foreach (self::disputeStaff() as $employee) {
-                $this->notify($employee, $dispute, $type, $replace, $data + ['role' => 'staff']);
+                $this->notifyStaff($employee, $dispute, $type, $replace);
             }
 
             return;
@@ -1031,6 +1033,30 @@ class DisputeService
             ->get()
             ->filter(fn (User $user) => $user->hasAdminPermission('disputes'))
             ->values();
+    }
+
+    private function notifyStaff(User $employee, Dispute $dispute, string $type, array $replace): void
+    {
+        $title = $employee->localized("notifications.dispute_staff.{$type}.title", $replace);
+        $body = $employee->localized("notifications.dispute_staff.{$type}.body", $replace);
+        try {
+            $this->fcm->sendToUser($employee, $title, $body, [
+                'type' => $type,
+                'role' => 'staff',
+                'dispute_id' => (string) $dispute->id,
+                'order_id' => (string) $dispute->order_id,
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning("[Dispute] FCM staff {$type} échec: " . $e->getMessage());
+        }
+        if (!$employee->email) {
+            return;
+        }
+        try {
+            Mail::to($employee->email)->send(new DisputeStaffAlertMail($employee, $dispute, (string) $title, (string) $body));
+        } catch (\Throwable $e) {
+            Log::warning("[Dispute] e-mail staff {$type} échec: " . $e->getMessage());
+        }
     }
 
     private function notify(?User $user, Dispute $dispute, string $type, array $replace, array $data = []): void
