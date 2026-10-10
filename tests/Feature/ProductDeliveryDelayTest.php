@@ -19,7 +19,7 @@ use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 /**
- * Délai de livraison annoncé, en jours ouvrables (1 à 20) : produit → catégorie →
+ * Délai de livraison annoncé, en jours ouvrables (1 minimum, sans maximum) : produit → catégorie →
  * défaut du Dashboard, affiché sur la fiche produit et figé sur la commande.
  */
 class ProductDeliveryDelayTest extends TestCase
@@ -92,8 +92,14 @@ class ProductDeliveryDelayTest extends TestCase
         Sanctum::actingAs($this->vendor);
 
         $this->postJson("/api/v1/vendor/products/{$product->id}", [
-            '_method' => 'PUT', 'delivery_days_min' => 21,
+            '_method' => 'PUT', 'delivery_days_min' => 0,
         ])->assertUnprocessable()->assertJsonValidationErrors('delivery_days_min');
+
+        // Pas de maximum métier : 45 à 90 jours est accepté.
+        $this->postJson("/api/v1/vendor/products/{$product->id}", [
+            '_method' => 'PUT', 'delivery_days_min' => 45, 'delivery_days_max' => 90,
+        ])->assertOk();
+        $this->assertSame(['min' => 45, 'max' => 90, 'source' => 'product'], DeliveryDelay::forProduct($product->fresh()));
 
         $this->postJson("/api/v1/vendor/products/{$product->id}", [
             '_method' => 'PUT', 'delivery_days_min' => 6, 'delivery_days_max' => 3,

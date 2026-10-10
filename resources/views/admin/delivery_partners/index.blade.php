@@ -53,14 +53,14 @@
             <div>
                 <label class="block text-sm text-gray-400 mb-1">Délai de livraison par défaut (jours ouvrables)</label>
                 <div class="grid grid-cols-2 gap-2">
-                    <input type="number" name="delivery_days_min" min="1" max="20" step="1" required
+                    <input type="number" name="delivery_days_min" min="1" step="1" required
                            value="{{ old('delivery_days_min', $defaultDelay['min']) }}" aria-label="Minimum"
                            class="w-full px-3 py-2 bg-dark-50 border border-dark-200 rounded-lg text-white focus:border-primary-500 focus:outline-none">
-                    <input type="number" name="delivery_days_max" min="1" max="20" step="1" required
+                    <input type="number" name="delivery_days_max" min="1" step="1" required
                            value="{{ old('delivery_days_max', $defaultDelay['max']) }}" aria-label="Maximum"
                            class="w-full px-3 py-2 bg-dark-50 border border-dark-200 rounded-lg text-white focus:border-primary-500 focus:outline-none">
                 </div>
-                <p class="mt-1 text-xs text-gray-500">Minimum et maximum, de 1 à 20 jours. Annoncé pour les produits sans délai propre ni délai de catégorie.</p>
+                <p class="mt-1 text-xs text-gray-500">Minimum et maximum, en jours (1 minimum). Annoncé pour les produits sans délai propre ni délai de catégorie.</p>
             </div>
             <div>
                 <button type="submit" class="w-full px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600">
