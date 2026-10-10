@@ -232,4 +232,31 @@ class WholesaleSolexDeliveryTest extends TestCase
         $this->order([])->assertStatus(422)->assertJsonValidationErrors(['delivery_company_id', 'delivery_address']);
         $this->assertSame(0, Order::count());
     }
+
+    public function test_wholesale_deposit_order_charges_deposit_plus_import_and_solex(): void
+    {
+        $this->product->update(['deposit_enabled' => true, 'deposit_rate' => 20]);
+        $this->getJson('/api/v1/import/products/' . $this->product->id)
+            ->assertJsonPath('product.deposit_enabled', true)
+            ->assertJsonPath('product.deposit_rate', 20);
+
+        $orderId = $this->order([
+            'delivery_company_id' => $this->grid->deliverer_company_id,
+            'delivery_grid_id' => $this->grid->id,
+            'delivery_vehicle' => 'moto',
+            'delivery_quarter' => 'Makèpè',
+            'delivery_city' => 'Douala',
+            'delivery_address' => 'Makèpè, Douala',
+        ])->assertCreated()->json('order_id');
+
+        $order = Order::findOrFail($orderId);
+        // Total 66 789 ; acompte = 20 % de 50 000 + bateau 15 000 + SOLEX 1 789.
+        $this->assertTrue($order->isDepositOrder());
+        $this->assertEquals(66789, (float) $order->total);
+        $this->assertEquals(26789, (float) $order->deposit_amount);
+        $this->assertEquals(40000, (float) $order->balance_amount);
+        $this->assertSame(Order::BALANCE_LOCKED, $order->balance_status);
+        $this->assertSame(Order::VERIFICATION_PENDING, $order->verification_status);
+        $this->assertEquals(26789, (float) WalletBalance::where('user_id', $this->buyer->id)->value('locked_balance'));
+    }
 }

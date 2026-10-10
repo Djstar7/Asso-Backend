@@ -433,6 +433,8 @@ class OrderService
             $countryCode = null;
             $calculatedWeightKg = 0;
             $hasMissingWeight = false;
+            $depositFlags = [];
+            $depositSubtotal = 0.0;
 
             // Le palier suit la quantité (le prix du palier choisi par l'app n'est
             // qu'indicatif) : 30 ou 60 unités d'un produit à paliers 50 et 100 paient le
@@ -497,6 +499,12 @@ class OrderService
 
                 $lineTotal = $unitPrice * $quantity;
                 $subtotal += $lineTotal;
+
+                // Commande avec acompte : part du prix du palier payée à la commande.
+                $depositFlags[] = $product->requiresDeposit();
+                if ($product->requiresDeposit()) {
+                    $depositSubtotal += DepositOrderService::depositFor($lineTotal, (float) $product->deposit_rate);
+                }
                 $countryCode = $countryCode ?? $product->origin_country;
                 // Poids d'une unité du palier (pack, bidon, pièce), sinon celui de la fiche.
                 $unitWeight = $tier->weight_kg > 0 ? (float) $tier->weight_kg : $product->weightKg();
@@ -518,6 +526,12 @@ class OrderService
                     'total_price' => $lineTotal,
                 ];
             }
+
+            // Acompte et paiement classique ne se mélangent pas (cf. createOrder).
+            if (count(array_unique($depositFlags)) > 1) {
+                throw new \Exception(__('orders.deposit_mixed_cart'));
+            }
+            $isDepositOrder = in_array(true, $depositFlags, true);
 
             // Expédition internationale : coût selon l'option choisie (poids / volume / forfait).
             $shipping = ImportShippingOption::where('id', $shippingOptionId)->where('is_active', true)->firstOrFail();
@@ -571,12 +585,22 @@ class OrderService
 
             $total = $subtotal + $shippingCost + $localDeliveryFee;
 
+            // Acompte = part des articles + expédition jusqu'à Douala + course SOLEX
+            // (engagées dès la commande) ; le solde après livraison et vérification ASSO.
+            $depositAmount = $isDepositOrder
+                ? min($total, round($depositSubtotal + $shippingCost + $localDeliveryFee, 2))
+                : null;
+            $upfront = $isDepositOrder ? $depositAmount : $total;
+
             $isDirect = in_array($paymentMode, ['kpay_direct', 'stripe_direct']);
 
             // Mode wallet : escrow depuis le solde. Modes directs : encaissement externe.
             if (!$isDirect) {
                 $this->walletService->lockFunds(
-                    $client, $total, WalletTransaction::label('wholesale_order_locked'),
+                    $client, $upfront,
+                    $isDepositOrder
+                        ? WalletTransaction::label('deposit_locked')
+                        : WalletTransaction::label('wholesale_order_locked'),
                     'order', null, ['wholesale' => true], $kpayProvider ?? 'kpay'
                 );
             }
@@ -625,6 +649,11 @@ class OrderService
                     default => 'wallet_' . ($kpayProvider ?? 'kpay'),
                 },
                 'payment_status' => $isDirect ? 'pending' : 'paid',
+                'payment_plan' => $isDepositOrder ? Order::PLAN_DEPOSIT : Order::PLAN_FULL,
+                'deposit_amount' => $depositAmount,
+                'balance_amount' => $isDepositOrder ? round($total - $depositAmount, 2) : null,
+                'balance_status' => $isDepositOrder ? Order::BALANCE_LOCKED : null,
+                'verification_status' => $isDepositOrder ? Order::VERIFICATION_PENDING : null,
                 'notes' => $notes,
             ]);
 
@@ -641,7 +670,7 @@ class OrderService
 
             // Paiement (réutilise la logique des rails directs). Pour la carte native,
             // pose les attributs transitoires client_secret / payment_intent_id sur $order.
-            $this->initiateDirectPayment($order, $total, $paymentMode, $kpayProvider, $kpayPhone);
+            $this->initiateDirectPayment($order, $upfront, $paymentMode, $kpayProvider, $kpayPhone);
 
             $this->fcmService->sendToUser(
                 $client,

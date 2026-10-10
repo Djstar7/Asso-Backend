@@ -216,7 +216,7 @@ class Product extends Model
     /** Produit vendu « sur commande » : acompte à la commande, solde après vérification ASSO. */
     public function requiresDeposit(): bool
     {
-        return $this->deposit_enabled && (float) $this->deposit_rate > 0 && !$this->is_wholesale;
+        return $this->deposit_enabled && (float) $this->deposit_rate > 0;
     }
 
     /**
