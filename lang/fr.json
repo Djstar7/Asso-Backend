@@ -709,7 +709,49 @@
             "body": ":shop vous présente : :product"
         },
         "default_shop_name": "Une boutique",
-        "announcement_default_title": "Nouvelle annonce"
+        "announcement_default_title": "Nouvelle annonce",
+        "dispute_staff": {
+            "dispute_opened": {
+                "title": "Litige en gros ouvert",
+                "body": "Le client a ouvert la réclamation :number (commande en gros #:order_number). Analysez-la depuis le back-office."
+            },
+            "dispute_vendor_contacted": {
+                "title": "Litige en gros : réponse du vendeur attendue",
+                "body": "Réclamation :number : ASSO étant le vendeur, ajoutez vos explications et preuves depuis le back-office."
+            },
+            "dispute_unfounded_vendor": {
+                "title": "Litige en gros non fondé",
+                "body": "Réclamation :number classée non fondée : les fonds du produit sont débloqués."
+            },
+            "dispute_founded_vendor": {
+                "title": "Litige en gros fondé : action requise",
+                "body": "Réclamation :number fondée : lancez le remplacement ou le retour depuis le back-office."
+            },
+            "dispute_shipment_payment_required": {
+                "title": "Litige en gros : course à payer par ASSO",
+                "body": "Réclamation :number : choisissez un partenaire et cliquez sur « Payer par ASSO » dans le back-office pour que le dossier avance."
+            },
+            "dispute_shipment_paid": {
+                "title": "Litige en gros : course payée",
+                "body": "Réclamation :number : la course est payée, le partenaire prend le relais."
+            },
+            "dispute_shipment_payment_failed": {
+                "title": "Litige en gros : paiement non abouti",
+                "body": "Réclamation :number : le paiement de la course n'a pas abouti. Réessayez depuis le back-office."
+            },
+            "dispute_return_delivered": {
+                "title": "Litige en gros : produit retourné",
+                "body": "Réclamation :number : le produit est arrivé en retour. Confirmez la réception depuis le back-office."
+            },
+            "dispute_refunded_vendor": {
+                "title": "Litige en gros clôturé",
+                "body": "Réclamation :number : le retour est confirmé et le client remboursé."
+            },
+            "dispute_resolved_vendor": {
+                "title": "Litige en gros : remplacement validé",
+                "body": "Réclamation :number : le client a validé le remplacement, le dossier est résolu."
+            }
+        }
     },
     "orders": {
         "created_confirm_on_phone": "Commande créée. Validez le paiement sur votre téléphone (USSD).",
@@ -1260,6 +1302,15 @@
             "regards": "Cordialement,",
             "team": "L'équipe ASSO",
             "rights": "Tous droits réservés."
+        },
+        "dispute_staff": {
+            "greeting": "Bonjour :name,",
+            "intro": "Un litige sur une commande en gros demande l'attention de l'équipe ASSO (ASSO est le vendeur de ces produits).",
+            "claim": "Réclamation",
+            "order": "Commande",
+            "cta": "Ouvrir le litige dans le back-office",
+            "footer": "Cet e-mail a été envoyé automatiquement, merci de ne pas y répondre.",
+            "team": "L'équipe ASSO"
         }
     }
 }

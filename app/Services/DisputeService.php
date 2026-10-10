@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Mail\DisputeStaffAlertMail;
 use App\Models\DelivererCompany;
 use App\Models\Dispute;
 use App\Models\DisputeAttachment;
@@ -16,6 +17,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 /**
  * Réclamations & litiges (document « Gestion des réclamations & litiges »).
@@ -266,11 +268,10 @@ class DisputeService
 
         $dispute->refresh();
         $this->notifyClient($dispute, 'dispute_return_validated', ['number' => $dispute->number]);
-        if ($shipment->payer === 'vendor') {
-            $this->notifySeller($dispute, 'dispute_shipment_payment_required', [
-                'number' => $dispute->number,
-            ], ['shipment_id' => (string) $shipment->id]);
-        }
+        // Vendeur (ou, en gros, l'équipe ASSO) : course à payer.
+        $this->notifySeller($dispute, 'dispute_shipment_payment_required', [
+            'number' => $dispute->number,
+        ], ['shipment_id' => (string) $shipment->id]);
 
         return $shipment;
     }
@@ -890,8 +891,8 @@ class DisputeService
 
         return [
             'add_evidence' => $dispute->isOpen(),
-            'replace' => $founded && $dispute->replacement_count < Dispute::MAX_REPLACEMENTS && $dispute->order?->is_wholesale !== true,
-            'organize_return' => $founded && $dispute->order?->is_wholesale !== true,
+            'replace' => $founded && $dispute->replacement_count < Dispute::MAX_REPLACEMENTS,
+            'organize_return' => $founded,
             'pay_shipment' => $current && $current->payer === 'vendor' && !$current->isPaid(),
             'pending_shipment_id' => $current && !$current->isPaid() ? $current->id : null,
             'mark_shipped' => $current && $current->type === DisputeShipment::TYPE_REPLACEMENT && in_array('shipped', $current->nextSteps(), true),
@@ -901,7 +902,8 @@ class DisputeService
 
     private function createShipment(Dispute $dispute, string $type): DisputeShipment
     {
-        // Import en gros : ASSO est le revendeur et prend la course à sa charge.
+        // Gros : mêmes règles que le classique, mais le « vendeur » est ASSO
+        // (boutique de Douala) : la course est payée depuis le back-office.
         $payer = $dispute->order?->is_wholesale ? 'asso' : 'vendor';
 
         return $dispute->shipments()->create([
@@ -1012,11 +1014,49 @@ class DisputeService
 
     private function notifySeller(Dispute $dispute, string $type, array $replace, array $data = []): void
     {
-        // Import en gros : le « vendeur » est ASSO, qui suit le dossier depuis le back-office.
+        // Import en gros : le « vendeur » est ASSO. Les employés en charge des litiges
+        // sont prévenus à sa place (push + e-mail) et agissent depuis le back-office.
         if ($dispute->order?->is_wholesale) {
+            foreach (self::disputeStaff() as $employee) {
+                $this->notifyStaff($employee, $dispute, $type, $replace);
+            }
+
             return;
         }
         $this->notify($dispute->seller_id ? User::find($dispute->seller_id) : null, $dispute, $type, $replace, $data + ['role' => 'vendor']);
+    }
+
+    /** Comptes back-office ayant accès à la section Litiges. */
+    public static function disputeStaff(): \Illuminate\Support\Collection
+    {
+        return User::whereIn('role', config('admin_access.staff_roles', []))
+            ->get()
+            ->filter(fn (User $user) => $user->hasAdminPermission('disputes'))
+            ->values();
+    }
+
+    private function notifyStaff(User $employee, Dispute $dispute, string $type, array $replace): void
+    {
+        $title = $employee->localized("notifications.dispute_staff.{$type}.title", $replace);
+        $body = $employee->localized("notifications.dispute_staff.{$type}.body", $replace);
+        try {
+            $this->fcm->sendToUser($employee, $title, $body, [
+                'type' => $type,
+                'role' => 'staff',
+                'dispute_id' => (string) $dispute->id,
+                'order_id' => (string) $dispute->order_id,
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning("[Dispute] FCM staff {$type} échec: " . $e->getMessage());
+        }
+        if (!$employee->email) {
+            return;
+        }
+        try {
+            Mail::to($employee->email)->send(new DisputeStaffAlertMail($employee, $dispute, (string) $title, (string) $body));
+        } catch (\Throwable $e) {
+            Log::warning("[Dispute] e-mail staff {$type} échec: " . $e->getMessage());
+        }
     }
 
     private function notify(?User $user, Dispute $dispute, string $type, array $replace, array $data = []): void

@@ -243,6 +243,49 @@ class DisputeTest extends TestCase
         $service->startReplacement($dispute->fresh(), 'vendor', $this->seller->id);
     }
 
+    public function test_wholesale_dispute_follows_the_same_rules_as_a_regular_one(): void
+    {
+        $order = $this->deliveredOrder();
+        $order->update(['is_wholesale' => true]);
+        $admin = $this->admin();
+        \Illuminate\Support\Facades\Mail::fake();
+
+        // Le « vendeur » étant ASSO, ce sont les employés des litiges qui sont prévenus.
+        $notified = [];
+        $this->mock(FirebaseMessagingService::class, function ($mock) use (&$notified) {
+            $mock->shouldReceive('sendToUser')->andReturnUsing(function (User $user, $title, $body, array $data = []) use (&$notified) {
+                $notified[] = [$user->id, $data['type']];
+
+                return [];
+            });
+        });
+
+        $dispute = $this->openDispute($order);
+        $service = app(DisputeService::class);
+        $service->decide($dispute, $admin, Dispute::DECISION_FOUNDED, 'Défaut confirmé.');
+        $this->assertContains([$admin->id, 'dispute_opened'], $notified);
+        $this->assertNotContains($this->seller->id, array_column($notified, 0));
+        // … et reçoivent un e-mail avec le lien vers le litige.
+        \Illuminate\Support\Facades\Mail::assertSent(\App\Mail\DisputeStaffAlertMail::class, fn ($mail) => $mail->hasTo($admin->email)
+            && $mail->dispute->is($dispute)
+            && str_contains($mail->render(), $dispute->number));
+        \Illuminate\Support\Facades\Mail::assertNotSent(\App\Mail\DisputeStaffAlertMail::class, fn ($mail) => $mail->hasTo($this->seller->email));
+
+        $actions = $service->actions($dispute->fresh(), 'vendor');
+        $this->assertTrue($actions['replace']);
+        $this->assertTrue($actions['organize_return']);
+
+        // Le « vendeur » est ASSO : remplacement lancé et course payée depuis le back-office.
+        $this->actingAs($admin)->post("/admin/disputes/{$dispute->id}/replace")->assertSessionHas('success');
+        $shipment = $dispute->fresh()->shipment(DisputeShipment::TYPE_REPLACEMENT);
+        $this->assertSame('asso', $shipment->payer);
+        $this->actingAs($admin)->get('/admin/disputes?status=all&asso_payment=1')->assertOk()->assertSee($dispute->number);
+
+        $this->priceShipment($shipment);
+        $this->actingAs($admin)->post(route('admin.disputes.shipments.pay-by-asso', $shipment))->assertSessionHas('success');
+        $this->assertTrue($shipment->fresh()->isPaid());
+    }
+
     public function test_replacement_validated_by_client_releases_the_item_share(): void
     {
         $dispute = $this->openDispute($this->deliveredOrder());
