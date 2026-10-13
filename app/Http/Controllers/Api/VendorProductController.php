@@ -526,7 +526,7 @@ class VendorProductController extends Controller
             'translations' => $product->translationsPayload(),
             'price' => (float) $product->price,
             'currency' => $product->currency ?? 'XAF',
-            'price_xaf' => $product->price_xaf !== null ? (float) $product->price_xaf : (float) $product->price,
+            'price_xaf' => $product->basePriceXaf(),
             'min_price' => $product->min_price ? (float) $product->min_price : null,
             'max_price' => $product->max_price ? (float) $product->max_price : null,
             'price_type' => $product->price_type ?? 'fixed',

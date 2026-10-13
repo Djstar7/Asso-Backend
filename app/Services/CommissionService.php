@@ -55,9 +55,12 @@ class CommissionService
     /** Taux appliqué à un produit (déterminé par son prix de base vendeur, en XAF). */
     public static function rateForProduct(Product $product): float
     {
-        $baseXaf = $product->price_xaf !== null ? (float) $product->price_xaf : (float) $product->price;
+        $baseXaf = $product->basePriceXaf();
 
-        return self::rateFor($baseXaf);
+        // Sans taux, la tranche ne peut pas être choisie : taux par défaut.
+        return $baseXaf !== null
+            ? self::rateFor($baseXaf)
+            : max(0.0, min(100.0, (float) Setting::get('default_sale_commission_rate', 0)));
     }
 
     /** Applique la majoration à un prix vendeur (arrondi à l'unité en FCFA, au centime sinon). */
@@ -73,13 +76,13 @@ class CommissionService
     /**
      * Prix PUBLICS (acheteur) d'un produit, dans sa devise source et en XAF.
      *
-     * @return array{rate: float, price: float, price_xaf: float, min_price: ?float, max_price: ?float, formatted_price: string}
+     * @return array{rate: float, price: float, price_xaf: ?float, currency: string, min_price: ?float, max_price: ?float, formatted_price: string}
      */
     public static function buyerPricing(Product $product): array
     {
         $rate = self::rateForProduct($product);
         $currency = strtoupper($product->currency ?? 'XAF');
-        $baseXaf = $product->price_xaf !== null ? (float) $product->price_xaf : (float) $product->price;
+        $baseXaf = $product->basePriceXaf();
 
         $price = self::markup((float) $product->price, $rate, $currency);
         $min = $product->min_price ? self::markup((float) $product->min_price, $rate, $currency) : null;
@@ -93,11 +96,26 @@ class CommissionService
         return [
             'rate' => $rate,
             'price' => $price,
-            'price_xaf' => self::markup($baseXaf, $rate, 'XAF'),
+            // null si la devise n'a aucun taux : l'app affiche alors le prix dans sa devise.
+            'price_xaf' => $baseXaf !== null ? self::markup($baseXaf, $rate, 'XAF') : null,
+            'currency' => $currency,
             'min_price' => $min,
             'max_price' => $max,
             'formatted_price' => $formatted,
         ];
+    }
+
+    /**
+     * Prix public d'un produit pour une carte simple (chat, boutique, notification) :
+     * dans sa devise, en XAF et avec le code devise, pour que l'app convertisse juste.
+     *
+     * @return array{price: float, price_xaf: ?float, currency: string}
+     */
+    public static function buyerPriceFields(Product $product): array
+    {
+        $pricing = self::buyerPricing($product);
+
+        return ['price' => $pricing['price'], 'price_xaf' => $pricing['price_xaf'], 'currency' => $pricing['currency']];
     }
 
     /** Prix acheteur d'un produit dans sa devise source (raccourci pour les cartes simples). */

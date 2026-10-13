@@ -227,16 +227,18 @@ class ProductVariantService
     {
         $adjustment = (float) $variant->price_adjustment;
         $basePrice = (float) $product->price;
-        $baseXaf = $product->price_xaf !== null ? (float) $product->price_xaf : $basePrice;
-        $rate = $basePrice > 0 ? $baseXaf / $basePrice : 1.0;
+        $baseXaf = $product->basePriceXaf();
+        // Taux devise du produit → XAF déduit du prix de base ; null si inconnu (on
+        // n'invente pas un taux de 1 entre deux devises différentes).
+        $rate = $baseXaf === null ? null : ($basePrice > 0 ? $baseXaf / $basePrice : 1.0);
 
         $price = $basePrice + $adjustment;
-        $priceXaf = round($baseXaf + $adjustment * $rate, 2);
+        $priceXaf = $rate === null ? null : round($baseXaf + $adjustment * $rate, 2);
         if ($commissionRate !== null) {
             $currency = (string) ($product->currency ?? 'XAF');
             $publicBase = CommissionService::markup($basePrice, $commissionRate, $currency);
             $price = CommissionService::markup($basePrice + $adjustment, $commissionRate, $currency);
-            $priceXaf = CommissionService::markup($priceXaf, $commissionRate, 'XAF');
+            $priceXaf = $priceXaf === null ? null : CommissionService::markup($priceXaf, $commissionRate, 'XAF');
             // Ajustement exprimé par rapport au prix public de base.
             $adjustment = round($price - $publicBase, 2);
         }
@@ -246,7 +248,7 @@ class ProductVariantService
             'sku' => $variant->sku,
             'attributes' => $variant->attributes,
             'price_adjustment' => $adjustment,
-            'price_adjustment_xaf' => round($adjustment * $rate, 2),
+            'price_adjustment_xaf' => $rate === null ? null : round($adjustment * $rate, 2),
             'price' => $price,
             'price_xaf' => $priceXaf,
             'stock' => $variant->stock,

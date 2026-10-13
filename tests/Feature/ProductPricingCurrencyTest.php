@@ -88,4 +88,37 @@ class ProductPricingCurrencyTest extends TestCase
         $xaf = $this->makeProduct('XAF', 5000);
         $this->assertStringContainsString('FCFA', $xaf->formatted_price);
     }
+
+    public function test_db_fallback_crosses_through_an_intermediate_currency(): void
+    {
+        Currency::create(['code' => 'GHS', 'name' => 'Cedi', 'symbol' => 'GH₵', 'countries' => ['GH'], 'is_active' => true]);
+        Currency::create(['code' => 'XOF', 'name' => 'Franc CFA (UEMOA)', 'symbol' => 'FCFA', 'countries' => ['SN'], 'is_active' => true]);
+        ExchangeRate::create(['from_currency' => 'GHS', 'to_currency' => 'XOF', 'rate' => 40, 'effective_date' => '2026-08-15', 'is_active' => true]);
+        ExchangeRate::create(['from_currency' => 'XOF', 'to_currency' => 'XAF', 'rate' => 1, 'effective_date' => '2026-08-15', 'is_active' => true]);
+
+        // Aucune paire GHS/XAF stockée : GHS → XOF → XAF.
+        $this->assertEqualsWithDelta(40, ExchangeRateService::rate('GHS', 'XAF'), 0.0001);
+        $this->assertEqualsWithDelta(1 / 40, ExchangeRateService::rate('XAF', 'GHS'), 0.0000001);
+    }
+
+    public function test_price_xaf_follows_new_rates(): void
+    {
+        $product = $this->makeProduct('EUR', 100);
+        ExchangeRate::where('from_currency', 'EUR')->update(['rate' => 700]);
+
+        $this->assertSame(1, Product::refreshPriceXaf());
+        $this->assertEqualsWithDelta(70000, (float) $product->fresh()->price_xaf, 0.01);
+    }
+
+    public function test_product_without_rate_is_not_priced_as_if_it_were_fcfa(): void
+    {
+        Currency::create(['code' => 'JPY', 'name' => 'Yen', 'symbol' => '¥', 'countries' => ['JP'], 'is_active' => true]);
+        $product = $this->makeProduct('JPY', 5000);
+
+        $this->assertNull($product->price_xaf);
+        $this->assertNull($product->basePriceXaf());
+        $pricing = \App\Services\CommissionService::buyerPricing($product);
+        $this->assertNull($pricing['price_xaf']);
+        $this->assertSame('JPY', $pricing['currency']);
+    }
 }
