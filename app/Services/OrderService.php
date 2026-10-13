@@ -546,6 +546,16 @@ class OrderService
                 $shippingWeightKg = $calculatedWeightKg;
             }
             $shippingCost = $shipping->computeCost($shippingWeightKg, $shippingCbm);
+            // L'option est tarifée dans sa propre devise : ramenée en XAF avant d'entrer
+            // dans le total, comme les paliers (et comme le catalogue l'affiche).
+            $shippingCurrency = strtoupper($shipping->currency ?: 'XAF');
+            if ($shippingCurrency !== 'XAF' && $shippingCost > 0) {
+                $converted = \App\Services\ExchangeRateService::convertAmount($shippingCurrency, 'XAF', $shippingCost);
+                if ($converted === null) {
+                    throw new \Exception(__('payments.rate_unavailable', ['currency' => $shippingCurrency, 'pivot' => 'XAF']));
+                }
+                $shippingCost = round($converted, 2);
+            }
 
             // Puis SOLEX, de l'entrepôt ASSO de Douala jusqu'au client : prix recalculé
             // côté serveur (même calcul que l'offre affichée), payé avec la commande.

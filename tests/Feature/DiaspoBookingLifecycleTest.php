@@ -115,6 +115,10 @@ class DiaspoBookingLifecycleTest extends TestCase
         // subtotal = 50, commission 10% = 5, total = 55
         $this->assertDatabaseHas('diaspo_bookings', ['id' => $bookingId, 'subtotal' => 50, 'total_price' => 55]);
 
+        // L'opérateur camerounais encaisse en XAF : 55 € × 656 = 36 080 XAF, pas 55.
+        Http::assertSent(fn ($request) => str_ends_with($request->url(), '/api/v1/payments/init')
+            && (float) $request['amount'] === 36080.0);
+
         // 2) Polling du statut → KPay répond SUCCESS → réservation payée
         $status = $this->getJson("/api/v1/diaspo/bookings/{$bookingId}/payment-status");
         $status->assertOk()
@@ -351,12 +355,14 @@ class DiaspoBookingLifecycleTest extends TestCase
         // Les kg repartent à l'offre.
         $this->assertSame(20.0, (float) $offer->fresh()->remaining_kg);
 
-        // L'acheteur est remboursé du total payé, dans la devise de l'offre.
+        // L'acheteur est remboursé du total payé, converti en XAF comme le règlement
+        // (52,50 € × 656 = 34 440 XAF), sur le solde que les commandes dépensent.
         $this->assertDatabaseHas('wallet_balances', [
             'user_id' => $buyer->id,
-            'currency' => $offer->currency,
-            'balance' => $booking->total_price,
+            'currency' => 'XAF',
+            'balance' => 34440,
         ]);
+        $this->assertEquals(0, $buyer->fresh()->kpayBalanceFor('EUR'));
     }
 
     protected function tearDown(): void

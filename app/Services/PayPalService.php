@@ -111,8 +111,8 @@ class PayPalService
 
         try {
             // Montant source (dans sa devise d'origine) → USD (devise d'encaissement
-            // PayPal). Conversion via les taux de change stockés/live ; le fallback
-            // heuristique (655 XAF/USD) ne sert que si aucun taux n'est disponible.
+            // PayPal). Conversion via les taux de change stockés/live ; sans taux, on
+            // refuse plutôt que d'encaisser un montant deviné.
             $amountSource = (float) $params['amount'];
             $sourceCurrency = strtoupper($params['currency'] ?? 'XAF');
 
@@ -122,9 +122,13 @@ class PayPalService
                 $amountUsd = round($amountSource, 2);
             } else {
                 $converted = \App\Services\ExchangeRateService::convertAmount($sourceCurrency, 'USD', $amountSource);
-                $amountUsd = $converted !== null
-                    ? round($converted, 2)
-                    : round($amountSource / 655, 2);
+                if ($converted === null) {
+                    return [
+                        'success' => false,
+                        'message' => __('payments.rate_unavailable', ['currency' => $sourceCurrency, 'pivot' => 'USD']),
+                    ];
+                }
+                $amountUsd = round($converted, 2);
             }
 
             $description = $params['description'] ?? "Recharge wallet - {$amountSource} {$sourceCurrency}";

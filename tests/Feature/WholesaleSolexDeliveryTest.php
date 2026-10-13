@@ -182,6 +182,47 @@ class WholesaleSolexDeliveryTest extends TestCase
         $this->assertSame('delivered', $order->fresh()->status);
     }
 
+    public function test_shipping_option_priced_in_another_currency_is_converted_to_xaf(): void
+    {
+        // Bateau à 2,50 USD / kg, 1 USD = 600 XAF : 10 kg × 2,50 = 25 USD = 15 000 XAF.
+        $this->sea->update(['rate_amount' => 2.5, 'currency' => 'USD']);
+        \App\Models\Currency::firstOrCreate(['code' => 'XAF'], ['name' => 'Franc CFA', 'symbol' => 'FCFA', 'is_active' => true]);
+        \App\Models\Currency::firstOrCreate(['code' => 'USD'], ['name' => 'Dollar', 'symbol' => '$', 'is_active' => true]);
+        \App\Models\ExchangeRate::create([
+            'from_currency' => 'USD', 'to_currency' => 'XAF', 'rate' => 600,
+            'effective_date' => now()->toDateString(), 'is_active' => true, 'source' => 'test',
+        ]);
+
+        $orderId = $this->order([
+            'delivery_company_id' => $this->grid->deliverer_company_id,
+            'delivery_grid_id' => $this->grid->id,
+            'delivery_vehicle' => 'moto',
+            'delivery_quarter' => 'Makèpè',
+            'delivery_city' => 'Douala',
+            'delivery_address' => 'Makèpè, Douala',
+        ])->assertCreated()->json('order_id');
+
+        $order = Order::findOrFail($orderId);
+        $this->assertEquals(15000, (float) $order->import_shipping_fee);
+        $this->assertEquals(66789, (float) $order->total);
+    }
+
+    public function test_shipping_option_without_exchange_rate_is_refused(): void
+    {
+        $this->sea->update(['rate_amount' => 2.5, 'currency' => 'USD']);
+
+        $this->order([
+            'delivery_company_id' => $this->grid->deliverer_company_id,
+            'delivery_grid_id' => $this->grid->id,
+            'delivery_vehicle' => 'moto',
+            'delivery_quarter' => 'Makèpè',
+            'delivery_city' => 'Douala',
+            'delivery_address' => 'Makèpè, Douala',
+        ])->assertStatus(422);
+
+        $this->assertSame(0, Order::count());
+    }
+
     public function test_buyer_outside_douala_gets_the_solex_route_from_douala(): void
     {
         $route = DeliveryRoute::where('destination_city', 'Yaoundé')->firstOrFail();

@@ -73,7 +73,14 @@ class PaymentController extends Controller
         $price = (float) $validated['price'];
         $priceXaf = $currency === 'XAF'
             ? $price
-            : (\App\Services\ExchangeRateService::convertAmount($currency, 'XAF', $price) ?? $price);
+            : \App\Services\ExchangeRateService::convertAmount($currency, 'XAF', $price);
+        // Sans taux, la tranche de commission serait choisie sur un prix non converti.
+        if ($priceXaf === null) {
+            return response()->json([
+                'success' => false,
+                'message' => __('payments.rate_unavailable', ['currency' => $currency, 'pivot' => 'XAF']),
+            ], 422);
+        }
         $rate = \App\Services\CommissionService::rateFor($priceXaf);
 
         return response()->json([
@@ -104,9 +111,22 @@ class PaymentController extends Controller
             ->findOrFail($request->order_id);
 
         if ($request->payment_method === 'kpay' || $request->payment_method === 'mobile') {
+            // Le total est en XAF ; l'opérateur encaisse dans sa devise (cf. OrderService).
+            $payCurrency = \App\Services\KPayCatalog::currencyForProvider($request->provider);
+            $payAmount = $payCurrency === 'XAF'
+                ? (float) $order->total
+                : \App\Services\ExchangeRateService::convertAmount('XAF', $payCurrency, (float) $order->total);
+            if ($payAmount === null) {
+                return response()->json([
+                    'success' => false,
+                    'message' => __('payments.conversion_unavailable_retry', ['currency' => $payCurrency]),
+                ], 422);
+            }
+            $order->update(['payment_currency' => $payCurrency, 'payment_amount' => round($payAmount)]);
+
             $kpay = app(MobileMoneyGateway::class);
             $result = $kpay->initializePayment([
-                'amount' => (int) $order->total,
+                'amount' => (float) round($payAmount),
                 'provider' => $request->provider,
                 'phone_number' => $request->phone_number,
                 'description' => "Commande {$order->order_number}",
