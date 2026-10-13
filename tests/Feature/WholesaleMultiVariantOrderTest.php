@@ -155,6 +155,19 @@ class WholesaleMultiVariantOrderTest extends TestCase
         $this->assertSame($bulk->id, (int) $order->items->firstWhere('product_variant_id', $this->black)->price_tier_id);
     }
 
+    public function test_variant_price_supplement_is_added_to_the_tier_price(): void
+    {
+        // Le rouge coûte 250 de plus que le prix du palier.
+        $this->product->variants()->whereKey($this->red)->update(['price_adjustment' => 250]);
+
+        $this->order([[$this->red, 30], [$this->black, 20]])->assertCreated();
+
+        $order = Order::with('items')->latest('id')->firstOrFail();
+        $this->assertEquals(1250, (float) $order->items->firstWhere('product_variant_id', $this->red)->unit_price);
+        $this->assertEquals(1000, (float) $order->items->firstWhere('product_variant_id', $this->black)->unit_price);
+        $this->assertEquals(30 * 1250 + 20 * 1000, (float) $order->items->sum('total_price'));
+    }
+
     public function test_total_below_the_first_tier_is_refused(): void
     {
         // Le seuil du premier palier (50) est le minimum : 20 + 20 ne l'atteint pas.

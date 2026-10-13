@@ -64,15 +64,17 @@ class FreeDeliveryService
             }
             $quantity = max(1, (int) ($item['quantity'] ?? 1));
 
+            // Supplément de la variante choisie, en gros comme au détail.
+            $variant = $variants->get((int) ($item['variant_id'] ?? 0));
+            $adjustment = $variant && $variant->product_id === $product->id ? (float) $variant->price_adjustment : 0;
+
             $tier = $tiers->get((int) ($item['price_tier_id'] ?? 0));
             if ($tier && $tier->product_id === $product->id) {
                 $currency = strtoupper($tier->currency ?? 'XAF');
-                $unit = (float) $tier->unit_price;
+                $unit = (float) $tier->unit_price + $adjustment;
             } else {
-                $variant = $variants->get((int) ($item['variant_id'] ?? 0));
                 $currency = strtoupper($product->currency ?? 'XAF');
-                $unit = (float) $product->price
-                    + ($variant && $variant->product_id === $product->id ? (float) $variant->price_adjustment : 0);
+                $unit = (float) $product->price + $adjustment;
             }
 
             if ($currency !== 'XAF') {

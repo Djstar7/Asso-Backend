@@ -486,9 +486,11 @@ class OrderService
                 // Le devis de livraison lit le poids du palier réellement appliqué.
                 $items[$index]['price_tier_id'] = $tier->id;
 
-                // Prix du palier converti en XAF (devise pivot) au taux du moment.
+                // Prix du palier converti en XAF (devise pivot) au taux du moment, majoré
+                // du supplément de la variante (ex. +500 pour le modèle XL). Le palier
+                // est saisi dans la devise du produit, comme le supplément.
                 $tierCurrency = strtoupper($tier->currency ?? 'XAF');
-                $unitPrice = (float) $tier->unit_price;
+                $unitPrice = (float) $tier->unit_price + (float) ($variant?->price_adjustment ?? 0);
                 if ($tierCurrency !== 'XAF') {
                     $conv = \App\Services\ExchangeRateService::convert($tierCurrency, 'XAF', $unitPrice);
                     if (empty($conv['success']) || $conv['amount'] === null) {
