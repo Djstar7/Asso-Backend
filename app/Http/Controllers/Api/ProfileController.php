@@ -479,6 +479,8 @@ class ProfileController extends Controller
                         'id' => $p->id,
                         'name' => $p->name,
                         'price' => (float) $p->price,
+                        'price_xaf' => $p->basePriceXaf(),
+                        'currency' => $p->currency ?: 'XAF',
                         'stock' => $p->stock,
                         'status' => $p->status,
                         'primary_image' => $p->primaryImage ? media_url($p->primaryImage->image_path) : null,

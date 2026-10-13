@@ -108,11 +108,37 @@ class ExchangeRateService
         return $live;
     }
 
+    /** Devises par lesquelles un taux stocké peut passer (ex. GHS → XOF → XAF). */
+    private const CROSS_CURRENCIES = ['XAF', 'XOF', 'USD', 'EUR'];
+
     /**
-     * Taux stocké en base (`exchange_rates` actifs). Tente la paire directe,
-     * puis l'inverse de la paire opposée. null si rien de configuré.
+     * Taux stocké en base (`exchange_rates` actifs) : paire directe ou inverse,
+     * sinon taux croisé via une devise intermédiaire (la sync ne stocke que
+     * quelques devises de base). null si rien de configuré.
      */
     private static function storedRate(string $from, string $to): ?float
+    {
+        $pair = self::storedPairRate($from, $to);
+        if ($pair !== null) {
+            return $pair;
+        }
+
+        foreach (self::CROSS_CURRENCIES as $via) {
+            if ($via === $from || $via === $to) {
+                continue;
+            }
+            $first = self::storedPairRate($from, $via);
+            $second = $first !== null ? self::storedPairRate($via, $to) : null;
+            if ($second !== null) {
+                return round($first * $second, 8);
+            }
+        }
+
+        return null;
+    }
+
+    /** Paire stockée directe, ou inverse de la paire opposée. */
+    private static function storedPairRate(string $from, string $to): ?float
     {
         $direct = ExchangeRate::where('is_active', true)
             ->where('from_currency', $from)
@@ -311,7 +337,9 @@ class ExchangeRateService
      */
     public function updateAllRates(): array
     {
-        $baseCurrencies = ['XOF', 'USD', 'EUR'];
+        // XAF est la devise pivot des commandes et du Wallet : ses paires doivent
+        // exister en base pour le secours quand l'API live est indisponible.
+        $baseCurrencies = ['XAF', 'XOF', 'USD', 'EUR'];
         $results = [];
 
         foreach ($baseCurrencies as $baseCurrency) {

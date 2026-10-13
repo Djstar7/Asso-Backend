@@ -48,6 +48,10 @@ class UpdateExchangeRatesJob implements ShouldQueue
 
             Log::info("UpdateExchangeRatesJob completed. Success: {$successCount}, Failed: {$failCount}");
 
+            // Les prix en XAF des produits suivent les nouveaux taux.
+            $refreshed = \App\Models\Product::refreshPriceXaf();
+            Log::info("UpdateExchangeRatesJob: price_xaf recalculé pour {$refreshed} produit(s)");
+
         } catch (\Exception $e) {
             Log::error("UpdateExchangeRatesJob failed: " . $e->getMessage());
             throw $e; // Re-throw to trigger retry mechanism

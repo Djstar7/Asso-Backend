@@ -498,6 +498,8 @@ class ShopStatisticsService
                     'product_id' => (int) $id,
                     'name' => $products[$id]->name,
                     'price' => (float) $products[$id]->price,
+                    'price_xaf' => $products[$id]->basePriceXaf(),
+                    'currency' => $products[$id]->currency ?: 'XAF',
                     'views' => $viewCount,
                     'items_sold' => $sold,
                     'revenue' => round((float) ($sales->get($id)->revenue ?? 0), 2),

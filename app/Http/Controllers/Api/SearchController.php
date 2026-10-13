@@ -351,6 +351,8 @@ class SearchController extends Controller
             'name' => $product->name,
             'slug' => $product->slug,
             'price' => $pricing['price'],
+            'price_xaf' => $pricing['price_xaf'],
+            'currency' => $pricing['currency'],
             'min_price' => $pricing['min_price'],
             'max_price' => $pricing['max_price'],
             'price_type' => $product->price_type ?? 'fixed',

@@ -45,7 +45,7 @@ class ConversationController extends Controller
                     'product' => $conv->product ? [
                         'id' => $conv->product->id,
                         'name' => $conv->product->name,
-                        'price' => \App\Services\CommissionService::buyerPrice($conv->product), // prix public
+                        ...\App\Services\CommissionService::buyerPriceFields($conv->product), // prix public (devise + XAF)
                         'image' => $conv->product->primaryImage ? media_url($conv->product->primaryImage->image_path) : null,
                     ] : null,
                     'diaspo_offer' => $conv->diaspoOffer ? [
@@ -259,7 +259,7 @@ class ConversationController extends Controller
                 'product' => $msg->product ? [
                     'id' => $msg->product->id,
                     'name' => $msg->product->name,
-                    'price' => \App\Services\CommissionService::buyerPrice($msg->product), // prix public
+                    ...\App\Services\CommissionService::buyerPriceFields($msg->product), // prix public (devise + XAF)
                     'primary_image' => $msg->product->primaryImage ?
                         media_url($msg->product->primaryImage->image_path) : null,
                     'image' => $msg->product->primaryImage ?
@@ -452,7 +452,7 @@ class ConversationController extends Controller
                 'product' => $message->product ? [
                     'id' => $message->product->id,
                     'name' => $message->product->name,
-                    'price' => \App\Services\CommissionService::buyerPrice($message->product), // prix public
+                    ...\App\Services\CommissionService::buyerPriceFields($message->product), // prix public (devise + XAF)
                     'image' => $message->product->primaryImage ?
                         media_url($message->product->primaryImage->image_path) : null,
                 ] : null,

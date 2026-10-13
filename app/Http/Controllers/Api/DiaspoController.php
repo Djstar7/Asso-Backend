@@ -236,7 +236,10 @@ class DiaspoController extends Controller
             // (comparaison dans la devise pivot XAF, via les taux stockés).
             $totalPivot = strtoupper($offer->currency) === PaymentMethodService::PIVOT
                 ? $total
-                : (ExchangeRateService::convertAmount($offer->currency, PaymentMethodService::PIVOT, $total) ?? $total);
+                : ExchangeRateService::convertAmount($offer->currency, PaymentMethodService::PIVOT, $total);
+            if ($totalPivot === null) {
+                return response()->json(['success' => false, 'message' => __('payments.rate_unavailable', ['currency' => $offer->currency, 'pivot' => PaymentMethodService::PIVOT])], 422);
+            }
             if ($totalPivot < PaymentMethodService::minPivotFor($method)) {
                 return response()->json(['success' => false, 'message' => __('payments.amount_too_low_for_method')], 422);
             }
@@ -263,17 +266,27 @@ class DiaspoController extends Controller
             $offer->increment('bookings_count');
 
             return match ($method) {
-                'kpay' => $this->initKpayBooking($booking, $data, $total),
+                'kpay' => $this->initKpayBooking($booking, $offer, $data, $total),
                 'stripe' => $this->initStripeBooking($booking, $offer, $total),
             };
         });
     }
 
     /** Initie l'encaissement KPay (Mobile Money) et renvoie la réponse de réservation. */
-    private function initKpayBooking(DiaspoBooking $booking, array $data, float $total)
+    private function initKpayBooking(DiaspoBooking $booking, DiaspoOffer $offer, array $data, float $total)
     {
+        // Le total est dans la devise de l'offre : l'opérateur, lui, encaisse dans sa
+        // propre devise (déduite du fournisseur), comme pour les commandes.
+        $payCurrency = \App\Services\KPayCatalog::currencyForProvider($data['provider']);
+        $payAmount = strtoupper($offer->currency) === $payCurrency
+            ? $total
+            : ExchangeRateService::convertAmount($offer->currency, $payCurrency, $total);
+        if ($payAmount === null) {
+            throw new \Exception(__('payments.rate_unavailable', ['currency' => $offer->currency, 'pivot' => $payCurrency]));
+        }
+
         $result = app(\App\Services\MobileMoneyGateway::class)->initializePayment([
-            'amount' => (float) round($total),
+            'amount' => (float) round($payAmount),
             'provider' => $data['provider'],
             'phone_number' => $data['phone_number'],
             'description' => "Réservation diaspo #{$booking->id}",
@@ -505,16 +518,29 @@ class DiaspoController extends Controller
             return response()->json(['success' => false, 'message' => __('diaspo.booking_already_finalized')], 422);
         }
 
+        try {
+            $this->cancelBookingTransaction($booking, $request);
+        } catch (\RuntimeException $e) {
+            // Taux indisponible : on refuse plutôt que de rembourser un montant faux.
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return response()->json(['success' => true, 'message' => __('diaspo.booking_cancelled'), 'data' => $booking->fresh()->load(['offer.user', 'buyer', 'seller'])->toApi($request->user()->id)]);
+    }
+
+    /** Annulation + remboursement + libération des kg, en une transaction. */
+    private function cancelBookingTransaction(DiaspoBooking $booking, Request $request): void
+    {
         DB::transaction(function () use ($booking, $request) {
             $b = DiaspoBooking::whereKey($booking->id)->lockForUpdate()->first();
 
-            // Rembourser dans le mini-wallet acheteur si déjà payé.
-            // La devise vit sur l'OFFRE, pas sur la réservation : sans ce
-            // repli le remboursement échouait sur une devise nulle.
+            // Rembourser dans le Wallet acheteur si déjà payé. La devise vit sur
+            // l'OFFRE ; le remboursement est converti en XAF, comme le règlement,
+            // pour atterrir sur le solde que les commandes savent dépenser.
             if ($b->payment_status === 'completed') {
                 $buyer = User::find($b->buyer_user_id);
-                $currency = DiaspoOffer::whereKey($b->diaspo_offer_id)->value('currency') ?: 'XAF';
-                $buyer->creditKpay($currency, (float) $b->total_price);
+                $currency = strtoupper(DiaspoOffer::withTrashed()->whereKey($b->diaspo_offer_id)->value('currency') ?: 'XAF');
+                $buyer->creditKpay(PaymentMethodService::PIVOT, $this->toWalletCurrency($currency, (float) $b->total_price));
                 $b->refunded_at = now();
                 $b->payment_status = 'refunded';
             }
@@ -527,8 +553,6 @@ class DiaspoController extends Controller
             // Libérer les kg réservés
             DiaspoOffer::whereKey($b->diaspo_offer_id)->increment('remaining_kg', (float) $b->kg_booked);
         });
-
-        return response()->json(['success' => true, 'message' => __('diaspo.booking_cancelled'), 'data' => $booking->fresh()->load(['offer.user', 'buyer', 'seller'])->toApi($request->user()->id)]);
     }
 
     /**

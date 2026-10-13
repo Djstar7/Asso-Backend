@@ -70,6 +70,7 @@ class ProductBroadcastService
                 'shop_name' => $product->shop?->getTranslation('name', 'fr') ?? '',
                 // Prix public (commission ASSO incluse), celui affiché dans l'app.
                 'price' => (string) CommissionService::buyerPrice($product),
+                'currency' => (string) ($product->currency ?: 'XAF'),
                 'category_id' => (string) ($product->category_id ?? ''),
             ] + $extra;
 
