@@ -177,6 +177,49 @@ class InvoiceController extends Controller
     }
 
     /**
+     * Facture PDF d'une recharge Wallet (crédit payé) de l'utilisateur connecté.
+     *
+     * GET /v1/invoices/wallet/{transactionId}/pdf
+     */
+    public function downloadWalletPdf(Request $request, $transactionId)
+    {
+        // Mêmes critères que la liste des factures : seule une recharge payée
+        // de l'utilisateur a une facture.
+        $transaction = $request->user()->walletTransactions()
+            ->where('type', 'credit')
+            ->where('status', 'completed')
+            ->whereNotNull('payment_id')
+            ->find($transactionId);
+
+        if (!$transaction) {
+            return response()->json([
+                'success' => false,
+                'message' => __('payments.invoice_access_denied'),
+            ], 404);
+        }
+
+        try {
+            $html = $this->invoiceGenerator->generateRechargeInvoiceHtml($transaction);
+            $pdf = Pdf::loadHTML($html)
+                ->setPaper('a4', 'portrait')
+                ->setOption('isHtml5ParserEnabled', true)
+                ->setOption('isRemoteEnabled', true);
+
+            return $pdf->download('facture-INV-WALLET-' . $transaction->id . '.pdf');
+        } catch (\Exception $e) {
+            Log::error('[INVOICE] Échec de génération de la facture de recharge', [
+                'wallet_transaction_id' => $transaction->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => __('payments.invoice_generation_error_detail', ['error' => $e->getMessage()]),
+            ], 500);
+        }
+    }
+
+    /**
      * Get user's invoice history
      */
     public function index(Request $request)
@@ -237,6 +280,7 @@ class InvoiceController extends Controller
                         'status' => 'paid',
                         'description' => 'Recharge Wallet ' . ucfirst($tx->provider),
                         'payment_method' => $tx->provider,
+                        'pdf_url' => url("/api/v1/invoices/wallet/{$tx->id}/pdf"),
                     ];
                 });
 

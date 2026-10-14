@@ -240,7 +240,9 @@ class StripeConnectController extends Controller
     {
         $status = $request->get('status', 'pending');
 
-        $query = User::whereNotNull('stripe_account_id');
+        // Vendeurs ET acheteurs : l'acheteur synchronise aussi son IBAN pour ses
+        // retraits et les remboursements de litige virés par ASSO.
+        $query = User::whereNotNull('stripe_account_id')->withExists('shops');
         if ($status !== 'all') {
             $query->where('stripe_account_status', $status);
         }

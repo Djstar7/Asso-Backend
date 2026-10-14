@@ -272,6 +272,33 @@
                 </div>
             @endif
 
+            <!-- Virement IBAN par ASSO (commande payée par carte) -->
+            @if(!empty($bankTransfers))
+                <div class="bg-dark-100 rounded-xl border border-emerald-500/30 p-6 text-sm space-y-3">
+                    <h2 class="text-lg font-semibold text-white"><i class="fas fa-university text-emerald-400 mr-2"></i>Virement bancaire (Stripe Connect)</h2>
+                    <p class="text-gray-400 text-xs">Commande payée par carte : ASSO vire le montant depuis le Wallet du bénéficiaire vers son IBAN validé.</p>
+                    @foreach($bankTransfers as $beneficiary => $transfer)
+                        @php($who = $transfer['user'])
+                        <div class="border-t border-dark-200 pt-3 space-y-1">
+                            <p class="text-white">{{ $beneficiary === 'client' ? 'Remboursement client' : 'Part du vendeur' }} — {{ $fcfa($transfer['amount']) }}</p>
+                            <p class="text-gray-400 text-xs">{{ $who->name }}@if($who->stripe_external_last4) · IBAN •••• {{ $who->stripe_external_last4 }}@endif</p>
+                            @if($transfer['withdrawal'])
+                                <p class="text-emerald-300 text-xs">Virement {{ $transfer['withdrawal']->transaction_reference }} — {{ number_format((float) $transfer['withdrawal']->payout_amount, 2, ',', ' ') }} {{ $transfer['withdrawal']->payout_currency }} ({{ $transfer['withdrawal']->status }})</p>
+                            @elseif(!$transfer['ready'])
+                                <p class="text-amber-300 text-xs">IBAN non synchronisé ou pas encore validé : le {{ $beneficiary === 'client' ? 'client' : 'vendeur' }} doit l'ajouter depuis son Wallet, puis il faut le valider dans Comptes de virement.</p>
+                            @else
+                                <form method="POST" action="{{ route('admin.disputes.bank-transfer', $dispute) }}"
+                                      onsubmit="return confirm('Virer {{ $fcfa($transfer['amount']) }} sur l\'IBAN de {{ addslashes($who->name) }} ?');">
+                                    @csrf
+                                    <input type="hidden" name="beneficiary" value="{{ $beneficiary }}">
+                                    <button class="w-full px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg"><i class="fas fa-paper-plane mr-1"></i> Virer sur l'IBAN</button>
+                                </form>
+                            @endif
+                        </div>
+                    @endforeach
+                </div>
+            @endif
+
             <!-- Pièces & notes internes -->
             <div class="bg-dark-100 rounded-xl border border-dark-200 p-6 text-sm space-y-3">
                 <h2 class="text-lg font-semibold text-white">Notes internes</h2>
