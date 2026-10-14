@@ -59,6 +59,8 @@ class StripePaymentSettingsTest extends TestCase
     {
         $this->actingAs($this->admin())
             ->put(route('admin.settings.payments.update'), [
+                // Seul le formulaire Stripe (marqueur _form) réécrit sa configuration.
+                '_form' => 'stripe',
                 // Le toggle Stripe conditionne la LECTURE des clés (is_active) :
                 // sans lui, la configuration enregistrée serait invisible du service.
                 'stripe_enabled' => 1,
@@ -80,6 +82,7 @@ class StripePaymentSettingsTest extends TestCase
     {
         $this->actingAs($this->admin())
             ->put(route('admin.settings.payments.update'), [
+                '_form' => 'stripe',
                 'stripe_enabled' => 1,
                 'stripe_secret_key' => 'sk_test_abc',
             ]);
@@ -87,7 +90,7 @@ class StripePaymentSettingsTest extends TestCase
         $this->assertSame('sk_test_abc', ServiceConfiguration::getConfig(ServiceConfiguration::SERVICE_STRIPE)['secret_key'] ?? null);
 
         $this->actingAs($this->admin())
-            ->put(route('admin.settings.payments.update'), ['stripe_enabled' => 0]);
+            ->put(route('admin.settings.payments.update'), ['_form' => 'stripe', 'stripe_enabled' => 0]);
 
         $this->assertNull(ServiceConfiguration::getConfig(ServiceConfiguration::SERVICE_STRIPE));
     }

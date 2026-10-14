@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Order;
 use App\Models\PlatformWithdrawal;
 use App\Models\User;
 use App\Models\WalletBalance;
@@ -224,5 +225,58 @@ class StripeWebhookTest extends TestCase
         $this->postJson('/api/v1/stripe/webhook', [])->assertOk();
 
         $this->assertSame('approved', $user->fresh()->stripe_account_status);
+    }
+
+    private function makeCardOrder(User $client): Order
+    {
+        return Order::create([
+            'user_id' => $client->id,
+            'status' => 'pending',
+            'subtotal' => 10000,
+            'delivery_fee' => 500,
+            'total' => 10500,
+            'payment_method' => 'stripe_direct',
+            'payment_status' => 'pending',
+            'payment_reference' => 'pi_card',
+        ]);
+    }
+
+    private function paymentIntentEvent(string $type, Order $order): array
+    {
+        return [
+            'id' => 'evt_' . uniqid(),
+            'type' => $type,
+            'data' => ['object' => [
+                'id' => 'pi_card',
+                'object' => 'payment_intent',
+                'status' => 'requires_payment_method',
+                'metadata' => ['asso_kind' => 'order', 'order_id' => (string) $order->id],
+                'last_payment_error' => ['code' => 'card_declined', 'decline_code' => 'insufficient_funds'],
+            ]],
+        ];
+    }
+
+    public function test_declined_card_attempt_keeps_order_open_for_retry(): void
+    {
+        $order = $this->makeCardOrder(User::factory()->create());
+        $this->mockEvent($this->paymentIntentEvent('payment_intent.payment_failed', $order));
+
+        $this->postJson('/api/v1/stripe/webhook', [])->assertOk();
+
+        $order->refresh();
+        $this->assertSame('pending', $order->payment_status);
+        $this->assertSame('pending', $order->status);
+    }
+
+    public function test_canceled_payment_intent_cancels_order(): void
+    {
+        $order = $this->makeCardOrder(User::factory()->create());
+        $this->mockEvent($this->paymentIntentEvent('payment_intent.canceled', $order));
+
+        $this->postJson('/api/v1/stripe/webhook', [])->assertOk();
+
+        $order->refresh();
+        $this->assertSame('failed', $order->payment_status);
+        $this->assertSame('cancelled', $order->status);
     }
 }
