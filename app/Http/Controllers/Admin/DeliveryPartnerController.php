@@ -51,8 +51,10 @@ class DeliveryPartnerController extends Controller
         Setting::set('delivery_zone_radius_km', $validated['delivery_zone_radius_km'], 'string', 'delivery', "Rayon de couverture autour du centre d'une zone de livraison (km)");
         Setting::set('delivery_vat_rate', $validated['delivery_vat_rate'], 'string', 'delivery', 'TVA ajoutée aux grilles de livraison hors taxe (%)');
         Setting::set('delivery_default_weight_kg', $validated['delivery_default_weight_kg'], 'string', 'delivery', "Poids retenu pour un article sans poids renseigné (kg)");
-        if (isset($validated['delivery_days_min'], $validated['delivery_days_max'])) {
-            DeliveryDelay::setDefaults((int) $validated['delivery_days_min'], (int) $validated['delivery_days_max']);
+        if (isset($validated['delivery_days_min'])) {
+            // Maximum vide = délai par défaut sans maximum.
+            $max = $validated['delivery_days_max'] ?? null;
+            DeliveryDelay::setDefaults((int) $validated['delivery_days_min'], $max ? (int) $max : null);
         }
 
         return back()->with('success', 'Réglages de livraison enregistrés.');

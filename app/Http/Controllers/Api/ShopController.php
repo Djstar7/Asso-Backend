@@ -472,7 +472,7 @@ class ShopController extends Controller
                 'name' => $product->name,
                 'slug' => $product->slug,
                 'description' => $product->description,
-                'price' => \App\Services\CommissionService::buyerPrice($product), // prix public
+                ...\App\Services\CommissionService::buyerPriceFields($product), // prix public (devise + XAF)
                 'stock' => (int) $product->stock,
                 'primary_image' => $product->primaryImage ? media_url($product->primaryImage->image_path) : null,
                 'images' => $images,

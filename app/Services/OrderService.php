@@ -486,9 +486,11 @@ class OrderService
                 // Le devis de livraison lit le poids du palier réellement appliqué.
                 $items[$index]['price_tier_id'] = $tier->id;
 
-                // Prix du palier converti en XAF (devise pivot) au taux du moment.
+                // Prix du palier converti en XAF (devise pivot) au taux du moment, majoré
+                // du supplément de la variante (ex. +500 pour le modèle XL). Le palier
+                // est saisi dans la devise du produit, comme le supplément.
                 $tierCurrency = strtoupper($tier->currency ?? 'XAF');
-                $unitPrice = (float) $tier->unit_price;
+                $unitPrice = (float) $tier->unit_price + (float) ($variant?->price_adjustment ?? 0);
                 if ($tierCurrency !== 'XAF') {
                     $conv = \App\Services\ExchangeRateService::convert($tierCurrency, 'XAF', $unitPrice);
                     if (empty($conv['success']) || $conv['amount'] === null) {
@@ -544,6 +546,16 @@ class OrderService
                 $shippingWeightKg = $calculatedWeightKg;
             }
             $shippingCost = $shipping->computeCost($shippingWeightKg, $shippingCbm);
+            // L'option est tarifée dans sa propre devise : ramenée en XAF avant d'entrer
+            // dans le total, comme les paliers (et comme le catalogue l'affiche).
+            $shippingCurrency = strtoupper($shipping->currency ?: 'XAF');
+            if ($shippingCurrency !== 'XAF' && $shippingCost > 0) {
+                $converted = \App\Services\ExchangeRateService::convertAmount($shippingCurrency, 'XAF', $shippingCost);
+                if ($converted === null) {
+                    throw new \Exception(__('payments.rate_unavailable', ['currency' => $shippingCurrency, 'pivot' => 'XAF']));
+                }
+                $shippingCost = round($converted, 2);
+            }
 
             // Puis SOLEX, de l'entrepôt ASSO de Douala jusqu'au client : prix recalculé
             // côté serveur (même calcul que l'offre affichée), payé avec la commande.

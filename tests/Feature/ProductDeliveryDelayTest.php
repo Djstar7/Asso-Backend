@@ -74,7 +74,8 @@ class ProductDeliveryDelayTest extends TestCase
     public function test_delay_falls_back_from_product_to_category_to_default(): void
     {
         $product = $this->product();
-        $this->assertSame(['min' => 1, 'max' => 20, 'source' => 'default'], DeliveryDelay::forProduct($product));
+        // Rien de réglé : 1 jour minimum, sans maximum.
+        $this->assertSame(['min' => 1, 'max' => null, 'source' => 'default'], DeliveryDelay::forProduct($product));
 
         DeliveryDelay::setDefaults(3, 8);
         $this->assertSame(['min' => 3, 'max' => 8, 'source' => 'default'], DeliveryDelay::forProduct($product->fresh()));
@@ -116,6 +117,29 @@ class ProductDeliveryDelayTest extends TestCase
             ->assertJsonPath('product.delivery_delay', ['min' => 3, 'max' => 7, 'source' => 'product']);
     }
 
+    public function test_validation_messages_follow_the_language(): void
+    {
+        $product = $this->product();
+        Sanctum::actingAs($this->vendor);
+        $url = "/api/v1/vendor/products/{$product->id}";
+
+        $this->postJson($url, ['_method' => 'PUT', 'delivery_days_min' => 6, 'delivery_days_max' => 3], ['Accept-Language' => 'fr'])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.delivery_days_max.0', 'Le délai maximum de livraison ne peut pas être inférieur au délai minimum.');
+        $this->postJson($url, ['_method' => 'PUT', 'delivery_days_min' => 6, 'delivery_days_max' => 3], ['Accept-Language' => 'en'])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.delivery_days_max.0', 'The maximum delivery time cannot be shorter than the minimum delivery time.');
+
+        $this->postJson($url, ['_method' => 'PUT', 'delivery_days_min' => 0], ['Accept-Language' => 'fr'])
+            ->assertJsonPath('errors.delivery_days_min.0', "Le délai minimum de livraison est d'au moins 1 jour ouvrable.");
+        $this->postJson($url, ['_method' => 'PUT', 'delivery_days_min' => 0], ['Accept-Language' => 'en'])
+            ->assertJsonPath('errors.delivery_days_min.0', 'The minimum delivery time is at least 1 business day.');
+
+        // Le garde-fou technique ne révèle pas de plafond chiffré.
+        $this->postJson($url, ['_method' => 'PUT', 'delivery_days_min' => 1, 'delivery_days_max' => 100000], ['Accept-Language' => 'en'])
+            ->assertJsonPath('errors.delivery_days_max.0', 'The maximum delivery time entered is too long: leave it empty to set no maximum.');
+    }
+
     public function test_admin_sets_delay_on_product_category_and_default(): void
     {
         $product = $this->product();
@@ -151,6 +175,48 @@ class ProductDeliveryDelayTest extends TestCase
         $this->assertSame(['min' => 2, 'max' => 9], DeliveryDelay::defaults());
 
         $this->get("/admin/products/{$product->id}/edit")->assertOk()->assertSee('Délai de livraison');
+    }
+
+    public function test_maximum_is_optional_and_unlimited(): void
+    {
+        $this->actingAs($this->admin);
+        $product = $this->product();
+
+        $this->put("/admin/products/{$product->id}", [
+            'shop_id' => $this->shop->id,
+            'category_id' => $this->category->id,
+            'name' => 'Armoire',
+            'price_type' => 'fixed',
+            'price' => 10000,
+            'type' => 'article',
+            'weight' => 2,
+            'stock' => 10,
+            'status' => 'active',
+            'delivery_days_min' => 30,
+            'delivery_days_max' => '',
+        ])->assertSessionHasNoErrors();
+        $delay = DeliveryDelay::forProduct($product->fresh());
+        $this->assertSame(['min' => 30, 'max' => null, 'source' => 'product'], $delay);
+        $this->assertSame('30 j minimum', DeliveryDelay::label($delay));
+
+        $this->put('/admin/delivery-partners/settings', [
+            'delivery_zone_radius_km' => 10,
+            'delivery_vat_rate' => 19.25,
+            'delivery_default_weight_kg' => 1,
+            'delivery_days_min' => 4,
+            'delivery_days_max' => '',
+        ])->assertSessionHasNoErrors();
+        $this->assertSame(['min' => 4, 'max' => null], DeliveryDelay::defaults());
+
+        // Un article ouvert rend la commande ouverte : pas de date de fin estimée.
+        $closed = $this->product(['delivery_days_min' => 2, 'delivery_days_max' => 60]);
+        $order = DeliveryDelay::forProducts([$closed, $product->fresh()]);
+        $this->assertSame(['min' => 30, 'max' => null], $order);
+        $estimate = DeliveryDelay::estimate($order, Carbon::parse('2026-10-09'));
+        $this->assertNull($estimate['estimated_delivery_to']);
+        $this->assertNotNull($estimate['estimated_delivery_from']);
+
+        $this->get("/admin/products/{$product->id}/edit")->assertOk()->assertSee('Illimité', false);
     }
 
     public function test_order_freezes_longest_delay_and_estimated_dates(): void

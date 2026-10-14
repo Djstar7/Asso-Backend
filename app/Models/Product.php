@@ -228,6 +228,50 @@ class Product extends Model
     }
 
     /**
+     * Prix vendeur en XAF : le cache `price_xaf`, sinon une conversion au taux du
+     * moment. Null si la devise n'a aucun taux : on ne traite jamais un prix en
+     * euros comme s'il était en FCFA.
+     */
+    public function basePriceXaf(): ?float
+    {
+        if ($this->price_xaf !== null) {
+            return (float) $this->price_xaf;
+        }
+        $currency = strtoupper($this->currency ?: 'XAF');
+        if (in_array($currency, ['XAF', 'XOF'], true)) {
+            return (float) $this->price;
+        }
+
+        return \App\Services\ExchangeRateService::convertAmount($currency, 'XAF', (float) $this->price);
+    }
+
+    /**
+     * Recalcule `price_xaf` des produits hors XAF au taux du jour (appelé après la
+     * synchronisation des taux) : sans cela tri, filtres et cartes gardaient le taux
+     * du jour de l'enregistrement. Renvoie le nombre de produits mis à jour.
+     */
+    public static function refreshPriceXaf(): int
+    {
+        $updated = 0;
+        static::query()
+            ->whereNotIn('currency', ['XAF'])
+            ->whereNotNull('currency')
+            ->chunkById(200, function ($products) use (&$updated) {
+                foreach ($products as $product) {
+                    $converted = \App\Services\ExchangeRateService::convertAmount($product->currency, 'XAF', (float) $product->price);
+                    if ($converted === null || abs($converted - (float) $product->price_xaf) < 0.005) {
+                        continue;
+                    }
+                    // Requête directe : ni événements ni updated_at, ce n'est pas une modification du vendeur.
+                    static::whereKey($product->id)->update(['price_xaf' => round($converted, 2)]);
+                    $updated++;
+                }
+            });
+
+        return $updated;
+    }
+
+    /**
      * Get the user that owns this product
      */
     public function user(): BelongsTo
