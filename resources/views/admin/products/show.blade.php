@@ -256,9 +256,9 @@
                     <!-- Pays d'origine -->
                     <div class="p-4 bg-dark-50 rounded-lg">
                         <div class="text-sm text-gray-400 mb-1">
-                            <i class="fas fa-globe mr-2"></i>Pays d'origine
+                            <i class="fas fa-globe mr-2"></i>Origine du produit
                         </div>
-                        <div class="font-semibold text-white">{{ $product->origin_country ?? 'Produit local' }}</div>
+                        <div class="font-semibold text-white">{{ $product->originLabel() }}</div>
                     </div>
 
                     <!-- Created At -->

@@ -54,9 +54,13 @@ class ProductController extends Controller
             $query->where('status', $request->status);
         }
 
-        // Filter by origin country (module GROS)
+        // Origine : produit importé, produit local ou pays d'un grossiste (module GROS).
         if ($request->filled('origin_country')) {
-            $query->where('origin_country', strtoupper($request->origin_country));
+            $origin = Product::originAttributes($request->origin_country);
+            $origin['origin_country']
+                ? $query->where('origin_country', $origin['origin_country'])
+                : $query->where(fn ($q) => $q->whereNull('origin_country')->orWhere('origin_country', ''))
+                    ->where('is_local_made', $origin['is_local_made']);
         }
 
         // Filter wholesale only
@@ -114,7 +118,13 @@ class ProductController extends Controller
             'min_price' => 'required_if:price_type,variable|nullable|numeric|min:0',
             'max_price' => 'required_if:price_type,variable|nullable|numeric|min:0',
             'type' => 'required|in:service,article',
-            'origin_country' => 'nullable|exists:import_countries,code',
+            // 'imported' / 'local' ou code d'un pays grossiste (cf. Product::originAttributes).
+            'origin_country' => ['nullable', 'string', function ($attribute, $value, $fail) {
+                if (!in_array($value, [Product::ORIGIN_IMPORTED, Product::ORIGIN_LOCAL], true)
+                    && !ImportCountry::where('code', strtoupper($value))->exists()) {
+                    $fail('Origine du produit invalide.');
+                }
+            }],
             'weight' => [
                 // P4 : le poids compte partout (livraison locale, interurbaine, import).
                 Rule::requiredIf(fn () => $request->input('type') === 'article'),
@@ -169,10 +179,9 @@ class ProductController extends Controller
         $validated['weight_category'] = $validated['weight_category'] ?? 'X-small';
         $validated['sizes'] = $this->normalizeSizes($request->input('sizes', []));
 
-        // Pays d'origine (produits importés). Vide = produit local.
-        $validated['origin_country'] = $request->filled('origin_country')
-            ? strtoupper($request->input('origin_country'))
-            : null;
+        // Origine : vide / « imported » = produit importé, « local » = fabriqué au Cameroun,
+        // sinon pays du grossiste (le produit passe alors dans l'onglet Import).
+        $validated = Product::originAttributes($request->input('origin_country')) + $validated;
         // P4 : le poids compte pour tout article, local ou importé ; seul un service n'en a pas.
         if ($validated['type'] === 'service') {
             $validated['weight'] = null;
@@ -263,7 +272,13 @@ class ProductController extends Controller
             'min_price' => 'required_if:price_type,variable|nullable|numeric|min:0',
             'max_price' => 'required_if:price_type,variable|nullable|numeric|min:0',
             'type' => 'required|in:service,article',
-            'origin_country' => 'nullable|exists:import_countries,code',
+            // 'imported' / 'local' ou code d'un pays grossiste (cf. Product::originAttributes).
+            'origin_country' => ['nullable', 'string', function ($attribute, $value, $fail) {
+                if (!in_array($value, [Product::ORIGIN_IMPORTED, Product::ORIGIN_LOCAL], true)
+                    && !ImportCountry::where('code', strtoupper($value))->exists()) {
+                    $fail('Origine du produit invalide.');
+                }
+            }],
             'weight' => [
                 // P4 : le poids compte partout (livraison locale, interurbaine, import).
                 Rule::requiredIf(fn () => $request->input('type') === 'article'),
@@ -317,10 +332,9 @@ class ProductController extends Controller
         $validated['user_id'] = $shop->user_id;
         $validated['sizes'] = $this->normalizeSizes($request->input('sizes', []));
 
-        // Pays d'origine (produits importés). Vide = produit local (repasse à null).
-        $validated['origin_country'] = $request->filled('origin_country')
-            ? strtoupper($request->input('origin_country'))
-            : null;
+        // Origine : vide / « imported » = produit importé, « local » = fabriqué au Cameroun,
+        // sinon pays du grossiste (le produit passe alors dans l'onglet Import).
+        $validated = Product::originAttributes($request->input('origin_country')) + $validated;
         // P4 : le poids compte pour tout article, local ou importé ; seul un service n'en a pas.
         if ($validated['type'] === 'service') {
             $validated['weight'] = null;

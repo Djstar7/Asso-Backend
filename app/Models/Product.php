@@ -111,6 +111,8 @@ class Product extends Model
         'price_type',
         'type',
         'origin_country',
+        // Produit local (fabriqué au Cameroun) ; sans pays d'origine ni cette case = « Produit importé ».
+        'is_local_made',
         'is_wholesale',
         'min_order_quantity',
         'stock',
@@ -142,6 +144,7 @@ class Product extends Model
         'latitude' => 'decimal:8',
         'longitude' => 'decimal:8',
         'is_wholesale' => 'boolean',
+        'is_local_made' => 'boolean',
         'free_delivery' => 'boolean',
         'deposit_enabled' => 'boolean',
         'deposit_rate' => 'float',
@@ -255,6 +258,57 @@ class Product extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Origine du produit : « imported » (origine vide, ancien « Produit local » : tous les
+     * produits existants), « local » (fabriqué au Cameroun) ou le code pays d'un grossiste
+     * (CN, AE, TR…). Les produits importés et locaux restent dans le menu principal ;
+     * un code pays fait passer le produit dans l'onglet Import.
+     */
+    public const ORIGIN_IMPORTED = 'imported';
+
+    public const ORIGIN_LOCAL = 'local';
+
+    public function origin(): string
+    {
+        return match (true) {
+            (bool) $this->origin_country => $this->origin_country,
+            (bool) $this->is_local_made => self::ORIGIN_LOCAL,
+            default => self::ORIGIN_IMPORTED,
+        };
+    }
+
+    /** Choix du formulaire normalisé ('imported', 'local' ou code pays). */
+    public static function originChoice(?string $choice): string
+    {
+        return (new self(self::originAttributes($choice)))->origin();
+    }
+
+    /** Libellé traduit : « Produit importé », « Produit local » ou le nom du pays du grossiste. */
+    public function originLabel(): string
+    {
+        return match ($origin = $this->origin()) {
+            self::ORIGIN_IMPORTED, self::ORIGIN_LOCAL => __("products.origin.{$origin}"),
+            default => __('products.origin.wholesale', ['country' => ImportCountry::where('code', $origin)->value('name') ?? $origin]),
+        };
+    }
+
+    /**
+     * Champs à enregistrer pour un choix d'origine du formulaire : '' / 'imported',
+     * 'local' ou un code pays de grossiste.
+     *
+     * @return array{origin_country: ?string, is_local_made: bool}
+     */
+    public static function originAttributes(?string $choice): array
+    {
+        $choice = trim((string) $choice);
+
+        return match (strtolower($choice)) {
+            '', self::ORIGIN_IMPORTED => ['origin_country' => null, 'is_local_made' => false],
+            self::ORIGIN_LOCAL => ['origin_country' => null, 'is_local_made' => true],
+            default => ['origin_country' => strtoupper($choice), 'is_local_made' => false],
+        };
     }
 
     /** Produit vendu « sur commande » : acompte à la commande, solde après vérification ASSO. */

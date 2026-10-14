@@ -53,7 +53,7 @@ class Order extends Model
     protected $fillable = [
         'order_number', 'user_id', 'status', 'subtotal', 'delivery_fee', 'import_shipping_fee', 'base_delivery_price', 'delivery_commission', 'free_delivery', 'free_delivery_amount', 'total',
         'sale_commission_rate', 'sale_commission', 'vendor_net_amount', 'settled_at', 'refunded_at',
-        'is_wholesale', 'import_country_code', 'shipping_mode', 'shipping_option_id',
+        'is_wholesale', 'has_local_products', 'import_country_code', 'shipping_mode', 'shipping_option_id',
         'delivery_address',
         'delivery_address_details',
         'customer_phone',
@@ -83,6 +83,7 @@ class Order extends Model
         'base_delivery_price' => 'decimal:2',
         'delivery_commission' => 'decimal:2',
         'free_delivery' => 'boolean',
+        'has_local_products' => 'boolean',
         'free_delivery_amount' => 'decimal:2',
         'total' => 'decimal:2',
         'sale_commission_rate' => 'decimal:2',

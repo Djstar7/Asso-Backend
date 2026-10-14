@@ -106,6 +106,8 @@ class VendorProductController extends Controller
             'subcategory_id' => 'sometimes|bail|nullable|integer|exists:subcategories,id',
             'type' => 'sometimes|in:article,service',
             'origin_country' => 'sometimes|nullable|string|max:2',
+            // Produit local (fabriqué au Cameroun) ; sinon « Produit importé ».
+            'is_local_made' => 'sometimes|boolean',
             'condition' => 'sometimes|in:new,used,refurbished',
             'weight_category' => 'sometimes|nullable|in:' . implode(',', Product::WEIGHT_CATEGORIES),
             'sizes' => 'sometimes|nullable|array',
@@ -138,6 +140,10 @@ class VendorProductController extends Controller
         if (array_key_exists('origin_country', $validated)) {
             $oc = trim((string) $validated['origin_country']);
             $validated['origin_country'] = $oc === '' ? null : strtoupper($oc);
+        }
+        // Un produit de grossiste (pays d'origine) n'est jamais « local ».
+        if (!empty($validated['origin_country'])) {
+            $validated['is_local_made'] = false;
         }
 
         try {
@@ -532,7 +538,9 @@ class VendorProductController extends Controller
             'price_type' => $product->price_type ?? 'fixed',
             'formatted_price' => $product->formatted_price,
             'type' => $product->type ?? 'article',
-            'origin_country' => $product->origin_country, // CN/TR/AE… (produits importés), null = local
+            'origin_country' => $product->origin_country, // CN/TR/AE… (grossistes), null = importé ou local
+            'is_local_made' => (bool) $product->is_local_made,
+            'origin_label' => $product->originLabel(),
             'weight_category' => $product->weight_category ?? 'X-small',
             'stock' => $product->stock,
             'weight' => $product->weight,

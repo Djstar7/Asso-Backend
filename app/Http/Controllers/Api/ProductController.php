@@ -401,6 +401,8 @@ class ProductController extends Controller
             'subcategory_id' => 'bail|nullable|integer|exists:subcategories,id',
             'type' => 'required|in:article,service',
             'origin_country' => 'nullable|string|size:2',
+            // Produit local (fabriqué au Cameroun) ; sinon « Produit importé ».
+            'is_local_made' => 'nullable|boolean',
             'condition' => 'required|in:new,used,refurbished',
             'stock' => 'nullable|integer|min:0',
             // P4 : poids réel du colis en kg, obligatoire pour un article (calcul de la livraison).
@@ -482,6 +484,7 @@ class ProductController extends Controller
             'category_id' => $validated['category_id'],
             'type' => $validated['type'],
             'origin_country' => isset($validated['origin_country']) ? strtoupper($validated['origin_country']) : null,
+            'is_local_made' => empty($validated['origin_country']) && !empty($validated['is_local_made']),
             'condition' => $validated['condition'],
             'weight_category' => $validated['weight_category'] ?? 'X-small',
             'sizes' => $this->normalizeSizes($validated['sizes'] ?? []),
@@ -675,7 +678,9 @@ class ProductController extends Controller
             'price_type' => $product->price_type ?? 'fixed',
             'formatted_price' => $pricing['formatted_price'],
             'type' => $product->type ?? 'article',
-            'origin_country' => $product->origin_country, // CN/TR/AE… (produits importés), null = local
+            'origin_country' => $product->origin_country, // CN/TR/AE… (grossistes), null = importé ou local
+            'is_local_made' => (bool) $product->is_local_made,
+            'origin_label' => $product->originLabel(),
             'weight_category' => $product->weight_category ?? 'X-small',
             'sizes' => $product->sizes ?? [],
             'variants' => $product->variants->where('is_active', true)->values()
