@@ -861,7 +861,12 @@
         "deposit_disabled": "Commande avec acompte désactivée : paiement classique.",
         "image_analyzed": "Image analysée.",
         "image_analysis_failed": "Une erreur est survenue pendant l'analyse de l'image.",
-        "categories_fetch_failed": "Impossible de charger les catégories."
+        "categories_fetch_failed": "Impossible de charger les catégories.",
+        "origin": {
+            "imported": "Produit importé",
+            "local": "Produit local",
+            "wholesale": "Grossiste :country"
+        }
     },
     "shops": {
         "not_a_vendor": "Vous n'êtes pas vendeur",

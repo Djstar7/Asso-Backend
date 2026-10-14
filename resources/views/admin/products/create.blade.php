@@ -286,21 +286,23 @@
 
 
 
-                    <!-- Pays d'origine (produits importés) -->
+                    <!-- Origine du produit -->
                     <div class="mb-4">
                         <label class="block text-sm font-medium text-white mb-2">
                             <i class="fas fa-globe text-primary-500 mr-1"></i>
-                            Pays d'origine (produit importé)
+                            Origine du produit
                         </label>
+                        @php $currentOrigin = \App\Models\Product::originChoice(old('origin_country')); @endphp
                         <select name="origin_country" class="w-full px-4 py-2 bg-dark-50 border border-dark-300 rounded-lg focus:ring-2 focus:ring-primary-500 @error('origin_country') border-red-500 @enderror">
-                            <option value="">🏳️ Produit local (aucun)</option>
+                            <option value="{{ \App\Models\Product::ORIGIN_IMPORTED }}" @selected($currentOrigin === \App\Models\Product::ORIGIN_IMPORTED)>🌍 Produit importé</option>
+                            <option value="{{ \App\Models\Product::ORIGIN_LOCAL }}" @selected($currentOrigin === \App\Models\Product::ORIGIN_LOCAL)>🇨🇲 Produit local (fabriqué au Cameroun)</option>
                             @foreach($importCountries as $country)
-                                <option value="{{ $country->code }}" {{ old('origin_country') == $country->code ? 'selected' : '' }}>
-                                    {{ $country->flag }} {{ $country->name }}
+                                <option value="{{ $country->code }}" @selected($currentOrigin === $country->code)>
+                                    {{ $country->flag }} Grossiste {{ $country->name }}
                                 </option>
                             @endforeach
                         </select>
-                        <p class="mt-1 text-xs text-gray-400">Sélectionnez un pays pour afficher le produit dans l'onglet « Import » de l'app (Chine, Turquie, Dubaï…).</p>
+                        <p class="mt-1 text-xs text-gray-400">Produit importé et produit local restent dans le menu principal de l'app. Un grossiste (Chine, Dubaï, Turquie…) fait passer le produit dans l'onglet « Import ».</p>
                         @error('origin_country')<p class="mt-1 text-sm text-red-400">{{ $message }}</p>@enderror
                     </div>
 

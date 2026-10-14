@@ -298,6 +298,8 @@ class OrderService
                 'delivery_address' => $deliveryAddress,
                 'delivery_address_details' => $deliveryAddressDetails,
                 'customer_phone' => $customerPhone,
+                // Au moins un produit local (Cameroun) : menu « Commandes locales » du Dashboard.
+                'has_local_products' => collect($orderedProducts)->contains(fn ($p) => $p->is_local_made && !$p->origin_country),
                 'delivery_latitude' => $deliveryLatitude,
                 'delivery_longitude' => $deliveryLongitude,
                 'delivery_company_id' => $deliveryCompanyId,

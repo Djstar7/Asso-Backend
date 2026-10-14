@@ -861,7 +861,12 @@
         "deposit_disabled": "Deposit ordering disabled: standard payment.",
         "image_analyzed": "Image analyzed.",
         "image_analysis_failed": "An error occurred while analyzing the image.",
-        "categories_fetch_failed": "Could not load the categories."
+        "categories_fetch_failed": "Could not load the categories.",
+        "origin": {
+            "imported": "Imported product",
+            "local": "Local product",
+            "wholesale": ":country wholesaler"
+        }
     },
     "shops": {
         "not_a_vendor": "You are not a vendor",

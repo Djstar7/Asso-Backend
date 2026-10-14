@@ -148,7 +148,7 @@
                 @endif
 
                 <!-- Section Gestion -->
-                @if(collect(['admin.users.index', 'admin.preferences.index', 'admin.deliverers.index', 'admin.delivery-partners.index', 'admin.shipments.index', 'admin.shops.index', 'admin.statistics.index', 'admin.products.index', 'admin.import-countries.index', 'admin.wholesale-orders.index', 'admin.deposit-orders.index', 'admin.disputes.index', 'admin.settings.categories', 'admin.packages.index', 'admin.ads.index', 'admin.transactions.index', 'admin.exchanges.index', 'admin.map.index', 'admin.support.index', 'admin.messages.index'])->contains(fn ($r) => auth()->user()->canAccessAdminRoute($r)))
+                @if(collect(['admin.users.index', 'admin.preferences.index', 'admin.deliverers.index', 'admin.delivery-partners.index', 'admin.shipments.index', 'admin.shops.index', 'admin.statistics.index', 'admin.products.index', 'admin.import-countries.index', 'admin.wholesale-orders.index', 'admin.local-orders.index', 'admin.deposit-orders.index', 'admin.disputes.index', 'admin.settings.categories', 'admin.packages.index', 'admin.ads.index', 'admin.transactions.index', 'admin.exchanges.index', 'admin.map.index', 'admin.support.index', 'admin.messages.index'])->contains(fn ($r) => auth()->user()->canAccessAdminRoute($r)))
                 <div class="mt-8 pt-6 border-t border-dark-200">
                     <p class="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Gestion</p>
 
@@ -243,6 +243,14 @@
                                 {{ $wholesaleToValidateCount }}
                             </span>
                         @endif
+                    </a>
+                    @endadminCan
+
+                    @adminCan('admin.local-orders.index')
+                    <a href="{{ route('admin.local-orders.index') }}"
+                       class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.local-orders.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
+                        <i class="fas fa-store-alt w-5 mr-3"></i>
+                        Commandes locales
                     </a>
                     @endadminCan
 

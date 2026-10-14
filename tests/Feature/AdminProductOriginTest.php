@@ -41,8 +41,8 @@ class AdminProductOriginTest extends TestCase
         $res = $this->actingAs($this->admin())->get('/admin/products/create');
 
         $res->assertOk();
-        $res->assertSee('Pays d\'origine', false);
-        $res->assertSee('Chine');
+        $res->assertSee('Origine du produit', false);
+        $res->assertSee('Grossiste Chine');
     }
 
     public function test_admin_can_create_product_linked_to_china(): void
@@ -67,14 +67,15 @@ class AdminProductOriginTest extends TestCase
         $this->assertDatabaseHas('products', ['name' => 'Montre importée', 'origin_country' => 'CN']);
     }
 
-    public function test_product_without_country_is_local(): void
+    /** Sans pays : « Produit importé » (ancien « Produit local »), pas fabriqué au Cameroun. */
+    public function test_product_without_country_is_imported(): void
     {
         [$shop, $cat] = $this->shopAndCategory();
 
         $this->actingAs($this->admin())->post('/admin/products', [
             'shop_id' => $shop->id,
             'category_id' => $cat->id,
-            'name' => 'Produit local',
+            'name' => 'Produit importé',
             'price_type' => 'fixed',
             'price' => 8000,
             'type' => 'article',
@@ -84,9 +85,10 @@ class AdminProductOriginTest extends TestCase
             'status' => 'active',
         ]);
 
-        $product = Product::where('name', 'Produit local')->first();
+        $product = Product::where('name', 'Produit importé')->first();
         $this->assertNotNull($product);
         $this->assertNull($product->origin_country);
+        $this->assertFalse($product->is_local_made);
     }
 
     public function test_invalid_country_is_rejected(): void
