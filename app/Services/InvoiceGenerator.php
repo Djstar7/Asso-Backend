@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Models\VendorPackage;
+use App\Models\WalletTransaction;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 class InvoiceGenerator
@@ -47,6 +49,90 @@ class InvoiceGenerator
         $invoiceDate = $vendorPackage->purchased_at->format('d/m/Y');
         $invoiceNumber = 'INV-' . $vendorPackage->payment_reference;
 
+        $paymentInfoHtml = '<p><strong>Référence:</strong> ' . e($vendorPackage->payment_reference) . '</p>'
+            . '<p><strong>Date d\'achat:</strong> ' . $vendorPackage->purchased_at->format('d/m/Y H:i') . '</p>'
+            . '<p><strong>Expire le:</strong> ' . $vendorPackage->expires_at->format('d/m/Y') . '</p>';
+
+        // Bouton « Télécharger PDF » de la page affichée dans l'app (WebView).
+        $actionsHtml = <<<ACTIONS
+        <div class="actions">
+            <button class="btn" onclick="downloadPDF()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: inline-block; vertical-align: middle; margin-right: 8px;">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                Télécharger PDF
+            </button>
+        </div>
+ACTIONS;
+        $scriptHtml = <<<SCRIPT
+    <script>
+        function downloadPDF() {
+            if (typeof FlutterChannel !== 'undefined') {
+                FlutterChannel.postMessage(JSON.stringify({
+                    action: 'downloadInvoice',
+                    vendorPackageId: {$vendorPackage->id}
+                }));
+            }
+        }
+    </script>
+SCRIPT;
+
+        return $this->renderInvoice(
+            $invoiceNumber,
+            $invoiceDate,
+            $user,
+            $paymentInfoHtml,
+            'Package',
+            e($packageName),
+            e($packagePrice),
+            $actionsHtml,
+            $scriptHtml,
+        );
+    }
+
+    /**
+     * Facture d'une recharge Wallet (crédit payé par Mobile Money ou carte).
+     */
+    public function generateRechargeInvoiceHtml(WalletTransaction $transaction): string
+    {
+        $transaction->loadMissing('user', 'payment');
+        $user = $transaction->user;
+
+        $invoiceNumber = 'INV-WALLET-' . $transaction->id;
+        $invoiceDate = $transaction->created_at->format('d/m/Y');
+        $provider = match (strtolower((string) $transaction->provider)) {
+            'kpay', 'elgiopay' => 'Mobile Money',
+            'stripe' => 'Carte bancaire',
+            'paypal' => 'PayPal',
+            '' => '—',
+            default => ucfirst($transaction->provider),
+        };
+        $reference = $transaction->payment?->reference ?? (string) $transaction->id;
+        // Le Wallet est tenu en FCFA (pivot) : c'est le montant réellement crédité.
+        $amount = number_format((float) $transaction->amount, 0, ',', ' ') . ' FCFA';
+
+        $paymentInfoHtml = '<p><strong>Référence:</strong> ' . e($reference) . '</p>'
+            . '<p><strong>Moyen de paiement:</strong> ' . e($provider) . '</p>'
+            . '<p><strong>Date:</strong> ' . $transaction->created_at->format('d/m/Y H:i') . '</p>';
+
+        return $this->renderInvoice(
+            $invoiceNumber,
+            $invoiceDate,
+            $user,
+            $paymentInfoHtml,
+            'Désignation',
+            'Recharge Wallet ASSO',
+            $amount,
+            '',
+            '',
+        );
+    }
+
+    /** Logo ASSO en base64 (compatible PDF), ou pastille « A » à défaut. */
+    private function logoHtml(): string
+    {
         // Use logo fallback for better PDF compatibility
         $logoHtml = '<div class="logo-fallback">A</div>';
 
@@ -62,6 +148,28 @@ class InvoiceGenerator
                 Log::warning('Failed to load logo for invoice', ['error' => $e->getMessage()]);
             }
         }
+
+        return $logoHtml;
+    }
+
+    /**
+     * Gabarit commun des factures (forfait, recharge Wallet).
+     */
+    private function renderInvoice(
+        string $invoiceNumber,
+        string $invoiceDate,
+        $user,
+        string $paymentInfoHtml,
+        string $itemLabel,
+        string $itemName,
+        string $price,
+        string $actionsHtml,
+        string $scriptHtml,
+    ): string {
+        $logoHtml = $this->logoHtml();
+        $userName = e($user?->name ?? '');
+        $userEmail = e($user?->email ?? '');
+        $userPhone = e($user?->phone ?? '');
 
         return <<<HTML
 <!DOCTYPE html>
@@ -370,15 +478,13 @@ class InvoiceGenerator
         <div class="details-section">
             <div class="detail-block">
                 <h3>Facturé à</h3>
-                <p><strong>{$user->name}</strong></p>
-                <p>{$user->email}</p>
-                <p>{$user->phone}</p>
+                <p><strong>{$userName}</strong></p>
+                <p>{$userEmail}</p>
+                <p>{$userPhone}</p>
             </div>
             <div class="detail-block">
                 <h3>Informations de paiement</h3>
-                <p><strong>Référence:</strong> {$vendorPackage->payment_reference}</p>
-                <p><strong>Date d'achat:</strong> {$vendorPackage->purchased_at->format('d/m/Y H:i')}</p>
-                <p><strong>Expire le:</strong> {$vendorPackage->expires_at->format('d/m/Y')}</p>
+                {$paymentInfoHtml}
             </div>
         </div>
 
@@ -386,7 +492,7 @@ class InvoiceGenerator
         <table class="items-table">
             <thead>
                 <tr>
-                    <th>Package</th>
+                    <th>{$itemLabel}</th>
                     <th style="text-align: center;">Quantité</th>
                     <th style="text-align: right;">Prix</th>
                     <th style="text-align: right;">Total</th>
@@ -394,17 +500,17 @@ class InvoiceGenerator
             </thead>
             <tbody>
                 <tr>
-                    <td><strong>{$packageName}</strong></td>
+                    <td><strong>{$itemName}</strong></td>
                     <td style="text-align: center;">1</td>
-                    <td style="text-align: right;">{$packagePrice}</td>
-                    <td style="text-align: right;"><strong>{$packagePrice}</strong></td>
+                    <td style="text-align: right;">{$price}</td>
+                    <td style="text-align: right;"><strong>{$price}</strong></td>
                 </tr>
             </tbody>
         </table>
 
         <!-- Footer -->
         <div class="footer">
-            <div class="payment-badge">✓ PAYÉ</div>
+            <div class="payment-badge">PAYÉ</div>
             <p class="footer-note">
                 Merci pour votre confiance !<br>
                 Cette facture est générée électroniquement et ne nécessite pas de signature.<br>
@@ -412,44 +518,10 @@ class InvoiceGenerator
             </p>
         </div>
 
-        <!-- Action Buttons -->
-        <div class="actions">
-            <button class="btn" onclick="downloadPDF()">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: inline-block; vertical-align: middle; margin-right: 8px;">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                    <polyline points="7 10 12 15 17 10"></polyline>
-                    <line x1="12" y1="15" x2="12" y2="3"></line>
-                </svg>
-                Télécharger PDF
-            </button>
-        </div>
+        {$actionsHtml}
     </div>
 
-    <script>
-        function downloadPDF() {
-            console.log('📥 Download PDF button clicked');
-            console.log('📥 Vendor Package ID: {$vendorPackage->id}');
-
-            // Send message to Flutter WebView
-            if (typeof FlutterChannel !== 'undefined') {
-                try {
-                    const message = {
-                        action: 'downloadInvoice',
-                        vendorPackageId: {$vendorPackage->id}
-                    };
-                    console.log('📥 Sending message to Flutter:', JSON.stringify(message));
-                    FlutterChannel.postMessage(JSON.stringify(message));
-                    console.log('📥 Message sent successfully');
-                } catch (err) {
-                    console.error('❌ Error sending message to Flutter:', err);
-                    alert('Erreur: ' + err.message);
-                }
-            } else {
-                console.error('❌ FlutterChannel is not defined');
-                alert('FlutterChannel non disponible. Veuillez utiliser l\'application mobile.');
-            }
-        }
-    </script>
+{$scriptHtml}
 </body>
 </html>
 HTML;

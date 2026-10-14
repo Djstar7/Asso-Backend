@@ -166,6 +166,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::post('/{dispute}/return', 'forceReturn')->name('return');
             Route::post('/{dispute}/evidence', 'evidence')->name('evidence');
             Route::post('/{dispute}/note', 'note')->name('note');
+            Route::post('/{dispute}/bank-transfer', 'bankTransfer')->name('bank-transfer');
             Route::post('/shipments/{shipment}/partner', 'choosePartner')->name('shipments.partner');
             Route::post('/shipments/{shipment}/pay-by-asso', 'payByAsso')->name('shipments.pay-by-asso');
             Route::post('/shipments/{shipment}/step', 'step')->name('shipments.step');

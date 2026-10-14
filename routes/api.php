@@ -293,6 +293,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/package/{token}', [InvoiceController::class, 'showPackageInvoice']);
             Route::get('/download/{vendorPackageId}', [InvoiceController::class, 'download'])->name('api.invoices.download');
             Route::get('/pdf/{vendorPackageId}', [InvoiceController::class, 'downloadPdf'])->name('api.invoices.pdf');
+            Route::get('/wallet/{transactionId}/pdf', [InvoiceController::class, 'downloadWalletPdf'])->name('api.invoices.wallet_pdf');
         });
 
         // Vendor process
@@ -363,7 +364,7 @@ Route::middleware('auth:sanctum')->group(function () {
             // Retrait wallet
             Route::get('/withdrawal-balances', [WalletController::class, 'getWithdrawalBalances']);
             Route::post('/withdraw/kpay', [WalletController::class, 'initiateKpayWithdrawal']);
-            // Virement bancaire (Stripe Connect) vers l'IBAN validé du vendeur.
+            // Virement bancaire (Stripe Connect) vers l'IBAN validé (vendeur ou acheteur).
             // Le devis renvoie le montant converti AVANT validation (XAF → EUR).
             Route::post('/withdraw/stripe/quote', [WalletController::class, 'getStripeWithdrawalQuote']);
             Route::post('/withdraw/stripe', [WalletController::class, 'initiateStripeWithdrawal']);

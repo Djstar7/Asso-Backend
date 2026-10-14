@@ -451,12 +451,12 @@
             "body": "The item to sponsor no longer exists. The amount has been credited back to your wallet."
         },
         "certification_activated": {
-            "title": "Shop certified ✅",
+            "title": "Shop certified",
             "body": "Your :package is active.",
             "body_until": "Your :package is active until :date."
         },
         "boost_activated": {
-            "title": "Sponsoring activated 🚀",
+            "title": "Sponsoring activated",
             "body_named": "“:product” is sponsored: up to :reach people will see it.",
             "body": "Your product is sponsored: up to :reach people will see it."
         },
@@ -1210,6 +1210,12 @@
         }
     },
     "disputes": {
+        "bank_transfer": {
+            "not_available": "No IBAN transfer is possible for this dispute (order not paid by card, or dispute not settled).",
+            "already_done": "This IBAN transfer has already been made.",
+            "iban_missing": "The recipient has no validated IBAN: they must sync it from their Wallet.",
+            "note": "ASSO transfer — dispute :number"
+        },
         "not_found": "Claim not found.",
         "window_closed": "The 48-hour period after delivery has ended: the order is validated.",
         "item_not_found": "This item is not part of the order.",
@@ -1258,7 +1264,9 @@
             "replacement_paid_vendor": "Replacement delivery paid by the seller — courier selected",
             "refunded": "Customer refunded to their ASSO Wallet — case refunded / closed",
             "replacement_conform": "Replacement as described — seller funds released",
-            "replacement_auto_validated": "No action after 48 h — replacement approved automatically"
+            "replacement_auto_validated": "No action after 48 h — replacement approved automatically",
+            "bank_transfer_client": "Refund transferred by ASSO to the customer's IBAN (:amount :currency, •••• :last4)",
+            "bank_transfer_vendor": "Vendor share transferred by ASSO to their IBAN (:amount :currency, •••• :last4)"
         },
         "shipment_steps": {
             "return": {

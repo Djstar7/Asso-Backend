@@ -9,7 +9,7 @@
     <div class="flex justify-between items-center mb-6">
         <div>
             <h1 class="text-2xl font-bold text-white">Comptes de virement (Stripe)</h1>
-            <p class="text-gray-400 mt-1">Validez les IBAN soumis par les vendeurs avant tout virement</p>
+            <p class="text-gray-400 mt-1">Validez les IBAN soumis par les vendeurs et les acheteurs avant tout virement (retraits, remboursements de litige)</p>
         </div>
     </div>
 
@@ -71,14 +71,17 @@
                 <div class="bg-dark-100 rounded-xl shadow-lg hover:shadow-xl transition-all">
                     <div class="p-6">
                         <div class="flex items-start justify-between flex-wrap gap-4">
-                            <!-- Infos vendeur + banque -->
+                            <!-- Infos utilisateur + banque -->
                             <div class="flex items-start space-x-4 flex-1 min-w-[260px]">
                                 <div class="w-12 h-12 rounded-full bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center text-white font-bold text-lg shrink-0">
                                     {{ strtoupper(substr($account->first_name ?? '?', 0, 1)) }}{{ strtoupper(substr($account->last_name ?? '', 0, 1)) }}
                                 </div>
                                 <div class="flex-1">
                                     <h3 class="text-lg font-semibold text-white">
-                                        {{ trim($account->first_name . ' ' . $account->last_name) ?: 'Vendeur #' . $account->id }}
+                                        {{ trim($account->first_name . ' ' . $account->last_name) ?: 'Utilisateur #' . $account->id }}
+                                        <span class="ml-2 align-middle text-xs font-medium px-2 py-0.5 rounded-full {{ $account->shops_exists ? 'bg-primary-500/20 text-primary-300' : 'bg-gray-500/20 text-gray-300' }}">
+                                            {{ $account->shops_exists ? 'Vendeur' : 'Acheteur' }}
+                                        </span>
                                     </h3>
                                     <p class="text-sm text-gray-400">{{ $account->email }}</p>
                                     @if($account->phone)
@@ -132,7 +135,7 @@
                                 @if($account->stripe_account_status === 'pending')
                                     <div class="flex gap-2">
                                         <form method="POST" action="{{ route('admin.stripe.accounts.approve', $account->id) }}"
-                                              onsubmit="return confirm('Valider le compte de virement de ce vendeur ?');">
+                                              onsubmit="return confirm('Valider le compte de virement de cet utilisateur ?');">
                                             @csrf
                                             <button type="submit"
                                                     class="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-medium transition-all">
@@ -169,14 +172,14 @@
                     <i class="fas fa-times-circle text-red-400 mr-2"></i>
                     Rejeter le compte de virement
                 </h3>
-                <p class="text-sm text-gray-400 mt-1" id="stripeRejectSubtitle">Vendeur</p>
+                <p class="text-sm text-gray-400 mt-1" id="stripeRejectSubtitle">Utilisateur</p>
             </div>
             <div class="p-6">
                 <label class="block text-sm font-medium text-gray-300 mb-2">Motif du rejet <span class="text-red-400">*</span></label>
                 <textarea name="reason" rows="4" required maxlength="500"
                           class="w-full px-4 py-3 rounded-lg bg-dark-50 border border-dark-200 text-white focus:outline-none focus:border-primary-500"
                           placeholder="Ex. : l'IBAN ne correspond pas au nom du titulaire."></textarea>
-                <p class="text-xs text-gray-500 mt-1">Le vendeur sera notifié avec ce motif.</p>
+                <p class="text-xs text-gray-500 mt-1">L'utilisateur sera notifié avec ce motif.</p>
             </div>
             <div class="p-6 border-t border-dark-50 flex justify-end gap-3">
                 <button type="button" onclick="closeStripeRejectModal()"
@@ -197,7 +200,7 @@
     function openStripeRejectModal(userId, userName) {
         var form = document.getElementById('stripeRejectForm');
         form.action = "{{ url('admin/stripe/accounts') }}/" + userId + "/reject";
-        document.getElementById('stripeRejectSubtitle').textContent = userName || ('Vendeur #' + userId);
+        document.getElementById('stripeRejectSubtitle').textContent = userName || ('Utilisateur #' + userId);
         var modal = document.getElementById('stripeRejectModal');
         modal.classList.remove('hidden');
         modal.classList.add('flex');
