@@ -214,6 +214,15 @@ class Order extends Model
         return (float) $this->delivery_fee + (float) $this->free_delivery_amount;
     }
 
+    /**
+     * Payée par carte (Stripe), acompte ou solde ? En cas de litige, ASSO peut alors
+     * virer le remboursement (ou la part du vendeur) sur l'IBAN Stripe Connect.
+     */
+    public function isPaidByCard(): bool
+    {
+        return $this->payment_method === 'stripe_direct' || $this->balance_payment_method === 'stripe_direct';
+    }
+
     /** Payée depuis le solde Wallet ASSO (fonds bloqués en escrow à la création) ? */
     public function isWalletPayment(): bool
     {

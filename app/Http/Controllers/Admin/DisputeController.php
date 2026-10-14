@@ -79,6 +79,7 @@ class DisputeController extends Controller
             'return' => $return,
             'pending' => $pending,
             'quotes' => $quotes,
+            'bankTransfers' => $this->disputes->bankTransferOptions($dispute),
         ]);
     }
 
@@ -172,6 +173,17 @@ class DisputeController extends Controller
         $note = $request->validate(['note' => 'required|string|max:2000'])['note'];
 
         return $this->run(fn () => $this->disputes->addInternalNote($dispute, $request->user(), $note), 'Note interne ajoutée.');
+    }
+
+    /** Commande payée par carte : ASSO vire le remboursement (client) ou la part (vendeur) sur l'IBAN. */
+    public function bankTransfer(Request $request, Dispute $dispute)
+    {
+        $beneficiary = $request->validate(['beneficiary' => 'required|in:client,vendor'])['beneficiary'];
+
+        return $this->run(
+            fn () => $this->disputes->bankTransfer($dispute, $beneficiary, $request->user()),
+            $beneficiary === 'client' ? 'Virement IBAN du remboursement lancé vers le client.' : 'Virement IBAN lancé vers le vendeur.'
+        );
     }
 
     private function run(callable $action, string $success)
