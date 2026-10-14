@@ -293,6 +293,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/package/{token}', [InvoiceController::class, 'showPackageInvoice']);
             Route::get('/download/{vendorPackageId}', [InvoiceController::class, 'download'])->name('api.invoices.download');
             Route::get('/pdf/{vendorPackageId}', [InvoiceController::class, 'downloadPdf'])->name('api.invoices.pdf');
+            Route::get('/wallet/{transactionId}/pdf', [InvoiceController::class, 'downloadWalletPdf'])->name('api.invoices.wallet_pdf');
         });
 
         // Vendor process
