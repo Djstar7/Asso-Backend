@@ -68,6 +68,9 @@ class StripeWebhookController extends Controller
                     break;
 
                 case 'payment_intent.payment_failed':
+                    $this->logPaymentAttemptFailed($event->data->object);
+                    break;
+
                 case 'payment_intent.canceled':
                     $this->handlePaymentIntentFailed($event->data->object);
                     break;
@@ -174,7 +177,30 @@ class StripeWebhookController extends Controller
     }
 
     /**
-     * payment_intent.payment_failed | canceled → échec de l'encaissement carte.
+     * payment_intent.payment_failed → tentative refusée, PAS un échec définitif.
+     *
+     * Le PaymentIntent repasse en `requires_payment_method` et la Payment Sheet
+     * reste ouverte : l'acheteur peut corriger sa carte ou en essayer une autre.
+     * Clore la commande ici faisait échouer le nouvel essai réussi (commande déjà
+     * annulée, argent rendu en « paiement tardif »). On ne fait que tracer le
+     * motif ; l'abandon est clos par les tâches de réconciliation.
+     */
+    private function logPaymentAttemptFailed(object $pi): void
+    {
+        $error = $pi->last_payment_error ?? null;
+
+        Log::warning('[StripeWebhook] Tentative de paiement carte refusée', [
+            'payment_intent' => $pi->id ?? null,
+            'asso_kind' => $pi->metadata->asso_kind ?? null,
+            'livemode' => $pi->livemode ?? null,
+            'code' => $error->code ?? null,
+            'decline_code' => $error->decline_code ?? null,
+            'message' => $error->message ?? null,
+        ]);
+    }
+
+    /**
+     * payment_intent.canceled → échec définitif de l'encaissement carte.
      * Route selon `metadata.asso_kind` ; libère les kg réservés (idempotent).
      */
     private function handlePaymentIntentFailed(object $pi): void
