@@ -451,12 +451,12 @@
             "body": "L'article à sponsoriser n'existe plus. Le montant a été recrédité sur votre portefeuille."
         },
         "certification_activated": {
-            "title": "Boutique certifiée ✅",
+            "title": "Boutique certifiée",
             "body": "Votre :package est active.",
             "body_until": "Votre :package est active jusqu'au :date."
         },
         "boost_activated": {
-            "title": "Sponsoring activé 🚀",
+            "title": "Sponsoring activé",
             "body_named": "« :product » est sponsorisé : jusqu'à :reach personnes vont le voir.",
             "body": "Votre produit est sponsorisé : jusqu'à :reach personnes vont le voir."
         },
