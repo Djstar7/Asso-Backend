@@ -451,12 +451,12 @@
             "body": "The item to sponsor no longer exists. The amount has been credited back to your wallet."
         },
         "certification_activated": {
-            "title": "Shop certified ✅",
+            "title": "Shop certified",
             "body": "Your :package is active.",
             "body_until": "Your :package is active until :date."
         },
         "boost_activated": {
-            "title": "Sponsoring activated 🚀",
+            "title": "Sponsoring activated",
             "body_named": "“:product” is sponsored: up to :reach people will see it.",
             "body": "Your product is sponsored: up to :reach people will see it."
         },
