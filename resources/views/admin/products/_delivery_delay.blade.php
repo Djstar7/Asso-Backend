@@ -1,6 +1,7 @@
 {{--
     Délai de livraison annoncé au client, en jours ouvrables (1 jour minimum).
     Vide = délai de la catégorie, sinon le délai par défaut (Partenaires de livraison).
+    Maximum facultatif et illimité : avec seulement un minimum, le délai est « N jours minimum ».
 --}}
 @php
     $inherited = \App\Support\DeliveryDelay::forCategory(isset($product) ? $product->category : null);
@@ -13,8 +14,9 @@
         Délai de livraison
     </h2>
     <p class="text-xs text-gray-400 mt-1">
-        En jours ouvrables, 1 minimum. Vide = {{ $inherited['source'] === 'category' ? 'délai de la catégorie' : 'délai par défaut' }}
-        ({{ $inherited['min'] }} à {{ $inherited['max'] }} j).
+        En jours ouvrables, 1 minimum, sans maximum imposé (maximum vide = délai ouvert).
+        Tout vide = {{ $inherited['source'] === 'category' ? 'délai de la catégorie' : 'délai par défaut' }}
+        ({{ \App\Support\DeliveryDelay::label($inherited) }}).
     </p>
     <div class="grid grid-cols-2 gap-3 mt-4">
         <div>
@@ -26,7 +28,7 @@
         <div>
             <label for="delivery_days_max" class="block text-sm text-gray-300 mb-1">Maximum</label>
             <input type="number" name="delivery_days_max" id="delivery_days_max" min="1" step="1"
-                   value="{{ $max }}" placeholder="{{ $inherited['max'] }}"
+                   value="{{ $max }}" placeholder="{{ $inherited['max'] ?? 'Illimité' }}"
                    class="w-full px-3 py-2 bg-dark-50 border border-dark-300 rounded-lg text-white focus:border-primary-500">
         </div>
     </div>

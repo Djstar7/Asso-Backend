@@ -117,7 +117,7 @@
                                     <span class="flex items-center text-primary-400">
                                         <i class="fas fa-clock mr-1"></i>
                                         @if($category->delivery_days_min || $category->delivery_days_max)
-                                            <span class="font-semibold">{{ $category->delivery_days_min ?? $category->delivery_days_max }} à {{ $category->delivery_days_max ?? $category->delivery_days_min }} j</span>
+                                            <span class="font-semibold">{{ \App\Support\DeliveryDelay::label(\App\Support\DeliveryDelay::forCategory($category)) }}</span>
                                         @else
                                             <span class="text-gray-400">délai par défaut</span>
                                         @endif
@@ -348,11 +348,11 @@
                                placeholder="Minimum">
                         <input type="number" name="delivery_days_max" id="category_delivery_days_max" min="1" step="1"
                                class="w-full px-4 py-2 bg-dark-50 border border-dark-300 text-white placeholder-gray-400 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                               placeholder="Maximum">
+                               placeholder="Maximum (vide = sans maximum)">
                     </div>
                     <p class="text-xs text-gray-400 mt-1">
                         <i class="fas fa-info-circle mr-1"></i>
-                        S'applique aux produits sans délai propre. Vide = délai par défaut (Partenaires de livraison).
+                        S'applique aux produits sans délai propre. Maximum vide = sans maximum ; tout vide = délai par défaut (Partenaires de livraison).
                     </p>
                 </div>
             </div>

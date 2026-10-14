@@ -231,7 +231,22 @@
             "category_id": "catégorie",
             "weight": "poids",
             "stock": "stock",
-            "reason": "motif"
+            "reason": "motif",
+            "delivery_days_min": "délai minimum de livraison",
+            "delivery_days_max": "délai maximum de livraison"
+        },
+        "custom": {
+            "delivery_days_min": {
+                "integer": "Le délai minimum de livraison doit être un nombre entier de jours ouvrables.",
+                "min": "Le délai minimum de livraison est d'au moins :min jour ouvrable.",
+                "max": "Le délai minimum de livraison saisi est trop long, vérifiez la valeur."
+            },
+            "delivery_days_max": {
+                "integer": "Le délai maximum de livraison doit être un nombre entier de jours ouvrables.",
+                "min": "Le délai maximum de livraison est d'au moins :min jour ouvrable. Laissez-le vide pour ne fixer aucun maximum.",
+                "max": "Le délai maximum de livraison saisi est trop long : laissez-le vide pour ne fixer aucun maximum.",
+                "gte": "Le délai maximum de livraison ne peut pas être inférieur au délai minimum."
+            }
         }
     },
     "profile": {
