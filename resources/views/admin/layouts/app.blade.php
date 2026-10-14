@@ -135,13 +135,21 @@
             <!-- Navigation -->
             <nav class="flex-1 mt-6 px-3 overflow-y-auto">
                 <!-- Dashboard -->
-                @if(collect(['admin.dashboard'])->contains(fn ($r) => auth()->user()->canAccessAdminRoute($r)))
+                @if(collect(['admin.dashboard', 'admin.revenue.index'])->contains(fn ($r) => auth()->user()->canAccessAdminRoute($r)))
                 <div class="space-y-1">
                     @adminCan('admin.dashboard')
                     <a href="{{ route('admin.dashboard') }}"
                        class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.dashboard') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <i class="fas fa-chart-pie w-5 mr-3"></i>
                         Dashboard
+                    </a>
+                    @endadminCan
+
+                    @adminCan('admin.revenue.index')
+                    <a href="{{ route('admin.revenue.index') }}"
+                       class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.revenue.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
+                        <i class="fas fa-coins w-5 mr-3"></i>
+                        Revenus ASSO
                     </a>
                     @endadminCan
                 </div>

@@ -228,6 +228,8 @@ class PaymentController extends Controller
             return response()->json(['message' => 'Invalid payload'], 400);
         }
 
+        $this->captureKpayFees($request);
+
         // Recharge wallet (externalId = WALLET-{walletTransactionId}).
         // Traitement SYNCHRONE : la finalisation re-vérifie le statut directement
         // auprès de KPay (source d'autorité) — fonctionne sans worker de queue et
@@ -371,5 +373,27 @@ class PaymentController extends Controller
         }
 
         return response()->json(['message' => 'Webhook processed']);
+    }
+
+    /**
+     * Le webhook KPay ne porte ni netAmount ni feeAmount : sur un événement abouti,
+     * l'objet complet est relu (GET authentifié) pour enregistrer les frais réels.
+     */
+    private function captureKpayFees(Request $request): void
+    {
+        $id = (string) $request->input('paymentId', '');
+        if ($id === '' || strtoupper((string) $request->input('status')) !== 'COMPLETED'
+            || \App\Models\PaymentGatewayFee::knows('kpay', $id)) {
+            return;
+        }
+
+        $event = (string) ($request->input('event') ?: $request->header('X-KPAY-Event', ''));
+        if (str_starts_with($event, 'refund.')) {
+            return;
+        }
+        $kpay = app(KPayService::class);
+        str_starts_with($event, 'payout.')
+            ? $kpay->checkDisbursementStatus($id)
+            : $kpay->checkPaymentStatus($id);
     }
 }
