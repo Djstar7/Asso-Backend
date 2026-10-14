@@ -1210,6 +1210,12 @@
         }
     },
     "disputes": {
+        "bank_transfer": {
+            "not_available": "Aucun virement IBAN possible pour ce litige (commande non payée par carte ou litige non tranché).",
+            "already_done": "Ce virement IBAN a déjà été fait.",
+            "iban_missing": "Le bénéficiaire n'a pas d'IBAN validé : il doit le synchroniser depuis son Wallet.",
+            "note": "Virement ASSO — litige :number"
+        },
         "not_found": "Réclamation introuvable.",
         "window_closed": "Le délai de 48 h après la livraison est écoulé : la commande est validée.",
         "item_not_found": "Cet article ne fait pas partie de la commande.",
@@ -1258,7 +1264,9 @@
             "replacement_paid_vendor": "Livraison du remplacement payée par le vendeur — livreur sélectionné",
             "refunded": "Client remboursé sur son Wallet ASSO — dossier remboursé / clôturé",
             "replacement_conform": "Remplacement conforme — fonds vendeur débloqués",
-            "replacement_auto_validated": "Aucune action après 48 h — remplacement validé automatiquement"
+            "replacement_auto_validated": "Aucune action après 48 h — remplacement validé automatiquement",
+            "bank_transfer_client": "Remboursement viré par ASSO sur l'IBAN du client (:amount :currency, •••• :last4)",
+            "bank_transfer_vendor": "Part du vendeur virée par ASSO sur son IBAN (:amount :currency, •••• :last4)"
         },
         "shipment_steps": {
             "return": {

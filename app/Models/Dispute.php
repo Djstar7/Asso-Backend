@@ -62,6 +62,7 @@ class Dispute extends Model
         'reason', 'description', 'held_amount', 'refund_amount',
         'status', 'decision', 'decision_note', 'decided_by', 'decided_at',
         'resolution', 'replacement_count', 'auto_validate_at', 'refunded_at', 'closed_at',
+        'client_bank_withdrawal_id', 'vendor_bank_withdrawal_id',
     ];
 
     protected $casts = [
@@ -111,6 +112,8 @@ class Dispute extends Model
     public function client(): BelongsTo { return $this->belongsTo(User::class, 'client_id'); }
     public function seller(): BelongsTo { return $this->belongsTo(User::class, 'seller_id'); }
     public function decider(): BelongsTo { return $this->belongsTo(User::class, 'decided_by'); }
+    public function clientBankWithdrawal(): BelongsTo { return $this->belongsTo(PlatformWithdrawal::class, 'client_bank_withdrawal_id'); }
+    public function vendorBankWithdrawal(): BelongsTo { return $this->belongsTo(PlatformWithdrawal::class, 'vendor_bank_withdrawal_id'); }
     public function attachments(): HasMany { return $this->hasMany(DisputeAttachment::class); }
     public function events(): HasMany { return $this->hasMany(DisputeEvent::class)->orderBy('occurred_at')->orderBy('id'); }
     public function shipments(): HasMany { return $this->hasMany(DisputeShipment::class)->orderBy('id'); }

@@ -10,6 +10,7 @@ use App\Models\DisputeEvent;
 use App\Models\DisputeShipment;
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Models\PlatformWithdrawal;
 use App\Models\Product;
 use App\Models\User;
 use App\Models\WalletTransaction;
@@ -44,6 +45,7 @@ class DisputeService
         private OrderService $orders,
         private WalletService $wallet,
         private FirebaseMessagingService $fcm,
+        private StripeWithdrawalService $withdrawals,
     ) {
     }
 
@@ -746,6 +748,88 @@ class DisputeService
         $this->notifySeller($dispute, 'dispute_refunded_vendor', ['number' => $dispute->number]);
 
         return $result['amount'];
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Virement IBAN par ASSO (commande payée par carte)
+    // ─────────────────────────────────────────────────────────────────────
+
+    /**
+     * Virements IBAN que ASSO peut faire depuis le back-office une fois le litige
+     * tranché, si la commande a été payée par carte : le remboursement au client
+     * (dossier remboursé) ou la part de l'article au vendeur (fonds débloqués).
+     * L'argent part du Wallet du bénéficiaire, crédité au préalable : il ne peut
+     * donc pas être versé deux fois. Import en gros : la part revient à ASSO, rien
+     * à virer côté vendeur.
+     *
+     * @return array<string, array{user:User, amount:float, withdrawal:?PlatformWithdrawal, ready:bool}>
+     */
+    public function bankTransferOptions(Dispute $dispute): array
+    {
+        $order = $dispute->order;
+        if (!$order?->isPaidByCard()) {
+            return [];
+        }
+
+        $options = [];
+        if ($dispute->status === Dispute::STATUS_REFUNDED && (float) $dispute->refund_amount > 0
+            && ($client = User::find($dispute->client_id))) {
+            $options['client'] = [
+                'user' => $client,
+                'amount' => round((float) $dispute->refund_amount, 2),
+                'withdrawal' => $dispute->clientBankWithdrawal,
+            ];
+        }
+        if (!$dispute->isOpen() && $dispute->status !== Dispute::STATUS_REFUNDED && !$order->is_wholesale
+            && $dispute->item && ($vendor = $this->fundsHolder($order))) {
+            $options['vendor'] = [
+                'user' => $vendor,
+                'amount' => round(self::itemVendorShare($order, $dispute->item), 2),
+                'withdrawal' => $dispute->vendorBankWithdrawal,
+            ];
+        }
+
+        return array_map(fn ($o) => $o + ['ready' => StripeWithdrawalService::isReady($o['user'])], $options);
+    }
+
+    /**
+     * ASSO vire sur l'IBAN du client (remboursement) ou du vendeur (sa part), via
+     * Stripe Connect. Le bénéficiaire doit avoir synchronisé un IBAN validé.
+     *
+     * @param string $beneficiary client | vendor
+     * @throws \Exception message affichable (IBAN absent, solde insuffisant, refus Stripe…)
+     */
+    public function bankTransfer(Dispute $dispute, string $beneficiary, User $employee): PlatformWithdrawal
+    {
+        return DB::transaction(function () use ($dispute, $beneficiary, $employee) {
+            $locked = Dispute::whereKey($dispute->id)->lockForUpdate()->with(['order', 'item'])->firstOrFail();
+            $option = $this->bankTransferOptions($locked)[$beneficiary] ?? null;
+            if (!$option) {
+                throw new \Exception(__('disputes.bank_transfer.not_available'));
+            }
+            if ($option['withdrawal']) {
+                throw new \Exception(__('disputes.bank_transfer.already_done'));
+            }
+            if (!$option['ready']) {
+                throw new \Exception(__('disputes.bank_transfer.iban_missing'));
+            }
+
+            $result = $this->withdrawals->withdraw($option['user'], $option['amount'], 'XAF', [
+                'admin_id' => $employee->id,
+                'notes' => __('disputes.bank_transfer.note', ['number' => $locked->number], 'fr'),
+                'metadata' => ['dispute_id' => $locked->id, 'beneficiary' => $beneficiary],
+            ]);
+            $withdrawal = $result['withdrawal'];
+
+            $locked->update([$beneficiary . '_bank_withdrawal_id' => $withdrawal->id]);
+            $this->event($locked, 'bank_transfer_' . $beneficiary, __('disputes.events.bank_transfer_' . $beneficiary, [
+                'amount' => number_format($result['payout_amount'], 2, ',', ' '),
+                'currency' => $result['payout_currency'],
+                'last4' => $result['iban_last4'],
+            ], 'fr'), null, 'admin', $employee->id);
+
+            return $withdrawal;
+        });
     }
 
     /**
