@@ -16,6 +16,7 @@ use App\Http\Controllers\Admin\ExchangeController;
 use App\Http\Controllers\Admin\FcmTokenController;
 use App\Http\Controllers\Admin\ImportCountryController;
 use App\Http\Controllers\Admin\ImportShippingOptionController;
+use App\Http\Controllers\Admin\GuideController;
 use App\Http\Controllers\Admin\LegalPageController;
 use App\Http\Controllers\Admin\MaintenanceController;
 use App\Http\Controllers\Admin\MapController;
@@ -106,6 +107,11 @@ Route::prefix('admin')->name('admin.')->group(function () {
     Route::middleware(['auth', 'backoffice'])->group(function () {
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
         Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+
+        // Aide & guide : fiches et captures filtrées selon les accès du compte
+        Route::get('/guide', [GuideController::class, 'index'])->name('guide');
+        Route::get('/guide/img/{file}', [GuideController::class, 'image'])
+            ->where('file', '[A-Za-z0-9_-]+\.webp')->name('guide.image');
 
         // Gestionnaires du back-office (admin uniquement)
         Route::post('/managers/{manager}/resend-credentials', [\App\Http\Controllers\Admin\ManagerController::class, 'resendCredentials'])->name('managers.resend-credentials');

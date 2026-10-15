@@ -660,6 +660,16 @@
                     @endadminCan
                 </div>
                 @endif
+
+                <!-- Section Aide : ouverte à tout le back-office, le guide n'affiche que les sections du compte -->
+                <div class="mt-8 pt-6 pb-6 border-t border-dark-200">
+                    <p class="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Aide</p>
+                    <a href="{{ route('admin.guide') }}"
+                       class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.guide') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
+                        <i class="fas fa-book-open w-5 mr-3"></i>
+                        Aide & guide
+                    </a>
+                </div>
             </nav>
 
             <!-- User Info at bottom -->

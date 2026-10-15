@@ -141,6 +141,8 @@ return [
     // Routes ouvertes à tout membre du back-office connecté.
     'open_routes' => [
         'admin.logout',
+        'admin.guide',
+        'admin.guide.image',
     ],
 
     // Page d'arrivée d'un gestionnaire : première section accessible.
