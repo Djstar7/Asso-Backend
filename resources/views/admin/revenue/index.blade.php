@@ -16,7 +16,7 @@
     };
     $cards = [
         ['label' => 'Chiffre d\'affaires ASSO', 'icon' => 'fa-coins', 'color' => 'emerald', 'value' => $totals['revenue'], 'previous' => $previous['revenue'] ?? null, 'up_good' => true, 'hint' => 'Tous services confondus'],
-        ['label' => 'Pertes et charges', 'icon' => 'fa-minus-circle', 'color' => 'red', 'value' => $totals['losses'], 'previous' => $previous['losses'] ?? null, 'up_good' => false, 'hint' => 'Retours, commissions versées, frais KPay'],
+        ['label' => 'Pertes et charges', 'icon' => 'fa-minus-circle', 'color' => 'red', 'value' => $totals['losses'], 'previous' => $previous['losses'] ?? null, 'up_good' => false, 'hint' => 'Retours, commissions versées, frais de paiement'],
         ['label' => 'Revenu net', 'icon' => 'fa-wallet', 'color' => $totals['net'] >= 0 ? 'primary' : 'red', 'value' => $totals['net'], 'previous' => $previous['net'] ?? null, 'up_good' => true, 'hint' => 'CA − pertes et charges'],
         ['label' => 'CA des produits ASSO', 'icon' => 'fa-store', 'color' => 'sky', 'value' => $summary['sources']['platform_products']['amount'], 'previous' => $summary['sources']['platform_products']['previous'], 'up_good' => true, 'hint' => 'Part vendeur des boutiques du compte plateforme'],
     ];
@@ -33,6 +33,12 @@
         </div>
         <div class="flex flex-wrap items-center gap-2">
             @include('admin.statistics.partials.period-picker', ['route' => 'admin.revenue.index'])
+            @if(auth()->user()->isAdmin())
+            <a href="{{ route('admin.revenue.withdrawal') }}"
+               class="px-3 py-2 text-sm rounded-lg bg-primary-600 hover:bg-primary-700 text-white">
+                <i class="fas fa-money-bill-transfer mr-1"></i>Retirer
+            </a>
+            @endif
             <a href="{{ route('admin.revenue.export', ['period' => $period['key']]) }}"
                class="px-3 py-2 text-sm rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white">
                 <i class="fas fa-file-excel mr-1"></i>Exporter
@@ -150,8 +156,9 @@
         </dl>
         <p class="text-xs text-gray-500 mt-4">
             Une recette est comptée quand elle est acquise : commande réglée, forfait payé, code Diaspo validé.
-            Les frais KPay sont ceux que KPay déclare avoir prélevés sur chaque encaissement ; les frais des retraits,
-            retenus sur le montant reçu par le bénéficiaire, ne sont pas à la charge d'ASSO.
+            Les frais de paiement sont ceux que le prestataire déclare avoir prélevés sur chaque encaissement
+            (KPay : feeAmount, ElgioPay : amount.fees). Les frais des retraits KPay, retenus sur le montant reçu
+            par le bénéficiaire, ne sont pas à la charge d'ASSO ; ElgioPay n'en communique aucun sur ses retraits.
         </p>
     </div>
 </div>
