@@ -198,6 +198,13 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::prefix('revenue')->name('revenue.')->group(function () {
             Route::get('/', [\App\Http\Controllers\Admin\PlatformRevenueController::class, 'index'])->name('index');
             Route::get('/export', [\App\Http\Controllers\Admin\PlatformRevenueController::class, 'export'])->name('export');
+            // Retrait des fonds ASSO (Wallet du compte plateforme), avant /{source}
+            Route::get('/withdrawal', [\App\Http\Controllers\Admin\PlatformWithdrawalController::class, 'index'])->name('withdrawal');
+            Route::post('/withdrawal/mobile', [\App\Http\Controllers\Admin\PlatformWithdrawalController::class, 'mobile'])->name('withdrawal.mobile');
+            Route::post('/withdrawal/bank', [\App\Http\Controllers\Admin\PlatformWithdrawalController::class, 'bank'])->name('withdrawal.bank');
+            Route::post('/withdrawal/iban', [\App\Http\Controllers\Admin\PlatformWithdrawalController::class, 'iban'])->name('withdrawal.iban');
+            Route::post('/withdrawal/iban/approve', [\App\Http\Controllers\Admin\PlatformWithdrawalController::class, 'approveIban'])->name('withdrawal.iban.approve');
+            Route::post('/withdrawal/{withdrawal}/refresh', [\App\Http\Controllers\Admin\PlatformWithdrawalController::class, 'refresh'])->name('withdrawal.refresh');
             Route::get('/{source}', [\App\Http\Controllers\Admin\PlatformRevenueController::class, 'show'])->name('show');
         });
 

@@ -173,6 +173,71 @@ class PlatformRevenueTest extends TestCase
         $this->assertSame('ORD-1', $fee->external_id);
     }
 
+    /** Réponse réelle d'ElgioPay (GET /api/v1/payments/{id}) : 30 FCFA de frais sur 1 000. */
+    private function elgiopayCompleted(): array
+    {
+        return [
+            'transaction_id' => 'TXN_ABC123DEF456', 'type' => 'CHARGE', 'status' => 'completed',
+            'amount' => ['total' => 1000, 'currency' => 'XAF', 'fees' => 30, 'net_amount' => 970],
+            'payment' => ['method' => 'mtn_mobile_money'],
+            'customer' => ['phone' => '+237600000000', 'name' => 'John Doe', 'email' => 'john@example.com'],
+            'metadata' => ['order_id' => 'ORD-123'], 'description' => 'Order ORD-123',
+            'created_at' => '2026-05-20T10:30:00+00:00', 'updated_at' => '2026-05-20T10:32:15+00:00',
+            'completed_at' => '2026-05-20T10:32:15+00:00',
+        ];
+    }
+
+    private function enableElgioPay(): void
+    {
+        \App\Models\ServiceConfiguration::setConfig('elgiopay', ['mode' => 'live', 'public_key' => 'pk_live_x', 'secret_key' => 'sk_live_x'], true);
+    }
+
+    public function test_elgiopay_fee_is_captured_and_counted_as_asso_charge(): void
+    {
+        $this->enableElgioPay();
+        Http::fake(['*/api/v1/payments/TXN_ABC123DEF456' => Http::response($this->elgiopayCompleted())]);
+
+        app(\App\Services\MobileMoneyGateway::class)->checkPaymentStatus('elgiopay:TXN_ABC123DEF456');
+        app(\App\Services\MobileMoneyGateway::class)->checkPaymentStatus('elgiopay:TXN_ABC123DEF456');
+
+        $fee = PaymentGatewayFee::sole();
+        $this->assertSame('elgiopay', $fee->gateway);
+        $this->assertSame('elgiopay:TXN_ABC123DEF456', $fee->gateway_id);
+        $this->assertSame('payin', $fee->direction);
+        $this->assertEquals(1000, $fee->amount);
+        $this->assertEquals(970, $fee->net_amount);
+        $this->assertEquals(30, $fee->fee_amount_xaf);
+        $this->assertSame('ORD-123', $fee->external_id);
+        $this->assertSame('mtn_mobile_money', $fee->provider);
+
+        $this->assertEquals(30, app(\App\Services\PlatformRevenueService::class)->summary('all')['sources']['gateway_fees']['amount'] ?? null);
+    }
+
+    public function test_elgiopay_pending_payment_records_no_fee(): void
+    {
+        $this->enableElgioPay();
+        Http::fake(['*/api/v1/payments/TX9*' => Http::response(['transaction_id' => 'TX9', 'status' => 'pending', 'amount' => ['total' => 1000, 'fees' => 30]])]);
+
+        app(\App\Services\ElgioPayService::class)->checkPaymentStatus('TX9');
+
+        $this->assertSame(0, PaymentGatewayFee::count());
+    }
+
+    public function test_sync_command_reads_missing_elgiopay_fees(): void
+    {
+        $this->enableElgioPay();
+        Http::fake(['*/api/v1/payments/TXN_ABC123DEF456' => Http::response($this->elgiopayCompleted())]);
+        WalletTransaction::create([
+            'user_id' => $this->buyer->id, 'type' => 'credit', 'amount' => 1000, 'balance_before' => 0, 'balance_after' => 1000,
+            'description' => 'Recharge', 'status' => 'completed', 'provider' => 'kpay',
+            'metadata' => ['provider_reference' => 'elgiopay:TXN_ABC123DEF456'],
+        ]);
+
+        $this->artisan('kpay:sync-fees', ['--days' => 0])->assertSuccessful();
+
+        $this->assertEquals(30, PaymentGatewayFee::where('gateway', 'elgiopay')->sole()->fee_amount_xaf);
+    }
+
     public function test_pending_payment_records_no_fee(): void
     {
         Http::fake(['*/api/v1/payments/pay_7' => Http::response(['id' => 'pay_7', 'status' => 'PENDING', 'amount' => 5000])]);

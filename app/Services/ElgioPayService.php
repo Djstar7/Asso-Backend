@@ -94,16 +94,16 @@ class ElgioPayService
 
         try {
             $response = $this->http()->timeout(20)->get('/api/v1/balance');
-            $data = $response->json() ?? [];
+            $data = self::unwrapBalance($response->json() ?? []);
 
             if ($response->successful()) {
                 return [
                     'success' => true,
                     'message' => sprintf(
-                        'Connexion ElgioPay réussie — disponible : %s %s (réservé : %s).',
+                        'Connexion ElgioPay réussie — disponible : %s %s (en attente : %s).',
                         number_format((float) ($data['available_balance'] ?? 0), 0, ',', ' '),
                         $data['currency'] ?? self::CURRENCY,
-                        number_format((float) ($data['reserved_balance'] ?? 0), 0, ',', ' ')
+                        number_format((float) ($data['pending_balance'] ?? $data['reserved_balance'] ?? 0), 0, ',', ' ')
                     ),
                     'data' => $data,
                 ];
@@ -118,7 +118,7 @@ class ElgioPayService
         }
     }
 
-    /** Solde du compte marchand (balance, available_balance, reserved_balance, currency). */
+    /** Solde du compte marchand (currency, available_balance, pending_balance, total_balance). */
     public function getBalance(): array
     {
         if (!$this->hasCredentials()) {
@@ -126,7 +126,7 @@ class ElgioPayService
         }
         try {
             $response = $this->http()->timeout(20)->get('/api/v1/balance');
-            return $response->successful() ? ($response->json() ?? []) : [];
+            return $response->successful() ? self::unwrapBalance($response->json() ?? []) : [];
         } catch (\Throwable $e) {
             Log::warning('[ElgioPay] getBalance exception', ['error' => $e->getMessage()]);
             return [];
@@ -400,6 +400,12 @@ class ElgioPayService
             $body = isset($data['data']) && is_array($data['data']) && isset($data['data']['status'])
                 ? $data['data']
                 : $data;
+
+            // Frais réellement prélevés sur l'encaissement (amount.fees) : seule cette
+            // lecture authentifiée fait foi (jamais le corps du webhook).
+            if (str_starts_with($path, '/api/v1/payments/')) {
+                \App\Models\PaymentGatewayFee::captureElgioPay($body);
+            }
             $rawStatus = $body['status'] ?? null;
             $reason = $body['failure_reason'] ?? $body['message'] ?? null;
             if (strtolower((string) $rawStatus) === 'expired' && !$reason) {
@@ -419,6 +425,12 @@ class ElgioPayService
             Log::error('[ElgioPay] Status exception', ['path' => $path, 'error' => $e->getMessage()]);
             return ['status' => 'ERROR', 'reference' => $id, 'message' => $e->getMessage()];
         }
+    }
+
+    /** GET /balance renvoie { success, data: {…} } ; corps plat toléré. */
+    private static function unwrapBalance(array $json): array
+    {
+        return is_array($json['data'] ?? null) ? $json['data'] : $json;
     }
 
     private function http(): \Illuminate\Http\Client\PendingRequest

@@ -93,6 +93,22 @@
             background-color: #18181b; /* dark-50 */
             color: #ffffff;
         }
+        /* Barres de défilement fines aux couleurs du thème (menu, listes, tableaux). */
+        * {
+            scrollbar-width: thin;
+            scrollbar-color: #3f3f46 transparent; /* dark-300 */
+        }
+        *::-webkit-scrollbar { width: 8px; height: 8px; }
+        *::-webkit-scrollbar-track { background: transparent; }
+        *::-webkit-scrollbar-thumb {
+            background-color: #3f3f46;
+            border-radius: 9999px;
+            border: 2px solid transparent;
+            background-clip: content-box;
+        }
+        *::-webkit-scrollbar-thumb:hover { background-color: #52525b; }
+        *::-webkit-scrollbar-corner { background: transparent; }
+
         input::placeholder,
         textarea::placeholder {
             color: #9ca3af; /* gray-400 : visible mais distinct du texte saisi */
@@ -133,7 +149,7 @@
             </div>
 
             <!-- Navigation -->
-            <nav class="flex-1 mt-6 px-3 overflow-y-auto">
+            <nav id="adminSidebarNav" class="flex-1 mt-6 px-3 overflow-y-auto">
                 <!-- Dashboard -->
                 @if(collect(['admin.dashboard', 'admin.revenue.index'])->contains(fn ($r) => auth()->user()->canAccessAdminRoute($r)))
                 <div class="space-y-1">
@@ -801,6 +817,31 @@
                 }
             });
         }, true);
+    })();
+    </script>
+
+    <script>
+    // Le menu garde sa position de défilement d'une page à l'autre (sinon chaque
+    // clic sur un lien rechargeait la page et ramenait le menu tout en haut).
+    (function () {
+        const nav = document.getElementById('adminSidebarNav');
+        if (!nav) return;
+        const key = 'admin.sidebar.scroll';
+        let saved = null;
+        try { saved = sessionStorage.getItem(key); } catch (e) {}
+
+        if (saved !== null) {
+            nav.scrollTop = parseInt(saved, 10) || 0;
+        } else {
+            // Première visite : amener le lien de la page courante dans la vue.
+            const current = Array.from(nav.querySelectorAll('a[href]'))
+                .find(a => a.href.split(/[?#]/)[0] === location.href.split(/[?#]/)[0]);
+            if (current) current.scrollIntoView({ block: 'center' });
+        }
+
+        const save = () => { try { sessionStorage.setItem(key, String(nav.scrollTop)); } catch (e) {} };
+        nav.addEventListener('scroll', save, { passive: true });
+        window.addEventListener('pagehide', save);
     })();
     </script>
 
