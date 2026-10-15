@@ -8,6 +8,7 @@
     use App\Http\Controllers\Admin\PlatformWithdrawalController;
     $money = fn ($v, $c) => number_format((float) $v, in_array($c, ['XAF', 'XOF']) ? 0 : 2, ',', ' ') . ' ' . $c;
     $mobile = $balances['methods']['kpay'] ?? null;
+    $inputClass = 'w-full bg-dark-200 border border-dark-300 rounded-lg px-3 py-2 text-gray-100 focus:outline-none focus:border-primary-500';
     $bank = $balances['methods']['stripe'] ?? null;
     $source = $bank['source'] ?? null;
     $gatewayName = ['kpay' => 'KPay', 'elgiopay' => 'ElgioPay'][$mobile['gateway'] ?? ''] ?? null;
@@ -22,7 +23,7 @@
             <p class="text-gray-400 mt-1">
                 Fonds du Wallet du compte plateforme
                 <span class="text-gray-300">{{ $platform->email }}</span>, qui reçoit les commissions ASSO.
-                Même retrait que dans l'app : un solde Mobile Money et un solde bancaire, chacun retiré par son propre moyen.
+                Pas de remittance : les fonds de chaque pays se retirent vers un opérateur de ce pays, ou par virement sur l'IBAN.
             </p>
         </div>
         <a href="{{ route('admin.revenue.index') }}" class="px-3 py-2 text-sm rounded-lg bg-dark-200 hover:bg-dark-300 text-gray-200">
@@ -33,56 +34,101 @@
     @if($balancesError)
         <div class="p-4 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300">{{ $balancesError }}</div>
     @else
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {{-- Solde Mobile Money --}}
-        <div class="bg-dark-100 border border-dark-200 rounded-xl p-6 space-y-4">
-            <div class="flex items-start justify-between">
-                <div>
-                    <p class="text-sm text-gray-400"><i class="fas fa-mobile-alt mr-1"></i>Solde mobile</p>
-                    <p class="text-3xl font-bold text-gray-100 mt-1">{{ $money($mobile['available'] ?? 0, $mobile['currency'] ?? 'XAF') }}</p>
-                    <p class="text-xs text-gray-500 mt-1">
-                        Retrait vers un numéro Mobile Money{{ $gatewayName ? ' via ' . $gatewayName : '' }}.
-                    </p>
-                </div>
-            </div>
-
-            @if(!($mobile['configured'] ?? false))
-                <p class="text-sm text-amber-300">Aucun prestataire Mobile Money actif : activez KPay ou ElgioPay dans Paramètres › Paiements.</p>
-            @else
-                <form method="POST" action="{{ route('admin.revenue.withdrawal.mobile') }}" class="space-y-3">
-                    @csrf
-                    <div>
-                        <label class="block text-sm text-gray-300 mb-1">Opérateur</label>
-                        <select name="provider" required class="w-full bg-dark-200 border border-dark-300 rounded-lg px-3 py-2 text-gray-100">
-                            @foreach($providers as $code => $label)
-                                <option value="{{ $code }}" @selected(old('provider') === $code)>{{ $label }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-sm text-gray-300 mb-1">Numéro bénéficiaire</label>
-                        <input type="tel" name="phone" value="{{ old('phone') }}" required placeholder="6XXXXXXXX"
-                               class="w-full bg-dark-200 border border-dark-300 rounded-lg px-3 py-2 text-gray-100">
-                    </div>
-                    <div>
-                        <label class="block text-sm text-gray-300 mb-1">Montant ({{ $mobile['currency'] ?? 'XAF' }})</label>
-                        <input type="number" name="amount" min="1" max="{{ (int) ($mobile['available'] ?? 0) }}" step="1" value="{{ old('amount') }}" required
-                               class="w-full bg-dark-200 border border-dark-300 rounded-lg px-3 py-2 text-gray-100">
-                    </div>
-                    <div>
-                        <label class="block text-sm text-gray-300 mb-1">Note (facultatif)</label>
-                        <input type="text" name="notes" maxlength="300" value="{{ old('notes') }}"
-                               class="w-full bg-dark-200 border border-dark-300 rounded-lg px-3 py-2 text-gray-100">
-                    </div>
-                    <button type="submit" @disabled(($mobile['available'] ?? 0) <= 0)
-                            onclick="this.disabled=true; this.form.submit();"
-                            class="w-full px-4 py-2 rounded-lg bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-semibold">
-                        Retirer vers Mobile Money
-                    </button>
-                </form>
-            @endif
+    {{-- Soldes par pays --}}
+    <div>
+        <div class="flex items-center justify-between mb-3">
+            <h2 class="text-lg font-semibold text-gray-100"><i class="fas fa-mobile-alt mr-2 text-primary-400"></i>Mobile Money par pays</h2>
+            @if($gatewayName)<span class="text-xs text-gray-500">via {{ $gatewayName }}</span>@endif
         </div>
 
+        @if(!($mobile['configured'] ?? false))
+            <p class="mb-3 text-sm text-amber-300">Aucun prestataire Mobile Money actif : activez KPay ou ElgioPay dans Paramètres › Paiements.</p>
+        @endif
+
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            @foreach($countries as $country)
+                @php $opened = old('country') === $country['key']; @endphp
+                <div x-data="{ open: @js($opened) }" class="bg-dark-100 border border-dark-200 rounded-xl p-5 flex flex-col">
+                    <div class="flex items-center justify-between">
+                        <p class="font-semibold text-gray-100">{{ $country['name'] }}</p>
+                        <span class="text-2xl leading-none">{{ $country['flag'] }}</span>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-3">Solde</p>
+                    <p class="text-2xl font-bold text-gray-100">{{ $money($country['available'], $country['currency']) }}</p>
+                    @if($country['shared_with'])
+                        <p class="text-xs text-gray-500 mt-0.5">Solde {{ $country['currency'] }} commun avec {{ implode(', ', $country['shared_with']) }}.</p>
+                    @endif
+
+                    <p class="text-xs text-gray-500 mt-3 mb-1">Opérateurs actifs</p>
+                    <div class="flex flex-wrap gap-1.5">
+                        @foreach($country['providers'] as $code => $label)
+                            <span class="px-2 py-0.5 rounded-full text-xs {{ isset($country['payable'][$code]) ? 'bg-primary-500/15 text-primary-300' : 'bg-dark-200 text-gray-500' }}">{{ $label }}</span>
+                        @endforeach
+                    </div>
+
+                    <div class="mt-auto pt-4">
+                        @if(!$country['payable'])
+                            <p class="text-xs text-gray-500">
+                                {{ $country['currency'] === 'USD' ? 'Les opérateurs de RD Congo versent en CDF : retrait USD indisponible.' : 'Aucun opérateur de ce pays pris en charge par le prestataire actif.' }}
+                            </p>
+                        @else
+                            <button type="button" @click="open = !open" @disabled($country['available'] <= 0)
+                                    class="w-full px-4 py-2 rounded-lg bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold">
+                                <i class="fas fa-arrow-up mr-1"></i>Retirer
+                            </button>
+
+                            <form x-show="open" x-cloak x-transition method="POST" action="{{ route('admin.revenue.withdrawal.mobile') }}" class="space-y-3 mt-4">
+                                @csrf
+                                <input type="hidden" name="country" value="{{ $country['key'] }}">
+                                @php
+                                    $first = array_key_first($country['payable']);
+                                    $selected = $opened && isset($country['payable'][old('provider')]) ? old('provider') : $first;
+                                @endphp
+                                <div x-data="{ open: false, value: @js($selected), labels: @js($country['payable']) }" class="relative" @click.outside="open = false" @keydown.escape="open = false">
+                                    <label class="block text-sm text-gray-300 mb-1">Opérateur</label>
+                                    <input type="hidden" name="provider" :value="value">
+                                    <button type="button" @click="open = !open"
+                                            class="{{ $inputClass }} flex items-center justify-between text-left">
+                                        <span x-text="labels[value]"></span>
+                                        <i class="fas fa-chevron-down text-xs text-gray-400 transition-transform" :class="open && 'rotate-180'"></i>
+                                    </button>
+                                    <ul x-show="open" x-cloak x-transition.origin.top
+                                        class="absolute z-20 mt-1 w-full bg-dark-100 border border-dark-300 rounded-lg shadow-xl overflow-hidden">
+                                        <template x-for="(label, code) in labels" :key="code">
+                                            <li @click="value = code; open = false"
+                                                class="px-3 py-2 cursor-pointer flex items-center justify-between text-gray-200 hover:bg-primary-600/20"
+                                                :class="value === code && 'bg-primary-600/10 text-primary-300'">
+                                                <span x-text="label"></span>
+                                                <i x-show="value === code" class="fas fa-check text-xs text-primary-400"></i>
+                                            </li>
+                                        </template>
+                                    </ul>
+                                </div>
+                                <div>
+                                    <label class="block text-sm text-gray-300 mb-1">Numéro bénéficiaire</label>
+                                    <input type="tel" name="phone" value="{{ $opened ? old('phone') : '' }}" required class="{{ $inputClass }}">
+                                </div>
+                                <div>
+                                    <label class="block text-sm text-gray-300 mb-1">Montant ({{ $country['currency'] }})</label>
+                                    <input type="number" name="amount" min="1" max="{{ (int) $country['available'] }}" step="1" value="{{ $opened ? old('amount') : '' }}" required class="{{ $inputClass }}">
+                                </div>
+                                <div>
+                                    <label class="block text-sm text-gray-300 mb-1">Note (facultatif)</label>
+                                    <input type="text" name="notes" maxlength="300" value="{{ $opened ? old('notes') : '' }}" class="{{ $inputClass }}">
+                                </div>
+                                <button type="submit" onclick="this.disabled=true; this.form.submit();"
+                                        class="w-full px-4 py-2 rounded-lg bg-primary-600 hover:bg-primary-700 text-white font-semibold">
+                                    Confirmer le retrait
+                                </button>
+                            </form>
+                        @endif
+                    </div>
+                </div>
+            @endforeach
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {{-- Solde bancaire --}}
         <div class="bg-dark-100 border border-dark-200 rounded-xl p-6 space-y-4">
             <div>
@@ -98,11 +144,24 @@
 
             @if(!($bank['configured'] ?? false))
                 <p class="text-sm text-amber-300">Virement bancaire indisponible : Stripe n'est pas configuré ou ne détient pas de solde en {{ $bank['currency'] ?? 'EUR' }}.</p>
+            @elseif(($bank['status'] ?? null) === 'pending')
+                <div class="p-4 rounded-lg bg-amber-500/10 border border-amber-500/30 space-y-3">
+                    <p class="text-sm text-amber-200">
+                        IBAN •••• {{ $platform->stripe_external_last4 }} ({{ $platform->stripe_account_holder_name }}) enregistré, en attente de validation.
+                    </p>
+                    <form method="POST" action="{{ route('admin.revenue.withdrawal.iban.approve') }}">
+                        @csrf
+                        <button class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold">
+                            <i class="fas fa-check mr-1"></i>Valider l'IBAN
+                        </button>
+                    </form>
+                </div>
             @elseif(!($bank['eligible'] ?? false))
                 <p class="text-sm text-amber-300">
-                    Aucun IBAN validé pour le compte plateforme (statut : {{ $bank['status'] ?? 'non renseigné' }}).
-                    Renseignez-le depuis l'app, connecté avec {{ $platform->email }}.
+                    Aucun IBAN validé pour le compte plateforme.
+                    @if($platform->stripe_rejection_reason)<span class="block text-xs text-gray-400 mt-1">Motif du rejet : {{ $platform->stripe_rejection_reason }}</span>@endif
                 </p>
+                @include('admin.revenue.partials.iban-form')
             @elseif(!$source)
                 <p class="text-sm text-gray-400">Aucun solde convertible vers {{ $bank['currency'] }}.</p>
             @else

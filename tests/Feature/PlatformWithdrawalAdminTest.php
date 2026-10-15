@@ -40,14 +40,48 @@ class PlatformWithdrawalAdminTest extends TestCase
         $this->admin->forceFill(['role' => 'admin'])->saveQuietly();
     }
 
-    public function test_admin_sees_mobile_and_bank_balances(): void
+    public function test_admin_sees_balances_per_country_and_bank_balance(): void
     {
         $this->actingAs($this->admin)->get('/admin/revenue/withdrawal')
             ->assertOk()
-            ->assertSee('Solde mobile')
+            ->assertSeeInOrder(['Bénin', 'Cameroun', "Côte d'Ivoire", 'RD Congo', 'Gabon'], false)
             ->assertSee('Solde bancaire')
             ->assertSee('50 000 XAF')
-            ->assertSee('MTN Mobile Money (Cameroun)');
+            ->assertSee('Solde XAF commun avec Gabon');
+    }
+
+    public function test_operator_outside_asso_countries_is_refused(): void
+    {
+        $this->actingAs($this->admin)->post('/admin/revenue/withdrawal/mobile', [
+            'provider' => 'MPESA_KEN', 'phone' => '700000000', 'amount' => 1000,
+        ])->assertRedirect()->assertSessionHas('error');
+
+        $this->assertSame(0, PlatformWithdrawal::count());
+        Http::assertNothingSent();
+    }
+
+    public function test_invalid_iban_is_not_kept_in_session(): void
+    {
+        ServiceConfiguration::setConfig('stripe', ['secret_key' => 'sk_test_x', 'publishable_key' => 'pk_test_x'], true);
+
+        $this->actingAs($this->admin)->post('/admin/revenue/withdrawal/iban', [
+            'country' => 'FR', 'iban' => 'FR76 3000 6000 0112 3456 7890 189', 'account_holder_name' => 'ASSO',
+        ])->assertRedirect()->assertSessionHasErrors('birth_date');
+
+        $this->assertNull(session()->getOldInput('iban'));
+        $this->assertNull($this->platform->fresh()->stripe_account_id);
+    }
+
+    public function test_admin_validates_pending_platform_iban(): void
+    {
+        $this->platform->forceFill([
+            'stripe_account_id' => 'acct_test', 'stripe_account_status' => 'pending', 'stripe_external_last4' => '0189',
+        ])->saveQuietly();
+
+        $this->actingAs($this->admin)->post('/admin/revenue/withdrawal/iban/approve')
+            ->assertRedirect()->assertSessionHas('success');
+
+        $this->assertSame('approved', $this->platform->fresh()->stripe_account_status);
     }
 
     public function test_mobile_withdrawal_debits_platform_wallet_only(): void
