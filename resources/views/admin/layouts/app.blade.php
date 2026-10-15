@@ -113,11 +113,66 @@
         textarea::placeholder {
             color: #9ca3af; /* gray-400 : visible mais distinct du texte saisi */
         }
+
+        /* ===== Chargement des pages (écran initial + navigation) =====
+           CSS brut : Tailwind (CDN) n'est pas encore prêt quand l'écran initial s'affiche. */
+        #pageProgress {
+            position: fixed; top: 0; left: 0; height: 3px; width: 0;
+            background: linear-gradient(90deg, #ff9266, #ff5722);
+            box-shadow: 0 0 8px rgba(255, 87, 34, .6);
+            z-index: 200; opacity: 0; pointer-events: none;
+            transition: width .4s ease, opacity .3s ease;
+        }
+        #pageProgress.is-active { opacity: 1; }
+        #pageLoader {
+            position: fixed; inset: 0; z-index: 190;
+            display: flex; align-items: center; justify-content: center;
+            background: rgba(9, 9, 11, .55);
+            -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
+            opacity: 0; visibility: hidden;
+            transition: opacity .2s ease, visibility 0s linear .2s;
+        }
+        #pageLoader.is-active { opacity: 1; visibility: visible; transition: opacity .2s ease; }
+        #pageLoader.is-initial { background: #18181b; -webkit-backdrop-filter: none; backdrop-filter: none; }
+        #pageLoader .page-loader-box {
+            display: flex; flex-direction: column; align-items: center; gap: 14px;
+        }
+        #pageLoader .page-loader-ring {
+            position: relative; width: 72px; height: 72px;
+        }
+        #pageLoader .page-loader-ring::before {
+            content: ""; position: absolute; inset: 0; border-radius: 50%;
+            border: 3px solid #27272a; border-top-color: #ff5722;
+            animation: pageLoaderSpin .8s linear infinite;
+        }
+        #pageLoader .page-loader-ring img {
+            position: absolute; inset: 10px; width: 52px; height: 52px;
+            border-radius: 50%; object-fit: cover;
+        }
+        #pageLoader .page-loader-text {
+            font: 500 13px/1.2 ui-sans-serif, system-ui, sans-serif;
+            color: #a1a1aa; letter-spacing: .02em;
+        }
+        @keyframes pageLoaderSpin { to { transform: rotate(360deg); } }
+        @media (prefers-reduced-motion: reduce) {
+            #pageLoader .page-loader-ring::before { animation-duration: 2s; }
+        }
     </style>
+    <noscript><style>#pageLoader, #pageProgress { display: none !important; }</style></noscript>
 
     @stack('styles')
 </head>
 <body class="bg-dark-50" x-data="{ sidebarOpen: false }">
+    <!-- Chargement des pages : barre de progression + écran d'attente -->
+    <div id="pageProgress" class="is-active" style="width: 30%"></div>
+    <div id="pageLoader" class="is-active is-initial" role="status" aria-live="polite" aria-label="Chargement en cours">
+        <div class="page-loader-box">
+            <div class="page-loader-ring">
+                <img src="{{ asset('logo/Asso.png') }}" alt="">
+            </div>
+            <span class="page-loader-text">Chargement…</span>
+        </div>
+    </div>
     <div class="min-h-screen">
         <!-- Mobile Menu Overlay -->
         <div x-show="sidebarOpen"
@@ -842,6 +897,91 @@
         const save = () => { try { sessionStorage.setItem(key, String(nav.scrollTop)); } catch (e) {} };
         nav.addEventListener('scroll', save, { passive: true });
         window.addEventListener('pagehide', save);
+    })();
+    </script>
+
+    <script>
+    // Chargement des pages : l'écran d'attente couvre le premier affichage (le temps que
+    // Tailwind et les scripts soient prêts), puis réapparaît à chaque navigation
+    // (clic sur un lien interne, envoi de formulaire) jusqu'à l'arrivée de la page suivante.
+    // Exclure un lien ou un formulaire : attribut data-no-loader.
+    (function () {
+        const loader   = document.getElementById('pageLoader');
+        const progress = document.getElementById('pageProgress');
+        if (!loader || !progress) return;
+
+        // Téléchargements (exports, PDF, documents) : la page ne change pas, donc pas d'attente.
+        const DOWNLOAD_RE = /(export|download|pdf|csv|excel)/i;
+        let overlayTimer = null, trickleTimer = null, safetyTimer = null, width = 0;
+
+        function setWidth(w) { width = w; progress.style.width = w + '%'; }
+
+        function hide() {
+            clearTimeout(overlayTimer); clearInterval(trickleTimer); clearTimeout(safetyTimer);
+            loader.classList.remove('is-active', 'is-initial');
+            if (progress.classList.contains('is-active')) {
+                setWidth(100);
+                setTimeout(() => { progress.classList.remove('is-active'); setTimeout(() => setWidth(0), 300); }, 200);
+            }
+        }
+
+        function show() {
+            clearTimeout(overlayTimer); clearInterval(trickleTimer); clearTimeout(safetyTimer);
+            progress.classList.add('is-active');
+            setWidth(10);
+            trickleTimer = setInterval(() => { if (width < 90) setWidth(width + (90 - width) * 0.1); }, 300);
+            // L'écran d'attente n'apparaît que si la page tarde (évite le clignotement).
+            overlayTimer = setTimeout(() => loader.classList.add('is-active'), 250);
+            // Filet de sécurité : si la navigation n'aboutit pas (réponse de téléchargement…).
+            safetyTimer = setTimeout(hide, 20000);
+        }
+
+        // Les scripts propres aux pages (chargés après celui-ci) peuvent encore annuler
+        // l'événement (envoi en AJAX, etc.) : on vérifie une fois tous les gestionnaires passés.
+        function showUnlessPrevented(e) {
+            setTimeout(() => { if (!e.defaultPrevented) show(); }, 0);
+        }
+
+        function isDownloadUrl(url) {
+            return DOWNLOAD_RE.test(url.pathname);
+        }
+
+        // Premier affichage
+        if (document.readyState === 'complete') hide();
+        else window.addEventListener('load', hide);
+        // Retour arrière / avant servi depuis le cache du navigateur
+        window.addEventListener('pageshow', (e) => { if (e.persisted) hide(); });
+
+        // Liens internes (phase de bouillonnement : la modale de confirmation, en capture,
+        // a déjà annulé l'événement si besoin -> defaultPrevented).
+        document.addEventListener('click', function (e) {
+            if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+            const a = e.target.closest('a[href]');
+            if (!a || a.hasAttribute('download') || a.closest('[data-no-loader]')) return;
+            if (a.target && a.target !== '_self') return;
+            const raw = a.getAttribute('href');
+            if (!raw || raw.startsWith('#') || /^(javascript|mailto|tel):/i.test(raw)) return;
+            const url = new URL(a.href, location.href);
+            if (url.origin !== location.origin || isDownloadUrl(url)) return;
+            // Simple ancre sur la même page
+            if (url.pathname === location.pathname && url.search === location.search && url.hash) return;
+            showUnlessPrevented(e);
+        });
+
+        // Formulaires
+        document.addEventListener('submit', function (e) {
+            if (e.defaultPrevented) return;
+            const form = e.target;
+            if (!form || form.closest('[data-no-loader]')) return;
+            const target = (e.submitter && e.submitter.getAttribute('formtarget')) || form.getAttribute('target');
+            if (target && target !== '_self') return;
+            const action = (e.submitter && e.submitter.getAttribute('formaction')) || form.getAttribute('action') || location.href;
+            if (isDownloadUrl(new URL(action, location.href))) return;
+            showUnlessPrevented(e);
+        });
+
+        // API publique pour les pages : window.pageLoader.show() / .hide()
+        window.pageLoader = { show, hide };
     })();
     </script>
 
