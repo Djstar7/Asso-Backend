@@ -35,7 +35,7 @@ class PlatformRevenueService
         'asso_shipments' => [self::LOSS, 'Retours', 'Courses de litige payées par ASSO', 'Courses de retour ou de remplacement prises en charge par ASSO (commandes en gros).'],
         'sales_commissions' => [self::LOSS, 'Commissions versées', 'Commissions des commerciaux', 'Dues dès l\'activation du forfait vendu avec un code commercial.'],
         'affiliate_commissions' => [self::LOSS, 'Commissions versées', 'Commissions d\'affiliation', 'Commissions approuvées ou payées aux parrains.'],
-        'gateway_fees' => [self::LOSS, 'Frais de paiement', 'Frais KPay', 'Frais réellement prélevés par KPay sur les encaissements (feeAmount).'],
+        'gateway_fees' => [self::LOSS, 'Frais de paiement', 'Frais Mobile Money (KPay, ElgioPay)', 'Frais réellement prélevés sur les encaissements : feeAmount chez KPay, amount.fees chez ElgioPay.'],
     ];
 
     private ?int $platformId = null;
@@ -275,7 +275,7 @@ class PlatformRevenueService
             ->selectRaw("f.completed_at as occurred_at,
                 coalesce(f.fee_amount_xaf, case when f.currency = 'XAF' then f.fee_amount end, 0) as amount,
                 f.gateway_id as reference, 'gateway_fee' as subject_type, f.id as subject_id,
-                " . $this->concat(["coalesce(f.external_id, '')", "' · '", 'cast(f.amount as varchar(20))', "' '", 'f.currency', "' encaissés'"]) . ' as detail');
+                " . $this->concat(["case when f.gateway = 'elgiopay' then 'ElgioPay' else 'KPay' end", "' · '", "coalesce(f.external_id, '')", "' · '", 'cast(f.amount as varchar(20))', "' '", 'f.currency', "' encaissés'"]) . ' as detail');
     }
 
     // ------------------------------------------------------------------
