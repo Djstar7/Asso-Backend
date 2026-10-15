@@ -49,7 +49,7 @@ class PackageController extends Controller
     /**
      * List all active storage packages
      */
-    public function index()
+    public function index(Request $request)
     {
         $packages = Package::ofType('storage')
             ->active()
@@ -58,6 +58,7 @@ class PackageController extends Controller
 
         return response()->json([
             'success' => true,
+            'can_use_sales_code' => $this->salesCommissionService->canUseSalesCode($request->user()),
             'packages' => $packages->map(fn($package) => [
                 'id' => $package->id,
                 'name' => $package->name,
@@ -77,7 +78,7 @@ class PackageController extends Controller
     /**
      * List all active certification packages
      */
-    public function certificationPackages()
+    public function certificationPackages(Request $request)
     {
         $packages = Package::ofType('certification')
             ->active()
@@ -86,6 +87,7 @@ class PackageController extends Controller
 
         return response()->json([
             'success' => true,
+            'can_use_sales_code' => $this->salesCommissionService->canUseSalesCode($request->user()),
             'packages' => $packages->map(fn($package) => [
                 'id' => $package->id,
                 'name' => $package->name,
@@ -359,6 +361,7 @@ class PackageController extends Controller
                 'success' => true,
                 'message' => __('packages.no_active_package'),
                 'has_package' => false,
+                'can_use_sales_code' => $this->salesCommissionService->canUseSalesCode($user),
                 'vendor_package' => null,
             ]);
         }
@@ -396,6 +399,7 @@ class PackageController extends Controller
         return response()->json([
             'success' => true,
             'has_package' => true,
+            'can_use_sales_code' => $this->salesCommissionService->canUseSalesCode($user),
             'vendor_package' => [
                 'id' => $vendorPackage->id,
                 'storage_total_mb' => (float) $vendorPackage->storage_total_mb,

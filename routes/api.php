@@ -287,6 +287,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/sales-codes/{code}', [\App\Http\Controllers\Api\SalesCodeController::class, 'show'])
             ->middleware('throttle:20,1');
 
+        // Devenir un commercial ASSO : modalités et obtention du code.
+        Route::get('/sales-program', [\App\Http\Controllers\Api\SalesProgramController::class, 'show']);
+        Route::post('/sales-program/enroll', [\App\Http\Controllers\Api\SalesProgramController::class, 'enroll'])
+            ->middleware('throttle:10,1');
+
         // Invoices
         Route::prefix('invoices')->group(function () {
             Route::get('/', [InvoiceController::class, 'index']);

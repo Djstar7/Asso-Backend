@@ -197,11 +197,10 @@ class SalesCommissionTest extends TestCase
     {
         $admin = $this->admin();
         $agent = $this->agent();
-        $vendor = $this->vendorWithBalance(20000);
         $package = $this->storagePackage();
         $service = app(PackageSubscriptionService::class);
-        $service->payWithWallet($vendor, $package, $agent);
-        $service->payWithWallet($vendor, $package, $agent);
+        $service->payWithWallet($this->vendorWithBalance(), $package, $agent);
+        $service->payWithWallet($this->vendorWithBalance(), $package, $agent);
         [$c1, $c2] = SalesCommission::orderBy('id')->get()->all();
 
         $this->actingAs($admin)

@@ -57,6 +57,19 @@
         <button type="submit" class="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600">Enregistrer</button>
     </form>
 
+    <!-- Modalités du programme -->
+    <form method="POST" action="{{ route('admin.sales.agents.program-terms') }}" class="bg-dark-100 rounded-xl shadow-lg p-4 mb-6">
+        @csrf
+        <p class="text-white font-medium"><i class="fas fa-file-signature mr-2 text-primary-500"></i>Modalités « Devenir un commercial ASSO »</p>
+        <p class="text-xs text-gray-400 mt-1 mb-3">Texte affiché dans l'application avant que l'utilisateur obtienne son code. Le taux par défaut ci-dessus y est affiché automatiquement. La commission est versée une seule fois par vendeur, sur son premier forfait, directement dans le wallet du commercial.</p>
+        <textarea name="sales_program_terms" rows="8" required maxlength="20000"
+                  class="w-full px-3 py-2 bg-dark-50 border border-dark-200 rounded-lg text-white text-sm">{{ old('sales_program_terms', $programTerms) }}</textarea>
+        @error('sales_program_terms')<p class="text-xs text-red-400 mt-1">{{ $message }}</p>@enderror
+        <div class="flex justify-end mt-3">
+            <button type="submit" class="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600">Enregistrer les modalités</button>
+        </div>
+    </form>
+
     <!-- Filtres -->
     <div class="bg-dark-100 rounded-xl shadow-lg p-4 mb-6">
         <form method="GET" action="{{ route('admin.sales.agents.index') }}" class="grid grid-cols-1 md:grid-cols-4 gap-3">
@@ -97,6 +110,9 @@
                         <tr class="border-b border-dark-200 hover:bg-dark-50/50">
                             <td class="px-4 py-3">
                                 <a href="{{ route('admin.sales.agents.show', $agent) }}" class="text-white font-medium hover:text-primary-400">{{ $agent->full_name }}</a>
+                                @if($agent->source === \App\Models\SalesAgent::SOURCE_SELF)
+                                    <span class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400" title="Modalités acceptées le {{ $agent->terms_accepted_at?->format('d/m/Y H:i') }}">Inscrit via l'app</span>
+                                @endif
                                 <div class="text-xs text-gray-500">{{ $agent->phone }} {{ $agent->email }}</div>
                             </td>
                             <td class="px-4 py-3 font-mono text-primary-400">{{ $agent->code }}</td>
