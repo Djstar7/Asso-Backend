@@ -1234,6 +1234,54 @@ class OrderService
     }
 
     /**
+     * Après la validation vendeur (app vendeur ou back-office ASSO) : demande de
+     * course envoyée à tous les livreurs actifs synchronisés au partenaire choisi
+     * à la commande ; le premier qui accepte la prend. Livraison urbaine
+     * uniquement : un transporteur reçoit le colis en agence. L'acceptation est
+     * revérifiée après 5 minutes.
+     */
+    public function requestDelivery(Order $order): void
+    {
+        if ($order->isCarrierDelivery()) {
+            return;
+        }
+
+        if ($order->delivery_company_id) {
+            $activeSyncs = \App\Models\DelivererCodeSync::where('company_id', $order->delivery_company_id)
+                ->active()
+                ->with('user')
+                ->get();
+
+            foreach ($activeSyncs as $sync) {
+                if ($sync->user) {
+                    $this->fcmService->sendToUser(
+                        $sync->user,
+                        $sync->user->localized('notifications.new_delivery_request.title'),
+                        $sync->user->localized('notifications.new_delivery_request.body', [
+                            'order_number' => $order->order_number,
+                            'address' => $order->delivery_address,
+                            'fee' => number_format($order->deliveryPriceShown(), 0, ',', ' '),
+                        ]),
+                        [
+                            'type' => 'new_delivery_request',
+                            'order_id' => (string) $order->id,
+                            'order_number' => $order->order_number,
+                            'delivery_fee' => (string) $order->deliveryPriceShown(),
+                            'delivery_address' => $order->delivery_address,
+                            'delivery_latitude' => (string) ($order->delivery_latitude ?? ''),
+                            'delivery_longitude' => (string) ($order->delivery_longitude ?? ''),
+                        ]
+                    );
+                }
+            }
+
+            Log::info("[OrderService] Notified {$activeSyncs->count()} deliverers for order #{$order->order_number}");
+        }
+
+        \App\Jobs\CheckDeliveryAcceptanceJob::dispatch($order->id)->delay(now()->addMinutes(5));
+    }
+
+    /**
      * Refus d'une commande encore en attente : annulée, acheteur remboursé (wallet ou
      * Wallet ASSO), stock restauré, acheteur prévenu. Renvoie le montant rendu.
      *

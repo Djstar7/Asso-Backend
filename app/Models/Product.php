@@ -164,7 +164,8 @@ class Product extends Model
     {
         $base = Str::limit(Str::slug($name), 240, '') ?: 'produit';
 
-        $taken = static::query()
+        // Tous les produits, y compris ceux qu'un gestionnaire ne voit pas (AssoScope).
+        $taken = static::query()->withoutGlobalScope(\App\Support\AssoScope::NAME)
             ->where(fn ($q) => $q->where('slug', $base)->orWhere('slug', 'like', $base.'-%'))
             ->when($ignoreId, fn ($q) => $q->whereKeyNot($ignoreId))
             ->pluck('slug')

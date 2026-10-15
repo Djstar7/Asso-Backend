@@ -38,6 +38,11 @@ class ProductController extends Controller
             $query->where('shop_id', $request->shop_id);
         }
 
+        // Menu « Boutiques ASSO » : produits des seules boutiques ASSO.
+        if ($request->boolean('asso')) {
+            $query->whereIn('shop_id', Shop::where('user_id', \App\Support\AssoScope::ownerId())->select('id'));
+        }
+
         if ($request->filled('category_id')) {
             $query->where('category_id', $request->category_id);
         }
@@ -72,8 +77,9 @@ class ProductController extends Controller
             $query->where('name', 'like', '%'.$request->search.'%');
         }
 
-        $products = $query->paginate(20);
-        $shops = Shop::orderBy('name')->get();
+        $products = $query->paginate(20)->withQueryString();
+        $shops = Shop::when($request->boolean('asso'), fn ($q) => $q->where('user_id', \App\Support\AssoScope::ownerId()))
+            ->orderBy('name')->get();
         $categories = Category::orderBy('name')->get();
 
         return view('admin.products.index', compact('products', 'shops', 'categories'));

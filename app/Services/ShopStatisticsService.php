@@ -206,14 +206,18 @@ class ShopStatisticsService
     // Vue plateforme (admin)
     // ------------------------------------------------------------------
 
-    public function platformSummary(?string $periodKey = '30d'): array
+    /**
+     * Totaux de toutes les boutiques, ou des seules boutiques/vendeurs donnés
+     * (périmètre ASSO d'un gestionnaire).
+     */
+    public function platformSummary(?string $periodKey = '30d', ?array $shopIds = null, ?array $sellerIds = null): array
     {
         $firstShop = Shop::min('created_at');
         $period = $this->resolvePeriod($periodKey, $firstShop ? Carbon::parse($firstShop) : null);
 
-        $totals = $this->totals(null, null, $period['from'], $period['to']);
+        $totals = $this->totals($shopIds, $sellerIds, $period['from'], $period['to']);
         $previous = $period['previous_from']
-            ? $this->totals(null, null, $period['previous_from'], $period['previous_to'])
+            ? $this->totals($shopIds, $sellerIds, $period['previous_from'], $period['previous_to'])
             : null;
 
         return [
@@ -221,7 +225,7 @@ class ShopStatisticsService
             'totals' => $totals,
             'previous' => $previous,
             'trends' => $previous ? $this->trends($totals, $previous) : null,
-            'series' => $this->series(null, null, $period),
+            'series' => $this->series($shopIds, $sellerIds, $period),
         ];
     }
 

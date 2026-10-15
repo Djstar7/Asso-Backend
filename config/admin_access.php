@@ -10,6 +10,10 @@
 | - product_manager : section Produits uniquement, plus les sections que
 |   l'admin lui ouvre (colonne users.admin_permissions).
 |
+| Un gestionnaire ne voit que les boutiques ASSO : produits, boutiques,
+| commandes et litiges des vendeurs particuliers lui restent invisibles, même
+| dans les sections ouvertes (App\Support\AssoScope).
+|
 | Chaque route admin est rattachée à une permission via `routes`. Une route
 | nommée absente de cette table reste réservée à l'admin : une nouvelle
 | section est donc fermée aux gestionnaires tant qu'on ne l'a pas déclarée.
@@ -46,23 +50,31 @@ return [
             'products.delete' => 'Supprimer des produits',
             'products.toggle_visibility' => 'Masquer / afficher des produits',
         ],
-        'Sections du tableau de bord' => [
+        'Boutiques ASSO' => [
+            'asso_orders' => 'Commandes des boutiques ASSO',
+            'shops' => 'Boutiques',
+            'statistics' => 'Statistiques boutiques',
+            'wholesale_orders' => 'Commandes en gros',
+            'local_orders' => 'Commandes locales',
+            'deposit_orders' => 'Commandes avec acompte',
+            'shipments' => 'Expéditions',
+            'disputes' => 'Réclamations / Litiges',
+        ],
+        'Contenu et réglages' => [
+            'categories' => 'Catégories',
+            'import_countries' => 'Pays importés',
+            'packages' => 'Forfaits',
+            'banners' => 'Bannières',
+            'announcements' => 'Annonces',
+            'legal_pages' => 'Pages légales',
+        ],
+        'Toute la plateforme' => [
             'dashboard' => 'Dashboard',
             'revenue' => 'Revenus ASSO',
             'users' => 'Utilisateurs',
             'preferences' => 'Préférences',
             'deliverers' => 'Livreurs',
             'delivery_partners' => 'Partenaires logistiques',
-            'shipments' => 'Expéditions',
-            'shops' => 'Boutiques',
-            'statistics' => 'Statistiques boutiques',
-            'import_countries' => 'Pays importés',
-            'wholesale_orders' => 'Commandes en gros',
-            'local_orders' => 'Commandes locales',
-            'deposit_orders' => 'Commandes avec acompte',
-            'disputes' => 'Réclamations / Litiges',
-            'categories' => 'Catégories',
-            'packages' => 'Forfaits',
             'ads' => 'Asso Ads',
             'transactions' => 'Transactions',
             'exchanges' => 'Échanges',
@@ -72,13 +84,17 @@ return [
             'diaspo' => 'DIASPO Exchange',
             'affiliate' => 'Affiliation',
             'sales' => 'Commerciaux',
-            'banners' => 'Bannières',
-            'announcements' => 'Annonces',
             'documents' => 'Documents',
             'fcm_tokens' => 'FCM Tokens',
             'stripe' => 'Comptes de virement',
-            'legal_pages' => 'Pages légales',
         ],
+    ],
+
+    // Avertissement affiché sous un groupe du formulaire.
+    'permission_notes' => [
+        'Produits' => 'Limité aux boutiques ASSO.',
+        'Boutiques ASSO' => 'Limité aux boutiques ASSO : rien des vendeurs particuliers n\'apparaît.',
+        'Toute la plateforme' => 'Attention : ces sections affichent les données de tous les clients et vendeurs (comptes, paiements, messages, chiffres globaux). À n\'ouvrir qu\'en cas de besoin.',
     ],
 
     /*
@@ -115,6 +131,7 @@ return [
         'admin.statistics.*' => 'statistics',
         'admin.import-countries.*' => 'import_countries',
         'admin.wholesale-orders.*' => 'wholesale_orders',
+        'admin.asso-orders.*' => 'asso_orders',
         'admin.local-orders.*' => 'local_orders',
         'admin.deposit-orders.*' => 'deposit_orders',
         'admin.disputes.*' => 'disputes',
@@ -146,6 +163,7 @@ return [
     // Page d'arrivée d'un gestionnaire : première section accessible.
     'home_routes' => [
         'admin.dashboard',
+        'admin.asso-orders.index',
         'admin.products.index',
         'admin.shops.index',
         'admin.users.index',

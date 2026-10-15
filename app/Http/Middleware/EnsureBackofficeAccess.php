@@ -2,7 +2,9 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\AssoScope;
 use Closure;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Auth;
@@ -11,7 +13,7 @@ use Symfony\Component\HttpFoundation\Response;
 /**
  * Filtre le back-office : seuls l'admin et les gestionnaires y entrent, et un
  * gestionnaire ne voit que les sections de ses permissions
- * (config/admin_access.php).
+ * (config/admin_access.php), limitées aux boutiques ASSO (AssoScope).
  */
 class EnsureBackofficeAccess
 {
@@ -35,6 +37,15 @@ class EnsureBackofficeAccess
 
         // Route sans nom : impossible à rattacher à une permission, admin uniquement.
         if ($routeName === null ? $user->isAdmin() : $user->canAccessAdminRoute($routeName)) {
+            if (AssoScope::restricts($user)) {
+                AssoScope::enable();
+
+                // Fiche d'un vendeur particulier ouverte par son adresse : introuvable.
+                foreach ($request->route()?->parameters() ?? [] as $parameter) {
+                    abort_if($parameter instanceof Model && ! AssoScope::covers($parameter), 404);
+                }
+            }
+
             return $next($request);
         }
 

@@ -61,6 +61,8 @@ class AppServiceProvider extends ServiceProvider
                     ? User::where('diaspo_verification_status', 'pending')->count() : 0);
                 $view->with('wholesaleToValidateCount', $canSee('admin.wholesale-orders.index')
                     ? \App\Support\WholesaleOrderStage::apply(\App\Models\Order::where('is_wholesale', true), 'to_validate')->count() : 0);
+                $view->with('assoToConfirmCount', $canSee('admin.asso-orders.index')
+                    ? \App\Support\LocalOrderStage::apply(\App\Support\AssoScope::shopOrders(), 'to_confirm')->count() : 0);
                 $view->with('depositToContactCount', $canSee('admin.deposit-orders.index')
                     ? \App\Support\DepositOrderStage::apply(\App\Models\Order::query(), 'to_contact')->count() : 0);
                 $view->with('newDisputesCount', $canSee('admin.disputes.index')
@@ -86,6 +88,9 @@ class AppServiceProvider extends ServiceProvider
                 \App\Models\Order::where('is_wholesale', true), 'to_validate'
             )->count();
 
+            // Commandes des boutiques ASSO payées, à confirmer par ASSO.
+            $assoToConfirmCount = \App\Support\LocalOrderStage::apply(\App\Support\AssoScope::shopOrders(), 'to_confirm')->count();
+
             // Commandes avec acompte dont le produit est présenté : client à contacter.
             $depositToContactCount = \App\Support\DepositOrderStage::apply(\App\Models\Order::query(), 'to_contact')->count();
 
@@ -108,6 +113,14 @@ class AppServiceProvider extends ServiceProvider
                     'color' => 'text-yellow-400',
                     'title' => $pendingLocationRequests.' changement'.($pendingLocationRequests > 1 ? 's' : '')." d'emplacement de boutique à valider",
                     'url' => route('admin.shops.index', ['location_request' => 'pending']),
+                ];
+            }
+            if ($assoToConfirmCount > 0) {
+                $notifications[] = [
+                    'icon' => 'fa-shopping-bag',
+                    'color' => 'text-yellow-400',
+                    'title' => $assoToConfirmCount.' commande'.($assoToConfirmCount > 1 ? 's' : '').' des boutiques ASSO à confirmer',
+                    'url' => route('admin.asso-orders.index', ['stage' => 'to_confirm']),
                 ];
             }
             if ($wholesaleToValidateCount > 0) {
@@ -163,9 +176,10 @@ class AppServiceProvider extends ServiceProvider
             $view->with('pendingDiaspoVerifications', $pendingDiaspoVerifications);
             $view->with('adminNotifications', $notifications);
             $view->with('wholesaleToValidateCount', $wholesaleToValidateCount);
+            $view->with('assoToConfirmCount', $assoToConfirmCount);
             $view->with('depositToContactCount', $depositToContactCount);
             $view->with('newDisputesCount', $newDisputesCount);
-            $view->with('adminNotificationsCount', $pendingShopsCount + $openTicketsCount + $wholesaleToValidateCount + $depositToContactCount + $newDisputesCount + $pendingLocationRequests + $assoShipmentsToPay);
+            $view->with('adminNotificationsCount', $pendingShopsCount + $openTicketsCount + $wholesaleToValidateCount + $depositToContactCount + $newDisputesCount + $pendingLocationRequests + $assoShipmentsToPay + $assoToConfirmCount);
         });
     }
 }

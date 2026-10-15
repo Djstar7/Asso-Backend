@@ -143,6 +143,12 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/wholesale-orders/{order}/confirm', [\App\Http\Controllers\Admin\WholesaleOrderController::class, 'confirm'])->name('wholesale-orders.confirm');
         Route::post('/wholesale-orders/{order}/reject', [\App\Http\Controllers\Admin\WholesaleOrderController::class, 'reject'])->name('wholesale-orders.reject');
 
+        // Boutiques ASSO : ASSO confirme ou refuse les commandes de ses boutiques.
+        Route::get('/asso-orders', [\App\Http\Controllers\Admin\AssoOrderController::class, 'index'])->name('asso-orders.index');
+        Route::get('/asso-orders/{order}', [\App\Http\Controllers\Admin\AssoOrderController::class, 'show'])->name('asso-orders.show');
+        Route::post('/asso-orders/{order}/confirm', [\App\Http\Controllers\Admin\AssoOrderController::class, 'confirm'])->name('asso-orders.confirm');
+        Route::post('/asso-orders/{order}/reject', [\App\Http\Controllers\Admin\AssoOrderController::class, 'reject'])->name('asso-orders.reject');
+
         // Commandes locales (produits fabriqués au Cameroun) : suivi.
         Route::get('/local-orders', [\App\Http\Controllers\Admin\LocalOrderController::class, 'index'])->name('local-orders.index');
         Route::get('/local-orders/{order}', [\App\Http\Controllers\Admin\LocalOrderController::class, 'show'])->name('local-orders.show');
