@@ -117,18 +117,18 @@ class SalesCommissionTest extends TestCase
         $this->assertDatabaseCount('sales_commissions', 0);
     }
 
-    public function test_invalid_inactive_or_own_code_is_refused_before_payment(): void
+    public function test_invalid_inactive_or_unconfirmed_own_code_is_refused_before_payment(): void
     {
         $vendor = $this->vendorWithBalance();
         $package = $this->storagePackage();
         $this->agent(['code' => 'OFF-1234', 'is_active' => false]);
         $this->agent(['code' => 'SELF-1234', 'user_id' => $vendor->id]);
 
-        foreach (['NOPE-0000', 'OFF-1234', 'SELF-1234'] as $code) {
+        foreach (['NOPE-0000' => 'invalid_sales_code', 'OFF-1234' => 'invalid_sales_code', 'SELF-1234' => 'own_sales_code'] as $code => $error) {
             $this->actingAs($vendor, 'sanctum')
                 ->postJson('/api/v1/packages/subscribe', ['package_id' => $package->id, 'payment_mode' => 'wallet', 'sales_code' => $code])
                 ->assertStatus(422)
-                ->assertJsonPath('code', 'invalid_sales_code');
+                ->assertJsonPath('code', $error);
         }
 
         $this->assertDatabaseCount('package_subscriptions', 0);

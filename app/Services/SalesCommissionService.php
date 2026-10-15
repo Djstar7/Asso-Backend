@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Exceptions\InvalidSalesCodeException;
+use App\Exceptions\OwnSalesCodeException;
 use App\Models\PackageSubscription;
 use App\Models\SalesAgent;
 use App\Models\SalesCommission;
@@ -66,12 +67,13 @@ class SalesCommissionService
     }
 
     /**
-     * Résout le code saisi par le vendeur. Null si aucun code n'est saisi.
+     * Résout le code saisi par le vendeur. Null si aucun code n'est saisi, ou si c'est
+     * son propre code et qu'il a accepté de continuer sans commission.
      *
-     * @throws InvalidSalesCodeException code inconnu, désactivé, auto-parrainage ou
-     *                                   vendeur ayant déjà souscrit
+     * @throws OwnSalesCodeException son propre code, sans acceptation
+     * @throws InvalidSalesCodeException code inconnu, désactivé ou vendeur ayant déjà souscrit
      */
-    public function resolveForVendor(?string $code, User $vendor): ?SalesAgent
+    public function resolveForVendor(?string $code, User $vendor, bool $acceptOwnCode = false): ?SalesAgent
     {
         if (SalesAgent::normalizeCode($code) === '') {
             return null;
@@ -81,14 +83,22 @@ class SalesCommissionService
         if (! $agent) {
             throw new InvalidSalesCodeException(__('packages.sales_code_invalid'));
         }
-        if ($agent->user_id && $agent->user_id === $vendor->id) {
-            throw new InvalidSalesCodeException(__('packages.sales_code_own'));
-        }
         if (! $this->canUseSalesCode($vendor)) {
             throw new InvalidSalesCodeException(__('packages.sales_code_not_first'));
         }
+        if ($this->isOwnCode($agent, $vendor)) {
+            if ($acceptOwnCode) {
+                return null;
+            }
+            throw new OwnSalesCodeException(__('packages.sales_code_own'));
+        }
 
         return $agent;
+    }
+
+    public function isOwnCode(SalesAgent $agent, User $vendor): bool
+    {
+        return $agent->user_id !== null && $agent->user_id === $vendor->id;
     }
 
     /**

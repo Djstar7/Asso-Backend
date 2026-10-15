@@ -229,15 +229,41 @@ class SalesProgramTest extends TestCase
         $this->assertEquals(700, $this->balanceOf($agentUser));
     }
 
-    public function test_agent_cannot_use_own_code(): void
+    public function test_own_code_is_flagged_on_verification(): void
+    {
+        [$agentUser, $code] = $this->enrolledAgent();
+
+        $this->actingAs($agentUser, 'sanctum')->getJson('/api/v1/sales-codes/'.$code)
+            ->assertOk()
+            ->assertJsonPath('data.is_own_code', true)
+            ->assertJsonPath('data.warning', __('packages.sales_code_own'));
+
+        $this->actingAs(User::factory()->create(), 'sanctum')->getJson('/api/v1/sales-codes/'.$code)
+            ->assertOk()
+            ->assertJsonPath('data.is_own_code', false);
+    }
+
+    public function test_own_code_needs_confirmation_then_subscription_continues_without_commission(): void
     {
         [$agentUser, $code] = $this->enrolledAgent();
         WalletBalance::updateOrCreate(['user_id' => $agentUser->id, 'currency' => 'XAF'], ['balance' => 10000, 'locked_balance' => 0]);
+        $package = $this->storagePackage();
 
         $this->actingAs($agentUser, 'sanctum')
-            ->postJson('/api/v1/packages/subscribe', ['package_id' => $this->storagePackage()->id, 'payment_mode' => 'wallet', 'sales_code' => $code])
+            ->postJson('/api/v1/packages/subscribe', ['package_id' => $package->id, 'payment_mode' => 'wallet', 'sales_code' => $code])
             ->assertStatus(422)
-            ->assertJsonPath('code', 'invalid_sales_code');
+            ->assertJsonPath('code', 'own_sales_code')
+            ->assertJsonPath('message', __('packages.sales_code_own'));
+        $this->assertDatabaseCount('package_subscriptions', 0);
+
+        $this->actingAs($agentUser, 'sanctum')
+            ->postJson('/api/v1/packages/subscribe', ['package_id' => $package->id, 'payment_mode' => 'wallet', 'sales_code' => $code, 'accept_own_code' => true])
+            ->assertCreated()
+            ->assertJsonPath('sales_code', null);
+
+        $this->assertNull(PackageSubscription::firstOrFail()->sales_agent_id);
+        $this->assertDatabaseCount('sales_commissions', 0);
+        $this->assertEquals(6500, $this->balanceOf($agentUser));
     }
 
     public function test_admin_edits_program_terms(): void
