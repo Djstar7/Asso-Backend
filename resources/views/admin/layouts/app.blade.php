@@ -171,9 +171,8 @@
                 </div>
                 @endif
 
-                <!-- Boutiques ASSO : rubrique des gestionnaires ayant le droit « Commandes des
-                     boutiques ASSO ». Masquée à l'admin pour ne pas charger son menu. -->
-                @if(! auth()->user()->isAdmin() && auth()->user()->canAccessAdminRoute('admin.asso-orders.index'))
+                <!-- Boutiques ASSO : rubrique visible pour l'admin et les gestionnaires ayant le droit « Commandes des boutiques ASSO » -->
+                @adminCan('admin.asso-orders.index')
                 <div class="mt-8 pt-6 border-t border-dark-200">
                     <p class="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Boutiques ASSO</p>
 
@@ -198,7 +197,7 @@
                     </a>
                     @endadminCan
                 </div>
-                @endif
+                @endadminCan
 
                 <!-- Section Gestion -->
                 @if(collect(['admin.users.index', 'admin.preferences.index', 'admin.deliverers.index', 'admin.delivery-partners.index', 'admin.shipments.index', 'admin.shops.index', 'admin.statistics.index', 'admin.products.index', 'admin.import-countries.index', 'admin.wholesale-orders.index', 'admin.local-orders.index', 'admin.deposit-orders.index', 'admin.disputes.index', 'admin.settings.categories', 'admin.packages.index', 'admin.ads.index', 'admin.transactions.index', 'admin.exchanges.index', 'admin.map.index', 'admin.support.index', 'admin.messages.index'])->contains(fn ($r) => auth()->user()->canAccessAdminRoute($r)))
