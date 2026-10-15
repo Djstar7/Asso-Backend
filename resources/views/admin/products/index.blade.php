@@ -67,7 +67,7 @@
             <select name="origin_country" class="px-4 py-2 bg-dark-50 border border-dark-300 text-white rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
                 <option value="">Toutes origines</option>
                 <option value="imported" @selected(request('origin_country') === 'imported')>🌍 Produit importé</option>
-                <option value="local" @selected(request('origin_country') === 'local')>🇨🇲 Produit local</option>
+                <option value="local" @selected(request('origin_country') === 'local')>Produit local</option>
                 @foreach(\App\Models\ImportCountry::activeOrdered()->get() as $country)
                     <option value="{{ $country->code }}" {{ request('origin_country') == $country->code ? 'selected' : '' }}>
                         {{ $country->flag }} Grossiste {{ $country->name }}
@@ -148,7 +148,7 @@
                         @endif
                         @if(!$product->origin_country && $product->is_local_made)
                             <span class="px-2 py-0.5 text-xs rounded-full bg-green-500/20 text-green-300 border border-green-500/50">
-                                🇨🇲 Produit local
+                                Produit local
                             </span>
                         @endif
                     </div>
@@ -267,7 +267,7 @@
                                     @endif
                                     @if(!$product->origin_country && $product->is_local_made)
                                         <span class="px-2 py-1 text-xs rounded-full bg-green-500/20 text-green-300 border border-green-500/50">
-                                            🇨🇲 Produit local
+                                            Produit local
                                         </span>
                                     @endif
                                     <span class="text-xs text-gray-400">
