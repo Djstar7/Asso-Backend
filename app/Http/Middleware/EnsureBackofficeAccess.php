@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -16,6 +17,10 @@ class EnsureBackofficeAccess
 {
     public function handle(Request $request, Closure $next): Response
     {
+        // Le back-office est rédigé en français : les libellés traduits (__())
+        // ne suivent pas APP_LOCALE, réservée à l'API (SetLocale).
+        App::setLocale('fr');
+
         $user = $request->user();
 
         if (! $user || ! $user->isBackofficeStaff()) {

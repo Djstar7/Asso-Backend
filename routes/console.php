@@ -167,3 +167,12 @@ Schedule::command('ads:expire-boosts')
 Schedule::command('product-videos:prune')
     ->daily()
     ->withoutOverlapping(300);
+
+/*
+ * Solde retirable ASSO : forfaits, frais Mobile Money, commissions versées et
+ * courses payées par ASSO reportés sur le Wallet plateforme. Une fois par jour,
+ * à 1 h, quand la plateforme est peu sollicitée.
+ */
+Schedule::command('asso:sync-platform-wallet')
+    ->dailyAt('01:00')
+    ->withoutOverlapping(600);
