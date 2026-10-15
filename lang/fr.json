@@ -1067,7 +1067,8 @@
         "boost_product_without_shop": "Ce produit doit appartenir à une boutique.",
         "boost_already_active": "Ce produit est déjà sponsorisé. Attendez la fin de la campagne en cours.",
         "sales_code_invalid": "Ce code commercial n'existe pas ou n'est plus actif. Vérifiez-le ou laissez le champ vide.",
-        "sales_code_own": "Vous ne pouvez pas utiliser votre propre code commercial.",
+        "sales_code_own": "Ce code est le vôtre : vous ne percevrez aucune commission sur votre propre abonnement. Vous pouvez tout de même continuer.",
+        "sales_code_not_first": "Le code commercial ne peut être utilisé que lors de votre premier abonnement.",
         "certification_activated": "Certification activée ! Votre boutique affiche désormais le badge vérifié.",
         "boost_activated": "Sponsoring activé ! Votre produit est désormais mis en avant.",
         "storage_activated": "Forfait activé ! Votre espace de stockage est disponible.",
@@ -1160,6 +1161,7 @@
             "sale_released": "Vente commande #:order_number — fonds débloqués",
             "delivery_commission": "Commission livraison #:order_number",
             "asso_commission_order": "Commission ASSO — Commande #:order_number",
+            "sales_commission": "Commission commercial — forfait :package",
             "balance_locked": "Solde commande #:order_number",
             "balance_paid": "Solde - Commande #:order_number",
             "deposit_returned": "Acompte rendu — Commande #:order_number",
@@ -1190,6 +1192,10 @@
             "refund_withdrawal_failed": "Remboursement retrait échoué - :method (:account)",
             "refund_withdrawal_expired": "Remboursement retrait expiré - :method (:account)"
         }
+    },
+    "sales_program": {
+        "enrolled": "Félicitations, vous êtes désormais un commercial ASSO.",
+        "inactive": "Votre compte commercial est désactivé. Contactez ASSO."
     },
     "tracking": {
         "steps": {

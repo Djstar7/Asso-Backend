@@ -1067,7 +1067,8 @@
         "boost_product_without_shop": "This product must belong to a shop.",
         "boost_already_active": "This product is already sponsored. Wait for the current campaign to end.",
         "sales_code_invalid": "This sales code does not exist or is no longer active. Check it or leave the field empty.",
-        "sales_code_own": "You cannot use your own sales code.",
+        "sales_code_own": "This is your own code: you will not earn any commission on your own subscription. You can still continue.",
+        "sales_code_not_first": "A sales code can only be used for your first subscription.",
         "certification_activated": "Certification activated! Your shop now displays the verified badge.",
         "boost_activated": "Sponsoring activated! Your product is now featured.",
         "storage_activated": "Plan activated! Your storage space is available.",
@@ -1160,6 +1161,7 @@
             "sale_released": "Sale — order #:order_number — funds released",
             "delivery_commission": "Delivery commission #:order_number",
             "asso_commission_order": "ASSO commission — Order #:order_number",
+            "sales_commission": "Sales commission — :package plan",
             "balance_locked": "Order balance #:order_number",
             "balance_paid": "Balance - Order #:order_number",
             "deposit_returned": "Deposit returned — Order #:order_number",
@@ -1190,6 +1192,10 @@
             "refund_withdrawal_failed": "Refund for failed withdrawal - :method (:account)",
             "refund_withdrawal_expired": "Refund for expired withdrawal - :method (:account)"
         }
+    },
+    "sales_program": {
+        "enrolled": "Congratulations, you are now an ASSO sales agent.",
+        "inactive": "Your sales agent account is disabled. Please contact ASSO."
     },
     "tracking": {
         "steps": {

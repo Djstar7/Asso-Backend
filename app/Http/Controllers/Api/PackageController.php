@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Exceptions\InvalidSalesCodeException;
+use App\Exceptions\OwnSalesCodeException;
 use App\Http\Controllers\Controller;
 use App\Models\Package;
 use App\Models\PackageSubscription;
@@ -49,7 +50,7 @@ class PackageController extends Controller
     /**
      * List all active storage packages
      */
-    public function index()
+    public function index(Request $request)
     {
         $packages = Package::ofType('storage')
             ->active()
@@ -58,6 +59,7 @@ class PackageController extends Controller
 
         return response()->json([
             'success' => true,
+            'can_use_sales_code' => $this->salesCommissionService->canUseSalesCode($request->user()),
             'packages' => $packages->map(fn($package) => [
                 'id' => $package->id,
                 'name' => $package->name,
@@ -77,7 +79,7 @@ class PackageController extends Controller
     /**
      * List all active certification packages
      */
-    public function certificationPackages()
+    public function certificationPackages(Request $request)
     {
         $packages = Package::ofType('certification')
             ->active()
@@ -86,6 +88,7 @@ class PackageController extends Controller
 
         return response()->json([
             'success' => true,
+            'can_use_sales_code' => $this->salesCommissionService->canUseSalesCode($request->user()),
             'packages' => $packages->map(fn($package) => [
                 'id' => $package->id,
                 'name' => $package->name,
@@ -155,6 +158,8 @@ class PackageController extends Controller
             'phone_number' => 'required_if:payment_mode,kpay_direct|nullable|string',
             // P6 : code commercial / code de parrainage (facultatif)
             'sales_code' => 'nullable|string|max:32',
+            // Son propre code : le vendeur a été prévenu qu'il ne perçoit pas de commission.
+            'accept_own_code' => 'nullable|boolean',
         ]);
 
         $user = $request->user();
@@ -176,7 +181,18 @@ class PackageController extends Controller
         // Code commercial vérifié AVANT tout paiement : une faute de frappe ne doit pas
         // faire perdre la vente au commercial.
         try {
-            $salesAgent = $this->salesCommissionService->resolveForVendor($validated['sales_code'] ?? null, $user);
+            $salesAgent = $this->salesCommissionService->resolveForVendor(
+                $validated['sales_code'] ?? null,
+                $user,
+                (bool) ($validated['accept_own_code'] ?? false),
+            );
+        } catch (OwnSalesCodeException $e) {
+            return response()->json([
+                'success' => false,
+                'code' => 'own_sales_code',
+                'message' => $e->getMessage(),
+                'errors' => ['sales_code' => [$e->getMessage()]],
+            ], 422);
         } catch (InvalidSalesCodeException $e) {
             return response()->json([
                 'success' => false,
@@ -359,6 +375,7 @@ class PackageController extends Controller
                 'success' => true,
                 'message' => __('packages.no_active_package'),
                 'has_package' => false,
+                'can_use_sales_code' => $this->salesCommissionService->canUseSalesCode($user),
                 'vendor_package' => null,
             ]);
         }
@@ -396,6 +413,7 @@ class PackageController extends Controller
         return response()->json([
             'success' => true,
             'has_package' => true,
+            'can_use_sales_code' => $this->salesCommissionService->canUseSalesCode($user),
             'vendor_package' => [
                 'id' => $vendorPackage->id,
                 'storage_total_mb' => (float) $vendorPackage->storage_total_mb,

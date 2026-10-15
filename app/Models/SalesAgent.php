@@ -25,12 +25,19 @@ class SalesAgent extends Model
         'code',
         'commission_rate',
         'is_active',
+        'source',
+        'terms_accepted_at',
         'notes',
     ];
+
+    public const SOURCE_ADMIN = 'admin';
+
+    public const SOURCE_SELF = 'self';
 
     protected $casts = [
         'commission_rate' => 'decimal:2',
         'is_active' => 'boolean',
+        'terms_accepted_at' => 'datetime',
     ];
 
     public function user(): BelongsTo

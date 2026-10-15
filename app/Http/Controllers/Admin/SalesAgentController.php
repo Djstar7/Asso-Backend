@@ -50,8 +50,9 @@ class SalesAgentController extends Controller
             'paid' => (float) SalesCommission::paid()->sum('commission_amount'),
         ];
         $defaultRate = $this->salesCommissionService->defaultRate();
+        $programTerms = $this->salesCommissionService->programTerms();
 
-        return view('admin.sales.agents.index', compact('agents', 'stats', 'defaultRate'));
+        return view('admin.sales.agents.index', compact('agents', 'stats', 'defaultRate', 'programTerms'));
     }
 
     public function create()
@@ -140,6 +141,18 @@ class SalesAgentController extends Controller
         Setting::set('sales_commission_rate', $validated['sales_commission_rate'], 'string', 'commissions', 'Commission des commerciaux sur les forfaits souscrits avec leur code (%)');
 
         return back()->with('success', 'Taux par défaut mis à jour. Il s\'applique aux prochaines ventes, jamais aux commissions déjà enregistrées.');
+    }
+
+    /** Modalités affichées dans l'application avant qu'un utilisateur devienne commercial. */
+    public function updateProgramTerms(Request $request)
+    {
+        $validated = $request->validate([
+            'sales_program_terms' => 'required|string|max:20000',
+        ]);
+
+        Setting::set('sales_program_terms', $validated['sales_program_terms'], 'text', 'commissions', 'Modalités du programme « Devenir un commercial ASSO »');
+
+        return back()->with('success', 'Modalités du programme commercial mises à jour.');
     }
 
     private function validated(Request $request, ?SalesAgent $agent = null): array

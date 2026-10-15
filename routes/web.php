@@ -365,6 +365,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
 
         // P6 — Commerciaux : codes, suivi et commissions sur les forfaits
         Route::post('/sales/agents/default-rate', [SalesAgentController::class, 'updateDefaultRate'])->name('sales.agents.default-rate');
+        Route::post('/sales/agents/program-terms', [SalesAgentController::class, 'updateProgramTerms'])->name('sales.agents.program-terms');
         Route::post('/sales/agents/{agent}/toggle-active', [SalesAgentController::class, 'toggleActive'])->name('sales.agents.toggle-active');
         Route::post('/sales/agents/{agent}/regenerate-code', [SalesAgentController::class, 'regenerateCode'])->name('sales.agents.regenerate-code');
         Route::resource('sales/agents', SalesAgentController::class)
