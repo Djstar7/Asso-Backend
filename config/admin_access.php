@@ -48,6 +48,7 @@ return [
         ],
         'Sections du tableau de bord' => [
             'dashboard' => 'Dashboard',
+            'revenue' => 'Revenus ASSO',
             'users' => 'Utilisateurs',
             'preferences' => 'Préférences',
             'deliverers' => 'Livreurs',
@@ -104,6 +105,7 @@ return [
 
         // Sections
         'admin.dashboard' => 'dashboard',
+        'admin.revenue.*' => 'revenue',
         'admin.users.*' => 'users',
         'admin.preferences.*' => 'preferences',
         'admin.deliverers.*' => 'deliverers',

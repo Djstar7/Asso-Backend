@@ -194,6 +194,13 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/shops/{shop}/toggle-status', [\App\Http\Controllers\Admin\ShopVerificationController::class, 'toggleStatus'])->name('shops.toggleStatus');
         Route::post('/shops/{shop}/free-delivery', [ShopController::class, 'toggleFreeDelivery'])->name('shops.free-delivery');
 
+        // Revenus ASSO : chiffre d'affaires par service, pertes et charges déduites
+        Route::prefix('revenue')->name('revenue.')->group(function () {
+            Route::get('/', [\App\Http\Controllers\Admin\PlatformRevenueController::class, 'index'])->name('index');
+            Route::get('/export', [\App\Http\Controllers\Admin\PlatformRevenueController::class, 'export'])->name('export');
+            Route::get('/{source}', [\App\Http\Controllers\Admin\PlatformRevenueController::class, 'show'])->name('show');
+        });
+
         // Statistiques boutiques (P8)
         Route::prefix('statistics')->name('statistics.')->group(function () {
             Route::get('/', [\App\Http\Controllers\Admin\ShopStatisticsController::class, 'index'])->name('index');

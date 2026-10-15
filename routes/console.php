@@ -73,6 +73,18 @@ Schedule::command('stripe:reconcile-payouts')
 
 /**
  * =====================================================
+ * KPAY — FRAIS RÉELLEMENT PRÉLEVÉS
+ * =====================================================
+ *
+ * Les frais (feeAmount) ne figurent pas dans le webhook : ils sont lus à chaque
+ * vérification de statut. Ce passage rattrape les opérations jamais relues.
+ */
+Schedule::command('kpay:sync-fees --days=7')
+    ->dailyAt('04:00')
+    ->withoutOverlapping(600);
+
+/**
+ * =====================================================
  * FORFAITS VENDEURS — RAPPELS D'EXPIRATION
  * =====================================================
  *

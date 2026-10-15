@@ -172,6 +172,10 @@ class KPayService
                 return ['status' => 'ERROR', 'reference' => $id, 'message' => $data['message'] ?? 'Statut indisponible', 'data' => $data];
             }
 
+            // Frais réellement prélevés (feeAmount), absents du webhook : seule cette
+            // lecture authentifiée les fournit.
+            \App\Models\PaymentGatewayFee::captureKpay($data, \App\Models\PaymentGatewayFee::PAYIN);
+
             return [
                 'status' => $data['status'] ?? 'UNKNOWN',
                 'reference' => $id,
@@ -268,6 +272,10 @@ class KPayService
             if (!$response->successful()) {
                 return ['status' => 'ERROR', 'reference' => $id, 'message' => $data['message'] ?? 'Statut indisponible', 'data' => $data];
             }
+
+            // Frais réellement prélevés (feeAmount), absents du webhook : seule cette
+            // lecture authentifiée les fournit.
+            \App\Models\PaymentGatewayFee::captureKpay($data, \App\Models\PaymentGatewayFee::PAYOUT);
 
             return [
                 'status' => $data['status'] ?? 'UNKNOWN',
