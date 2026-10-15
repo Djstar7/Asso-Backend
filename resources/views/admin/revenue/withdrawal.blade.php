@@ -34,8 +34,39 @@
     @if($balancesError)
         <div class="p-4 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300">{{ $balancesError }}</div>
     @else
+    @php
+        // Onglet rouvert après une soumission bancaire / IBAN (erreur ou succès).
+        $bankHint = $errors->any() || old('account_holder_name') !== null || old('currency') !== null;
+    @endphp
+    <div x-data="{
+            tab: @js($bankHint ? 'bank' : null),
+            init() {
+                if (!this.tab) { try { this.tab = sessionStorage.getItem('asso.withdrawal.tab'); } catch (e) {} }
+                if (!['mobile', 'bank'].includes(this.tab)) this.tab = 'mobile';
+                this.$watch('tab', v => { try { sessionStorage.setItem('asso.withdrawal.tab', v); } catch (e) {} });
+            }
+         }" class="space-y-6">
+
+    {{-- Onglets : Mobile Money | Virement bancaire (comme Paramètres › Paiements) --}}
+    <div class="bg-dark-100 rounded-lg shadow-lg border border-dark-200 sticky top-0 z-10">
+        <nav class="flex space-x-6 px-6 overflow-x-auto" aria-label="Moyens de retrait">
+            <button type="button" @click="tab = 'mobile'"
+                    :class="tab === 'mobile' ? 'border-primary-500 text-primary-500' : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-300'"
+                    class="py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap transition-colors">
+                <i class="fas fa-mobile-alt mr-2"></i>Mobile Money
+                <span class="ml-1 text-xs text-gray-500">({{ count($countries) }} soldes par pays)</span>
+            </button>
+            <button type="button" @click="tab = 'bank'"
+                    :class="tab === 'bank' ? 'border-emerald-500 text-emerald-500' : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-300'"
+                    class="py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap transition-colors">
+                <i class="fas fa-university mr-2"></i>Virement bancaire
+                <span class="ml-1 text-xs text-gray-500">({{ $money($bank['available'] ?? 0, $bank['currency'] ?? 'EUR') }})</span>
+            </button>
+        </nav>
+    </div>
+
     {{-- Soldes par pays --}}
-    <div>
+    <div x-show="tab === 'mobile'" x-cloak>
         <div class="flex items-center justify-between mb-3">
             <h2 class="text-lg font-semibold text-gray-100"><i class="fas fa-mobile-alt mr-2 text-primary-400"></i>Mobile Money par pays</h2>
             @if($gatewayName)<span class="text-xs text-gray-500">via {{ $gatewayName }}</span>@endif
@@ -128,64 +159,89 @@
         </div>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {{-- Solde bancaire --}}
-        <div class="bg-dark-100 border border-dark-200 rounded-xl p-6 space-y-4">
-            <div>
-                <p class="text-sm text-gray-400"><i class="fas fa-university mr-1"></i>Solde bancaire</p>
-                <p class="text-3xl font-bold text-gray-100 mt-1">{{ $money($bank['available'] ?? 0, $bank['currency'] ?? 'EUR') }}</p>
-                <p class="text-xs text-gray-500 mt-1">
-                    Virement vers l'IBAN{{ !empty($bank['iban_last4']) ? ' •••• ' . $bank['iban_last4'] : '' }} du compte plateforme.
+    {{-- Virement bancaire --}}
+    <div x-show="tab === 'bank'" x-cloak>
+        <div class="flex items-center justify-between mb-3">
+            <h2 class="text-lg font-semibold text-gray-100"><i class="fas fa-university mr-2 text-emerald-400"></i>Virement bancaire</h2>
+            <span class="text-xs text-gray-500">via Stripe</span>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {{-- Solde et état de l'IBAN --}}
+            <div class="bg-dark-100 border border-dark-200 rounded-xl p-5 space-y-4">
+                <div>
+                    <p class="text-xs text-gray-500">Solde bancaire</p>
+                    <p class="text-2xl font-bold text-gray-100">{{ $money($bank['available'] ?? 0, $bank['currency'] ?? 'EUR') }}</p>
                     @if($source)
-                        Pris sur {{ $money($source['available'], $source['currency']) }} au taux de {{ rtrim(rtrim(number_format($source['rate'], 6, ',', ' '), '0'), ',') }}.
+                        <p class="text-xs text-gray-500 mt-0.5">
+                            Pris sur {{ $money($source['available'], $source['currency']) }} au taux de {{ rtrim(rtrim(number_format($source['rate'], 6, ',', ' '), '0'), ',') }}.
+                        </p>
                     @endif
-                </p>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-500 mb-1">IBAN du compte plateforme</p>
+                    @php
+                        $ibanStatus = $bank['status'] ?? null;
+                        [$ibanLabel, $ibanClass] = match (true) {
+                            ($bank['eligible'] ?? false) => ['Validé', 'bg-emerald-500/15 text-emerald-300'],
+                            $ibanStatus === 'pending' => ['En attente de validation', 'bg-amber-500/15 text-amber-300'],
+                            $ibanStatus === 'rejected' => ['Rejeté', 'bg-red-500/15 text-red-300'],
+                            default => ['Non renseigné', 'bg-dark-200 text-gray-400'],
+                        };
+                    @endphp
+                    <p class="text-gray-100 font-mono">{{ !empty($platform->stripe_external_last4) ? '•••• ' . $platform->stripe_external_last4 : '—' }}</p>
+                    @if($platform->stripe_account_holder_name)<p class="text-xs text-gray-400">{{ $platform->stripe_account_holder_name }}</p>@endif
+                    <span class="inline-block mt-2 px-2 py-0.5 rounded-full text-xs {{ $ibanClass }}">{{ $ibanLabel }}</span>
+                    @if($ibanStatus === 'rejected' && $platform->stripe_rejection_reason)
+                        <p class="text-xs text-gray-400 mt-1">Motif : {{ $platform->stripe_rejection_reason }}</p>
+                    @endif
+                </div>
+                <p class="text-xs text-gray-500">Compte : {{ $platform->email }}</p>
             </div>
 
-            @if(!($bank['configured'] ?? false))
-                <p class="text-sm text-amber-300">Virement bancaire indisponible : Stripe n'est pas configuré ou ne détient pas de solde en {{ $bank['currency'] ?? 'EUR' }}.</p>
-            @elseif(($bank['status'] ?? null) === 'pending')
-                <div class="p-4 rounded-lg bg-amber-500/10 border border-amber-500/30 space-y-3">
-                    <p class="text-sm text-amber-200">
-                        IBAN •••• {{ $platform->stripe_external_last4 }} ({{ $platform->stripe_account_holder_name }}) enregistré, en attente de validation.
-                    </p>
-                    <form method="POST" action="{{ route('admin.revenue.withdrawal.iban.approve') }}">
+            {{-- Action : synchroniser / valider l'IBAN, ou virer --}}
+            <div class="lg:col-span-2 bg-dark-100 border border-dark-200 rounded-xl p-5">
+                @if(!($bank['configured'] ?? false))
+                    <p class="text-sm text-amber-300">Virement bancaire indisponible : Stripe n'est pas configuré ou ne détient pas de solde en {{ $bank['currency'] ?? 'EUR' }}.</p>
+                @elseif($ibanStatus === 'pending')
+                    <div class="space-y-3">
+                        <p class="text-sm text-amber-200">
+                            IBAN •••• {{ $platform->stripe_external_last4 }} enregistré. Validez-le pour activer le virement bancaire.
+                        </p>
+                        <form method="POST" action="{{ route('admin.revenue.withdrawal.iban.approve') }}">
+                            @csrf
+                            <button class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold">
+                                <i class="fas fa-check mr-1"></i>Valider l'IBAN
+                            </button>
+                        </form>
+                    </div>
+                @elseif(!($bank['eligible'] ?? false))
+                    @include('admin.revenue.partials.iban-form')
+                @elseif(!$source)
+                    <p class="text-sm text-gray-400">Aucun solde convertible vers {{ $bank['currency'] }}.</p>
+                @else
+                    <form method="POST" action="{{ route('admin.revenue.withdrawal.bank') }}" class="space-y-3">
                         @csrf
-                        <button class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold">
-                            <i class="fas fa-check mr-1"></i>Valider l'IBAN
+                        <p class="text-sm font-semibold text-gray-200"><i class="fas fa-paper-plane mr-1"></i>Virer sur l'IBAN</p>
+                        <input type="hidden" name="currency" value="{{ $source['currency'] }}">
+                        <div>
+                            <label class="block text-sm text-gray-300 mb-1">Montant pris sur le Wallet ({{ $source['currency'] }})</label>
+                            <input type="number" name="amount" min="1" max="{{ $source['available'] }}" step="{{ in_array($source['currency'], ['XAF', 'XOF']) ? 1 : '0.01' }}" value="{{ old('amount') }}" required class="{{ $inputClass }}">
+                            <p class="text-xs text-gray-500 mt-1">Converti en {{ $bank['currency'] }} au moment du virement.</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm text-gray-300 mb-1">Note (facultatif)</label>
+                            <input type="text" name="notes" maxlength="300" class="{{ $inputClass }}">
+                        </div>
+                        <button type="submit" onclick="this.disabled=true; this.form.submit();"
+                                class="w-full px-4 py-2 rounded-lg bg-primary-600 hover:bg-primary-700 text-white font-semibold">
+                            Virer sur l'IBAN
                         </button>
                     </form>
-                </div>
-            @elseif(!($bank['eligible'] ?? false))
-                <p class="text-sm text-amber-300">
-                    Aucun IBAN validé pour le compte plateforme.
-                    @if($platform->stripe_rejection_reason)<span class="block text-xs text-gray-400 mt-1">Motif du rejet : {{ $platform->stripe_rejection_reason }}</span>@endif
-                </p>
-                @include('admin.revenue.partials.iban-form')
-            @elseif(!$source)
-                <p class="text-sm text-gray-400">Aucun solde convertible vers {{ $bank['currency'] }}.</p>
-            @else
-                <form method="POST" action="{{ route('admin.revenue.withdrawal.bank') }}" class="space-y-3">
-                    @csrf
-                    <input type="hidden" name="currency" value="{{ $source['currency'] }}">
-                    <div>
-                        <label class="block text-sm text-gray-300 mb-1">Montant pris sur le Wallet ({{ $source['currency'] }})</label>
-                        <input type="number" name="amount" min="1" max="{{ $source['available'] }}" step="{{ in_array($source['currency'], ['XAF', 'XOF']) ? 1 : '0.01' }}" value="{{ old('amount') }}" required
-                               class="w-full bg-dark-200 border border-dark-300 rounded-lg px-3 py-2 text-gray-100">
-                        <p class="text-xs text-gray-500 mt-1">Converti en {{ $bank['currency'] }} au moment du virement.</p>
-                    </div>
-                    <div>
-                        <label class="block text-sm text-gray-300 mb-1">Note (facultatif)</label>
-                        <input type="text" name="notes" maxlength="300"
-                               class="w-full bg-dark-200 border border-dark-300 rounded-lg px-3 py-2 text-gray-100">
-                    </div>
-                    <button type="submit" onclick="this.disabled=true; this.form.submit();"
-                            class="w-full px-4 py-2 rounded-lg bg-primary-600 hover:bg-primary-700 text-white font-semibold">
-                        Virer sur l'IBAN
-                    </button>
-                </form>
-            @endif
+                @endif
+            </div>
         </div>
+    </div>
     </div>
     @endif
 
