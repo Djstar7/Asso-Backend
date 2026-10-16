@@ -125,6 +125,43 @@ Route::prefix('admin')->name('admin.')->group(function () {
         // Preferences management
         Route::get('/preferences', [PreferenceController::class, 'index'])->name('preferences.index');
 
+        // Rubrique Immobilier : annonces, terrains des cabinets, bailleurs, réglages.
+        Route::prefix('real-estate')->name('real-estate.')->group(function () {
+            $c = \App\Http\Controllers\Admin\RealEstate\ListingController::class;
+            Route::get('/listings', [$c, 'index'])->name('listings.index');
+            Route::get('/listings/create', [$c, 'create'])->name('listings.create');
+            Route::post('/listings', [$c, 'store'])->name('listings.store');
+            Route::post('/listings/bulk-lands', [$c, 'bulkLands'])->name('listings.bulk-lands');
+            Route::get('/listings/{listing}', [$c, 'edit'])->name('listings.edit');
+            Route::put('/listings/{listing}', [$c, 'update'])->name('listings.update');
+            Route::post('/listings/{listing}/approve', [$c, 'approve'])->name('listings.approve');
+            Route::post('/listings/{listing}/reject', [$c, 'reject'])->name('listings.reject');
+            Route::post('/listings/{listing}/featured', [$c, 'toggleFeatured'])->name('listings.featured');
+            Route::post('/listings/{listing}/archive', [$c, 'archive'])->name('listings.archive');
+            Route::delete('/listings/{listing}/media/{media}', [$c, 'destroyMedia'])->name('listings.media.destroy');
+            Route::post('/listings/{listing}/media/{media}/cover', [$c, 'coverMedia'])->name('listings.media.cover');
+
+            $cab = \App\Http\Controllers\Admin\RealEstate\CabinetController::class;
+            Route::get('/cabinets', [$cab, 'index'])->name('cabinets.index');
+            Route::post('/cabinets', [$cab, 'store'])->name('cabinets.store');
+            Route::get('/cabinets/{cabinet}', [$cab, 'edit'])->name('cabinets.edit');
+            Route::put('/cabinets/{cabinet}', [$cab, 'update'])->name('cabinets.update');
+
+            $v = \App\Http\Controllers\Admin\RealEstate\VerificationController::class;
+            Route::get('/landlords', [$v, 'index'])->name('verifications.index');
+            Route::get('/landlords/{verification}', [$v, 'show'])->name('verifications.show');
+            Route::get('/landlords/{verification}/documents/{field}', [$v, 'document'])->name('verifications.document');
+            Route::post('/landlords/{verification}/approve', [$v, 'approve'])->name('verifications.approve');
+            Route::post('/landlords/{verification}/reject', [$v, 'reject'])->name('verifications.reject');
+
+            $st = \App\Http\Controllers\Admin\RealEstate\SettingsController::class;
+            Route::get('/settings', [$st, 'index'])->name('settings.index');
+            Route::put('/settings', [$st, 'update'])->name('settings.update');
+            Route::post('/amenities', [$st, 'storeAmenity'])->name('amenities.store');
+            Route::put('/amenities/{amenity}', [$st, 'updateAmenity'])->name('amenities.update');
+            Route::put('/projects/{project}', [$st, 'updateProject'])->name('projects.update');
+        });
+
         // P4 — Partenaires logistiques (réglages, conditions, trajets au poids) et expéditions
         Route::prefix('delivery-partners')->name('delivery-partners.')->group(function () {
             Route::get('/', [\App\Http\Controllers\Admin\DeliveryPartnerController::class, 'index'])->name('index');

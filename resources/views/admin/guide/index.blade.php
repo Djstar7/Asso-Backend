@@ -649,6 +649,18 @@ const GROUPS = [
    ${steps(['Ouvrez les litiges '+k('Nouveau')+' en premier.','Analysez le motif et les éléments fournis par le client.','Contactez le vendeur.','Choisissez l’issue : remplacement, retour, remboursement ou rejet.','Passez le litige en '+k('Résolu')+' puis '+k('Fermé')+'.'])}
    ${note('warn','Délai','La part du vendeur est retenue pendant 48 heures après l’ouverture du litige. Traitez les nouveaux litiges chaque jour.')}`}
  ]},
+ {name:'Immobilier', pages:[
+  {id:'immobilier', title:'Annonces immobilières', path:['Menu','Immobilier','Annonces'], lead:'Les maisons à louer sont publiées par des bailleurs vérifiés ; ASSO relit chaque annonce avant sa mise en ligne. Les terrains sont saisis par ASSO pour ses cabinets partenaires.', body:()=>`
+   <h3>Vérifier un bailleur</h3>
+   ${steps(['Ouvrez '+k('Bailleurs')+' : les demandes '+k('En attente')+' sont en tête.','Contrôlez la CNI, la preuve de propriété et la vidéo où le bailleur tient ses documents.','Tout concorde : '+k('Valider le bailleur')+'. Sinon '+k('Refuser')+' avec un motif clair : il le reçoit en notification.'])}
+   <h3>Relire une annonce</h3>
+   ${steps(['Ouvrez les annonces '+k('À relire')+'.','Vérifiez le contrôle avant publication : photo de l’entrée, une photo par pièce, vidéo, loyer.','Jugez la qualité des photos, la cohérence du prix et la description du quartier (route, eau, électricité, sécurité).',k('Publier')+' ou '+k('Refuser')+' avec un motif.'])}
+   ${note('info','Argent','Au paiement, la part ASSO (majoration et commission) est encaissée tout de suite et n’est pas remboursable. La part du bailleur est bloquée sur son Wallet jusqu’à la confirmation du locataire ou la fin du délai de visite.')}
+   ${note('warn','Modification','Une annonce modifiée par le bailleur repasse en relecture.')}`},
+  {id:'immo-cabinets', title:'Cabinets et terrains', path:['Menu','Immobilier','Cabinets partenaires'], lead:'Les terrains ne sont pas proposés par les utilisateurs : ASSO crée chaque cabinet partenaire, puis saisit ses terrains.', body:()=>`
+   ${steps(['Créez le cabinet : nom, accroche, spécialités, « Pourquoi nous choisir » (une puce par ligne), logo, bannière, coordonnées.','Ajoutez ses terrains : un par localité, avec un lot par surface proposée et son prix net.','Pour une affiche avec beaucoup de localités, utilisez '+k('Saisie rapide de terrains')+' dans Annonces.','Ajoutez les photos, puis '+k('Publier')+'.'])}
+   ${note('info','Coordonnées','Le nom du cabinet est toujours affiché. Ses coordonnées ne sont montrées qu’à l’acheteur qui a versé l’acompte.')}`}
+ ]},
  {name:'Livraison', pages:[
   {id:'partenaires', title:'Partenaires logistiques', path:['Menu','Gestion','Partenaires logistiques'], lead:'Les sociétés qui livrent (SOLEX, DHL, FedEx…), leurs tarifs au poids, leurs zones et les réglages communs à toutes les livraisons.', body:()=>`${fig('partners')}${note('info','Délai par défaut','Le délai de livraison est compté en jours ouvrables, hors week-ends. Il s’applique quand le produit n’a pas son propre délai.')}`},
   {id:'livreurs', title:'Livreurs', path:['Menu','Gestion','Livreurs'], lead:'Les entreprises de livraison inscrites et leurs zones.', body:()=>`${fig('deliverers')}`},

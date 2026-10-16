@@ -433,6 +433,21 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('/project-requests', 'storeProjectRequest');
         });
 
+        // Espace bailleur : vérification du profil et maisons à louer.
+        Route::prefix('real-estate/landlord')->controller(\App\Http\Controllers\Api\RealEstateLandlordController::class)->group(function () {
+            Route::get('/verification', 'verification');
+            Route::post('/verification', 'submitVerification');
+            Route::post('/price-preview', 'pricePreview');
+            Route::get('/listings', 'listings');
+            Route::post('/listings', 'store');
+            Route::get('/listings/{id}', 'show')->whereNumber('id');
+            Route::put('/listings/{id}', 'update')->whereNumber('id');
+            Route::delete('/listings/{id}', 'destroy')->whereNumber('id');
+            Route::post('/listings/{id}/submit', 'submit')->whereNumber('id');
+            Route::post('/listings/{id}/media', 'uploadMedia')->whereNumber('id');
+            Route::delete('/listings/{id}/media/{mediaId}', 'deleteMedia')->whereNumber('id')->whereNumber('mediaId');
+        });
+
         Route::prefix('conversations')->group(function () {
             Route::get('/', [ConversationController::class, 'index']);
             Route::post('/start', [ConversationController::class, 'startOrGet']);

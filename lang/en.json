@@ -766,6 +766,22 @@
                 "title": "Wholesale dispute: replacement validated",
                 "body": "Claim :number: the customer validated the replacement, the case is resolved."
             }
+        },
+        "real_estate_landlord_verified": {
+            "title": "Landlord profile verified",
+            "body": "Your documents are approved: your listings can be published on ASSO."
+        },
+        "real_estate_landlord_rejected": {
+            "title": "Documents to resend",
+            "body": "Your landlord verification was not approved: :reason"
+        },
+        "real_estate_listing_published": {
+            "title": "Listing published",
+            "body": "\":title\" is live on ASSO."
+        },
+        "real_estate_listing_rejected": {
+            "title": "Listing to correct",
+            "body": "\":title\" was not published: :reason"
         }
     },
     "orders": {
@@ -1406,7 +1422,31 @@
             "available_now": "Available now."
         },
         "errors": {
-            "support_unavailable": "Customer service is temporarily unavailable. Please try again later."
+            "support_unavailable": "Customer service is temporarily unavailable. Please try again later.",
+            "unknown_room": "This room does not belong to the listing.",
+            "already_verified": "Your landlord profile is already verified.",
+            "verification_required": "First send your documents to get your landlord profile verified.",
+            "has_active_reservation": "A booking is in progress on this home: it cannot be deleted.",
+            "incomplete": "Some items are missing before the listing can be sent for review.",
+            "image_too_large": "The photo is larger than 10 MB."
+        },
+        "missing": {
+            "photos": "at least one photo",
+            "entrance_photo": "the entrance photo",
+            "room_photos": "one photo for each room",
+            "video": "a video of the home",
+            "price": "the rent",
+            "lots": "at least one plot size"
+        },
+        "rooms": {
+            "entrance": "Entrance",
+            "living": "Living room",
+            "bedroom": "Bedroom",
+            "kitchen": "Kitchen",
+            "bathroom": "Bathroom",
+            "outside": "Outside",
+            "road": "Road access",
+            "other": "Other"
         }
     }
 }

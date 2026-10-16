@@ -766,6 +766,22 @@
                 "title": "Litige en gros : remplacement validé",
                 "body": "Réclamation :number : le client a validé le remplacement, le dossier est résolu."
             }
+        },
+        "real_estate_landlord_verified": {
+            "title": "Profil de bailleur vérifié",
+            "body": "Vos pièces sont validées : vos annonces peuvent être publiées sur ASSO."
+        },
+        "real_estate_landlord_rejected": {
+            "title": "Pièces à renvoyer",
+            "body": "Votre vérification de bailleur n'a pas été validée : :reason"
+        },
+        "real_estate_listing_published": {
+            "title": "Annonce publiée",
+            "body": "« :title » est en ligne sur ASSO."
+        },
+        "real_estate_listing_rejected": {
+            "title": "Annonce à corriger",
+            "body": "« :title » n'a pas été publiée : :reason"
         }
     },
     "orders": {
@@ -1406,7 +1422,31 @@
             "available_now": "Disponible immédiatement."
         },
         "errors": {
-            "support_unavailable": "Le service client est momentanément indisponible. Réessayez plus tard."
+            "support_unavailable": "Le service client est momentanément indisponible. Réessayez plus tard.",
+            "unknown_room": "Cette pièce n'appartient pas à l'annonce.",
+            "already_verified": "Votre profil de bailleur est déjà vérifié.",
+            "verification_required": "Envoyez d'abord vos pièces pour faire vérifier votre profil de bailleur.",
+            "has_active_reservation": "Une réservation est en cours sur ce logement : il ne peut pas être supprimé.",
+            "incomplete": "Il manque des éléments pour envoyer l'annonce en validation.",
+            "image_too_large": "La photo dépasse 10 Mo."
+        },
+        "missing": {
+            "photos": "au moins une photo",
+            "entrance_photo": "la photo de l'entrée",
+            "room_photos": "une photo pour chaque pièce",
+            "video": "une vidéo du logement",
+            "price": "le loyer",
+            "lots": "au moins un lot de surface"
+        },
+        "rooms": {
+            "entrance": "Entrée",
+            "living": "Salon",
+            "bedroom": "Chambre",
+            "kitchen": "Cuisine",
+            "bathroom": "Douche",
+            "outside": "Extérieur",
+            "road": "Accès à la route",
+            "other": "Autre"
         }
     }
 }

@@ -457,6 +457,61 @@
                 </div>
                 @endif
 
+                <!-- Section Immobilier -->
+                @if(auth()->user()->canAccessAdminRoute('admin.real-estate.listings.index'))
+                <div class="mt-8 pt-6 border-t border-dark-200">
+                    <p class="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Immobilier</p>
+
+                    @adminCan('admin.real-estate.listings.index')
+                    <a href="{{ route('admin.real-estate.listings.index') }}"
+                       class="flex items-center justify-between px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.real-estate.listings.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
+                        <span class="flex items-center">
+                            <i class="fas fa-home w-5 mr-3"></i>
+                            Annonces
+                        </span>
+                        @php($immoCount = \App\Models\RealEstate\Listing::where('status', 'pending_review')->count())
+                        @if($immoCount > 0)
+                            <span class="px-2 py-0.5 text-xs font-semibold rounded-full bg-primary-500 text-white">{{ $immoCount }}</span>
+                        @endif
+                    </a>
+                    @endadminCan
+
+                    @adminCan('admin.real-estate.verifications.index')
+                    <a href="{{ route('admin.real-estate.verifications.index') }}"
+                       class="flex items-center justify-between px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.real-estate.verifications.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
+                        <span class="flex items-center">
+                            <i class="fas fa-user-check w-5 mr-3"></i>
+                            Bailleurs
+                        </span>
+                        @php($immoCount = \App\Models\RealEstate\LandlordVerification::where('status', 'pending')->count())
+                        @if($immoCount > 0)
+                            <span class="px-2 py-0.5 text-xs font-semibold rounded-full bg-primary-500 text-white">{{ $immoCount }}</span>
+                        @endif
+                    </a>
+                    @endadminCan
+
+                    @adminCan('admin.real-estate.cabinets.index')
+                    <a href="{{ route('admin.real-estate.cabinets.index') }}"
+                       class="flex items-center justify-between px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.real-estate.cabinets.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
+                        <span class="flex items-center">
+                            <i class="fas fa-landmark w-5 mr-3"></i>
+                            Cabinets partenaires
+                        </span>
+                    </a>
+                    @endadminCan
+
+                    @adminCan('admin.real-estate.settings.index')
+                    <a href="{{ route('admin.real-estate.settings.index') }}"
+                       class="flex items-center justify-between px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.real-estate.settings.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
+                        <span class="flex items-center">
+                            <i class="fas fa-sliders-h w-5 mr-3"></i>
+                            Réglages et équipements
+                        </span>
+                    </a>
+                    @endadminCan
+                </div>
+                @endif
+
                 <!-- Section DIASPO -->
                 @if(collect(['admin.diaspo.verifications.index', 'admin.diaspo.posts.index', 'admin.diaspo.offers.index'])->contains(fn ($r) => auth()->user()->canAccessAdminRoute($r)))
                 <div class="mt-8 pt-6 border-t border-dark-200">
