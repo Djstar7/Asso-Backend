@@ -252,6 +252,16 @@ class PaymentController extends Controller
             return response()->json(['message' => 'Withdrawal webhook processed']);
         }
 
+        // Réservation immobilière (externalId = IMMO-…) : statut relu chez le
+        // prestataire avant toute confirmation, jamais pris du webhook.
+        if (str_starts_with($externalId, 'IMMO-')) {
+            $reservation = \App\Models\RealEstate\Reservation::where('reference', $externalId)->first();
+            if ($reservation) {
+                app(\App\Services\RealEstate\RealEstateReservationService::class)->checkAndConfirm($reservation);
+            }
+            return response()->json(['message' => 'Real estate webhook processed']);
+        }
+
         // Réservation diaspo payée en direct KPay (externalId = DIASPO-{bookingId})
         if (str_starts_with($externalId, 'DIASPO-')) {
             $bookingId = (int) substr($externalId, strlen('DIASPO-'));

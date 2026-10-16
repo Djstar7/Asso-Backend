@@ -20,7 +20,7 @@ class Reservation extends Model
     protected $fillable = [
         'reference', 'listing_id', 'unit_id', 'tenant_id', 'payee_id', 'kind', 'move_in_date',
         'months', 'occupants', 'applicant_status', 'school_or_employer', 'message',
-        'displayed_unit_price', 'advance_months', 'owner_amount', 'platform_amount', 'total_amount',
+        'displayed_unit_price', 'base_amount', 'commission_amount', 'deposit_percent', 'advance_months', 'owner_amount', 'platform_amount', 'total_amount',
         'payment_method', 'payment_reference', 'status', 'contract_accepted_at', 'paid_at',
         'visit_deadline_at', 'confirmed_at', 'released_at', 'contract_path', 'invoice_path',
     ];

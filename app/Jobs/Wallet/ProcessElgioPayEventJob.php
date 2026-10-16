@@ -123,6 +123,14 @@ class ProcessElgioPayEventJob implements ShouldQueue
             return;
         }
 
+        if (str_starts_with($reference, 'IMMO-')) {
+            $reservation = \App\Models\RealEstate\Reservation::where('reference', $reference)->first();
+            if ($reservation) {
+                app(\App\Services\RealEstate\RealEstateReservationService::class)->checkAndConfirm($reservation);
+            }
+            return;
+        }
+
         if (str_starts_with($reference, 'SUB-')) {
             $subscription = PackageSubscription::find((int) substr($reference, strlen('SUB-')));
             if ($subscription) {

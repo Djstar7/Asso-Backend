@@ -433,6 +433,17 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('/project-requests', 'storeProjectRequest');
         });
 
+        // Réservations immobilières : paiement, suivi, contrat et facture.
+        Route::prefix('real-estate')->controller(\App\Http\Controllers\Api\RealEstateReservationController::class)->group(function () {
+            Route::post('/listings/{id}/reservations', 'store')->whereNumber('id');
+            Route::get('/reservations', 'index');
+            Route::get('/reservations/{id}', 'show')->whereNumber('id');
+            Route::get('/reservations/{id}/payment-status', 'paymentStatus')->whereNumber('id');
+            Route::post('/reservations/{id}/confirm', 'confirm')->whereNumber('id');
+            Route::get('/reservations/{id}/documents/{kind}', 'document')->whereNumber('id')->whereIn('kind', ['contract', 'invoice']);
+            Route::get('/landlord/reservations', 'received');
+        });
+
         // Espace bailleur : vérification du profil et maisons à louer.
         Route::prefix('real-estate/landlord')->controller(\App\Http\Controllers\Api\RealEstateLandlordController::class)->group(function () {
             Route::get('/verification', 'verification');

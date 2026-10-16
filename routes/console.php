@@ -109,6 +109,22 @@ Schedule::command('packages:reconcile-pending')
 
 /**
  * =====================================================
+ * IMMOBILIER — PAIEMENTS EN ATTENTE ET DÉBLOCAGE
+ * =====================================================
+ *
+ * Relit les paiements Mobile Money / carte non suivis, puis débloque la part
+ * du bailleur ou du cabinet quand le délai de visite est passé sans litige.
+ */
+Schedule::command('immo:reconcile-pending')
+    ->everyFiveMinutes()
+    ->withoutOverlapping(300);
+
+Schedule::command('immo:auto-release')
+    ->everyFifteenMinutes()
+    ->withoutOverlapping(600);
+
+/**
+ * =====================================================
  * COMMANDES — RÉCONCILIATION DES PAIEMENTS DIRECTS
  * =====================================================
  *

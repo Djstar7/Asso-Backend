@@ -782,6 +782,22 @@
         "real_estate_listing_rejected": {
             "title": "Annonce à corriger",
             "body": "« :title » n'a pas été publiée : :reason"
+        },
+        "real_estate_reservation_paid_owner": {
+            "title": "Nouvelle réservation",
+            "body": "« :title » vient d'être réservé (:reference). :amount FCFA sont bloqués sur votre Wallet jusqu'à la visite."
+        },
+        "real_estate_reservation_paid_tenant": {
+            "title": "Réservation confirmée",
+            "body": "Votre paiement pour « :title » est reçu. Les coordonnées sont disponibles : vous avez :days jours pour visiter et confirmer."
+        },
+        "real_estate_reservation_sold_out": {
+            "title": "Plus de place disponible",
+            "body": "« :title » a été réservé entre-temps : votre paiement est remboursé sur votre Wallet."
+        },
+        "real_estate_funds_released": {
+            "title": "Montant débloqué",
+            "body": "La réservation :reference est confirmée : :amount FCFA sont disponibles sur votre Wallet."
         }
     },
     "orders": {
@@ -1211,7 +1227,14 @@
             "refund_bank_transfer_failed_ref": "Remboursement — virement IBAN non abouti (réf. :reference)",
             "refund_bank_transfer_failed": "Remboursement virement bancaire échoué",
             "refund_withdrawal_failed": "Remboursement retrait échoué - :method (:account)",
-            "refund_withdrawal_expired": "Remboursement retrait expiré - :method (:account)"
+            "refund_withdrawal_expired": "Remboursement retrait expiré - :method (:account)",
+            "immo_reservation_paid": "Réservation immobilière :reference",
+            "immo_reservation_refunded": "Réservation immobilière :reference remboursée",
+            "immo_reservation_received": "Réservation reçue :reference",
+            "immo_funds_held": "Réservation :reference — montant bloqué jusqu'à la visite",
+            "immo_funds_released": "Réservation :reference — montant débloqué",
+            "asso_commission_rent": "Commission ASSO — location :reference",
+            "asso_commission_land": "Commission ASSO — terrain :reference"
         }
     },
     "sales_program": {
@@ -1447,6 +1470,14 @@
             "outside": "Extérieur",
             "road": "Accès à la route",
             "other": "Autre"
+        },
+        "reservation": {
+            "not_available": "Ce bien n'est plus disponible à la réservation.",
+            "own_listing": "Vous ne pouvez pas réserver votre propre bien.",
+            "unit_required": "Choisissez le logement ou le lot à réserver.",
+            "unit_full": "Plus aucune place disponible pour ce logement.",
+            "min_lease": "Ce logement se loue au moins :months mois.",
+            "cannot_confirm": "Cette réservation ne peut plus être confirmée."
         }
     }
 }

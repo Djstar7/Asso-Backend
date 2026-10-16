@@ -28,6 +28,8 @@ class PlatformRevenueService
         'sale_commission' => [self::REVENUE, 'Commissions', 'Commission sur les produits', 'Majoration ASSO figée sur chaque commande réglée.'],
         'delivery_commission' => [self::REVENUE, 'Commissions', 'Commission sur les livraisons', 'Part ASSO de chaque course, y compris quand la livraison est offerte au client, et des courses de litige payées par le vendeur.'],
         'diaspo_commission' => [self::REVENUE, 'Commissions', 'Commission Diaspo', 'Part ASSO des réservations de kilos, acquise à la validation du code.'],
+        'immo_rent_commission' => [self::REVENUE, 'Commissions', 'Immobilier — locations', 'Majoration et commission sur la première avance, acquises au paiement, non remboursables.'],
+        'immo_land_commission' => [self::REVENUE, 'Commissions', 'Immobilier — terrains', 'Majoration et commission sur les acomptes de terrains, acquises au paiement.'],
         'deposit_kept' => [self::REVENUE, 'Commissions', 'Acomptes conservés', 'Part d\'acompte revenant à ASSO lors de la clôture d\'une commande avec acompte.'],
         'platform_products' => [self::REVENUE, 'Produits ASSO', 'Ventes des produits ASSO', 'Part vendeur des articles vendus par les boutiques du compte plateforme (la commission est comptée à part).'],
 
@@ -142,6 +144,8 @@ class PlatformRevenueService
             'sale_commission' => $this->settledOrders('o.sale_commission'),
             'delivery_commission' => $this->deliveryCommissions(),
             'diaspo_commission' => $this->platformLedger('asso_commission_diaspo', 'diaspo'),
+            'immo_rent_commission' => $this->platformLedger('asso_commission_rent', 'real_estate'),
+            'immo_land_commission' => $this->platformLedger('asso_commission_land', 'real_estate'),
             'deposit_kept' => $this->platformLedger('deposit_asso_share', 'order'),
             'platform_products' => $this->platformProducts(),
             'dispute_refunds' => $this->disputeRefunds(),
