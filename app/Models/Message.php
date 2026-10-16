@@ -18,6 +18,7 @@ class Message extends Model
         'is_system',
         'product_id',
         'diaspo_offer_id',
+        'real_estate_listing_id',
         'is_read',
         'read_at',
     ];

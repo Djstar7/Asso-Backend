@@ -1351,5 +1351,62 @@
             "footer": "This email was sent automatically, please do not reply.",
             "team": "The ASSO team"
         }
+    },
+    "real_estate": {
+        "kinds": {
+            "house": "house",
+            "villa": "villa",
+            "apartment": "apartment",
+            "studio": "studio",
+            "room": "room",
+            "duplex": "duplex",
+            "residence": "residence",
+            "land": "plot",
+            "building_land": "building plot",
+            "farm_land": "farm land",
+            "commercial_land": "commercial plot"
+        },
+        "description": {
+            "house_intro": "This :kind is located in :place.",
+            "composed_of": "It has :parts.",
+            "rooms": "{1} :count room|[2,*] :count rooms",
+            "bedrooms": "{1} :count bedroom|[2,*] :count bedrooms",
+            "bathrooms": "{1} :count bathroom|[2,*] :count bathrooms",
+            "furnished": "The home is furnished.",
+            "unfurnished": "The home is unfurnished.",
+            "land_intro": "Plot located in :place, size: :surface.",
+            "land_titled": "The plot has a land title.",
+            "land_not_titled": "The plot does not have a land title yet.",
+            "land_serviced": "It is serviced: water and electricity nearby.",
+            "roadside": "It is right by the road.",
+            "distance_to_road": "It is about :meters m from the road.",
+            "road_condition_paved": "The access road is paved.",
+            "road_condition_dirt": "The access road is a passable dirt road.",
+            "road_condition_poor": "The access road is difficult in the rainy season.",
+            "landlocked": "The area is hard to reach.",
+            "not_landlocked": "The area is easy to reach.",
+            "water_network": "Running water (mains).",
+            "water_borehole": "Water from a borehole.",
+            "water_well": "Water from a well.",
+            "water_none": "No running water on site.",
+            "electricity_network": "Mains electricity, standard meter.",
+            "electricity_prepaid": "Mains electricity, prepaid meter.",
+            "electricity_solar": "Solar electricity.",
+            "electricity_none": "No electricity on site.",
+            "security_high": "Very safe neighbourhood.",
+            "security_medium": "Quiet neighbourhood.",
+            "security_low": "Busy neighbourhood, take care at night.",
+            "parking": "parking",
+            "fence": "gate or fence",
+            "guard": "caretaker",
+            "extras": "On site: :items.",
+            "min_lease": "Minimum lease: :months months.",
+            "advance": "Advance required: :months months of rent.",
+            "available_from": "Available from :date.",
+            "available_now": "Available now."
+        },
+        "errors": {
+            "support_unavailable": "Customer service is temporarily unavailable. Please try again later."
+        }
     }
 }

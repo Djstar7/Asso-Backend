@@ -148,6 +148,15 @@ Route::prefix('v1')->group(function () {
     Route::post('/analytics/track', [\App\Http\Controllers\Api\ShopStatisticsController::class, 'track'])
         ->middleware('throttle:120,1');
 
+    // Rubrique Immobilier (lecture publique ; un jeton éventuel lève le masquage).
+    Route::prefix('real-estate')->controller(\App\Http\Controllers\Api\RealEstateController::class)->group(function () {
+        Route::get('/meta', 'meta');
+        Route::get('/listings', 'index');
+        Route::get('/listings/{id}', 'show')->whereNumber('id');
+        Route::get('/listings/{id}/quote', 'quote')->whereNumber('id');
+        Route::get('/cabinets/{id}', 'cabinet')->whereNumber('id');
+    });
+
     // Delivery zone availability check (public)
     Route::post('/delivery/check-availability', [DeliveryController::class, 'checkDeliveryAvailability']);
 
@@ -413,6 +422,17 @@ Route::middleware('auth:sanctum')->group(function () {
         });
 
         // Conversations & Messages
+        // Rubrique Immobilier : favoris, critères, projet, contact ASSO.
+        Route::prefix('real-estate')->controller(\App\Http\Controllers\Api\RealEstateController::class)->group(function () {
+            Route::get('/favorites', 'favorites');
+            Route::post('/listings/{id}/favorite', 'addFavorite')->whereNumber('id');
+            Route::delete('/listings/{id}/favorite', 'removeFavorite')->whereNumber('id');
+            Route::post('/listings/{id}/contact', 'contact')->whereNumber('id');
+            Route::get('/alert', 'alert');
+            Route::put('/alert', 'saveAlert');
+            Route::post('/project-requests', 'storeProjectRequest');
+        });
+
         Route::prefix('conversations')->group(function () {
             Route::get('/', [ConversationController::class, 'index']);
             Route::post('/start', [ConversationController::class, 'startOrGet']);

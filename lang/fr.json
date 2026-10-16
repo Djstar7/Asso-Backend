@@ -1351,5 +1351,62 @@
             "footer": "Cet e-mail a été envoyé automatiquement, merci de ne pas y répondre.",
             "team": "L'équipe ASSO"
         }
+    },
+    "real_estate": {
+        "kinds": {
+            "house": "maison",
+            "villa": "villa",
+            "apartment": "appartement",
+            "studio": "studio",
+            "room": "chambre",
+            "duplex": "duplex",
+            "residence": "résidence",
+            "land": "terrain",
+            "building_land": "terrain constructible",
+            "farm_land": "terrain agricole",
+            "commercial_land": "terrain commercial"
+        },
+        "description": {
+            "house_intro": "Cette :kind se trouve à :place.",
+            "composed_of": "Elle comprend :parts.",
+            "rooms": "{1} :count pièce|[2,*] :count pièces",
+            "bedrooms": "{1} :count chambre|[2,*] :count chambres",
+            "bathrooms": "{1} :count douche|[2,*] :count douches",
+            "furnished": "Le logement est meublé.",
+            "unfurnished": "Le logement est vide (non meublé).",
+            "land_intro": "Terrain situé à :place, surface : :surface.",
+            "land_titled": "Le terrain est titré (titre foncier).",
+            "land_not_titled": "Le terrain n'est pas encore titré.",
+            "land_serviced": "Il est viabilisé : eau et électricité à proximité.",
+            "roadside": "Il est en bordure de route.",
+            "distance_to_road": "Il se trouve à environ :meters m de la route.",
+            "road_condition_paved": "La route d'accès est goudronnée.",
+            "road_condition_dirt": "La route d'accès est en terre, praticable.",
+            "road_condition_poor": "La route d'accès est difficile en saison des pluies.",
+            "landlocked": "La zone est enclavée.",
+            "not_landlocked": "La zone n'est pas enclavée.",
+            "water_network": "Eau courante (réseau).",
+            "water_borehole": "Eau par forage.",
+            "water_well": "Eau par puits.",
+            "water_none": "Pas d'eau courante sur place.",
+            "electricity_network": "Électricité du réseau, compteur classique.",
+            "electricity_prepaid": "Électricité du réseau, compteur prépayé.",
+            "electricity_solar": "Électricité solaire.",
+            "electricity_none": "Pas d'électricité sur place.",
+            "security_high": "Quartier très sûr.",
+            "security_medium": "Quartier calme.",
+            "security_low": "Quartier animé, prudence la nuit.",
+            "parking": "parking",
+            "fence": "barrière ou clôture",
+            "guard": "gardien",
+            "extras": "Sur place : :items.",
+            "min_lease": "Durée minimale de location : :months mois.",
+            "advance": "Avance demandée : :months mois de loyer.",
+            "available_from": "Disponible à partir du :date.",
+            "available_now": "Disponible immédiatement."
+        },
+        "errors": {
+            "support_unavailable": "Le service client est momentanément indisponible. Réessayez plus tard."
+        }
     }
 }

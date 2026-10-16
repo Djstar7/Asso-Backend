@@ -164,6 +164,11 @@ class ContentTranslationTest extends TestCase
         $package->setTranslation('name', 'en', 'Starter');
         $package->delete();
 
-        $this->assertDatabaseCount('translations', 0);
+        // Le catalogue immobilier livre ses propres traductions : on ne
+        // regarde que celles de l'enregistrement supprimé.
+        $this->assertDatabaseMissing('translations', [
+            'translatable_type' => $package::class,
+            'translatable_id' => $package->id,
+        ]);
     }
 }
