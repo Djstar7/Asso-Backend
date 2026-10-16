@@ -104,6 +104,39 @@ class StripeService
         return self::keyPairProblem($this->publishableKey, $this->secretKey);
     }
 
+    /** Alias historique de keysProblem() (utilisé par stripe:doctor). */
+    public function keysMismatch(): ?string
+    {
+        return $this->keysProblem();
+    }
+
+    /**
+     * L'erreur Stripe indique-t-elle un compte Connect inexistant pour la clé
+     * actuelle ? Cas typique : compte créé en mode test, puis passage en live.
+     */
+    public static function isMissingAccountError(\Throwable $e): bool
+    {
+        $message = strtolower($e->getMessage());
+
+        return ($e instanceof \Stripe\Exception\ApiErrorException && $e->getStripeCode() === 'account_invalid')
+            || str_contains($message, 'does not have access to account')
+            || str_contains($message, 'no such account');
+    }
+
+    /**
+     * L'erreur Stripe vient-elle de la configuration de la PLATEFORME (et non des
+     * données saisies par le vendeur) ?
+     */
+    public static function isPlatformConfigError(\Throwable $e): bool
+    {
+        $message = strtolower($e->getMessage());
+
+        return str_contains($message, 'platform profile')
+            || str_contains($message, 'test bank account')
+            || str_contains($message, 'livemode')
+            || str_contains($message, 'signed up for connect');
+    }
+
     public function webhookSecret(): ?string
     {
         return $this->webhookSecret;
@@ -341,6 +374,8 @@ class StripeService
             'disabled_reason' => null,
             'ready' => false,
             'error' => null,
+            // true = le compte n'existe pas pour la clé actuelle (ex. créé en test).
+            'missing' => false,
         ];
 
         try {
@@ -350,7 +385,10 @@ class StripeService
                 'account_id' => $accountId,
                 'error' => $e->getMessage(),
             ]);
-            return array_merge($unknown, ['error' => $e->getMessage()]);
+            return array_merge($unknown, [
+                'error' => $e->getMessage(),
+                'missing' => self::isMissingAccountError($e),
+            ]);
         }
 
         $transfers = (string) ($account->capabilities->transfers ?? 'unknown');
@@ -369,6 +407,7 @@ class StripeService
             // `ready` = Stripe accepterait un Transfer + un Payout vers l'IBAN.
             'ready' => $transfers === 'active' && (bool) ($account->payouts_enabled ?? false),
             'error' => null,
+            'missing' => false,
         ];
     }
 
@@ -898,6 +937,13 @@ class StripeService
         if ($problem = $this->keysProblem()) {
             Log::error('[StripeService] Paiement carte impossible : ' . $problem, ['mode' => $this->mode]);
             throw new \RuntimeException(__('payments.stripe_init_failed'));
+        }
+
+        // Inutile de créer un PaymentIntent que la Payment Sheet ne pourra pas ouvrir.
+        // Le détail technique reste dans le log ; l'utilisateur reçoit un message neutre.
+        if ($problem = $this->keysMismatch()) {
+            Log::error('[StripeService] Paiement carte impossible : ' . $problem, ['mode' => $this->mode]);
+            throw new \RuntimeException(__('payments.card_temporarily_unavailable'));
         }
 
         $intent = $this->client()->paymentIntents->create([

@@ -95,11 +95,7 @@ class VendorOrderController extends Controller
             // Au livreur (via la delivery company assignée) — livraison urbaine
             // uniquement : un transporteur reçoit le colis en agence. Vérification
             // de l'acceptation de la course après 5 minutes.
-            if (!$order->isCarrierDelivery()) {
-                $this->notifyDeliveryCompany($order);
-                \App\Jobs\CheckDeliveryAcceptanceJob::dispatch($order->id)
-                    ->delay(now()->addMinutes(5));
-            }
+            $this->orderService->requestDelivery($order);
 
             return response()->json([
                 'success' => true,
@@ -385,46 +381,6 @@ class VendorOrderController extends Controller
             'delivery_persons' => $deliveryPersons,
             'total' => $deliveryPersons->count(),
         ]);
-    }
-
-    /**
-     * Notifie les livreurs de la delivery company assignée à la commande.
-     * Envoie une notification à tous les livreurs synchronisés et actifs de cette company.
-     */
-    private function notifyDeliveryCompany(Order $order): void
-    {
-        if (!$order->delivery_company_id) return;
-
-        // Récupérer tous les livreurs actifs synchronisés à cette company
-        $activeSyncs = DelivererCodeSync::where('company_id', $order->delivery_company_id)
-            ->active()
-            ->with('user')
-            ->get();
-
-        foreach ($activeSyncs as $sync) {
-            if ($sync->user) {
-                $this->fcmService->sendToUser(
-                    $sync->user,
-                    $sync->user->localized('notifications.new_delivery_request.title'),
-                    $sync->user->localized('notifications.new_delivery_request.body', [
-                        'order_number' => $order->order_number,
-                        'address' => $order->delivery_address,
-                        'fee' => number_format($order->deliveryPriceShown(), 0, ',', ' '),
-                    ]),
-                    [
-                        'type' => 'new_delivery_request',
-                        'order_id' => (string) $order->id,
-                        'order_number' => $order->order_number,
-                        'delivery_fee' => (string) $order->deliveryPriceShown(),
-                        'delivery_address' => $order->delivery_address,
-                        'delivery_latitude' => (string) ($order->delivery_latitude ?? ''),
-                        'delivery_longitude' => (string) ($order->delivery_longitude ?? ''),
-                    ]
-                );
-            }
-        }
-
-        Log::info("[VendorOrderController] Notified {$activeSyncs->count()} deliverers for order #{$order->order_number}");
     }
 
     /**

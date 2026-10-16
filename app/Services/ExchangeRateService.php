@@ -25,7 +25,20 @@ use Illuminate\Support\Facades\Log;
 class ExchangeRateService
 {
     // --- Lecture (statique) ---
-    private const CACHE_TTL = 3600; // 1 heure
+    // 6 h : le plan gratuit d'exchangerate-api ne met ses taux à jour qu'une fois
+    // par jour. Avec 1 h, les appels /pair dépassaient le quota mensuel et l'API
+    // répondait « quota-reached » à tout (paiements carte compris).
+    private const CACHE_TTL = 21600;
+
+    // Pause des appels API après un échec : sans elle, CHAQUE conversion relançait
+    // un appel HTTP (plus de 800 par jour), ce qui épuisait encore le quota.
+    private const COOLDOWN_KEY = 'exrate_api_cooldown';
+    private const COOLDOWN_QUOTA = 21600;  // quota atteint / 429 / clé refusée : 6 h
+    private const COOLDOWN_ERROR = 600;    // autre échec (réseau…) : 10 min
+
+    // Parités FIXES du franc CFA (BEAC/BCEAO) : 1 EUR = 655,957 XAF = 655,957 XOF.
+    // Dernier recours quand ni l'API ni la base n'ont de taux.
+    private const CFA_EUR_PARITY = 655.957;
 
     // --- Sync (instance) ---
     private const API_BASE_URL = 'https://v6.exchangerate-api.com/v6';
@@ -58,7 +71,7 @@ class ExchangeRateService
             return 1.0;
         }
 
-        // 1) API live (mise en cache 1h) — source de vérité.
+        // 1) API live (mise en cache 6 h) — source de vérité.
         $live = self::liveRate($from, $to);
         if ($live !== null) {
             return $live;
@@ -70,42 +83,96 @@ class ExchangeRateService
             Log::info('[ExchangeRateService] Taux live indisponible, fallback DB utilisé', [
                 'from' => $from, 'to' => $to, 'rate' => $stored,
             ]);
+            return $stored;
         }
-        return $stored;
+
+        // 3) Dernier recours : parité fixe du franc CFA (taux officiel, pas deviné).
+        return self::fixedParityRate($from, $to);
     }
 
     /**
-     * Taux via l'API live exchangerate-api.com (caché 1h). null si indisponible.
+     * Taux via l'API live exchangerate-api.com (caché 6 h). null si indisponible.
      */
     private static function liveRate(string $from, string $to): ?float
     {
         $cacheKey = "exrate_{$from}_{$to}";
-        $live = Cache::remember($cacheKey, self::CACHE_TTL, function () use ($from, $to) {
-            $key = self::apiKey();
-            if (empty($key)) {
-                Log::warning('[ExchangeRateService] Clé API manquante');
-                return null;
-            }
-            try {
-                $response = Http::timeout(15)
-                    ->get("https://v6.exchangerate-api.com/v6/{$key}/pair/{$from}/{$to}");
-                $data = $response->json() ?? [];
-                if ($response->successful() && ($data['result'] ?? null) === 'success') {
-                    return (float) $data['conversion_rate'];
-                }
-                Log::warning('[ExchangeRateService] Réponse invalide', ['body' => $response->body()]);
-                return null;
-            } catch (\Exception $e) {
-                Log::error('[ExchangeRateService] Exception', ['error' => $e->getMessage()]);
-                return null;
-            }
-        });
 
-        // Ne pas garder un échec en cache (on veut réessayer + tenter la DB).
-        if ($live === null) {
-            Cache::forget($cacheKey);
+        $cached = Cache::get($cacheKey);
+        if ($cached !== null) {
+            return (float) $cached;
         }
-        return $live;
+
+        // API en pause après un échec récent : ne pas la rappeler à chaque requête.
+        if (self::apiInCooldown()) {
+            return null;
+        }
+
+        $key = self::apiKey();
+        if (empty($key)) {
+            Log::warning('[ExchangeRateService] Clé API manquante');
+            self::startCooldown(self::COOLDOWN_ERROR);
+            return null;
+        }
+
+        try {
+            $response = Http::timeout(15)
+                ->get("https://v6.exchangerate-api.com/v6/{$key}/pair/{$from}/{$to}");
+            $data = $response->json() ?? [];
+            if ($response->successful() && ($data['result'] ?? null) === 'success') {
+                $rate = (float) $data['conversion_rate'];
+                Cache::put($cacheKey, $rate, self::CACHE_TTL);
+                return $rate;
+            }
+            Log::warning('[ExchangeRateService] Réponse invalide', ['body' => $response->body()]);
+            self::startCooldown(self::cooldownFor($response->status(), $data['error-type'] ?? null));
+        } catch (\Exception $e) {
+            Log::error('[ExchangeRateService] Exception', ['error' => $e->getMessage()]);
+            self::startCooldown(self::COOLDOWN_ERROR);
+        }
+
+        return null;
+    }
+
+    /** L'API est-elle en pause suite à un échec récent ? */
+    public static function apiInCooldown(): bool
+    {
+        return Cache::has(self::COOLDOWN_KEY);
+    }
+
+    private static function startCooldown(int $seconds): void
+    {
+        Cache::put(self::COOLDOWN_KEY, true, $seconds);
+        Log::warning('[ExchangeRateService] Appels API suspendus', ['seconds' => $seconds]);
+    }
+
+    /** Durée de pause selon l'échec : longue si le quota est épuisé ou la clé refusée. */
+    private static function cooldownFor(int $status, ?string $errorType): int
+    {
+        $quotaOrKey = in_array($errorType, ['quota-reached', 'invalid-key', 'inactive-account'], true);
+
+        return ($status === 429 || $status === 403 || $quotaOrKey)
+            ? self::COOLDOWN_QUOTA
+            : self::COOLDOWN_ERROR;
+    }
+
+    /**
+     * Taux par parité fixe du franc CFA (XAF/XOF ↔ EUR, XAF ↔ XOF). null sinon.
+     */
+    private static function fixedParityRate(string $from, string $to): ?float
+    {
+        $cfa = ['XAF', 'XOF'];
+
+        if (in_array($from, $cfa, true) && in_array($to, $cfa, true)) {
+            return 1.0;
+        }
+        if (in_array($from, $cfa, true) && $to === 'EUR') {
+            return round(1 / self::CFA_EUR_PARITY, 8);
+        }
+        if ($from === 'EUR' && in_array($to, $cfa, true)) {
+            return self::CFA_EUR_PARITY;
+        }
+
+        return null;
     }
 
     /** Devises par lesquelles un taux stocké peut passer (ex. GHS → XOF → XAF). */
@@ -237,6 +304,10 @@ class ExchangeRateService
      */
     private function fetchAndCacheRate(string $from, string $to): ?float
     {
+        if (self::apiInCooldown()) {
+            return null;
+        }
+
         try {
             $apiKey = self::apiKey();
             if (!$apiKey) {
@@ -295,18 +366,24 @@ class ExchangeRateService
     public function updateRatesForCurrency(string $baseCurrency): array
     {
         try {
+            if (self::apiInCooldown()) {
+                return ['success' => false, 'message' => 'API en pause (échec récent)'];
+            }
+
             $apiKey = self::apiKey();
             if (!$apiKey) {
                 return ['success' => false, 'message' => 'API key not configured'];
             }
 
             $response = Http::timeout(10)->get("{$this->getApiUrl()}/{$apiKey}/latest/{$baseCurrency}");
+            $data = $response->json() ?? [];
             if (!$response->successful()) {
+                self::startCooldown(self::cooldownFor($response->status(), $data['error-type'] ?? null));
                 return ['success' => false, 'message' => "API error: {$response->status()}"];
             }
 
-            $data = $response->json();
             if (($data['result'] ?? null) !== 'success') {
+                self::startCooldown(self::cooldownFor($response->status(), $data['error-type'] ?? null));
                 return ['success' => false, 'message' => 'API returned error'];
             }
 

@@ -226,6 +226,34 @@
                 </div>
                 @endif
 
+                <!-- Boutiques ASSO : rubrique visible pour l'admin et les gestionnaires ayant le droit « Commandes des boutiques ASSO » -->
+                @adminCan('admin.asso-orders.index')
+                <div class="mt-8 pt-6 border-t border-dark-200">
+                    <p class="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Boutiques ASSO</p>
+
+                    <a href="{{ route('admin.asso-orders.index') }}"
+                       class="flex items-center justify-between px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.asso-orders.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
+                        <span class="flex items-center">
+                            <i class="fas fa-shopping-bag w-5 mr-3"></i>
+                            Commandes ASSO
+                        </span>
+                        @if(!empty($assoToConfirmCount))
+                            <span class="flex items-center justify-center min-w-[1.5rem] h-6 px-2 bg-yellow-500 text-dark-100 text-xs font-bold rounded-full">
+                                {{ $assoToConfirmCount }}
+                            </span>
+                        @endif
+                    </a>
+
+                    @adminCan('admin.products.index')
+                    <a href="{{ route('admin.products.index', ['asso' => 1]) }}"
+                       class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.products.*') && request()->boolean('asso') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
+                        <i class="fas fa-tags w-5 mr-3"></i>
+                        Produits ASSO
+                    </a>
+                    @endadminCan
+                </div>
+                @endadminCan
+
                 <!-- Section Gestion -->
                 @if(collect(['admin.users.index', 'admin.preferences.index', 'admin.deliverers.index', 'admin.delivery-partners.index', 'admin.shipments.index', 'admin.shops.index', 'admin.statistics.index', 'admin.products.index', 'admin.import-countries.index', 'admin.wholesale-orders.index', 'admin.local-orders.index', 'admin.deposit-orders.index', 'admin.disputes.index', 'admin.settings.categories', 'admin.packages.index', 'admin.ads.index', 'admin.transactions.index', 'admin.exchanges.index', 'admin.map.index', 'admin.support.index', 'admin.messages.index'])->contains(fn ($r) => auth()->user()->canAccessAdminRoute($r)))
                 <div class="mt-8 pt-6 border-t border-dark-200">

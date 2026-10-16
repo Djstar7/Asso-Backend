@@ -9,6 +9,7 @@ use App\Models\Product;
 use App\Services\OrderService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class OrderController extends Controller
 {
@@ -166,6 +167,14 @@ class OrderController extends Controller
             ], 201);
 
         } catch (\Exception $e) {
+            // Tracé : sans ce log, un paiement carte (Payment Sheet) qui ne s'ouvre
+            // pas côté mobile ne laissait aucune trace côté serveur.
+            Log::warning('[OrderController] Création de commande refusée', [
+                'user_id' => $request->user()?->id,
+                'payment_mode' => $request->input('payment_mode'),
+                'error' => $e->getMessage(),
+            ]);
+
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
@@ -266,6 +275,12 @@ class OrderController extends Controller
                 $request->input('phone_number'),
             );
         } catch (\Exception $e) {
+            Log::warning('[OrderController] Paiement du solde refusé', [
+                'order_id' => $order->id,
+                'payment_mode' => $paymentMode,
+                'error' => $e->getMessage(),
+            ]);
+
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
 

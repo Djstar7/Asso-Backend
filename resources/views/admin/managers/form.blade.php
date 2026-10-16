@@ -61,7 +61,12 @@
             <div class="space-y-6">
                 @foreach($permissionGroups as $group => $permissions)
                     <div>
-                        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">{{ $group }}</p>
+                        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider {{ isset($permissionNotes[$group]) ? 'mb-1' : 'mb-3' }}">{{ $group }}</p>
+                        @isset($permissionNotes[$group])
+                            <p class="text-xs mb-3 {{ $group === 'Toute la plateforme' ? 'text-yellow-400' : 'text-gray-400' }}">
+                                <i class="fas {{ $group === 'Toute la plateforme' ? 'fa-exclamation-triangle' : 'fa-shield-alt' }} mr-1"></i>{{ $permissionNotes[$group] }}
+                            </p>
+                        @endisset
                         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                             @foreach($permissions as $key => $label)
                                 @if(in_array($key, $rolePermissions, true))

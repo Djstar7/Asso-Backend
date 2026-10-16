@@ -5,8 +5,13 @@
     <!-- Header -->
     <div class="mb-6 flex items-center justify-between">
         <div>
+            @if(request()->boolean('asso') || \App\Support\AssoScope::active())
+            <h1 class="text-2xl font-bold text-white">Produits ASSO</h1>
+            <p class="text-gray-400">Produits des boutiques ASSO</p>
+            @else
             <h1 class="text-2xl font-bold text-white">Produits</h1>
             <p class="text-gray-400">Gérez tous les produits de la plateforme</p>
+            @endif
         </div>
         <div class="flex gap-3">
             <!-- View Toggle -->
@@ -41,6 +46,7 @@
     <!-- Filters -->
     <div class="bg-dark-100 rounded-xl shadow-lg p-6 mb-6 border border-dark-200">
         <form method="GET" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            @if(request()->boolean('asso'))<input type="hidden" name="asso" value="1">@endif
             <input type="text" name="search" value="{{ request('search') }}" placeholder="Rechercher..." class="px-4 py-2 bg-dark-50 border border-dark-300 text-white placeholder-gray-400 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
             <select name="shop_id" class="px-4 py-2 bg-dark-50 border border-dark-300 text-white rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
                 <option value="">Toutes les boutiques</option>
@@ -67,7 +73,7 @@
             <select name="origin_country" class="px-4 py-2 bg-dark-50 border border-dark-300 text-white rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
                 <option value="">Toutes origines</option>
                 <option value="imported" @selected(request('origin_country') === 'imported')>🌍 Produit importé</option>
-                <option value="local" @selected(request('origin_country') === 'local')>🇨🇲 Produit local</option>
+                <option value="local" @selected(request('origin_country') === 'local')>Produit local</option>
                 @foreach(\App\Models\ImportCountry::activeOrdered()->get() as $country)
                     <option value="{{ $country->code }}" {{ request('origin_country') == $country->code ? 'selected' : '' }}>
                         {{ $country->flag }} Grossiste {{ $country->name }}
@@ -148,7 +154,7 @@
                         @endif
                         @if(!$product->origin_country && $product->is_local_made)
                             <span class="px-2 py-0.5 text-xs rounded-full bg-green-500/20 text-green-300 border border-green-500/50">
-                                🇨🇲 Produit local
+                                Produit local
                             </span>
                         @endif
                     </div>
@@ -267,7 +273,7 @@
                                     @endif
                                     @if(!$product->origin_country && $product->is_local_made)
                                         <span class="px-2 py-1 text-xs rounded-full bg-green-500/20 text-green-300 border border-green-500/50">
-                                            🇨🇲 Produit local
+                                            Produit local
                                         </span>
                                     @endif
                                     <span class="text-xs text-gray-400">

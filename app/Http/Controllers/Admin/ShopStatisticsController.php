@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Setting;
 use App\Models\Shop;
 use App\Services\ShopStatisticsService;
+use App\Support\AssoScope;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 
@@ -32,7 +33,10 @@ class ShopStatisticsController extends Controller
 
     public function index(Request $request)
     {
-        $summary = $this->stats->platformSummary($request->query('period', '30d'));
+        // Gestionnaire : totaux des seules boutiques ASSO.
+        $summary = AssoScope::active()
+            ? $this->stats->platformSummary($request->query('period', '30d'), Shop::pluck('id')->all(), [AssoScope::ownerId()])
+            : $this->stats->platformSummary($request->query('period', '30d'));
         $period = $this->stats->resolvePeriod(
             $summary['period']['key'],
             ($first = Shop::min('created_at')) ? \Illuminate\Support\Carbon::parse($first) : null,

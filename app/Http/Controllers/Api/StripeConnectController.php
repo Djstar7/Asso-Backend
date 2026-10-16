@@ -38,6 +38,14 @@ class StripeConnectController extends Controller
         // le savoir avant de tenter un virement qui échouerait.
         if (!empty($user->stripe_account_id) && $this->stripe->isConfigured()) {
             $state = $this->stripe->accountState($user->stripe_account_id);
+
+            // Compte inexistant pour la clé actuelle (créé en mode test) : le vendeur
+            // doit renvoyer son IBAN, qui créera un nouveau compte (voir submit()).
+            if ($state['missing'] ?? false) {
+                $data['has_account'] = false;
+                $data['status'] = null;
+            }
+
             $data['stripe'] = [
                 'ready' => $state['ready'],
                 'verification' => $this->verificationLabel($state),
@@ -99,6 +107,22 @@ class StripeConnectController extends Controller
         ]);
 
         $user = $request->user();
+
+        // Compte Connect créé en mode test puis passage aux clés live : il n'existe pas
+        // pour la clé actuelle, et le remplacement d'IBAN échouerait indéfiniment
+        // (« does not have access to account »). On repart d'un nouveau compte.
+        if (!empty($user->stripe_account_id)
+            && ($this->stripe->accountState($user->stripe_account_id)['missing'] ?? false)) {
+            Log::warning('[StripeConnectController] Compte Connect introuvable avec la clé actuelle — recréation', [
+                'user_id' => $user->id,
+                'old_account_id' => $user->stripe_account_id,
+                'mode' => $this->stripe->mode(),
+            ]);
+            // Un compte « approved » sur un compte disparu est inutilisable : le
+            // vendeur doit pouvoir renvoyer son IBAN.
+            $user->stripe_account_id = null;
+            $user->stripe_account_status = null;
+        }
 
         // Un compte déjà validé ne peut pas changer d'IBAN librement (sécurité).
         if ($user->stripe_account_status === 'approved') {
@@ -166,10 +190,15 @@ class StripeConnectController extends Controller
                 'data' => $this->formatStatus($user->fresh()),
             ]);
         } catch (\Throwable $e) {
-            Log::error('[StripeConnectController] Échec soumission Stripe Connect', [
-                'user_id' => $user->id,
-                'error' => $e->getMessage(),
-            ]);
+            // Erreur de configuration de la plateforme (clé test en prod, profil
+            // Connect live non rempli…) : aucun vendeur ne peut passer, à corriger
+            // côté tableau de bord Stripe.
+            Log::log(StripeService::isPlatformConfigError($e) ? 'critical' : 'error',
+                '[StripeConnectController] Échec soumission Stripe Connect', [
+                    'user_id' => $user->id,
+                    'mode' => $this->stripe->mode(),
+                    'error' => $e->getMessage(),
+                ]);
 
             return response()->json([
                 'success' => false,
@@ -185,6 +214,14 @@ class StripeConnectController extends Controller
      */
     private function friendlyErrorMessage(\Throwable $e): string
     {
+        // Configuration de la plateforme en cause, pas la saisie du vendeur : avant
+        // ce test, « You must use a test bank account number » était présenté comme
+        // un IBAN invalide, et « complete your platform profile » comme des
+        // informations invalides.
+        if (StripeService::isPlatformConfigError($e)) {
+            return __('payments.stripe_connect.error_unavailable');
+        }
+
         // Problème de connexion entre notre serveur et Stripe (DNS, réseau, timeout).
         if ($e instanceof \Stripe\Exception\ApiConnectionException) {
             return __('payments.stripe_connect.error_connection');

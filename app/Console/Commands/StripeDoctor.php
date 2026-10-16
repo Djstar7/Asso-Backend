@@ -65,6 +65,36 @@ class StripeDoctor extends Command
         }
         $this->ok("Connexion API OK — mode {$stripe->mode()}, compte {$test['data']['account_id']} ({$test['data']['country']}).");
 
+        // Couple pk/sk : une pk_test_ avec une sk_live_ empêche la Payment Sheet
+        // mobile de s'ouvrir, sans aucune erreur côté serveur.
+        if ($problem = $stripe->keysMismatch()) {
+            $this->fail_($problem, 'php artisan stripe:keys --secret=sk_... --publishable=pk_... (même mode)');
+        } else {
+            $this->ok("Clés publique et secrète cohérentes (mode {$stripe->mode()}).");
+        }
+
+        if ($stripe->mode() === 'live') {
+            $this->line('     <comment>Live : si la soumission d\'IBAN renvoie « complete your platform profile », '
+                . 'remplir le questionnaire sur https://dashboard.stripe.com/connect/accounts/overview</comment>');
+        }
+
+        // Comptes Connect créés avec une autre clé (typiquement en mode test) : ils
+        // n'existent pas pour la clé actuelle. Le vendeur doit renvoyer son IBAN, ce
+        // qui recrée automatiquement un compte (Api\StripeConnectController::submit).
+        $orphans = [];
+        foreach (User::whereNotNull('stripe_account_id')->limit(200)->get() as $vendor) {
+            if ($stripe->accountState($vendor->stripe_account_id)['missing'] ?? false) {
+                $orphans[] = [$vendor->id, $vendor->email, $vendor->stripe_account_id, $vendor->stripe_account_status ?? '—'];
+            }
+        }
+        if (!empty($orphans)) {
+            $this->table(['id', 'email', 'compte Stripe introuvable', 'statut ASSO'], $orphans);
+            $this->fail_(
+                count($orphans) . ' compte(s) Connect inexistant(s) pour la clé actuelle (créés dans un autre mode).',
+                'Demander à ces vendeurs de renvoyer leur IBAN depuis l\'app : un nouveau compte sera créé.',
+            );
+        }
+
         // 2 & 3. Soldes plateforme par devise
         $balances = $stripe->platformBalanceCurrencies();
         if (empty($balances)) {

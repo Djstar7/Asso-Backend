@@ -15,7 +15,7 @@
     <div class="mb-6 flex flex-wrap items-center gap-3">
         <a href="{{ route('admin.local-orders.index') }}" class="text-gray-400 hover:text-primary-500"><i class="fas fa-arrow-left"></i></a>
         <div class="flex-1 min-w-0">
-            <h1 class="text-2xl font-bold text-white">🇨🇲 Commande locale #{{ $order->order_number }}</h1>
+            <h1 class="text-2xl font-bold text-white">Commande locale #{{ $order->order_number }}</h1>
             <p class="text-gray-400">Passée le {{ $order->created_at->format('d/m/Y à H:i') }}@if($delivery['company_name']) · livraison {{ $delivery['company_name'] }}@endif</p>
         </div>
         <span class="px-3 py-1 rounded-full text-sm border {{ LocalOrderStage::badge($stage) }}">{{ LocalOrderStage::label($stage) }}</span>

@@ -714,6 +714,11 @@ class SettingsController extends Controller
                 $stripeConfig['webhook_secret_connect'] = $validated['stripe_webhook_secret_connect'];
             }
 
+            // Le mode suit la clé secrète réellement enregistrée (cf. StripeService).
+            if (!empty($stripeConfig['secret_key'])) {
+                $stripeConfig['mode'] = str_starts_with($stripeConfig['secret_key'], 'sk_live_') ? 'live' : 'test';
+            }
+
             ServiceConfiguration::setConfig(
                 ServiceConfiguration::SERVICE_STRIPE,
                 $stripeConfig,

@@ -47,11 +47,13 @@ Schedule::job(new CleanupStaleTransactionsJob)
  * CURRENCY EXCHANGE RATES UPDATE SCHEDULER
  * =====================================================
  *
- * Met à jour les taux de change depuis l'API externe toutes les heures
- * Les taux sont mis en cache pour réduire les appels API
+ * Met à jour les taux de change depuis l'API externe toutes les 6 heures.
+ * Le plan gratuit d'exchangerate-api ne publie qu'un taux par jour : la sync
+ * horaire (3 appels/h) épuisait le quota mensuel (« quota-reached », HTTP 429)
+ * et privait les paiements carte de taux de conversion.
  */
 Schedule::job(new UpdateExchangeRatesJob)
-    ->hourly()
+    ->everySixHours()
     ->withoutOverlapping(300); // Max 5 minutes d'exécution
 
 /**
@@ -165,3 +167,12 @@ Schedule::command('ads:expire-boosts')
 Schedule::command('product-videos:prune')
     ->daily()
     ->withoutOverlapping(300);
+
+/*
+ * Solde retirable ASSO : forfaits, frais Mobile Money, commissions versées et
+ * courses payées par ASSO reportés sur le Wallet plateforme. Une fois par jour,
+ * à 1 h, quand la plateforme est peu sollicitée.
+ */
+Schedule::command('asso:sync-platform-wallet')
+    ->dailyAt('01:00')
+    ->withoutOverlapping(600);

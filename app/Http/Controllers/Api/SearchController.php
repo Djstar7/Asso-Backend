@@ -53,6 +53,10 @@ class SearchController extends Controller
         $query = Product::query()
             ->with(['images', 'primaryImage', 'video', 'category', 'subcategory', 'shop', 'user'])
             ->where('status', 'active')
+            ->where(function ($q) {
+                $q->whereNull('origin_country')
+                    ->orWhere('origin_country', '');
+            })
             ->whereHas('shop', function ($q) {
                 $q->where('status', 'active');
             });
@@ -203,6 +207,10 @@ class SearchController extends Controller
         $suggestions = Product::query()
             ->selectRaw("name, similarity(f_unaccent(name), f_unaccent(?)) as sim", [$query])
             ->where('status', 'active')
+            ->where(function ($q) {
+                $q->whereNull('origin_country')
+                    ->orWhere('origin_country', '');
+            })
             ->whereRaw("similarity(f_unaccent(name), f_unaccent(?)) > 0.2", [$query])
             ->orderBy('sim', 'DESC')
             ->limit($limit)

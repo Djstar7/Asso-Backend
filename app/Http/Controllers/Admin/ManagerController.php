@@ -155,6 +155,7 @@ class ManagerController extends Controller
         return view('admin.managers.form', [
             'manager' => $manager,
             'permissionGroups' => config('admin_access.permissions'),
+            'permissionNotes' => config('admin_access.permission_notes', []),
             'rolePermissions' => config("admin_access.role_permissions.{$manager->role}", []),
         ]);
     }

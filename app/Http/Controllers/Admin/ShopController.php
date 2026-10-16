@@ -8,6 +8,8 @@ use App\Models\Shop;
 use App\Models\User;
 use App\Models\ShopLocationRequest;
 use App\Services\FCMService;
+use App\Support\AssoScope;
+use Illuminate\Validation\Rule;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Log;
 
@@ -51,7 +53,7 @@ class ShopController extends Controller
         }
 
         $shops = $query->latest()->paginate(15)->withQueryString();
-        $users = User::all();
+        $users = $this->ownerChoices();
 
         return view('admin.shops.index', compact('shops', 'users'));
     }
@@ -61,7 +63,7 @@ class ShopController extends Controller
      */
     public function create()
     {
-        $users = User::all();
+        $users = $this->ownerChoices();
         return view('admin.shops.create', compact('users'));
     }
 
@@ -71,7 +73,7 @@ class ShopController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'user_id' => 'required|exists:users,id',
+            'user_id' => ['required', 'exists:users,id', ...$this->ownerRule()],
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'shop_link' => 'nullable|url',
@@ -132,7 +134,7 @@ class ShopController extends Controller
     public function edit(Shop $shop)
     {
         $shop->load('verifier', 'rejector', 'user', 'products');
-        $users = User::orderBy('first_name')->get();
+        $users = $this->ownerChoices();
         // Catégories proposées : celles du catalogue, plus celles déjà sur la boutique.
         $categories = \App\Models\Category::orderBy('name')->pluck('name')
             ->merge($shop->categories ?? [])->unique()->values();
@@ -153,7 +155,7 @@ class ShopController extends Controller
         ]);
 
         $validated = $request->validate([
-            'user_id' => 'required|exists:users,id',
+            'user_id' => ['required', 'exists:users,id', ...$this->ownerRule()],
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'shop_link' => 'nullable|url',
@@ -431,5 +433,20 @@ class ShopController extends Controller
             return redirect()->back()
                 ->with('error', 'Erreur lors du rejet de la demande: ' . $e->getMessage());
         }
+    }
+
+    /** Propriétaires proposés : un gestionnaire ne voit que le compte des boutiques ASSO. */
+    private function ownerChoices()
+    {
+        return User::query()
+            ->when(AssoScope::active(), fn ($q) => $q->whereKey(AssoScope::ownerId()))
+            ->orderBy('first_name')
+            ->get();
+    }
+
+    /** Un gestionnaire ne crée ni ne réattribue de boutique hors du compte ASSO. */
+    private function ownerRule(): array
+    {
+        return AssoScope::active() ? [Rule::in([AssoScope::ownerId()])] : [];
     }
 }

@@ -166,7 +166,7 @@ class PlatformRevenueService
             ->where('s.status', 'paid')
             ->where('p.type', $type)
             ->whereNotNull('s.paid_at')
-            ->selectRaw("s.paid_at as occurred_at, s.amount_xaf as amount, p.name as reference,
+            ->selectRaw("s.paid_at as occurred_at, s.amount_xaf as amount, p.name as reference, s.id as source_id,
                 'user' as subject_type, s.user_id as subject_id,
                 " . $this->concat(["coalesce(u.first_name, '')", "' '", "coalesce(u.last_name, '')", "' · '", 's.payment_method']) . ' as detail');
     }
@@ -243,7 +243,7 @@ class PlatformRevenueService
             ->where('ds.payer', 'asso')
             ->where('ds.payment_status', 'paid')
             ->where('ds.carrier_amount', '>', 0)
-            ->selectRaw("ds.paid_at as occurred_at, ds.carrier_amount as amount, d.number as reference,
+            ->selectRaw("ds.paid_at as occurred_at, ds.carrier_amount as amount, d.number as reference, ds.id as source_id,
                 'dispute' as subject_type, d.id as subject_id,
                 " . $this->concat(["'Course ASSO · litige '", 'd.number']) . ' as detail');
     }
@@ -253,7 +253,7 @@ class PlatformRevenueService
         return DB::table('sales_commissions as c')
             ->leftJoin('sales_agents as a', 'a.id', '=', 'c.sales_agent_id')
             ->where('c.status', '!=', 'cancelled')
-            ->selectRaw("c.sold_at as occurred_at, c.commission_amount as amount, c.sales_code as reference,
+            ->selectRaw("c.sold_at as occurred_at, c.commission_amount as amount, c.sales_code as reference, c.id as source_id,
                 'sales_agent' as subject_type, c.sales_agent_id as subject_id,
                 " . $this->concat(["coalesce(a.first_name, '')", "' '", "coalesce(a.last_name, '')", "' · '", 'c.package_name', "' · '", 'c.status']) . ' as detail');
     }
@@ -262,7 +262,7 @@ class PlatformRevenueService
     {
         return DB::table('affiliate_commissions as c')
             ->whereIn('c.status', ['approved', 'paid'])
-            ->selectRaw("c.created_at as occurred_at, c.amount as amount, cast(c.id as varchar(20)) as reference,
+            ->selectRaw("c.created_at as occurred_at, c.amount as amount, cast(c.id as varchar(20)) as reference, c.id as source_id,
                 'user' as subject_type, c.affiliate_id as subject_id,
                 " . $this->concat(["'Niveau '", 'cast(c.level as varchar(4))', "' · '", 'c.status']) . ' as detail');
     }
@@ -274,7 +274,7 @@ class PlatformRevenueService
             ->where('f.fee_amount', '>', 0)
             ->selectRaw("f.completed_at as occurred_at,
                 coalesce(f.fee_amount_xaf, case when f.currency = 'XAF' then f.fee_amount end, 0) as amount,
-                f.gateway_id as reference, 'gateway_fee' as subject_type, f.id as subject_id,
+                f.gateway_id as reference, f.id as source_id, 'gateway_fee' as subject_type, f.id as subject_id,
                 " . $this->concat(["case when f.gateway = 'elgiopay' then 'ElgioPay' else 'KPay' end", "' · '", "coalesce(f.external_id, '')", "' · '", 'cast(f.amount as varchar(20))', "' '", 'f.currency', "' encaissés'"]) . ' as detail');
     }
 
