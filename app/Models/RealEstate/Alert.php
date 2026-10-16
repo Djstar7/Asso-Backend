@@ -2,7 +2,9 @@
 
 namespace App\Models\RealEstate;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /** Critères enregistrés par un utilisateur (une alerte par compte). */
 class Alert extends Model
@@ -20,6 +22,11 @@ class Alert extends Model
         'is_active' => 'boolean',
         'last_notified_at' => 'datetime',
     ];
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
 
     public function toApi(): array
     {

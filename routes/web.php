@@ -154,6 +154,13 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::post('/landlords/{verification}/approve', [$v, 'approve'])->name('verifications.approve');
             Route::post('/landlords/{verification}/reject', [$v, 'reject'])->name('verifications.reject');
 
+            $dc = \App\Http\Controllers\Admin\RealEstate\DisputeController::class;
+            Route::get('/disputes', [$dc, 'index'])->name('disputes.index');
+            Route::get('/disputes/{dispute}', [$dc, 'show'])->name('disputes.show');
+            Route::post('/disputes/{dispute}/decide', [$dc, 'decide'])->name('disputes.decide');
+            Route::post('/dispute-reasons', [$dc, 'storeReason'])->name('disputes.reasons.store');
+            Route::put('/dispute-reasons/{reason}', [$dc, 'updateReason'])->name('disputes.reasons.update');
+
             $st = \App\Http\Controllers\Admin\RealEstate\SettingsController::class;
             Route::get('/settings', [$st, 'index'])->name('settings.index');
             Route::put('/settings', [$st, 'update'])->name('settings.update');

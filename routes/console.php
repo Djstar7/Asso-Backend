@@ -123,6 +123,10 @@ Schedule::command('immo:auto-release')
     ->everyFifteenMinutes()
     ->withoutOverlapping(600);
 
+Schedule::command('immo:notify-alerts')
+    ->hourly()
+    ->withoutOverlapping(1800);
+
 /**
  * =====================================================
  * COMMANDES — RÉCONCILIATION DES PAIEMENTS DIRECTS

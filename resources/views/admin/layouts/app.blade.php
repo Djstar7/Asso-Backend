@@ -490,6 +490,20 @@
                     </a>
                     @endadminCan
 
+                    @adminCan('admin.real-estate.disputes.index')
+                    <a href="{{ route('admin.real-estate.disputes.index') }}"
+                       class="flex items-center justify-between px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.real-estate.disputes.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
+                        <span class="flex items-center">
+                            <i class="fas fa-gavel w-5 mr-3"></i>
+                            Litiges immobiliers
+                        </span>
+                        @php($immoDisputes = \App\Models\RealEstate\Dispute::where('status', 'open')->count())
+                        @if($immoDisputes > 0)
+                            <span class="px-2 py-0.5 text-xs font-semibold rounded-full bg-red-500 text-white">{{ $immoDisputes }}</span>
+                        @endif
+                    </a>
+                    @endadminCan
+
                     @adminCan('admin.real-estate.cabinets.index')
                     <a href="{{ route('admin.real-estate.cabinets.index') }}"
                        class="flex items-center justify-between px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.real-estate.cabinets.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">

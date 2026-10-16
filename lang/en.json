@@ -798,6 +798,30 @@
         "real_estate_funds_released": {
             "title": "Amount released",
             "body": "Booking :reference is confirmed: :amount FCFA are available on your Wallet."
+        },
+        "real_estate_dispute_opened_payee": {
+            "title": "Dispute opened",
+            "body": "A problem was reported on booking :reference. The amount stays held: reply on ASSO with your evidence."
+        },
+        "real_estate_dispute_refunded_tenant": {
+            "title": "Dispute decided: refund",
+            "body": "The held amount of booking :reference is refunded to your Wallet."
+        },
+        "real_estate_dispute_refunded_payee": {
+            "title": "Dispute decided",
+            "body": "The held amount of booking :reference was returned to the tenant."
+        },
+        "real_estate_dispute_released_tenant": {
+            "title": "Dispute decided",
+            "body": "ASSO reviewed your dispute on :reference: the amount is paid to the landlord."
+        },
+        "real_estate_dispute_released_payee": {
+            "title": "Amount released",
+            "body": "The dispute on :reference is closed: the amount is available on your Wallet."
+        },
+        "real_estate_alert": {
+            "title": "New properties for you",
+            "body": ":count property(ies) match your criteria :city."
         }
     },
     "orders": {
@@ -1234,7 +1258,9 @@
             "immo_funds_held": "Booking :reference — amount held until the visit",
             "immo_funds_released": "Booking :reference — amount released",
             "asso_commission_rent": "ASSO commission — rental :reference",
-            "asso_commission_land": "ASSO commission — plot :reference"
+            "asso_commission_land": "ASSO commission — plot :reference",
+            "immo_dispute_refund": "Dispute :reference — refund",
+            "immo_dispute_refunded_payee": "Dispute :reference — amount returned to the tenant"
         }
     },
     "sales_program": {
@@ -1478,6 +1504,12 @@
             "unit_full": "No place left for this home.",
             "min_lease": "This home is rented for at least :months months.",
             "cannot_confirm": "This booking can no longer be confirmed."
+        },
+        "dispute": {
+            "not_allowed": "You cannot act on this dispute.",
+            "window_closed": "The period to report a problem has ended.",
+            "unknown_reason": "Choose a reason from the list.",
+            "closed": "This dispute has already been decided."
         }
     }
 }

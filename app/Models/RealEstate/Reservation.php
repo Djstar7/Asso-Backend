@@ -5,6 +5,7 @@ namespace App\Models\RealEstate;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
  * Réservation d'une maison (avance de loyer) ou acompte sur un terrain.
@@ -53,5 +54,10 @@ class Reservation extends Model
     public function payee(): BelongsTo
     {
         return $this->belongsTo(User::class, 'payee_id');
+    }
+
+    public function dispute(): HasOne
+    {
+        return $this->hasOne(Dispute::class);
     }
 }

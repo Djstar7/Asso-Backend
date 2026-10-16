@@ -798,6 +798,30 @@
         "real_estate_funds_released": {
             "title": "Montant débloqué",
             "body": "La réservation :reference est confirmée : :amount FCFA sont disponibles sur votre Wallet."
+        },
+        "real_estate_dispute_opened_payee": {
+            "title": "Litige ouvert",
+            "body": "Un problème est signalé sur la réservation :reference. Le montant reste bloqué : répondez sur ASSO avec vos éléments."
+        },
+        "real_estate_dispute_refunded_tenant": {
+            "title": "Litige tranché : remboursement",
+            "body": "Le montant bloqué de la réservation :reference vous est remboursé sur votre Wallet."
+        },
+        "real_estate_dispute_refunded_payee": {
+            "title": "Litige tranché",
+            "body": "Le montant bloqué de la réservation :reference a été rendu au locataire."
+        },
+        "real_estate_dispute_released_tenant": {
+            "title": "Litige tranché",
+            "body": "ASSO a examiné votre litige sur :reference : le montant est versé au bailleur."
+        },
+        "real_estate_dispute_released_payee": {
+            "title": "Montant débloqué",
+            "body": "Le litige sur :reference est clos : le montant est disponible sur votre Wallet."
+        },
+        "real_estate_alert": {
+            "title": "Nouveaux biens pour vous",
+            "body": ":count bien(s) correspondent à vos critères :city."
         }
     },
     "orders": {
@@ -1234,7 +1258,9 @@
             "immo_funds_held": "Réservation :reference — montant bloqué jusqu'à la visite",
             "immo_funds_released": "Réservation :reference — montant débloqué",
             "asso_commission_rent": "Commission ASSO — location :reference",
-            "asso_commission_land": "Commission ASSO — terrain :reference"
+            "asso_commission_land": "Commission ASSO — terrain :reference",
+            "immo_dispute_refund": "Litige :reference — remboursement",
+            "immo_dispute_refunded_payee": "Litige :reference — montant rendu au locataire"
         }
     },
     "sales_program": {
@@ -1478,6 +1504,12 @@
             "unit_full": "Plus aucune place disponible pour ce logement.",
             "min_lease": "Ce logement se loue au moins :months mois.",
             "cannot_confirm": "Cette réservation ne peut plus être confirmée."
+        },
+        "dispute": {
+            "not_allowed": "Vous ne pouvez pas intervenir sur ce litige.",
+            "window_closed": "Le délai pour signaler un problème est dépassé.",
+            "unknown_reason": "Choisissez un motif dans la liste.",
+            "closed": "Ce litige est déjà tranché."
         }
     }
 }

@@ -442,6 +442,9 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('/reservations/{id}/confirm', 'confirm')->whereNumber('id');
             Route::get('/reservations/{id}/documents/{kind}', 'document')->whereNumber('id')->whereIn('kind', ['contract', 'invoice']);
             Route::get('/landlord/reservations', 'received');
+            Route::get('/dispute-reasons', 'disputeReasons');
+            Route::post('/reservations/{id}/dispute', 'openDispute')->whereNumber('id');
+            Route::post('/reservations/{id}/dispute/evidence', 'addDisputeEvidence')->whereNumber('id');
         });
 
         // Espace bailleur : vérification du profil et maisons à louer.

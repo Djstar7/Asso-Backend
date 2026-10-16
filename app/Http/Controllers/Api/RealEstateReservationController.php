@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\RealEstate\Listing;
 use App\Models\RealEstate\Reservation;
+use App\Models\RealEstate\DisputeReason;
+use App\Services\RealEstate\RealEstateDisputeService;
 use App\Services\RealEstate\RealEstateReservationService;
 use App\Services\WalletService;
 use Illuminate\Http\Request;
@@ -112,16 +114,7 @@ class RealEstateReservationController extends Controller
             ->with(['listing.media', 'listing.units', 'unit', 'tenant'])
             ->latest()->get();
 
-        return response()->json(['success' => true, 'data' => $reservations->map(fn ($r) => $this->payload($r, $request) + [
-            'tenant' => [
-                'name' => trim($r->tenant?->first_name.' '.$r->tenant?->last_name),
-                'phone' => $r->tenant?->phone,
-            ],
-            'occupants' => $r->occupants,
-            'applicant_status' => $r->applicant_status,
-            'school_or_employer' => $r->school_or_employer,
-            'message' => $r->message,
-        ])->values()]);
+        return response()->json(['success' => true, 'data' => $reservations->map(fn ($r) => $this->payload($r, $request))->values()]);
     }
 
     private function find(Request $request, int $id, bool $payeeAllowed = false): Reservation
@@ -171,9 +164,56 @@ class RealEstateReservationController extends Controller
         return Storage::disk(RealEstateReservationService::DOCS_DISK)->download($path, "{$r->reference}-{$kind}.pdf");
     }
 
+    // ---------------------------------------------------------------- litiges
+
+    public function disputeReasons(Request $request)
+    {
+        $kind = $request->query('kind') === 'land' ? 'land' : 'rent';
+
+        return response()->json(['success' => true, 'data' => DisputeReason::for($kind)->get()
+            ->map(fn ($r) => ['id' => $r->id, 'label' => $r->label])->values()]);
+    }
+
+    public function openDispute(Request $request, int $id, RealEstateDisputeService $disputes)
+    {
+        $data = $request->validate([
+            'reason_id' => ['required', 'integer'],
+            'description' => ['required', 'string', 'min:10', 'max:3000'],
+            'photos' => ['nullable', 'array', 'max:8'],
+            'photos.*' => ['image', 'max:10240'],
+        ]);
+        $r = $this->find($request, $id);
+        try {
+            $disputes->open($r, $request->user(), (int) $data['reason_id'], $data['description'], $request->file('photos', []));
+        } catch (\DomainException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return response()->json(['success' => true, 'data' => $this->payload($r->fresh(), $request)], 201);
+    }
+
+    public function addDisputeEvidence(Request $request, int $id, RealEstateDisputeService $disputes)
+    {
+        $data = $request->validate([
+            'message' => ['nullable', 'string', 'max:3000'],
+            'photos' => ['nullable', 'array', 'max:8'],
+            'photos.*' => ['image', 'max:10240'],
+        ]);
+        $r = $this->find($request, $id, true);
+        abort_unless($r->dispute, 404);
+        try {
+            $disputes->addEvidence($r->dispute, $request->user(), $data['message'] ?? null, $request->file('photos', []));
+        } catch (\DomainException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return response()->json(['success' => true, 'data' => $this->payload($r->fresh(), $request)]);
+    }
+
     private function payload(Reservation $r, Request $request): array
     {
         $listing = $r->listing;
+        $isPayee = $r->payee_id === $request->user()->id && $r->tenant_id !== $request->user()->id;
 
         return [
             'id' => $r->id,
@@ -195,11 +235,23 @@ class RealEstateReservationController extends Controller
             'visit_deadline_at' => $r->visit_deadline_at?->toIso8601String(),
             'released_at' => $r->released_at?->toIso8601String(),
             'has_documents' => (bool) $r->contract_path,
+            'dispute' => $r->dispute?->load('attachments')->toApi(),
+            'is_payee' => $isPayee,
+            // Le bailleur (ou le cabinet) voit qui a payé et le dossier du demandeur.
+            'tenant' => $isPayee ? [
+                'name' => trim($r->tenant?->first_name.' '.$r->tenant?->last_name),
+                'phone' => $r->tenant?->phone,
+            ] : null,
+            'occupants' => $isPayee ? $r->occupants : null,
+            'applicant_status' => $isPayee ? $r->applicant_status : null,
+            'school_or_employer' => $isPayee ? $r->school_or_employer : null,
+            'message' => $isPayee ? $r->message : null,
+            'can_respond' => $isPayee && $r->status === 'disputed' && $r->dispute?->status === 'open',
             'can_confirm' => $r->status === 'paid' && $r->tenant_id === $request->user()->id,
             'can_dispute' => $r->status === 'paid' && $r->tenant_id === $request->user()->id
                 && (! $r->visit_deadline_at || $r->visit_deadline_at->isFuture()),
             // Coordonnées débloquées par le paiement.
-            'contact' => in_array($r->status, Reservation::PAID_STATUSES, true) && $listing ? ($listing->isLand()
+            'contact' => ! $isPayee && in_array($r->status, Reservation::PAID_STATUSES, true) && $listing ? ($listing->isLand()
                 ? $listing->cabinet?->toApi($request->user())['contact']
                 : [
                     'name' => trim(($listing->owner?->first_name ?? '').' '.($listing->owner?->last_name ?? '')),
