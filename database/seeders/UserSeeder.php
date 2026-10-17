@@ -13,17 +13,21 @@ class UserSeeder extends Seeder
      */
     public function run(): void
     {
-        // Create Admin users (idempotent : re-seed sans doublon)
+        // Compte admin principal, qui porte aussi le Wallet de la plateforme
+        // (commissions ASSO) : son e-mail sert de clé, ne pas le changer.
+        // Idempotent : re-seed sans doublon.
         User::updateOrCreate(['email' => 'admin@asso.com'], [
             'first_name' => 'Admin',
-            'last_name' => 'Principal',
+            'last_name' => 'ASSO',
             'email' => 'admin@asso.com',
             'password' => Hash::make('password'),
             'role' => 'admin',
             'gender' => 'male',
-            'phone' => '+229 97 12 34 56',
-            'country' => 'Bénin',
-            'address' => 'Cotonou, Bénin',
+            'phone' => '+237 6 00 00 00 00',
+            'country' => 'Cameroun',
+            'address' => 'Douala, Cameroun',
+            // Notifications (push, e-mails d'alerte) rédigées en français.
+            'locale' => 'fr',
             'email_verified_at' => now(),
         ]);
 

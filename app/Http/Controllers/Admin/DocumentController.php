@@ -58,7 +58,7 @@ class DocumentController extends Controller
     public function create()
     {
         $categories = DocumentCategory::active()->ordered()->get();
-        $users = User::where('role', 'admin')->get();
+        $users = User::where('role', 'admin')->get()->reject->isTechnicalAccount()->values();
 
         return view('admin.documents.create', compact('categories', 'users'));
     }
@@ -125,7 +125,7 @@ class DocumentController extends Controller
     public function edit(Document $document)
     {
         $categories = DocumentCategory::active()->ordered()->get();
-        $users = User::where('role', 'admin')->get();
+        $users = User::where('role', 'admin')->get()->reject->isTechnicalAccount()->values();
 
         return view('admin.documents.edit', compact('document', 'categories', 'users'));
     }

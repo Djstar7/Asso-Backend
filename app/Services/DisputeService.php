@@ -1115,7 +1115,7 @@ class DisputeService
     {
         return User::whereIn('role', config('admin_access.staff_roles', []))
             ->get()
-            ->filter(fn (User $user) => $user->hasAdminPermission('disputes'))
+            ->filter(fn (User $user) => !$user->isTechnicalAccount() && $user->hasAdminPermission('disputes'))
             ->values();
     }
 

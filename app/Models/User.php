@@ -667,6 +667,15 @@ class User extends Authenticatable implements HasLocalePreference
     }
 
     /**
+     * Comptes techniques en rôle admin (messages automatiques, support) : ni
+     * boîte mail ni téléphone réels, ils ne reçoivent pas les alertes du staff.
+     */
+    public function isTechnicalAccount(): bool
+    {
+        return in_array($this->email, ['system@asso.app', \App\Services\SupportService::EMAIL], true);
+    }
+
+    /**
      * Compte autorisé à se connecter au back-office (admin ou gestionnaire).
      */
     public function isBackofficeStaff(): bool

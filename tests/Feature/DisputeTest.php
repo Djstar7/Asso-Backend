@@ -145,6 +145,19 @@ class DisputeTest extends TestCase
         return $shipment->refresh();
     }
 
+    public function test_staff_alerts_skip_technical_admin_accounts(): void
+    {
+        $manager = User::factory()->create(['role' => 'admin', 'email' => 'gestion@asso.cm']);
+        User::factory()->create(['role' => 'admin', 'email' => 'system@asso.app']);
+        User::factory()->create(['role' => 'admin', 'email' => \App\Services\SupportService::EMAIL]);
+
+        $emails = DisputeService::disputeStaff()->pluck('email');
+
+        $this->assertContains($manager->email, $emails);
+        $this->assertNotContains('system@asso.app', $emails);
+        $this->assertNotContains(\App\Services\SupportService::EMAIL, $emails);
+    }
+
     public function test_seller_share_is_held_and_released_when_client_confirms(): void
     {
         $order = $this->deliveredOrder();
