@@ -768,7 +768,23 @@
             "dispute_resolved_vendor": {
                 "title": "Litige en gros : remplacement validé",
                 "body": "Réclamation :number : le client a validé le remplacement, le dossier est résolu."
+            },
+            "dispute_replacement_reported": {
+                "title": "Remplacement contesté (gros)",
+                "body": "Le client signale un problème sur le produit de remplacement (réclamation :number). Analysez-la depuis le back-office."
             }
+        },
+        "dispute_replacement_course": {
+            "title": "Nouvelle course : produit de remplacement",
+            "body": "Réclamation :number : récupérez le produit de remplacement (:from) et livrez-le au client (:to). Remise contre le code du client."
+        },
+        "dispute_return_course": {
+            "title": "Nouvelle course : retour produit",
+            "body": "Réclamation :number : récupérez le produit chez le client (:from) et rapportez-le au vendeur (:to). Remise contre le code du vendeur."
+        },
+        "dispute_replacement_reported": {
+            "title": "Problème sur le remplacement",
+            "body": "Le client signale un problème sur le produit de remplacement (réclamation :number). Donnez votre réponse : ASSO décidera ensuite. Vos fonds restent bloqués."
         }
     },
     "orders": {
@@ -1281,7 +1297,8 @@
             "replacement_conform": "Remplacement conforme — fonds vendeur débloqués",
             "replacement_auto_validated": "Aucune action après 48 h — remplacement validé automatiquement",
             "bank_transfer_client": "Remboursement viré par ASSO sur l'IBAN du client (:amount :currency, •••• :last4)",
-            "bank_transfer_vendor": "Part du vendeur virée par ASSO sur son IBAN (:amount :currency, •••• :last4)"
+            "bank_transfer_vendor": "Part du vendeur virée par ASSO sur son IBAN (:amount :currency, •••• :last4)",
+            "course_accepted": "Course acceptée par le livreur"
         },
         "shipment_steps": {
             "return": {
@@ -1299,7 +1316,11 @@
                 "shipped": "Produit de remplacement expédié",
                 "delivered": "Produit de remplacement livré"
             }
-        }
+        },
+        "confirmation_code_incorrect": "Code incorrect. Demandez le code à 6 chiffres au destinataire.",
+        "course_unavailable": "Cette course n’est plus disponible.",
+        "course_completed": "Course terminée : remise confirmée.",
+        "replacement_reported": "Problème signalé. Le vendeur va répondre, puis ASSO décidera."
     },
     "legal": {
         "not_found": "Page introuvable.",

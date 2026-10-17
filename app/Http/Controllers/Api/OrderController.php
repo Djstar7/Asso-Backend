@@ -632,6 +632,11 @@ class OrderController extends Controller
                     'number' => $dispute->number,
                     'status' => $dispute->status,
                     'status_label' => \App\Models\Dispute::statusLabel($dispute->status),
+                    // Produit de remplacement livré : mêmes choix qu'à la première
+                    // réception (« Tout est conforme » / « Signaler un problème »).
+                    'replacement_control_until' => $dispute->isInReplacementControl()
+                        ? $dispute->auto_validate_at->toIso8601String()
+                        : null,
                 ] : null,
                 'can_report' => $controlOpen && !$disputes->has($item->id),
             ]),

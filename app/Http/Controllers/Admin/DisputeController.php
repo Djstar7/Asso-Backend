@@ -106,7 +106,9 @@ class DisputeController extends Controller
             fn () => $this->disputes->decide($dispute, $request->user(), $validated['decision'], $validated['note']),
             $validated['decision'] === 'unfounded'
                 ? 'Réclamation non fondée : fonds vendeur débloqués, litige clôturé.'
-                : 'Réclamation fondée : le vendeur peut remplacer le produit ou organiser le retour.'
+                : ($dispute->replacement_count >= Dispute::MAX_REPLACEMENTS
+                    ? 'Réclamation fondée sur le remplacement : retour lancé, le vendeur doit payer la course.'
+                    : 'Réclamation fondée : le vendeur peut remplacer le produit ou organiser le retour.')
         );
     }
 
@@ -141,11 +143,15 @@ class DisputeController extends Controller
         return $this->run(fn () => $this->disputes->payByAsso($shipment, $request->user()), 'Course prise en charge par ASSO.');
     }
 
-    /** Étape logistique (partenaire / ASSO) ; « Retour confirmé » rembourse le client. */
+    /**
+     * Étape logistique saisie par ASSO (secours si le livreur n'a pas l'app) : la
+     * remise au destinataire exige son code ; celle du retour rembourse le client.
+     */
     public function step(Request $request, DisputeShipment $shipment)
     {
         $validated = $request->validate([
             'step' => 'required|string',
+            'confirmation_code' => 'nullable|string|max:6',
             'note' => 'nullable|string|max:1000',
             'carrier_tracking_number' => 'nullable|string|max:100',
             'proof' => 'nullable|image|max:8192',
@@ -154,7 +160,8 @@ class DisputeController extends Controller
         return $this->run(fn () => $this->disputes->recordStep(
             $shipment, $validated['step'], 'admin', $request->user()->id,
             $validated['note'] ?? null, $validated['carrier_tracking_number'] ?? null, $request->file('proof'),
-        ), $validated['step'] === 'confirmed' ? 'Retour confirmé : client remboursé, dossier clôturé.' : 'Étape enregistrée.');
+            $validated['confirmation_code'] ?? null,
+        ), $validated['step'] === 'delivered_to_vendor' ? 'Retour remis au vendeur : client remboursé, dossier clôturé.' : 'Étape enregistrée.');
     }
 
     public function evidence(Request $request, Dispute $dispute)

@@ -567,13 +567,16 @@ class ProfileController extends Controller
 
         \Log::info("📊 Total Deliveries: {$deliveries->count()}");
 
-        // Gains encaissés par le livreur (part transporteur créditée au règlement
-        // de chaque commande) : sans cela le tableau de bord affichait 0 FCFA.
-        // La colonne garde le libellé français (wallet.transactions.delivery_commission
-        // de lang/fr.json) : ne pas modifier ce texte sans reprendre ce filtre.
+        // Gains encaissés par le livreur : part transporteur créditée au règlement de
+        // chaque commande (libellé français wallet.transactions.delivery_commission de
+        // lang/fr.json : ne pas modifier ce texte sans reprendre ce filtre) et courses
+        // de litige (remplacement, retour), repérées par leur course.
         $totalCommissions = (float) \App\Models\WalletTransaction::where('user_id', $user->id)
             ->where('type', 'credit')
-            ->where('description', 'like', 'Commission livraison%')
+            ->where(fn ($q) => $q
+                ->where(fn ($order) => $order->where('description', 'like', 'Commission livraison%')
+                    ->whereNotNull('metadata->order_id'))
+                ->orWhereNotNull('metadata->dispute_shipment_id'))
             ->sum('amount');
 
         $stats = [
@@ -661,7 +664,11 @@ class ProfileController extends Controller
                     'status' => $order->status,
                     'total' => (float) $order->total,
                     'delivery_fee' => $order->deliveryPriceShown(),
-                    'commission' => $order->deliveryPriceShown(),
+                    // Ce que touche le partenaire (prix de base), pas le prix client
+                    // qui inclut la commission ASSO.
+                    'commission' => (float) $order->base_delivery_price > 0
+                        ? (float) $order->base_delivery_price
+                        : $order->deliveryPriceShown(),
                     'delivery_address' => $order->delivery_address,
                     'delivery_address_details' => $order->delivery_address_details,
                     'delivery_latitude' => $order->delivery_latitude,
