@@ -162,7 +162,7 @@
                         <div class="mt-4 p-3 bg-dark-50 rounded-lg border border-dark-300">
                             <p class="text-sm text-gray-400">
                                 <i class="fas fa-calendar-check text-green-400 mr-2"></i>
-                                Envoyé le {{ $announcement->sent_at->format('d/m/Y à H:i') }}
+                                Envoyé le {{ $announcement->sent_at->displayTz()->format('d/m/Y à H:i') }}
                             </p>
                         </div>
                     @endif
@@ -203,7 +203,7 @@
                         <div class="p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
                             <p class="text-sm text-blue-300">
                                 <i class="fas fa-calendar text-blue-400 mr-2"></i>
-                                Programmé pour le {{ $announcement->scheduled_at->format('d/m/Y à H:i') }}
+                                Programmé pour le {{ $announcement->scheduled_at->displayTz()->format('d/m/Y à H:i') }}
                             </p>
                         </div>
                     @endif
@@ -240,11 +240,11 @@
                             Créé le
                         </span>
                         <span class="text-white font-medium">
-                            {{ $announcement->created_at->format('d/m/Y') }}
+                            {{ $announcement->created_at->displayTz()->format('d/m/Y') }}
                         </span>
                     </div>
                     <div class="text-xs text-gray-500 text-right">
-                        {{ $announcement->created_at->format('H:i:s') }}
+                        {{ $announcement->created_at->displayTz()->format('H:i:s') }}
                     </div>
 
                     <div class="flex items-center justify-between pt-3 border-t border-dark-300">
@@ -253,11 +253,11 @@
                             Modifié le
                         </span>
                         <span class="text-white font-medium">
-                            {{ $announcement->updated_at->format('d/m/Y') }}
+                            {{ $announcement->updated_at->displayTz()->format('d/m/Y') }}
                         </span>
                     </div>
                     <div class="text-xs text-gray-500 text-right">
-                        {{ $announcement->updated_at->format('H:i:s') }}
+                        {{ $announcement->updated_at->displayTz()->format('H:i:s') }}
                     </div>
 
                     <div class="flex items-center justify-between pt-3 border-t border-dark-300">

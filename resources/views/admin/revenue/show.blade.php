@@ -57,7 +57,7 @@
                 <tbody class="divide-y divide-dark-200 text-gray-200">
                     @forelse($movements as $m)
                         <tr class="hover:bg-dark-50/50">
-                            <td class="px-4 py-3 whitespace-nowrap text-gray-400">{{ \Carbon\Carbon::parse($m->occurred_at)->format('d/m/Y H:i') }}</td>
+                            <td class="px-4 py-3 whitespace-nowrap text-gray-400">{{ \Carbon\Carbon::parse($m->occurred_at)->displayTz()->format('d/m/Y H:i') }}</td>
                             <td class="px-4 py-3 font-mono text-xs">{{ $m->reference }}</td>
                             <td class="px-4 py-3">{{ trim((string) $m->detail) ?: '—' }}</td>
                             <td class="px-4 py-3 text-right font-semibold whitespace-nowrap {{ $color }}">{{ $isLoss ? '− ' : '' }}{{ $fcfa($m->amount) }}</td>

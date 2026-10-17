@@ -113,17 +113,17 @@
                                     @if($announcement->sent_at)
                                         <div class="text-xs">
                                             <i class="fas fa-paper-plane text-green-400 mr-1"></i>
-                                            {{ $announcement->sent_at->format('d/m/Y H:i') }}
+                                            {{ $announcement->sent_at->displayTz()->format('d/m/Y H:i') }}
                                         </div>
                                     @elseif($announcement->scheduled_at)
                                         <div class="text-xs">
                                             <i class="fas fa-calendar text-blue-400 mr-1"></i>
-                                            {{ $announcement->scheduled_at->format('d/m/Y H:i') }}
+                                            {{ $announcement->scheduled_at->displayTz()->format('d/m/Y H:i') }}
                                         </div>
                                     @else
                                         <div class="text-xs">
                                             <i class="fas fa-calendar-plus text-gray-500 mr-1"></i>
-                                            {{ $announcement->created_at->format('d/m/Y H:i') }}
+                                            {{ $announcement->created_at->displayTz()->format('d/m/Y H:i') }}
                                         </div>
                                     @endif
                                 </td>

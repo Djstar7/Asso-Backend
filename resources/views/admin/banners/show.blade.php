@@ -190,11 +190,11 @@
                             Créé le
                         </span>
                         <span class="text-white font-medium">
-                            {{ $banner->created_at->format('d/m/Y') }}
+                            {{ $banner->created_at->displayTz()->format('d/m/Y') }}
                         </span>
                     </div>
                     <div class="text-xs text-gray-500 text-right">
-                        {{ $banner->created_at->format('H:i:s') }}
+                        {{ $banner->created_at->displayTz()->format('H:i:s') }}
                     </div>
 
                     <div class="flex items-center justify-between pt-3 border-t border-dark-300">
@@ -203,11 +203,11 @@
                             Modifié le
                         </span>
                         <span class="text-white font-medium">
-                            {{ $banner->updated_at->format('d/m/Y') }}
+                            {{ $banner->updated_at->displayTz()->format('d/m/Y') }}
                         </span>
                     </div>
                     <div class="text-xs text-gray-500 text-right">
-                        {{ $banner->updated_at->format('H:i:s') }}
+                        {{ $banner->updated_at->displayTz()->format('H:i:s') }}
                     </div>
 
                     <div class="flex items-center justify-between pt-3 border-t border-dark-300">

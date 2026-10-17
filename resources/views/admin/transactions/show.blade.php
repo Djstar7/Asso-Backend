@@ -46,7 +46,7 @@
 
                     <div class="bg-dark-50 p-4 rounded-lg border border-dark-300">
                         <p class="text-sm text-gray-400 mb-1">Date</p>
-                        <p class="text-white font-medium">{{ $transaction->created_at->format('d/m/Y H:i:s') }}</p>
+                        <p class="text-white font-medium">{{ $transaction->created_at->displayTz()->format('d/m/Y H:i:s') }}</p>
                     </div>
                 </div>
             </div>
@@ -167,7 +167,7 @@
                         <div class="p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
                             <p class="text-sm text-green-300">
                                 <i class="fas fa-calendar-check mr-2"></i>
-                                Complété le {{ $transaction->completed_at->format('d/m/Y à H:i') }}
+                                Complété le {{ $transaction->completed_at->displayTz()->format('d/m/Y à H:i') }}
                             </p>
                         </div>
                     @endif

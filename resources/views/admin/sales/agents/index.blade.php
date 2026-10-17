@@ -111,7 +111,7 @@
                             <td class="px-4 py-3">
                                 <a href="{{ route('admin.sales.agents.show', $agent) }}" class="text-white font-medium hover:text-primary-400">{{ $agent->full_name }}</a>
                                 @if($agent->source === \App\Models\SalesAgent::SOURCE_SELF)
-                                    <span class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400" title="Modalités acceptées le {{ $agent->terms_accepted_at?->format('d/m/Y H:i') }}">Inscrit via l'app</span>
+                                    <span class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400" title="Modalités acceptées le {{ $agent->terms_accepted_at?->displayTz()->format('d/m/Y H:i') }}">Inscrit via l'app</span>
                                 @endif
                                 <div class="text-xs text-gray-500">{{ $agent->phone }} {{ $agent->email }}</div>
                             </td>

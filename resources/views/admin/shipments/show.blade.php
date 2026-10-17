@@ -34,7 +34,7 @@
                         <li class="mb-5 ml-5">
                             <span class="absolute -left-1.5 w-3 h-3 rounded-full bg-primary-500"></span>
                             <div class="text-white font-medium">{{ $event->label }} @if($event->location)<span class="text-gray-400">— {{ $event->location }}</span>@endif</div>
-                            <div class="text-xs text-gray-500">{{ $event->occurred_at->format('d/m/Y H:i') }} · {{ $event->actor_type }}</div>
+                            <div class="text-xs text-gray-500">{{ $event->occurred_at->displayTz()->format('d/m/Y H:i') }} · {{ $event->actor_type }}</div>
                             @if($event->note)<div class="text-sm text-gray-300 mt-1">{{ $event->note }}</div>@endif
                         </li>
                     @empty

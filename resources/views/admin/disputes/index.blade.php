@@ -68,7 +68,7 @@
                     <tr class="hover:bg-dark-50 transition-colors">
                         <td class="px-4 py-3">
                             <a href="{{ route('admin.disputes.show', $dispute) }}" class="text-white font-medium hover:text-primary-400">{{ $dispute->number }}</a>
-                            <div class="text-xs text-gray-500">#{{ $dispute->order?->order_number }} · {{ $dispute->created_at->format('d/m/Y H:i') }}</div>
+                            <div class="text-xs text-gray-500">#{{ $dispute->order?->order_number }} · {{ $dispute->created_at->displayTz()->format('d/m/Y H:i') }}</div>
                         </td>
                         <td class="px-4 py-3">{{ $dispute->item?->product?->name ?? 'Produit supprimé' }}</td>
                         <td class="px-4 py-3">

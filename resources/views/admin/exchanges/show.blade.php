@@ -115,7 +115,7 @@
                     <div class="max-w-[70%]">
                         <div class="flex items-center gap-2 mb-1 {{ $isUser1 ? '' : 'justify-end' }}">
                             <span class="text-sm font-medium text-gray-300">{{ $message->sender->name }}</span>
-                            <span class="text-xs text-gray-500">{{ $message->created_at->format('d/m/Y H:i') }}</span>
+                            <span class="text-xs text-gray-500">{{ $message->created_at->displayTz()->format('d/m/Y H:i') }}</span>
                         </div>
 
                         <div class="{{ $bgColor }} rounded-lg p-4">
@@ -126,7 +126,7 @@
                             @if($message->is_read)
                                 <span class="text-xs text-green-400">
                                     <i class="fas fa-check-double mr-1"></i>
-                                    Lu {{ $message->read_at?->format('d/m/Y H:i') }}
+                                    Lu {{ $message->read_at?->displayTz()->format('d/m/Y H:i') }}
                                 </span>
                             @else
                                 <span class="text-xs text-gray-500">
@@ -152,11 +152,11 @@
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
                 <span class="text-gray-400 text-sm">Créée le</span>
-                <p class="text-gray-100 font-medium">{{ $conversation->created_at->format('d/m/Y H:i:s') }}</p>
+                <p class="text-gray-100 font-medium">{{ $conversation->created_at->displayTz()->format('d/m/Y H:i:s') }}</p>
             </div>
             <div>
                 <span class="text-gray-400 text-sm">Dernier message</span>
-                <p class="text-gray-100 font-medium">{{ $conversation->last_message_at?->format('d/m/Y H:i:s') ?? 'N/A' }}</p>
+                <p class="text-gray-100 font-medium">{{ $conversation->last_message_at?->displayTz()->format('d/m/Y H:i:s') ?? 'N/A' }}</p>
             </div>
             <div>
                 <span class="text-gray-400 text-sm">Messages non lus</span>

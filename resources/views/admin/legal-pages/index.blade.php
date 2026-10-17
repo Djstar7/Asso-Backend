@@ -66,7 +66,7 @@
                                     @endif
                                 </td>
                                 <td class="px-6 py-4 text-center text-sm text-gray-400">
-                                    {{ $page->created_at->format('d/m/Y') }}
+                                    {{ $page->created_at->displayTz()->format('d/m/Y') }}
                                 </td>
                                 <td class="px-6 py-4">
                                     <div class="flex items-center justify-center space-x-2">

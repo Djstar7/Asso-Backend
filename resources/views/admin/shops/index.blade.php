@@ -198,7 +198,7 @@
                         <div class="bg-dark-50 border border-dark-300 rounded-lg p-3 text-center">
                             <i class="fas fa-calendar text-primary-500 text-xl mb-1"></i>
                             <p class="text-xs text-gray-400">Créée le</p>
-                            <p class="text-sm font-semibold text-white">{{ $shop->created_at->format('d/m/Y') }}</p>
+                            <p class="text-sm font-semibold text-white">{{ $shop->created_at->displayTz()->format('d/m/Y') }}</p>
                         </div>
                     </div>
 
@@ -226,7 +226,7 @@
                                     <i class="fas fa-check-circle text-green-400"></i>
                                     <div>
                                         <p class="text-green-300 font-semibold text-xs">Vérifiée</p>
-                                        <p class="text-green-400 text-xs">{{ $shop->verified_at->format('d/m/Y') }}</p>
+                                        <p class="text-green-400 text-xs">{{ $shop->verified_at->displayTz()->format('d/m/Y') }}</p>
                                     </div>
                                 </div>
                             </div>
@@ -370,7 +370,7 @@
                                     </div>
                                     <div>
                                         <p class="text-xs text-gray-400">Créée le</p>
-                                        <p class="text-sm font-semibold text-white">{{ $shop->created_at->format('d/m/Y') }}</p>
+                                        <p class="text-sm font-semibold text-white">{{ $shop->created_at->displayTz()->format('d/m/Y') }}</p>
                                     </div>
                                 </div>
                             </div>
@@ -402,7 +402,7 @@
                                             <i class="fas fa-check-circle text-green-400 text-lg"></i>
                                             <div>
                                                 <p class="text-green-300 font-semibold text-sm">Vérifiée</p>
-                                                <p class="text-green-400 text-xs">{{ $shop->verified_at->format('d/m/Y') }}</p>
+                                                <p class="text-green-400 text-xs">{{ $shop->verified_at->displayTz()->format('d/m/Y') }}</p>
                                             </div>
                                         </div>
                                     </div>

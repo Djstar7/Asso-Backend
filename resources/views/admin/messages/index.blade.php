@@ -121,7 +121,7 @@
                                         <p class="whitespace-pre-wrap break-words">{{ $msg->message }}</p>
                                     @endif
                                     <p class="text-[10px] mt-1 {{ $mine ? 'text-white/70' : 'text-gray-500' }} text-right">
-                                        {{ $msg->created_at->format('d/m H:i') }}
+                                        {{ $msg->created_at->displayTz()->format('d/m H:i') }}
                                         @if ($mine)
                                             <i class="fas {{ $msg->is_read ? 'fa-check-double text-blue-300' : 'fa-check' }} ml-1"></i>
                                         @endif

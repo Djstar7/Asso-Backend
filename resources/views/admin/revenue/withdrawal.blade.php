@@ -265,7 +265,7 @@
                 <tbody class="divide-y divide-dark-200 text-gray-200">
                     @forelse($withdrawals as $w)
                         <tr>
-                            <td class="px-6 py-3 whitespace-nowrap">{{ $w->created_at->format('d/m/Y H:i') }}</td>
+                            <td class="px-6 py-3 whitespace-nowrap">{{ $w->created_at->displayTz()->format('d/m/Y H:i') }}</td>
                             <td class="px-6 py-3">{{ $w->provider === 'stripe' ? 'Virement bancaire' : 'Mobile Money · ' . $w->payment_method }}</td>
                             <td class="px-6 py-3">{{ $w->provider === 'stripe' ? 'IBAN' : $w->payment_account }}</td>
                             <td class="px-6 py-3 text-right whitespace-nowrap">

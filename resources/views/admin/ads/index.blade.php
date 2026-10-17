@@ -188,7 +188,7 @@
                             </td>
                             <td class="px-4 py-3 text-right text-gray-100">{{ $fcfa($campaign->amount_xaf) }}</td>
                             <td class="px-4 py-3 text-gray-300">
-                                {{ $campaign->ends_at->format('d/m/Y') }}
+                                {{ $campaign->ends_at->displayTz()->format('d/m/Y') }}
                                 @if($campaign->status === \App\Models\ProductBoost::ACTIVE)
                                     <span class="block text-xs text-gray-500">
                                         {{ $campaign->remainingDays() }} j restant(s)

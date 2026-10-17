@@ -266,7 +266,7 @@
                         <div class="text-sm text-gray-400 mb-1">
                             <i class="fas fa-calendar-plus mr-2"></i>Date de création
                         </div>
-                        <div class="font-semibold text-white">{{ $product->created_at->format('d/m/Y H:i') }}</div>
+                        <div class="font-semibold text-white">{{ $product->created_at->displayTz()->format('d/m/Y H:i') }}</div>
                     </div>
                 </div>
             </div>

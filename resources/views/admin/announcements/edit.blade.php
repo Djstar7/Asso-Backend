@@ -230,16 +230,16 @@
                     <div class="space-y-2 text-xs text-gray-400">
                         <div class="flex items-center">
                             <i class="fas fa-calendar-plus w-4 mr-2 text-primary-400"></i>
-                            <span>Créé: {{ $announcement->created_at->format('d/m/Y H:i') }}</span>
+                            <span>Créé: {{ $announcement->created_at->displayTz()->format('d/m/Y H:i') }}</span>
                         </div>
                         <div class="flex items-center">
                             <i class="fas fa-calendar-edit w-4 mr-2 text-primary-400"></i>
-                            <span>Modifié: {{ $announcement->updated_at->format('d/m/Y H:i') }}</span>
+                            <span>Modifié: {{ $announcement->updated_at->displayTz()->format('d/m/Y H:i') }}</span>
                         </div>
                         @if($announcement->sent_at)
                             <div class="flex items-center">
                                 <i class="fas fa-paper-plane w-4 mr-2 text-green-400"></i>
-                                <span>Envoyé: {{ $announcement->sent_at->format('d/m/Y H:i') }}</span>
+                                <span>Envoyé: {{ $announcement->sent_at->displayTz()->format('d/m/Y H:i') }}</span>
                             </div>
                         @endif
                     </div>

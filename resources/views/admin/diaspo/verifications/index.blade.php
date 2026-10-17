@@ -131,7 +131,7 @@
                                     <div class="text-xs text-gray-500 mt-1">
                                         <i class="fas fa-calendar mr-1"></i>
                                         @if($verification->diaspo_id_document_id)
-                                            Soumis le {{ $verification->updated_at->format('d/m/Y à H:i') }}
+                                            Soumis le {{ $verification->updated_at->displayTz()->format('d/m/Y à H:i') }}
                                         @else
                                             Aucune pièce fournie
                                         @endif
@@ -141,7 +141,7 @@
                                             <i class="fas fa-user-clock mr-1"></i>
                                             {{ $verification->unverified_offers_count }} offre(s) en ligne « Profil non vérifié »
                                             @if($verification->next_deadline)
-                                                — retrait le {{ \Illuminate\Support\Carbon::parse($verification->next_deadline)->format('d/m/Y à H:i') }}
+                                                — retrait le {{ \Illuminate\Support\Carbon::parse($verification->next_deadline)->displayTz()->format('d/m/Y à H:i') }}
                                             @endif
                                         </div>
                                     @endif

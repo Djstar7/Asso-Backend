@@ -16,15 +16,15 @@
         <a href="{{ route('admin.local-orders.index') }}" class="text-gray-400 hover:text-primary-500"><i class="fas fa-arrow-left"></i></a>
         <div class="flex-1 min-w-0">
             <h1 class="text-2xl font-bold text-white">Commande locale #{{ $order->order_number }}</h1>
-            <p class="text-gray-400">Passée le {{ $order->created_at->format('d/m/Y à H:i') }}@if($delivery['company_name']) · livraison {{ $delivery['company_name'] }}@endif</p>
+            <p class="text-gray-400">Passée le {{ $order->created_at->displayTz()->format('d/m/Y à H:i') }}@if($delivery['company_name']) · livraison {{ $delivery['company_name'] }}@endif</p>
         </div>
         <span class="px-3 py-1 rounded-full text-sm border {{ LocalOrderStage::badge($stage) }}">{{ LocalOrderStage::label($stage) }}</span>
     </div>
 
     @if($stage === 'cancelled')
         <div class="mb-6 p-4 bg-red-900/20 border-l-4 border-red-500 rounded text-red-300">
-            <i class="fas fa-ban mr-2"></i>Annulée le {{ $order->cancelled_at?->format('d/m/Y à H:i') ?? '—' }}@if($order->cancel_reason) : {{ $order->cancel_reason }}@endif
-            @if($order->refunded_at) · client remboursé le {{ $order->refunded_at->format('d/m/Y') }}@endif
+            <i class="fas fa-ban mr-2"></i>Annulée le {{ $order->cancelled_at?->displayTz()->format('d/m/Y à H:i') ?? '—' }}@if($order->cancel_reason) : {{ $order->cancel_reason }}@endif
+            @if($order->refunded_at) · client remboursé le {{ $order->refunded_at->displayTz()->format('d/m/Y') }}@endif
         </div>
     @endif
 
@@ -90,7 +90,7 @@
                         <li class="mb-5 ml-5">
                             <span class="absolute -left-1.5 w-3 h-3 rounded-full bg-primary-500"></span>
                             <div class="text-white font-medium">{{ $event->label }} @if($event->location)<span class="text-gray-400">— {{ $event->location }}</span>@endif</div>
-                            <div class="text-xs text-gray-500">{{ $event->occurred_at->format('d/m/Y H:i') }} · {{ ['buyer' => 'client', 'vendor' => 'vendeur', 'admin' => 'admin ASSO', 'deliverer' => 'coursier', 'system' => 'système'][$event->actor_type] ?? $event->actor_type }}</div>
+                            <div class="text-xs text-gray-500">{{ $event->occurred_at->displayTz()->format('d/m/Y H:i') }} · {{ ['buyer' => 'client', 'vendor' => 'vendeur', 'admin' => 'admin ASSO', 'deliverer' => 'coursier', 'system' => 'système'][$event->actor_type] ?? $event->actor_type }}</div>
                             @if($event->note)<div class="text-sm text-gray-300 mt-1">{{ $event->note }}</div>@endif
                         </li>
                     @empty

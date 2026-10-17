@@ -196,7 +196,7 @@
                                     <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
                                         <div class="text-sm">
                                             <span class="text-gray-400">Départ:</span>
-                                            <p class="text-white font-medium">{{ $offer->departure_datetime->format('d/m/Y H:i') }}</p>
+                                            <p class="text-white font-medium">{{ $offer->departure_datetime->displayTz()->format('d/m/Y H:i') }}</p>
                                         </div>
                                         <div class="text-sm">
                                             <span class="text-gray-400">Prix/kg:</span>
@@ -228,7 +228,7 @@
                                             </span>
                                             @if($offer->verification_deadline_at)
                                                 <span class="text-xs text-orange-300">
-                                                    Retrait le {{ $offer->verification_deadline_at->format('d/m/Y à H:i') }}
+                                                    Retrait le {{ $offer->verification_deadline_at->displayTz()->format('d/m/Y à H:i') }}
                                                 </span>
                                             @endif
                                         @elseif($offer->status === 'approved' && $offer->verification_status === 'verified')
@@ -252,7 +252,7 @@
                                         @endif
 
                                         <span class="text-xs text-gray-500 ml-auto">
-                                            <i class="fas fa-calendar mr-1"></i>Créée le {{ $offer->created_at->format('d/m/Y') }}
+                                            <i class="fas fa-calendar mr-1"></i>Créée le {{ $offer->created_at->displayTz()->format('d/m/Y') }}
                                         </span>
                                     </div>
                                 </div>

@@ -129,6 +129,7 @@
                             <select name="timezone" id="timezone"
                                     class="w-full px-4 py-2 bg-dark-50 border border-dark-300 rounded-lg text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                                     required>
+                                <option value="Africa/Douala" {{ old('timezone', $systemSettings['timezone']->value ?? '') == 'Africa/Douala' ? 'selected' : '' }}>Africa/Douala</option>
                                 <option value="Africa/Porto-Novo" {{ old('timezone', $systemSettings['timezone']->value ?? '') == 'Africa/Porto-Novo' ? 'selected' : '' }}>Africa/Porto-Novo</option>
                                 <option value="Africa/Abidjan" {{ old('timezone', $systemSettings['timezone']->value ?? '') == 'Africa/Abidjan' ? 'selected' : '' }}>Africa/Abidjan</option>
                                 <option value="Africa/Lagos" {{ old('timezone', $systemSettings['timezone']->value ?? '') == 'Africa/Lagos' ? 'selected' : '' }}>Africa/Lagos</option>

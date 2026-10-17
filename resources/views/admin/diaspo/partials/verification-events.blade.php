@@ -21,7 +21,7 @@
                     <span class="absolute -left-1.5 mt-1.5 w-3 h-3 rounded-full {{ $tone }}"></span>
                     <div class="flex flex-wrap items-baseline gap-x-3">
                         <span class="text-white font-medium">{{ $event->label }}</span>
-                        <time class="text-xs text-gray-500">{{ $event->created_at->format('d/m/Y à H:i') }}</time>
+                        <time class="text-xs text-gray-500">{{ $event->created_at->displayTz()->format('d/m/Y à H:i') }}</time>
                     </div>
                     <div class="text-sm text-gray-400 mt-0.5">
                         {{ $event->actor ? 'Par ' . $event->actor->first_name . ' ' . $event->actor->last_name : 'Automatique' }}
@@ -32,7 +32,7 @@
                             </a>
                         @endif
                         @if(!empty($event->meta['deadline']))
-                            · échéance {{ \Illuminate\Support\Carbon::parse($event->meta['deadline'])->format('d/m/Y à H:i') }}
+                            · échéance {{ \Illuminate\Support\Carbon::parse($event->meta['deadline'])->displayTz()->format('d/m/Y à H:i') }}
                         @endif
                     </div>
                     @if($event->reason)

@@ -196,8 +196,8 @@
                         </td>
                         <td class="py-3 px-4">
                             <div class="text-sm">
-                                <div class="text-gray-300">{{ $click->created_at->format('d/m/Y') }}</div>
-                                <div class="text-gray-500">{{ $click->created_at->format('H:i:s') }}</div>
+                                <div class="text-gray-300">{{ $click->created_at->displayTz()->format('d/m/Y') }}</div>
+                                <div class="text-gray-500">{{ $click->created_at->displayTz()->format('H:i:s') }}</div>
                             </div>
                         </td>
                     </tr>

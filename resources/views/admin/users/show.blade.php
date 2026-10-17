@@ -91,7 +91,7 @@
                             <i class="fas fa-calendar text-primary-500 mr-2"></i>
                             Membre depuis
                         </span>
-                        <span class="font-semibold text-white">{{ $user->created_at->format('d/m/Y') }}</span>
+                        <span class="font-semibold text-white">{{ $user->created_at->displayTz()->format('d/m/Y') }}</span>
                     </div>
                 </div>
             </div>
@@ -140,7 +140,7 @@
                     <div>
                         <label class="text-sm text-gray-500">Date de naissance</label>
                         <p class="text-white font-medium">
-                            {{ $user->birth_date ? $user->birth_date->format('d/m/Y') : 'Non renseigné' }}
+                            {{ $user->birth_date ? $user->birth_date->displayTz()->format('d/m/Y') : 'Non renseigné' }}
                         </p>
                     </div>
                     <div>
@@ -149,7 +149,7 @@
                     </div>
                     <div>
                         <label class="text-sm text-gray-500">Date d'inscription</label>
-                        <p class="text-white font-medium">{{ $user->created_at->format('d/m/Y à H:i') }}</p>
+                        <p class="text-white font-medium">{{ $user->created_at->displayTz()->format('d/m/Y à H:i') }}</p>
                     </div>
                 </div>
 
@@ -279,7 +279,7 @@
                             <tbody>
                                 @foreach($packageSubscriptions as $sub)
                                     <tr class="border-b border-dark-200">
-                                        <td class="px-3 py-2 text-gray-300 whitespace-nowrap">{{ ($sub->paid_at ?? $sub->created_at)->format('d/m/Y H:i') }}</td>
+                                        <td class="px-3 py-2 text-gray-300 whitespace-nowrap">{{ ($sub->paid_at ?? $sub->created_at)->displayTz()->format('d/m/Y H:i') }}</td>
                                         <td class="px-3 py-2 text-gray-200">{{ $sub->package?->name ?? ($sub->metadata['package_name'] ?? '—') }}</td>
                                         <td class="px-3 py-2 text-right text-white whitespace-nowrap">{{ $fmtF($sub->amount_xaf) }}</td>
                                         <td class="px-3 py-2 whitespace-nowrap">

@@ -85,7 +85,7 @@
 
                         <div class="flex items-center justify-between text-gray-300">
                             <span>Créé le</span>
-                            <span class="text-sm">{{ $package->created_at->format('d/m/Y') }}</span>
+                            <span class="text-sm">{{ $package->created_at->displayTz()->format('d/m/Y') }}</span>
                         </div>
                     </div>
                 </div>

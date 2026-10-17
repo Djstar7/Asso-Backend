@@ -375,10 +375,10 @@ class SettingsSeeder extends Seeder
             // Système
             [
                 'key' => 'timezone',
-                'value' => 'Africa/Porto-Novo',
+                'value' => 'Africa/Douala',
                 'type' => 'string',
                 'group' => 'system',
-                'description' => 'Fuseau horaire',
+                'description' => 'Fuseau horaire d’affichage (back-office, documents)',
             ],
             [
                 'key' => 'default_language',

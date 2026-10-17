@@ -143,7 +143,7 @@
                                     <div>
                                         <i class="fas fa-calendar-plus text-primary-400 mr-1"></i>
                                         <span class="font-medium">Créé:</span>
-                                        {{ $token->created_at->format('d/m/Y H:i') }}
+                                        {{ $token->created_at->displayTz()->format('d/m/Y H:i') }}
                                     </div>
                                     <div>
                                         <i class="fas fa-clock text-primary-400 mr-1"></i>

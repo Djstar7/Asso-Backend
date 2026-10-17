@@ -35,7 +35,7 @@
                     @endforelse
                 </div>
                 @if($latestCode && !$latestCode->is_used && !$latestCode->isExpired())
-                    <p class="mt-2 text-sm text-gray-400">Code en cours : <code class="text-primary-400 font-bold">{{ $latestCode->sync_code }}</code> (jusqu'au {{ $latestCode->expires_at->format('d/m/Y') }})</p>
+                    <p class="mt-2 text-sm text-gray-400">Code en cours : <code class="text-primary-400 font-bold">{{ $latestCode->sync_code }}</code> (jusqu'au {{ $latestCode->expires_at->displayTz()->format('d/m/Y') }})</p>
                 @endif
             </div>
             <div class="flex flex-col gap-2">

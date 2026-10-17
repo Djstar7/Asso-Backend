@@ -221,7 +221,7 @@
                             </p>
                             <code class="text-sm font-mono text-white bg-dark-50 px-3 py-1.5 rounded">{{ $latestCode->sync_code }}</code>
                             <p class="text-xs text-gray-500 mt-2">
-                                Expire le {{ $latestCode->expires_at->format('d/m/Y') }}
+                                Expire le {{ $latestCode->expires_at->displayTz()->format('d/m/Y') }}
                             </p>
                         </div>
                     @endif
@@ -246,7 +246,7 @@
                 <div class="bg-dark-50 px-5 py-3 border-t border-dark-200 flex items-center justify-between">
                     <span class="text-xs text-gray-500">
                         <i class="fas fa-calendar-alt mr-1"></i>
-                        Créé le {{ $deliverer->created_at->format('d/m/Y') }}
+                        Créé le {{ $deliverer->created_at->displayTz()->format('d/m/Y') }}
                     </span>
                     <div class="flex items-center gap-2">
                         <a href="{{ route('admin.deliverers.show', $deliverer->id) }}" class="px-3 py-1.5 bg-primary-500/20 hover:bg-primary-500/30 text-primary-400 rounded-lg text-xs font-semibold transition-all">

@@ -127,8 +127,8 @@
                         </td>
                         <td class="py-3 px-4">
                             <div class="text-sm">
-                                <div class="text-gray-300">{{ $conversation->last_message_at?->format('d/m/Y') ?? 'N/A' }}</div>
-                                <div class="text-gray-500">{{ $conversation->last_message_at?->format('H:i') ?? '' }}</div>
+                                <div class="text-gray-300">{{ $conversation->last_message_at?->displayTz()->format('d/m/Y') ?? 'N/A' }}</div>
+                                <div class="text-gray-500">{{ $conversation->last_message_at?->displayTz()->format('H:i') ?? '' }}</div>
                             </div>
                         </td>
                         <td class="py-3 px-4 text-center">

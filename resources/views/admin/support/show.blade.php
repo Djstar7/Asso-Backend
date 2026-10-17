@@ -32,7 +32,7 @@
                         <div class="flex items-center justify-between mb-2">
                             <div>
                                 <p class="font-semibold text-gray-100">{{ $ticket->user->name }}</p>
-                                <p class="text-sm text-gray-400">{{ $ticket->created_at->format('d/m/Y à H:i') }}</p>
+                                <p class="text-sm text-gray-400">{{ $ticket->created_at->displayTz()->format('d/m/Y à H:i') }}</p>
                             </div>
                             <div class="flex items-center gap-2">
                                 <span class="bg-{{ $ticket->status_color }}-600 text-white px-2 py-1 rounded text-xs font-bold">
@@ -71,7 +71,7 @@
                                         <span class="text-xs text-green-400">(Support)</span>
                                     @endif
                                 </p>
-                                <p class="text-sm text-gray-400">{{ $reply->created_at->format('d/m/Y à H:i') }}</p>
+                                <p class="text-sm text-gray-400">{{ $reply->created_at->displayTz()->format('d/m/Y à H:i') }}</p>
                             </div>
                             <div class="bg-{{ $reply->is_admin ? 'green-900' : 'dark-50' }} bg-opacity-30 rounded-lg p-4">
                                 <p class="text-gray-200 leading-relaxed whitespace-pre-line">{{ $reply->message }}</p>
@@ -168,14 +168,14 @@
                     <!-- Créé le -->
                     <div>
                         <p class="text-sm text-gray-400 mb-1">Créé le</p>
-                        <p class="text-gray-100">{{ $ticket->created_at->format('d/m/Y à H:i') }}</p>
+                        <p class="text-gray-100">{{ $ticket->created_at->displayTz()->format('d/m/Y à H:i') }}</p>
                         <p class="text-xs text-gray-500">{{ $ticket->created_at->diffForHumans() }}</p>
                     </div>
 
                     @if($ticket->resolved_at)
                         <div>
                             <p class="text-sm text-gray-400 mb-1">Résolu le</p>
-                            <p class="text-gray-100">{{ $ticket->resolved_at->format('d/m/Y à H:i') }}</p>
+                            <p class="text-gray-100">{{ $ticket->resolved_at->displayTz()->format('d/m/Y à H:i') }}</p>
                         </div>
                     @endif
                 </div>

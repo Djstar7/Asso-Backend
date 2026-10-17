@@ -154,7 +154,7 @@
                                         <span><i class="fas fa-thumbs-up mr-1 text-green-500"></i>{{ $post->likes_count }} J'aime</span>
                                         <span><i class="fas fa-thumbs-down mr-1 text-red-500"></i>{{ $post->dislikes_count }} N'aime pas</span>
                                         <span><i class="fas fa-comments mr-1 text-blue-500"></i>{{ $post->comments_count }} Commentaires</span>
-                                        <span class="ml-auto"><i class="fas fa-calendar mr-1"></i>{{ $post->created_at->format('d/m/Y à H:i') }}</span>
+                                        <span class="ml-auto"><i class="fas fa-calendar mr-1"></i>{{ $post->created_at->displayTz()->format('d/m/Y à H:i') }}</span>
                                     </div>
                                 </div>
                             </div>
