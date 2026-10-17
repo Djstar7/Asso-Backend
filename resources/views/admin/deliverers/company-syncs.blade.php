@@ -136,15 +136,15 @@
 
                             <!-- Synced At -->
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-400">
-                                <div>{{ $sync->synced_at->format('d/m/Y H:i') }}</div>
+                                <div>{{ $sync->synced_at->displayTz()->format('d/m/Y H:i') }}</div>
                                 @if($sync->unsynced_at)
                                     <div class="text-xs text-yellow-400">
-                                        <i class="fas fa-unlink mr-1"></i> Désync: {{ $sync->unsynced_at->format('d/m/Y H:i') }}
+                                        <i class="fas fa-unlink mr-1"></i> Désync: {{ $sync->unsynced_at->displayTz()->format('d/m/Y H:i') }}
                                     </div>
                                 @endif
                                 @if($sync->banned_at)
                                     <div class="text-xs text-red-400">
-                                        <i class="fas fa-ban mr-1"></i> Banni: {{ $sync->banned_at->format('d/m/Y H:i') }}
+                                        <i class="fas fa-ban mr-1"></i> Banni: {{ $sync->banned_at->displayTz()->format('d/m/Y H:i') }}
                                     </div>
                                 @endif
                             </td>

@@ -274,7 +274,7 @@
                                 @endif
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                {{ $user->created_at->format('d/m/Y') }}
+                                {{ $user->created_at->displayTz()->format('d/m/Y') }}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                 <div class="flex justify-end gap-2">

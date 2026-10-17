@@ -58,7 +58,7 @@
                                     <span class="text-gray-500">—</span>
                                 @endforelse
                             </td>
-                            <td class="px-4 py-3 text-gray-400">{{ $manager->created_at?->format('d/m/Y') }}</td>
+                            <td class="px-4 py-3 text-gray-400">{{ $manager->created_at?->displayTz()->format('d/m/Y') }}</td>
                             <td class="px-4 py-3">
                                 <div class="flex justify-end gap-2">
                                     <a href="{{ route('admin.managers.edit', $manager) }}" class="px-3 py-1.5 bg-gradient-to-r from-primary-500 to-primary-600 text-white text-sm rounded-lg hover:shadow-lg" title="Modifier les accès">

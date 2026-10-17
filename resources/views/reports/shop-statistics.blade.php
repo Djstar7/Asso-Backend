@@ -12,7 +12,7 @@
     $topProducts = $summary['top_products'] ?? [];
 
     $fmt = fn ($value) => number_format((float) $value, 2, ',', ' ');
-    $date = fn ($iso) => $iso ? \Illuminate\Support\Carbon::parse($iso)->format('d/m/Y') : '—';
+    $date = fn ($iso) => $iso ? \Illuminate\Support\Carbon::parse($iso)->displayTz()->format('d/m/Y') : '—';
     $isMonthly = ($period['granularity'] ?? 'day') === 'month';
 @endphp
 <!DOCTYPE html>
@@ -43,7 +43,7 @@
 <body>
 
 <footer>
-    {{ $shop->name }} — rapport édité le {{ $generatedAt->format('d/m/Y à H:i') }} · ASSO
+    {{ $shop->name }} — rapport édité le {{ $generatedAt->displayTz()->format('d/m/Y à H:i') }} · ASSO
 </footer>
 
 <h1>Statistiques de la boutique</h1>

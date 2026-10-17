@@ -114,14 +114,14 @@
                                 <div class="max-w-[75%] rounded-2xl px-4 py-2 text-sm shadow
                                             {{ $mine ? 'bg-primary-600 text-white rounded-br-sm' : 'bg-dark-200 text-gray-100 rounded-bl-sm' }}">
                                     @if ($msg->image_path)
-                                        <img src="{{ \Illuminate\Support\Str::startsWith($msg->image_path, ['http']) ? $msg->image_path : asset('storage/' . $msg->image_path) }}"
+                                        <img src="{{ media_url($msg->image_path) }}"
                                              class="rounded-lg mb-1 max-h-60" alt="image">
                                     @endif
                                     @if ($msg->message)
                                         <p class="whitespace-pre-wrap break-words">{{ $msg->message }}</p>
                                     @endif
                                     <p class="text-[10px] mt-1 {{ $mine ? 'text-white/70' : 'text-gray-500' }} text-right">
-                                        {{ $msg->created_at->format('d/m H:i') }}
+                                        {{ $msg->created_at->displayTz()->format('d/m H:i') }}
                                         @if ($mine)
                                             <i class="fas {{ $msg->is_read ? 'fa-check-double text-blue-300' : 'fa-check' }} ml-1"></i>
                                         @endif

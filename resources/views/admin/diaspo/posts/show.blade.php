@@ -54,7 +54,7 @@
 
                     <div class="text-sm text-gray-500">
                         <i class="fas fa-calendar mr-1"></i>
-                        Publié le {{ $post->created_at->format('d/m/Y à H:i') }}
+                        Publié le {{ $post->created_at->displayTz()->format('d/m/Y à H:i') }}
                     </div>
                 </div>
             </div>

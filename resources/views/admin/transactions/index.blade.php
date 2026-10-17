@@ -214,7 +214,7 @@
                                     </div>
                                 </td>
                                 <td class="px-6 py-4 text-sm text-gray-300">
-                                    {{ $transaction->created_at->format('d/m/Y H:i') }}
+                                    {{ $transaction->created_at->displayTz()->format('d/m/Y H:i') }}
                                 </td>
                                 <td class="px-6 py-4">
                                     <div class="text-sm">

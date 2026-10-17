@@ -466,9 +466,14 @@ class DepositOrderService
             return null;
         }
 
+        $balancePaid = $order->balance_status === Order::BALANCE_PAID;
+
         return [
             'deposit_amount' => (float) $order->deposit_amount,
             'balance_amount' => (float) $order->balance_amount,
+            // Ce que le client a réglé / doit encore : le solde n'est plus dû une fois payé.
+            'amount_paid' => (float) ($balancePaid ? $order->total : $order->deposit_amount),
+            'balance_due' => $balancePaid ? 0.0 : (float) $order->balance_amount,
             'balance_status' => $order->balance_status,
             'balance_payable' => $order->balance_status === Order::BALANCE_UNLOCKED && $order->status !== 'cancelled',
             'balance_paid_at' => $order->balance_paid_at?->toIso8601String(),

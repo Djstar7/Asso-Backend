@@ -76,7 +76,7 @@
                     <tbody>
                         @foreach($unpaidAttempts as $s)
                             <tr class="border-b border-dark-200">
-                                <td class="px-4 py-3 text-gray-300">{{ $s->created_at->format('d/m/Y H:i') }}</td>
+                                <td class="px-4 py-3 text-gray-300">{{ $s->created_at->displayTz()->format('d/m/Y H:i') }}</td>
                                 <td class="px-4 py-3 text-gray-200">{{ $s->user?->name }}</td>
                                 <td class="px-4 py-3 text-gray-200">{{ $s->package?->name ?? ($s->metadata['package_name'] ?? '—') }}</td>
                                 <td class="px-4 py-3 text-right text-white">{{ $fmt($s->amount_xaf) }}</td>

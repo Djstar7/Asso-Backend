@@ -77,7 +77,7 @@
                 <strong>Raison du rejet:</strong> {{ $shop->rejection_reason ?? 'Non spécifiée' }}
             </p>
             <p class="text-red-200 text-xs">
-                Rejetée le {{ $shop->rejected_at ? $shop->rejected_at->format('d/m/Y à H:i') : 'N/A' }}
+                Rejetée le {{ $shop->rejected_at ? $shop->rejected_at->displayTz()->format('d/m/Y à H:i') : 'N/A' }}
             </p>
             <div class="mt-4">
                 <form action="{{ route('admin.shops.verify', $shop) }}" method="POST" class="inline">
@@ -100,7 +100,7 @@
                         Boutique vérifiée et active
                     </h3>
                     <p class="text-green-200 text-sm">
-                        Vérifiée le {{ $shop->verified_at->format('d/m/Y à H:i') }}
+                        Vérifiée le {{ $shop->verified_at->displayTz()->format('d/m/Y à H:i') }}
                     </p>
                 </div>
                 <form action="{{ route('admin.shops.toggleStatus', $shop) }}" method="POST">
@@ -123,7 +123,7 @@
                         Boutique vérifiée mais inactive
                     </h3>
                     <p class="text-blue-200 text-sm">
-                        Vérifiée le {{ $shop->verified_at->format('d/m/Y à H:i') }} - Actuellement désactivée
+                        Vérifiée le {{ $shop->verified_at->displayTz()->format('d/m/Y à H:i') }} - Actuellement désactivée
                     </p>
                 </div>
                 <form action="{{ route('admin.shops.toggleStatus', $shop) }}" method="POST">
@@ -182,7 +182,7 @@
                 @endif
                 <p class="text-gray-400 text-xs">
                     <i class="fas fa-clock mr-1"></i>
-                    Demandé le {{ $request->created_at->format('d/m/Y à H:i') }} par {{ $request->vendor?->name ?? 'le vendeur' }}
+                    Demandé le {{ $request->created_at->displayTz()->format('d/m/Y à H:i') }} par {{ $request->vendor?->name ?? 'le vendeur' }}
                 </p>
             </div>
 
@@ -266,14 +266,14 @@
                             <i class="fas fa-calendar-plus text-primary-500 mr-2"></i>
                             Créée le
                         </span>
-                        <span class="font-semibold text-white">{{ $shop->created_at->format('d/m/Y') }}</span>
+                        <span class="font-semibold text-white">{{ $shop->created_at->displayTz()->format('d/m/Y') }}</span>
                     </div>
                     <div class="flex items-center justify-between">
                         <span class="text-gray-400">
                             <i class="fas fa-calendar-check text-primary-500 mr-2"></i>
                             Mise à jour
                         </span>
-                        <span class="font-semibold text-white">{{ $shop->updated_at->format('d/m/Y') }}</span>
+                        <span class="font-semibold text-white">{{ $shop->updated_at->displayTz()->format('d/m/Y') }}</span>
                     </div>
                 </div>
 

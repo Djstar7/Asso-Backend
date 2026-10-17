@@ -155,7 +155,7 @@
                         <td class="py-3 px-4">
                             <div class="flex items-center gap-2">
                                 @if($click->user->avatar)
-                                    <img src="{{ asset('storage/' . $click->user->avatar) }}" alt="{{ $click->user->name }}"
+                                    <img src="{{ media_url($click->user->avatar) }}" alt="{{ $click->user->name }}"
                                         class="w-8 h-8 rounded-full object-cover">
                                 @else
                                     <div class="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
@@ -171,7 +171,7 @@
                         <td class="py-3 px-4">
                             <div class="flex items-center gap-2">
                                 @if($click->seller->avatar)
-                                    <img src="{{ asset('storage/' . $click->seller->avatar) }}" alt="{{ $click->seller->name }}"
+                                    <img src="{{ media_url($click->seller->avatar) }}" alt="{{ $click->seller->name }}"
                                         class="w-8 h-8 rounded-full object-cover">
                                 @else
                                     <div class="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center">
@@ -196,8 +196,8 @@
                         </td>
                         <td class="py-3 px-4">
                             <div class="text-sm">
-                                <div class="text-gray-300">{{ $click->created_at->format('d/m/Y') }}</div>
-                                <div class="text-gray-500">{{ $click->created_at->format('H:i:s') }}</div>
+                                <div class="text-gray-300">{{ $click->created_at->displayTz()->format('d/m/Y') }}</div>
+                                <div class="text-gray-500">{{ $click->created_at->displayTz()->format('H:i:s') }}</div>
                             </div>
                         </td>
                     </tr>

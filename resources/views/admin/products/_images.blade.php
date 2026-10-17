@@ -17,7 +17,7 @@
             @foreach($existingImages as $image)
                 <div class="im-existing relative group rounded-lg overflow-hidden border-2 {{ $image->is_primary ? 'border-primary-500' : 'border-dark-300' }} cursor-move bg-dark-50"
                      draggable="true" data-id="{{ $image->id }}" id="image-{{ $image->id }}">
-                    <img src="{{ asset($image->image_path) }}" alt="{{ $product->name }}" class="w-full h-32 object-cover pointer-events-none">
+                    <img src="{{ media_url($image->image_path) }}" alt="{{ $product->name }}" class="w-full h-32 object-cover pointer-events-none">
                     <span class="im-primary-badge absolute top-2 left-2 px-2 py-0.5 bg-primary-600 text-white text-xs rounded-full {{ $image->is_primary ? '' : 'hidden' }}">
                         <i class="fas fa-star mr-1"></i>Principale
                     </span>

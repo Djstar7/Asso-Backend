@@ -393,19 +393,16 @@ class ProfileController extends Controller
                         'duration_days' => null,
                         'formatted_duration' => 'Personnalisé',
                         'storage_size_mb' => (float) $activePackage->storage_total_mb,
-                        'formatted_storage_size' => number_format($activePackage->storage_total_mb, 0) . ' MB',
+                        'formatted_storage_size' => $activePackage->is_unlimited_storage
+                            ? __('packages.storage.unlimited')
+                            : number_format($activePackage->storage_total_mb, 0) . ' MB',
                     ];
 
                 $packageInfo = [
                     'has_package' => true,
                     'vendor_package' => [
                         'id' => $activePackage->id,
-                        'storage_total_mb' => (float) $activePackage->storage_total_mb,
-                        'storage_used_mb' => (float) $activePackage->storage_used_mb,
-                        'storage_remaining_mb' => (float) $activePackage->storage_remaining_mb,
-                        'storage_percentage_used' => $activePackage->storage_total_mb > 0
-                            ? round(($activePackage->storage_used_mb / $activePackage->storage_total_mb) * 100, 2)
-                            : 0,
+                        ...$activePackage->storagePayload(),
                         'purchased_at' => $activePackage->purchased_at->toIso8601String(),
                         'expires_at' => $activePackage->expires_at->toIso8601String(),
                         'days_remaining' => max(0, now()->diffInDays($activePackage->expires_at, false)),

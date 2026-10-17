@@ -409,7 +409,7 @@ class PackageSubscriptionService
         if (!$package->is_active) {
             throw new \Exception(__('packages.no_longer_available'));
         }
-        if ($package->type === 'storage' && (int) $package->storage_size_mb <= 0) {
+        if ($package->type === 'storage' && !$package->is_unlimited_storage && (int) $package->storage_size_mb <= 0) {
             throw new \Exception(__('packages.storage_misconfigured'));
         }
         if ($package->type === 'certification' && !$user->shops()->exists()) {
@@ -574,9 +574,11 @@ class PackageSubscriptionService
             ->first();
 
         if ($existingPackage) {
+            // Cumul : un forfait illimité rend (ou garde) l'espace illimité.
             $existingPackage->update([
-                'storage_total_mb' => $existingPackage->storage_total_mb + $package->storage_size_mb,
-                'storage_remaining_mb' => $existingPackage->storage_remaining_mb + $package->storage_size_mb,
+                'storage_total_mb' => $existingPackage->storage_total_mb + (int) $package->storage_size_mb,
+                'storage_remaining_mb' => $existingPackage->storage_remaining_mb + (int) $package->storage_size_mb,
+                'is_unlimited_storage' => $existingPackage->is_unlimited_storage || $package->is_unlimited_storage,
                 'expires_at' => $existingPackage->expires_at->copy()->addDays($package->duration_days),
                 'package_id' => null,
                 'custom_name' => 'Espace Cumulé',
@@ -592,9 +594,10 @@ class PackageSubscriptionService
         $vendorPackage = VendorPackage::create([
             'user_id' => $user->id,
             'package_id' => $package->id,
-            'storage_total_mb' => $package->storage_size_mb,
+            'storage_total_mb' => (int) $package->storage_size_mb,
             'storage_used_mb' => 0,
-            'storage_remaining_mb' => $package->storage_size_mb,
+            'storage_remaining_mb' => (int) $package->storage_size_mb,
+            'is_unlimited_storage' => (bool) $package->is_unlimited_storage,
             'purchased_at' => now(),
             'expires_at' => now()->addDays($package->duration_days),
             'status' => 'active',

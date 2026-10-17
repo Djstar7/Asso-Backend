@@ -185,7 +185,7 @@
                             </span>
                         </td>
                         <td class="px-6 py-4">
-                            <span class="text-sm text-gray-300">{{ $commission->created_at->format('d/m/Y H:i') }}</span>
+                            <span class="text-sm text-gray-300">{{ $commission->created_at->displayTz()->format('d/m/Y H:i') }}</span>
                         </td>
                         <td class="px-6 py-4">
                             <div class="flex items-center gap-2">
@@ -215,7 +215,7 @@
                                 @endif
 
                                 @if($commission->status === 'paid')
-                                    <span class="text-gray-500" title="Payée le {{ $commission->paid_at?->format('d/m/Y') ?? 'N/A' }}">
+                                    <span class="text-gray-500" title="Payée le {{ $commission->paid_at?->displayTz()->format('d/m/Y') ?? 'N/A' }}">
                                         <i class="fas fa-check-circle"></i>
                                     </span>
                                 @endif

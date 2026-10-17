@@ -37,7 +37,7 @@
                     <tr>
                         <td class="px-4 py-3">
                             <div class="text-white font-medium">#{{ $order->order_number }}</div>
-                            <div class="text-xs text-gray-500">{{ $order->created_at->format('d/m/Y H:i') }}</div>
+                            <div class="text-xs text-gray-500">{{ $order->created_at->displayTz()->format('d/m/Y H:i') }}</div>
                         </td>
                         <td class="px-4 py-3">{{ $order->user?->name }}<div class="text-xs text-gray-500">{{ $order->customer_phone }}</div></td>
                         <td class="px-4 py-3">

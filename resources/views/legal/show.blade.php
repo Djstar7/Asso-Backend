@@ -32,7 +32,7 @@
 <body class="{{ request()->boolean('app') ? 'in-app' : '' }}">
 <main>
     <h1>{{ $page->title }}</h1>
-    <p class="updated">{{ __('legal.updated_on', ['date' => $page->updated_at?->format('d/m/Y')]) }}</p>
+    <p class="updated">{{ __('legal.updated_on', ['date' => $page->updated_at?->displayTz()->format('d/m/Y')]) }}</p>
 
     {{-- Contenu HTML rédigé par l'administration (éditeur Quill). --}}
     <div class="content">{!! $page->content !!}</div>

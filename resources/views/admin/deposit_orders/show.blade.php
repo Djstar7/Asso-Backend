@@ -32,7 +32,7 @@
         <div>
             <a href="{{ route('admin.deposit-orders.index') }}" class="text-sm text-gray-400 hover:text-white"><i class="fas fa-arrow-left mr-1"></i> Commandes avec acompte</a>
             <h1 class="text-2xl font-bold text-white mt-1">Commande #{{ $order->order_number }}</h1>
-            <p class="text-gray-400 text-sm">Passée le {{ $order->created_at->format('d/m/Y à H:i') }}</p>
+            <p class="text-gray-400 text-sm">Passée le {{ $order->created_at->displayTz()->format('d/m/Y à H:i') }}</p>
         </div>
         <span class="px-3 py-1.5 rounded-full text-sm border {{ DepositOrderStage::badge($stage) }}">{{ DepositOrderStage::label($stage) }}</span>
     </div>
@@ -83,7 +83,7 @@
                 <ol class="space-y-3">
                     @foreach($order->trackingEvents as $event)
                         <li class="flex gap-3 text-sm">
-                            <span class="text-gray-500 w-32 flex-shrink-0">{{ $event->occurred_at?->format('d/m/Y H:i') }}</span>
+                            <span class="text-gray-500 w-32 flex-shrink-0">{{ $event->occurred_at?->displayTz()->format('d/m/Y H:i') }}</span>
                             <span class="text-gray-200">{{ $event->label }}@if($event->location) — {{ $event->location }}@endif
                                 @if($event->note)<span class="block text-xs text-gray-500">{{ $event->note }}</span>@endif
                             </span>
@@ -111,7 +111,7 @@
                 <p class="text-gray-300">Statut : <span class="text-white">{{ $verificationLabels[$verification] ?? $verification }}</span></p>
                 <p class="text-gray-300">Solde : <span class="text-white">{{ $balanceLabels[$order->balance_status] ?? $order->balance_status }}</span></p>
                 @if($order->verifier)
-                    <p class="text-gray-400 text-xs">Par {{ $order->verifier->name }} le {{ $order->verified_at?->format('d/m/Y à H:i') }}</p>
+                    <p class="text-gray-400 text-xs">Par {{ $order->verifier->name }} le {{ $order->verified_at?->displayTz()->format('d/m/Y à H:i') }}</p>
                 @endif
                 @if($order->verification_note)
                     <p class="text-gray-400 text-xs bg-dark-200 rounded p-2">Note interne : {{ $order->verification_note }}</p>

@@ -333,4 +333,10 @@ class Order extends Model
     {
         return number_format($this->total, 0, ',', ' ') . ' FCFA';
     }
+
+    /** Ce que touche le vendeur : hors commission ASSO, livraison offerte déduite. */
+    public function getFormattedVendorNetAttribute(): string
+    {
+        return number_format((float) ($this->vendor_net_amount ?? $this->subtotal), 0, ',', ' ') . ' FCFA';
+    }
 }

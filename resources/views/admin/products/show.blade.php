@@ -56,7 +56,7 @@
                 <!-- Primary Image -->
                 @if($product->primaryImage)
                 <div class="mb-4">
-                    <img src="{{ asset($product->primaryImage->image_path) }}" alt="{{ $product->name }}" class="w-full h-96 object-cover rounded-lg border-2 border-primary-500">
+                    <img src="{{ media_url($product->primaryImage->image_path) }}" alt="{{ $product->name }}" class="w-full h-96 object-cover rounded-lg border-2 border-primary-500">
                     <p class="text-sm text-gray-400 text-center mt-2">
                         <i class="fas fa-star text-primary-500 mr-1"></i>Image principale
                     </p>
@@ -69,7 +69,7 @@
                     @foreach($product->images as $image)
                         @if(!$image->is_primary)
                             <div class="relative">
-                                <img src="{{ asset($image->image_path) }}" alt="{{ $product->name }}" class="w-full h-32 object-cover rounded-lg border-2 border-dark-200">
+                                <img src="{{ media_url($image->image_path) }}" alt="{{ $product->name }}" class="w-full h-32 object-cover rounded-lg border-2 border-dark-200">
                             </div>
                         @endif
                     @endforeach
@@ -107,7 +107,7 @@
             <div class="bg-dark-100 rounded-xl shadow-lg p-6">
                 <div class="flex items-center justify-between mb-4">
                     <h2 class="text-lg font-semibold text-white"><i class="fas fa-swatchbook text-primary-500 mr-2"></i>Choix proposés au client</h2>
-                    <span class="text-sm text-gray-400">Stock total : <span class="font-bold text-white">{{ $product->variants->sum('stock') }}</span></span>
+                    <span class="text-sm text-gray-400">Stock total : <span class="font-bold text-white">{{ $product->stock }}</span></span>
                 </div>
                 <div class="space-y-3 mb-5">
                     @foreach($variantOptions as $group)
@@ -266,7 +266,7 @@
                         <div class="text-sm text-gray-400 mb-1">
                             <i class="fas fa-calendar-plus mr-2"></i>Date de création
                         </div>
-                        <div class="font-semibold text-white">{{ $product->created_at->format('d/m/Y H:i') }}</div>
+                        <div class="font-semibold text-white">{{ $product->created_at->displayTz()->format('d/m/Y H:i') }}</div>
                     </div>
                 </div>
             </div>

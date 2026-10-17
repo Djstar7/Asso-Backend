@@ -126,7 +126,7 @@
                             @endif
                         </td>
                         <td class="py-3 px-4 text-gray-300">
-                            {{ $conversation->last_message_at?->format('d/m/Y H:i') ?? 'N/A' }}
+                            {{ $conversation->last_message_at?->displayTz()->format('d/m/Y H:i') ?? 'N/A' }}
                         </td>
                         <td class="py-3 px-4 text-center">
                             <a href="{{ route('admin.exchanges.show', $conversation) }}"

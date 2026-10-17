@@ -40,7 +40,7 @@
                     <!-- Current Image -->
                     <div class="mb-4">
                         <p class="text-sm text-gray-400 mb-2">Image actuelle:</p>
-                        <img src="{{ asset('storage/' . $banner->image_path) }}"
+                        <img src="{{ media_url($banner->image_path) }}"
                              alt="{{ $banner->title }}"
                              class="rounded-lg border-2 border-dark-300 max-h-64"
                              id="currentImage">
@@ -179,11 +179,11 @@
                     <div class="space-y-2 text-xs text-gray-400">
                         <div class="flex items-center">
                             <i class="fas fa-calendar-plus w-4 mr-2 text-primary-400"></i>
-                            <span>Créé: {{ $banner->created_at->format('d/m/Y H:i') }}</span>
+                            <span>Créé: {{ $banner->created_at->displayTz()->format('d/m/Y H:i') }}</span>
                         </div>
                         <div class="flex items-center">
                             <i class="fas fa-calendar-edit w-4 mr-2 text-primary-400"></i>
-                            <span>Modifié: {{ $banner->updated_at->format('d/m/Y H:i') }}</span>
+                            <span>Modifié: {{ $banner->updated_at->displayTz()->format('d/m/Y H:i') }}</span>
                         </div>
                     </div>
                 </div>

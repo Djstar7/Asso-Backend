@@ -69,7 +69,7 @@
                             <div class="space-y-1">
                                 <div class="flex items-center gap-2">
                                     @if($conversation->user1->avatar)
-                                        <img src="{{ asset('storage/' . $conversation->user1->avatar) }}" alt="{{ $conversation->user1->name }}"
+                                        <img src="{{ media_url($conversation->user1->avatar) }}" alt="{{ $conversation->user1->name }}"
                                             class="w-6 h-6 rounded-full object-cover">
                                     @else
                                         <div class="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
@@ -80,7 +80,7 @@
                                 </div>
                                 <div class="flex items-center gap-2">
                                     @if($conversation->user2->avatar)
-                                        <img src="{{ asset('storage/' . $conversation->user2->avatar) }}" alt="{{ $conversation->user2->name }}"
+                                        <img src="{{ media_url($conversation->user2->avatar) }}" alt="{{ $conversation->user2->name }}"
                                             class="w-6 h-6 rounded-full object-cover">
                                     @else
                                         <div class="w-6 h-6 bg-purple-600 rounded-full flex items-center justify-center">
@@ -127,8 +127,8 @@
                         </td>
                         <td class="py-3 px-4">
                             <div class="text-sm">
-                                <div class="text-gray-300">{{ $conversation->last_message_at?->format('d/m/Y') ?? 'N/A' }}</div>
-                                <div class="text-gray-500">{{ $conversation->last_message_at?->format('H:i') ?? '' }}</div>
+                                <div class="text-gray-300">{{ $conversation->last_message_at?->displayTz()->format('d/m/Y') ?? 'N/A' }}</div>
+                                <div class="text-gray-500">{{ $conversation->last_message_at?->displayTz()->format('H:i') ?? '' }}</div>
                             </div>
                         </td>
                         <td class="py-3 px-4 text-center">

@@ -106,7 +106,7 @@
                                         </p>
                                         <p class="text-gray-300">
                                             <span class="text-gray-500">Soumis le :</span>
-                                            {{ optional($account->stripe_submitted_at)->format('d/m/Y H:i') ?? '—' }}
+                                            {{ optional($account->stripe_submitted_at)->displayTz()->format('d/m/Y H:i') ?? '—' }}
                                         </p>
                                     </div>
 

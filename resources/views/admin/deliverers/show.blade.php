@@ -81,7 +81,7 @@
                     </div>
                     <div class="flex items-center justify-between">
                         <span class="text-gray-400"><i class="fas fa-calendar text-primary-500 mr-2"></i> Créé</span>
-                        <span class="font-medium text-white">{{ $deliverer->created_at->format('d/m/Y') }}</span>
+                        <span class="font-medium text-white">{{ $deliverer->created_at->displayTz()->format('d/m/Y') }}</span>
                     </div>
                 </div>
             </div>
@@ -140,7 +140,7 @@
                                 </div>
                                 <div class="flex justify-between">
                                     <span class="text-gray-500">Expire le:</span>
-                                    <span class="text-white">{{ $latestCode->expires_at->format('d/m/Y') }}</span>
+                                    <span class="text-white">{{ $latestCode->expires_at->displayTz()->format('d/m/Y') }}</span>
                                 </div>
                             </div>
                         </div>
@@ -371,8 +371,8 @@
                                 <div>
                                     <code class="text-primary-400 font-mono font-bold">{{ $code->sync_code }}</code>
                                     <p class="text-xs text-gray-500 mt-1">
-                                        Créé le {{ $code->created_at->format('d/m/Y H:i') }}
-                                        • Expire le {{ $code->expires_at->format('d/m/Y') }}
+                                        Créé le {{ $code->created_at->displayTz()->format('d/m/Y H:i') }}
+                                        • Expire le {{ $code->expires_at->displayTz()->format('d/m/Y') }}
                                     </p>
                                 </div>
                                 <div>

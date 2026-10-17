@@ -44,7 +44,7 @@
             <h1 class="text-2xl font-bold text-white">
                 <span class="mr-1">{{ $country?->flag }}</span>Commande en gros #{{ $order->order_number }}
             </h1>
-            <p class="text-gray-400">Passée le {{ $order->created_at->format('d/m/Y à H:i') }} · {{ $countryName }} → Douala → {{ $delivery['company_name'] ?? 'client' }}</p>
+            <p class="text-gray-400">Passée le {{ $order->created_at->displayTz()->format('d/m/Y à H:i') }} · {{ $countryName }} → Douala → {{ $delivery['company_name'] ?? 'client' }}</p>
         </div>
         <span class="px-3 py-1 rounded-full text-sm border {{ WholesaleOrderStage::badge($stage) }}">{{ WholesaleOrderStage::label($stage) }}</span>
     </div>
@@ -54,8 +54,8 @@
     <!-- Parcours -->
     @if($stage === 'cancelled')
         <div class="mb-6 p-4 bg-red-900/20 border-l-4 border-red-500 rounded text-red-300">
-            <i class="fas fa-ban mr-2"></i>Annulée le {{ $order->cancelled_at?->format('d/m/Y à H:i') ?? '—' }}@if($order->cancel_reason) : {{ $order->cancel_reason }}@endif
-            @if($order->refunded_at) · client remboursé le {{ $order->refunded_at->format('d/m/Y') }}@endif
+            <i class="fas fa-ban mr-2"></i>Annulée le {{ $order->cancelled_at?->displayTz()->format('d/m/Y à H:i') ?? '—' }}@if($order->cancel_reason) : {{ $order->cancel_reason }}@endif
+            @if($order->refunded_at) · client remboursé le {{ $order->refunded_at->displayTz()->format('d/m/Y') }}@endif
         </div>
     @else
         <div class="{{ $card }} mb-6">
@@ -228,7 +228,7 @@
                         <li class="mb-5 ml-5">
                             <span class="absolute -left-1.5 w-3 h-3 rounded-full bg-primary-500"></span>
                             <div class="text-white font-medium">{{ $event->label }} @if($event->location)<span class="text-gray-400">— {{ $event->location }}</span>@endif</div>
-                            <div class="text-xs text-gray-500">{{ $event->occurred_at->format('d/m/Y H:i') }} · {{ ['buyer' => 'client', 'vendor' => 'vendeur', 'admin' => 'admin ASSO', 'deliverer' => 'coursier', 'system' => 'système'][$event->actor_type] ?? $event->actor_type }}</div>
+                            <div class="text-xs text-gray-500">{{ $event->occurred_at->displayTz()->format('d/m/Y H:i') }} · {{ ['buyer' => 'client', 'vendor' => 'vendeur', 'admin' => 'admin ASSO', 'deliverer' => 'coursier', 'system' => 'système'][$event->actor_type] ?? $event->actor_type }}</div>
                             @if($event->note)<div class="text-sm text-gray-300 mt-1">{{ $event->note }}</div>@endif
                         </li>
                     @empty
@@ -273,7 +273,7 @@
                 @endif
                 <div class="{{ $row }}"><span>Import jusqu'à Douala (ASSO)</span><span class="text-white">{{ $fcfa($importFee) }}</span></div>
                 <p class="text-xs {{ $order->settled_at ? 'text-green-400' : 'text-gray-500' }}">
-                    {{ $order->settled_at ? 'Réglée le ' . $order->settled_at->format('d/m/Y à H:i') : 'Pas encore réglée : elle le sera à la validation.' }}
+                    {{ $order->settled_at ? 'Réglée le ' . $order->settled_at->displayTz()->format('d/m/Y à H:i') : 'Pas encore réglée : elle le sera à la validation.' }}
                 </p>
             </div>
 
@@ -289,7 +289,7 @@
                     <div class="{{ $row }}"><span>Montant débité</span><span class="text-white">{{ number_format((float) $order->payment_amount, 2, ',', ' ') }} {{ $order->payment_currency }}</span></div>
                 @endif
                 @if($order->refunded_at)
-                    <div class="{{ $row }}"><span>Remboursée le</span><span class="text-white">{{ $order->refunded_at->format('d/m/Y à H:i') }}</span></div>
+                    <div class="{{ $row }}"><span>Remboursée le</span><span class="text-white">{{ $order->refunded_at->displayTz()->format('d/m/Y à H:i') }}</span></div>
                 @endif
             </div>
 

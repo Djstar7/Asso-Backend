@@ -56,7 +56,7 @@
                     <tr class="hover:bg-dark-50 transition-colors">
                         <td class="px-4 py-3">
                             <a href="{{ route('admin.deposit-orders.show', $order) }}" class="text-white font-medium hover:text-primary-400">#{{ $order->order_number }}</a>
-                            <div class="text-xs text-gray-500">{{ $order->created_at->format('d/m/Y H:i') }}</div>
+                            <div class="text-xs text-gray-500">{{ $order->created_at->displayTz()->format('d/m/Y H:i') }}</div>
                         </td>
                         <td class="px-4 py-3">
                             {{ $order->user?->name ?? '—' }}

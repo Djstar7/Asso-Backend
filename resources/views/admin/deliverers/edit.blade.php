@@ -52,7 +52,7 @@
                 <div>
                     <label class="block text-sm font-medium text-white mb-2">Logo</label>
                     @if($deliverer->logo)
-                        <img src="{{ asset('storage/' . $deliverer->logo) }}" alt="Logo" class="w-20 h-20 object-cover rounded-lg border border-dark-300 mb-2">
+                        <img src="{{ media_url($deliverer->logo) }}" alt="Logo" class="w-20 h-20 object-cover rounded-lg border border-dark-300 mb-2">
                     @endif
                     <input type="file" name="company_logo" accept="image/*" class="{{ $input }}">
                     @error('company_logo')<p class="mt-1 text-sm text-red-400">{{ $message }}</p>@enderror

@@ -89,6 +89,14 @@ return [
     'timezone' => 'UTC',
 
     /*
+    | Fuseau d'affichage des dates du back-office et des documents. Les dates
+    | restent stockées en UTC (comme les envoie l'API, convertie par l'app
+    | mobile dans l'heure du téléphone) ; le réglage « timezone » de l'admin
+    | (Paramètres > Système) prime sur cette valeur. Voir ->displayTz().
+    */
+    'display_timezone' => env('APP_DISPLAY_TIMEZONE', 'Africa/Douala'),
+
+    /*
     |--------------------------------------------------------------------------
     | Application Locale Configuration
     |--------------------------------------------------------------------------

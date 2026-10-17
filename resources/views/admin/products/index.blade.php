@@ -92,7 +92,7 @@
             <div class="bg-dark-100 rounded-xl shadow-lg overflow-hidden hover:shadow-2xl hover:shadow-primary-500/20 transition-all border border-dark-200 hover:border-primary-500/50">
                 <div class="relative h-48 bg-dark-200">
                     @if($product->primaryImage)
-                        <img src="{{ asset($product->primaryImage->image_path) }}" alt="{{ $product->name }}" class="w-full h-full object-cover">
+                        <img src="{{ media_url($product->primaryImage->image_path) }}" alt="{{ $product->name }}" class="w-full h-full object-cover">
                     @else
                         <div class="w-full h-full flex items-center justify-center text-gray-500">
                             <i class="fas fa-image text-6xl"></i>
@@ -209,7 +209,7 @@
                     <!-- Image -->
                     <div class="flex-shrink-0 w-24 h-24 bg-dark-200 rounded-lg overflow-hidden">
                         @if($product->primaryImage)
-                            <img src="{{ asset($product->primaryImage->image_path) }}" alt="{{ $product->name }}" class="w-full h-full object-cover">
+                            <img src="{{ media_url($product->primaryImage->image_path) }}" alt="{{ $product->name }}" class="w-full h-full object-cover">
                         @else
                             <div class="w-full h-full flex items-center justify-center text-gray-500">
                                 <i class="fas fa-image text-3xl"></i>

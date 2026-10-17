@@ -81,7 +81,7 @@
                                 @endif
                             </td>
                             <td class="px-6 py-4">
-                                <span class="text-gray-300">{{ $phone->created_at->format('d/m/Y H:i') }}</span>
+                                <span class="text-gray-300">{{ $phone->created_at->displayTz()->format('d/m/Y H:i') }}</span>
                             </td>
                             <td class="px-6 py-4">
                                 @if($phone->is_active)

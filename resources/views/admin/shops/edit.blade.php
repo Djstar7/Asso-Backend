@@ -26,12 +26,12 @@
                 <i class="fas fa-box text-blue-400 mr-1"></i>{{ $shop->products->count() }} produit(s)
             </span>
             <span class="px-3 py-1 rounded-full bg-dark-200 border border-dark-300 text-gray-300">
-                <i class="fas fa-calendar text-green-400 mr-1"></i>Créée le {{ $shop->created_at->format('d/m/Y') }}
+                <i class="fas fa-calendar text-green-400 mr-1"></i>Créée le {{ $shop->created_at->displayTz()->format('d/m/Y') }}
             </span>
             @if($shop->is_certified)
                 <span class="px-3 py-1 rounded-full bg-yellow-500/20 border border-yellow-500/50 text-yellow-300">
                     <i class="fas fa-award mr-1"></i>Certifiée
-                    @if($shop->certification_expires_at) jusqu'au {{ $shop->certification_expires_at->format('d/m/Y') }} @endif
+                    @if($shop->certification_expires_at) jusqu'au {{ $shop->certification_expires_at->displayTz()->format('d/m/Y') }} @endif
                 </span>
             @endif
         </div>
@@ -257,7 +257,7 @@
                 <div class="mb-4 p-3 bg-green-500/15 border border-green-500/50 rounded-lg">
                     <p class="text-green-300 text-sm">
                         <i class="fas fa-check-circle mr-1"></i>
-                        Vérifiée le {{ $shop->verified_at->format('d/m/Y à H:i') }}
+                        Vérifiée le {{ $shop->verified_at->displayTz()->format('d/m/Y à H:i') }}
                         @if($shop->verifier) par <span class="font-semibold">{{ $shop->verifier->name }}</span>@endif
                     </p>
                 </div>
@@ -265,7 +265,7 @@
                 <div class="mb-4 p-3 bg-red-500/15 border border-red-500/50 rounded-lg">
                     <p class="text-red-300 text-sm">
                         <i class="fas fa-times-circle mr-1"></i>
-                        Rejetée le {{ $shop->rejected_at->format('d/m/Y à H:i') }}
+                        Rejetée le {{ $shop->rejected_at->displayTz()->format('d/m/Y à H:i') }}
                         @if($shop->rejector) par <span class="font-semibold">{{ $shop->rejector->name }}</span>@endif
                     </p>
                 </div>

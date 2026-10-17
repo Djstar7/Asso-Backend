@@ -59,7 +59,7 @@
                                     <input type="checkbox" class="rounded" value="{{ $c->id }}" x-model.number="selected">
                                 @endif
                             </td>
-                            <td class="px-4 py-3 text-gray-300 whitespace-nowrap">{{ $c->sold_at->format('d/m/Y H:i') }}</td>
+                            <td class="px-4 py-3 text-gray-300 whitespace-nowrap">{{ $c->sold_at->displayTz()->format('d/m/Y H:i') }}</td>
                             @if($showAgent)
                                 <td class="px-4 py-3">
                                     @if($c->salesAgent)
@@ -92,7 +92,7 @@
                                     <span class="px-3 py-1 bg-yellow-500/20 text-yellow-400 text-xs font-semibold rounded-full">À payer</span>
                                 @elseif($c->status === 'paid')
                                     <span class="px-3 py-1 bg-green-500/20 text-green-400 text-xs font-semibold rounded-full">Payée</span>
-                                    <div class="text-xs text-gray-500 mt-1">{{ $c->paid_at?->format('d/m/Y') }} — {{ $c->payout_reference }}</div>
+                                    <div class="text-xs text-gray-500 mt-1">{{ $c->paid_at?->displayTz()->format('d/m/Y') }} — {{ $c->payout_reference }}</div>
                                     @if($c->paidBy)<div class="text-xs text-gray-600">par {{ $c->paidBy->name }}</div>@endif
                                 @else
                                     <span class="px-3 py-1 bg-red-500/20 text-red-400 text-xs font-semibold rounded-full">Annulée</span>

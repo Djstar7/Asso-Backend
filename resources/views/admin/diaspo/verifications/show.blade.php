@@ -34,7 +34,7 @@
                     <div class="text-sm text-gray-500 mt-1">
                         <i class="fas fa-calendar mr-1"></i>
                         @if($user->diaspo_id_document_id)
-                            Soumis le {{ $user->updated_at->format('d/m/Y à H:i') }}
+                            Soumis le {{ $user->updated_at->displayTz()->format('d/m/Y à H:i') }}
                         @else
                             Aucune pièce d'identité fournie
                         @endif
@@ -54,7 +54,7 @@
                     </span>
                     @if($user->diaspo_verified_at)
                         <div class="text-sm text-gray-400 mt-2 text-right">
-                            Vérifié le {{ $user->diaspo_verified_at->format('d/m/Y à H:i') }}
+                            Vérifié le {{ $user->diaspo_verified_at->displayTz()->format('d/m/Y à H:i') }}
                         </div>
                     @endif
                 @elseif($user->diaspo_verification_status === 'rejected')
@@ -157,7 +157,7 @@
                             <a href="{{ route('admin.diaspo.offers.show', $offer->id) }}" class="text-white font-medium hover:text-primary-500">
                                 #{{ $offer->id }} {{ $offer->departure_city }} → {{ $offer->arrival_city }}
                             </a>
-                            <div class="text-xs text-gray-500 mt-0.5">Départ le {{ $offer->departure_datetime->format('d/m/Y') }}</div>
+                            <div class="text-xs text-gray-500 mt-0.5">Départ le {{ $offer->departure_datetime->displayTz()->format('d/m/Y') }}</div>
                         </div>
                         <div class="text-sm">
                             @if($offer->trashed())
@@ -165,7 +165,7 @@
                             @elseif($offer->verification_status === 'pending')
                                 <span class="text-orange-400"><i class="fas fa-user-clock mr-1"></i>Profil non vérifié</span>
                                 @if($offer->verification_deadline_at)
-                                    <span class="text-gray-400">— retrait le {{ $offer->verification_deadline_at->format('d/m/Y à H:i') }}</span>
+                                    <span class="text-gray-400">— retrait le {{ $offer->verification_deadline_at->displayTz()->format('d/m/Y à H:i') }}</span>
                                 @endif
                             @elseif($offer->verification_status === 'verified')
                                 <span class="text-green-400"><i class="fas fa-check-circle mr-1"></i>Vérifiée</span>

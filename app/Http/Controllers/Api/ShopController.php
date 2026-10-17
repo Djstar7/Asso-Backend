@@ -708,6 +708,7 @@ class ShopController extends Controller
         if (!$vendorPackage) {
             return [
                 'has_package' => false,
+                'is_unlimited_storage' => false,
                 'storage_total_mb' => 0,
                 'storage_used_mb' => 0,
                 'storage_remaining_mb' => 0,
@@ -721,6 +722,7 @@ class ShopController extends Controller
 
         return [
             'has_package' => true,
+            'is_unlimited_storage' => (bool) $vendorPackage->is_unlimited_storage,
             'storage_total_mb' => (float) $vendorPackage->storage_total_mb,
             'storage_used_mb' => (float) $vendorPackage->storage_used_mb,
             'storage_remaining_mb' => (float) $vendorPackage->storage_remaining_mb,

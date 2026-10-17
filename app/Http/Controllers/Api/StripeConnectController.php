@@ -208,6 +208,56 @@ class StripeConnectController extends Controller
     }
 
     /**
+     * Désynchronise l'IBAN du compte : plus aucun virement vers ce compte bancaire
+     * tant qu'un nouvel IBAN n'a pas été envoyé puis validé par ASSO.
+     * DELETE /v1/stripe/connect
+     *
+     * Le compte Connect est conservé : un nouvel envoi y remplace l'IBAN
+     * (replaceExternalAccount) sans refaire tout l'onboarding Stripe.
+     * Refusé tant qu'un virement vers l'IBAN actuel est en cours.
+     */
+    public function unlink(Request $request)
+    {
+        $user = $request->user();
+
+        if (empty($user->stripe_account_status) && empty($user->stripe_external_last4)) {
+            return response()->json([
+                'success' => false,
+                'message' => __('payments.stripe_connect.nothing_to_unlink'),
+            ], 422);
+        }
+
+        $inProgress = \App\Models\PlatformWithdrawal::where('user_id', $user->id)
+            ->where('provider', 'stripe')
+            ->whereIn('status', ['pending', 'processing'])
+            ->exists();
+        if ($inProgress) {
+            return response()->json([
+                'success' => false,
+                'message' => __('payments.stripe_connect.unlink_withdrawal_in_progress'),
+            ], 422);
+        }
+
+        $user->update([
+            'stripe_account_status' => null,
+            'stripe_rejection_reason' => null,
+            'stripe_submitted_at' => null,
+            'stripe_verified_at' => null,
+            'stripe_external_last4' => null,
+            'stripe_bank_country' => null,
+            'stripe_account_holder_name' => null,
+        ]);
+
+        Log::info('[StripeConnectController] IBAN désynchronisé par l\'utilisateur', ['user_id' => $user->id]);
+
+        return response()->json([
+            'success' => true,
+            'message' => __('payments.stripe_connect.unlinked'),
+            'data' => $this->formatStatus($user->fresh()),
+        ]);
+    }
+
+    /**
      * Traduit une exception (souvent brute de Stripe) en message clair pour le
      * vendeur, sans jamais exposer le détail technique interne (URL d'API, code
      * errno réseau, etc.) qui reste tracé côté serveur via Log::error.

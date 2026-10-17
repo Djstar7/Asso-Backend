@@ -35,7 +35,7 @@
                     </div>
                     <div class="text-sm text-gray-500">
                         <i class="fas fa-calendar mr-1"></i>
-                        Offre créée le {{ $offer->created_at->format('d/m/Y à H:i') }}
+                        Offre créée le {{ $offer->created_at->displayTz()->format('d/m/Y à H:i') }}
                     </div>
                 </div>
             </div>
@@ -77,7 +77,7 @@
         <div class="flex items-center gap-3 mb-6">
             @if($offer->trashed())
                 <span class="px-4 py-2 bg-red-500/20 text-red-400 text-sm font-semibold rounded-full">
-                    <i class="fas fa-ban mr-1"></i>Retirée le {{ $offer->deleted_at->format('d/m/Y à H:i') }}
+                    <i class="fas fa-ban mr-1"></i>Retirée le {{ $offer->deleted_at->displayTz()->format('d/m/Y à H:i') }}
                 </span>
             @elseif($offer->status === 'pending')
                 <span class="px-4 py-2 bg-yellow-500/20 text-yellow-400 text-sm font-semibold rounded-full">
@@ -120,7 +120,7 @@
                         </p>
                         <p>
                             <strong>Échéance de régularisation :</strong>
-                            {{ $offer->verification_deadline_at ? $offer->verification_deadline_at->format('d/m/Y à H:i') : 'non définie' }}.
+                            {{ $offer->verification_deadline_at ? $offer->verification_deadline_at->displayTz()->format('d/m/Y à H:i') : 'non définie' }}.
                             Sans identité validée à cette date, l'offre sera retirée automatiquement.
                         </p>
                     </div>
@@ -161,7 +161,7 @@
                     <p class="text-white text-lg font-bold mb-1">{{ $offer->departure_city }}</p>
                     <p class="text-gray-400 mb-2">{{ $offer->departure_country }}</p>
                     <p class="text-sm text-gray-500">
-                        <i class="fas fa-calendar mr-1"></i>{{ $offer->departure_datetime->format('d/m/Y à H:i') }}
+                        <i class="fas fa-calendar mr-1"></i>{{ $offer->departure_datetime->displayTz()->format('d/m/Y à H:i') }}
                     </p>
                 </div>
 
@@ -174,7 +174,7 @@
                     <p class="text-white text-lg font-bold mb-1">{{ $offer->arrival_city }}</p>
                     <p class="text-gray-400 mb-2">{{ $offer->arrival_country }}</p>
                     <p class="text-sm text-gray-500">
-                        <i class="fas fa-calendar mr-1"></i>{{ $offer->arrival_datetime->format('d/m/Y à H:i') }}
+                        <i class="fas fa-calendar mr-1"></i>{{ $offer->arrival_datetime->displayTz()->format('d/m/Y à H:i') }}
                     </p>
                 </div>
             </div>
@@ -284,7 +284,7 @@
                                         </div>
                                         <div>
                                             <span class="text-gray-400">Créée:</span>
-                                            <p class="text-white font-semibold">{{ $booking->created_at->format('d/m/Y') }}</p>
+                                            <p class="text-white font-semibold">{{ $booking->created_at->displayTz()->format('d/m/Y') }}</p>
                                         </div>
                                     </div>
                                     @if($booking->notes)

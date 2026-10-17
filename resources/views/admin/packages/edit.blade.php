@@ -76,6 +76,12 @@
                     @error('storage_size_mb')
                         <p class="text-red-500 text-sm mt-1">{{ $message }}</p>
                     @enderror
+                    <label class="flex items-center mt-3">
+                        <input type="checkbox" id="is_unlimited_storage" name="is_unlimited_storage" value="1" {{ old('is_unlimited_storage', $package->is_unlimited_storage) ? 'checked' : '' }}
+                            class="w-4 h-4 text-blue-600 bg-dark-50 border-dark-200 rounded focus:ring-blue-500">
+                        <span class="ml-2 text-sm font-medium text-gray-300">Taille illimitée</span>
+                    </label>
+                    <p class="text-xs text-gray-500 mt-1">L'espace utilisé reste compté ; aucun plafond n'est appliqué.</p>
                 </div>
 
                 <!-- Nombre d'utilisateurs atteints (visible uniquement pour type=boost) -->
@@ -175,6 +181,14 @@
 
     // Déclencher l'événement au chargement de la page pour les anciennes valeurs
     document.getElementById('type').dispatchEvent(new Event('change'));
+
+    // Taille illimitée : le champ de taille n'a plus d'objet.
+    const unlimitedBox = document.getElementById('is_unlimited_storage');
+    const syncStorageSize = () => {
+        document.getElementById('storage_size_mb').disabled = unlimitedBox.checked;
+    };
+    unlimitedBox.addEventListener('change', syncStorageSize);
+    syncStorageSize();
 
     // Gestion des bénéfices
     function addBenefit(locale) {

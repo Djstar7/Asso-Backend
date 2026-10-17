@@ -198,7 +198,7 @@
 
     <div class="header">
         <h1>📊 Rapport des Transactions</h1>
-        <p>ASSO - Généré le {{ now()->format('d/m/Y à H:i') }}</p>
+        <p>ASSO - Généré le {{ now()->displayTz()->format('d/m/Y à H:i') }}</p>
     </div>
 
     <div class="stats">
@@ -246,7 +246,7 @@
                     <td style="font-family: monospace; font-size: 11px;">
                         <strong>{{ $transaction->reference }}</strong>
                     </td>
-                    <td>{{ $transaction->created_at->format('d/m/Y H:i') }}</td>
+                    <td>{{ $transaction->created_at->displayTz()->format('d/m/Y H:i') }}</td>
                     <td>{{ $transaction->buyer?->first_name }} {{ $transaction->buyer?->last_name }}</td>
                     <td><strong>{{ number_format($transaction->amount, 0, ',', ' ') }} XOF</strong></td>
                     <td>{{ number_format($transaction->fees, 0, ',', ' ') }} XOF</td>

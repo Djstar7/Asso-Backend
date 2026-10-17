@@ -318,7 +318,10 @@
             "error_invalid_details": "Some bank details are invalid. Check your information and try again.",
             "error_unavailable": "Bank transfer payout (Stripe) is not available yet. Please try again later.",
             "error_save_failed": "Unable to save your bank details at the moment. Please try again later.",
-            "error_generic": "An error occurred while saving your bank details. Please try again."
+            "error_generic": "An error occurred while saving your bank details. Please try again.",
+            "nothing_to_unlink": "No IBAN is saved on your account.",
+            "unlink_withdrawal_in_progress": "A transfer to this IBAN is in progress. You can unlink it once the transfer is complete.",
+            "unlinked": "IBAN unlinked. You can save a new one at any time."
         },
         "transaction_not_found": "Transaction not found",
         "invoice_not_found": "Invoice not found",
@@ -406,8 +409,8 @@
         },
         "new_order_vendor": {
             "title": "New order received",
-            "body": "You have received a new order #:order_number from :client (:total).",
-            "body_no_client": "You have received a new order #:order_number (:total)."
+            "body": "You have received a new order #:order_number from :client (for you: :total).",
+            "body_no_client": "You have received a new order #:order_number (for you: :total)."
         },
         "wholesale_order_created": {
             "title": "Wholesale order created",
@@ -630,7 +633,7 @@
         },
         "order_balance_paid_vendor": {
             "title": "Order fully paid",
-            "body": "The customer paid the balance of order #:order_number: your sale has been credited."
+            "body": "The customer paid the balance of order #:order_number. Your share is reserved in your Wallet and becomes available once the customer confirms receipt (at the latest 48 h after delivery)."
         },
         "order_control_window": {
             "title": "Order delivered",
@@ -1096,7 +1099,8 @@
         },
         "storage": {
             "gb": ":size GB",
-            "mb": ":size MB"
+            "mb": ":size MB",
+            "unlimited": "Unlimited"
         }
     },
     "wallet": {

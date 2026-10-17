@@ -48,7 +48,7 @@
                     </h3>
                 </div>
                 <div class="p-6 bg-dark-50">
-                    <img src="{{ asset('storage/' . $banner->image_path) }}"
+                    <img src="{{ media_url($banner->image_path) }}"
                          alt="{{ $banner->title }}"
                          class="w-full rounded-lg border-2 border-dark-300 shadow-lg">
                 </div>
@@ -190,11 +190,11 @@
                             Créé le
                         </span>
                         <span class="text-white font-medium">
-                            {{ $banner->created_at->format('d/m/Y') }}
+                            {{ $banner->created_at->displayTz()->format('d/m/Y') }}
                         </span>
                     </div>
                     <div class="text-xs text-gray-500 text-right">
-                        {{ $banner->created_at->format('H:i:s') }}
+                        {{ $banner->created_at->displayTz()->format('H:i:s') }}
                     </div>
 
                     <div class="flex items-center justify-between pt-3 border-t border-dark-300">
@@ -203,11 +203,11 @@
                             Modifié le
                         </span>
                         <span class="text-white font-medium">
-                            {{ $banner->updated_at->format('d/m/Y') }}
+                            {{ $banner->updated_at->displayTz()->format('d/m/Y') }}
                         </span>
                     </div>
                     <div class="text-xs text-gray-500 text-right">
-                        {{ $banner->updated_at->format('H:i:s') }}
+                        {{ $banner->updated_at->displayTz()->format('H:i:s') }}
                     </div>
 
                     <div class="flex items-center justify-between pt-3 border-t border-dark-300">
@@ -234,7 +234,7 @@
                         <span><i class="fas fa-edit w-4 mr-2 text-primary-400"></i>Modifier</span>
                         <i class="fas fa-chevron-right text-xs"></i>
                     </a>
-                    <button onclick="window.open('{{ asset('storage/' . $banner->image_path) }}', '_blank')"
+                    <button onclick="window.open('{{ media_url($banner->image_path) }}', '_blank')"
                             class="w-full flex items-center justify-between px-3 py-2 bg-dark-100/50 hover:bg-dark-100 rounded-lg transition-all text-sm text-gray-300 hover:text-white border border-dark-300">
                         <span><i class="fas fa-download w-4 mr-2 text-primary-400"></i>Télécharger image</span>
                         <i class="fas fa-chevron-right text-xs"></i>

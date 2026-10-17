@@ -68,8 +68,8 @@
                  style="width: {{ $summary['progress_percent'] }}%"></div>
         </div>
         <div class="flex flex-wrap gap-x-8 gap-y-2 mt-4 text-sm text-gray-400">
-            <span>Du {{ \Carbon\Carbon::parse($summary['starts_at'])->format('d/m/Y') }}
-                  au {{ \Carbon\Carbon::parse($summary['ends_at'])->format('d/m/Y') }}</span>
+            <span>Du {{ \Carbon\Carbon::parse($summary['starts_at'])->displayTz()->format('d/m/Y') }}
+                  au {{ \Carbon\Carbon::parse($summary['ends_at'])->displayTz()->format('d/m/Y') }}</span>
             <span>Montant : <span class="text-gray-200">{{ $fcfa($summary['amount_xaf']) }}</span></span>
             <span>Statut : <span class="text-gray-200">{{ $summary['status_label'] }}</span></span>
         </div>

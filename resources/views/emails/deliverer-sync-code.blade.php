@@ -196,7 +196,7 @@
                 <div class="sync-code-label">🔐 Votre Code de Synchronisation</div>
                 <div class="sync-code">{{ $syncCode }}</div>
                 <div class="expiry-info">
-                    ⏰ Valide jusqu'au {{ \Carbon\Carbon::parse($expiresAt)->format('d/m/Y à H:i') }}
+                    ⏰ Valide jusqu'au {{ \Carbon\Carbon::parse($expiresAt)->displayTz()->format('d/m/Y à H:i') }}
                 </div>
             </div>
 

@@ -138,7 +138,7 @@
                     <input type="date"
                            name="birth_date"
                            id="birth_date"
-                           value="{{ old('birth_date', $user->birth_date?->format('Y-m-d')) }}"
+                           value="{{ old('birth_date', $user->birth_date?->displayTz()->format('Y-m-d')) }}"
                            class="w-full px-4 py-2 bg-dark-50 border border-dark-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 @error('birth_date') border-red-500 @enderror">
                     @error('birth_date')
                         <p class="mt-1 text-sm text-red-400">{{ $message }}</p>

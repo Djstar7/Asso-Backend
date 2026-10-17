@@ -77,6 +77,25 @@ class VendorOrderDetailsTest extends TestCase
             ->assertJsonPath('orders.0.items.0.variant_attributes.Pointure', '42');
     }
 
+    public function test_unpaid_card_attempts_are_hidden_from_the_vendor(): void
+    {
+        $abandoned = $this->order->replicate(['order_number']);
+        $abandoned->fill(['payment_method' => 'stripe_direct', 'payment_status' => 'pending'])->save();
+        $abandoned->items()->create([
+            'product_id' => $this->order->items->first()->product_id,
+            'seller_id' => $this->vendor->id,
+            'quantity' => 1,
+            'unit_price' => 10000,
+            'total_price' => 10000,
+        ]);
+
+        Sanctum::actingAs($this->vendor);
+
+        $ids = collect($this->getJson('/api/v1/vendor/orders')->assertOk()->json('orders'))->pluck('id');
+        $this->assertTrue($ids->contains($this->order->id));
+        $this->assertFalse($ids->contains($abandoned->id));
+    }
+
     public function test_check_active_orders_endpoint_works(): void
     {
         Sanctum::actingAs($this->vendor);

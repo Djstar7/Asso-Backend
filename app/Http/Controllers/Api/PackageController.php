@@ -69,6 +69,7 @@ class PackageController extends Controller
                 'duration_days' => $package->duration_days,
                 'formatted_duration' => $package->formatted_duration,
                 'storage_size_mb' => $package->storage_size_mb,
+                'is_unlimited_storage' => (bool) $package->is_unlimited_storage,
                 'formatted_storage_size' => $package->formatted_storage_size,
                 'benefits' => $package->benefits,
                 'is_popular' => (bool) $package->is_popular,
@@ -352,6 +353,7 @@ class PackageController extends Controller
                 'id' => $vendorPackage->id,
                 'storage_total_mb' => (float) $vendorPackage->storage_total_mb,
                 'storage_remaining_mb' => (float) $vendorPackage->storage_remaining_mb,
+                'is_unlimited_storage' => (bool) $vendorPackage->is_unlimited_storage,
                 'expires_at' => $vendorPackage->expires_at->toIso8601String(),
                 'status' => $vendorPackage->status,
                 'is_cumulative' => $vendorPackage->package_id === null,
@@ -407,7 +409,9 @@ class PackageController extends Controller
                 'duration_days' => null,
                 'formatted_duration' => __('packages.cumulative.duration'),
                 'storage_size_mb' => (float) $vendorPackage->storage_total_mb,
-                'formatted_storage_size' => number_format($vendorPackage->storage_total_mb, 0) . ' MB',
+                'formatted_storage_size' => $vendorPackage->is_unlimited_storage
+                    ? __('packages.storage.unlimited')
+                    : number_format($vendorPackage->storage_total_mb, 0) . ' MB',
             ];
 
         return response()->json([
@@ -416,12 +420,7 @@ class PackageController extends Controller
             'can_use_sales_code' => $this->salesCommissionService->canUseSalesCode($user),
             'vendor_package' => [
                 'id' => $vendorPackage->id,
-                'storage_total_mb' => (float) $vendorPackage->storage_total_mb,
-                'storage_used_mb' => (float) $vendorPackage->storage_used_mb,
-                'storage_remaining_mb' => (float) $vendorPackage->storage_remaining_mb,
-                'storage_percentage_used' => $vendorPackage->storage_total_mb > 0
-                    ? round(($vendorPackage->storage_used_mb / $vendorPackage->storage_total_mb) * 100, 2)
-                    : 0,
+                ...$vendorPackage->storagePayload(),
                 'purchased_at' => $vendorPackage->purchased_at->toIso8601String(),
                 'expires_at' => $vendorPackage->expires_at->toIso8601String(),
                 'days_remaining' => now()->diffInDays($vendorPackage->expires_at, false),

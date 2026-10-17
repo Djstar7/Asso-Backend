@@ -24,7 +24,7 @@
         <div>
             <a href="{{ route('admin.disputes.index') }}" class="text-sm text-gray-400 hover:text-white"><i class="fas fa-arrow-left mr-1"></i> Réclamations / Litiges</a>
             <h1 class="text-2xl font-bold text-white mt-1">Litige {{ $dispute->number }}</h1>
-            <p class="text-gray-400 text-sm">Ouvert le {{ $dispute->created_at->format('d/m/Y à H:i') }} · Commande #{{ $order?->order_number }}</p>
+            <p class="text-gray-400 text-sm">Ouvert le {{ $dispute->created_at->displayTz()->format('d/m/Y à H:i') }} · Commande #{{ $order?->order_number }}</p>
         </div>
         <span class="px-3 py-1.5 rounded-full text-sm border border-primary-500/50 text-primary-300 bg-primary-500/10">{{ Dispute::STATUSES[$dispute->status] ?? $dispute->status }}</span>
     </div>
@@ -82,7 +82,7 @@
                     <div>
                         <p class="text-gray-500 text-xs uppercase">Livraison initiale</p>
                         <p class="text-gray-300">{{ $order?->delivery_breakdown['company_name'] ?? $order?->deliveryCompany?->name ?? '—' }}</p>
-                        <p class="text-gray-400 text-xs">Livrée le {{ $order?->delivered_at?->format('d/m/Y à H:i') ?? '—' }}</p>
+                        <p class="text-gray-400 text-xs">Livrée le {{ $order?->delivered_at?->displayTz()->format('d/m/Y à H:i') ?? '—' }}</p>
                     </div>
                 </div>
             </div>
@@ -106,7 +106,7 @@
                 <h2 class="text-lg font-semibold text-white mb-2">Réponse du vendeur</h2>
                 @forelse($vendorEvents as $event)
                     <p class="text-sm text-gray-200 bg-dark-200 rounded-lg p-3 mb-2">{{ $event->note ?: '(pièces jointes)' }}
-                        <span class="block text-xs text-gray-500 mt-1">{{ $event->occurred_at?->format('d/m/Y H:i') }}</span></p>
+                        <span class="block text-xs text-gray-500 mt-1">{{ $event->occurred_at?->displayTz()->format('d/m/Y H:i') }}</span></p>
                 @empty
                     <p class="text-sm text-gray-500">Aucune réponse du vendeur pour l'instant.</p>
                 @endforelse
@@ -168,7 +168,7 @@
                 <ol class="space-y-3">
                     @foreach($dispute->events as $event)
                         <li class="flex gap-3 text-sm {{ $event->internal ? 'bg-amber-500/5 rounded p-2' : '' }}">
-                            <span class="text-gray-500 w-32 flex-shrink-0">{{ $event->occurred_at?->format('d/m/Y H:i') }}</span>
+                            <span class="text-gray-500 w-32 flex-shrink-0">{{ $event->occurred_at?->displayTz()->format('d/m/Y H:i') }}</span>
                             <span class="text-gray-200">
                                 @if($event->internal)<span class="text-amber-400 text-xs mr-1">[interne]</span>@endif
                                 {{ $event->label }}
@@ -187,7 +187,7 @@
                 <h2 class="text-lg font-semibold text-white"><i class="fas fa-gavel text-amber-400 mr-2"></i>Décision ASSO</h2>
                 @if($dispute->decision)
                     <p class="text-gray-300">Décision : <span class="text-white">{{ $dispute->decision === 'founded' ? 'Fondée' : 'Non fondée' }}</span></p>
-                    <p class="text-gray-400 text-xs">Par {{ $dispute->decider?->name ?? '—' }} le {{ $dispute->decided_at?->format('d/m/Y à H:i') }}</p>
+                    <p class="text-gray-400 text-xs">Par {{ $dispute->decider?->name ?? '—' }} le {{ $dispute->decided_at?->displayTz()->format('d/m/Y à H:i') }}</p>
                     @if($dispute->decision_note)<p class="text-gray-300 bg-dark-200 rounded p-2">{{ $dispute->decision_note }}</p>@endif
                 @endif
 
@@ -234,7 +234,7 @@
                     </div>
                 @endif
                 @if($dispute->status === Dispute::STATUS_REPLACEMENT && $replacementDelivered)
-                    <p class="text-xs text-gray-400 pt-3 border-t border-dark-200">Remplacement livré : contrôle client jusqu'au {{ $dispute->auto_validate_at?->format('d/m/Y à H:i') }}. Une nouvelle non-conformité impose le retour.</p>
+                    <p class="text-xs text-gray-400 pt-3 border-t border-dark-200">Remplacement livré : contrôle client jusqu'au {{ $dispute->auto_validate_at?->displayTz()->format('d/m/Y à H:i') }}. Une nouvelle non-conformité impose le retour.</p>
                     <form method="POST" action="{{ route('admin.disputes.return', $dispute) }}">
                         @csrf
                         <button class="w-full px-4 py-2 bg-dark-200 border border-red-500/50 text-red-300 rounded-lg"><i class="fas fa-undo mr-1"></i> Remplacement non conforme → Cas B</button>

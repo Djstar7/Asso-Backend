@@ -45,6 +45,26 @@ class AppServiceProvider extends ServiceProvider
         // Register Conversation observer for automatic security message
         Conversation::observe(ConversationObserver::class);
 
+        // Dates affichées (back-office, documents) dans le fuseau du Cameroun :
+        // $date->displayTz()->format('d/m/Y H:i'). Stockage et API restent en UTC.
+        $displayTimezone = function (): string {
+            static $tz;
+
+            return $tz ??= (function () {
+                $configured = (string) \App\Models\Setting::get('timezone', '');
+
+                return in_array($configured, \DateTimeZone::listIdentifiers(), true)
+                    ? $configured
+                    : config('app.display_timezone', 'UTC');
+            })();
+        };
+        $toDisplayTz = function () use ($displayTimezone) {
+            /** @var \Carbon\CarbonInterface $this */
+            return $this->copy()->setTimezone($displayTimezone());
+        };
+        \Carbon\Carbon::macro('displayTz', $toDisplayTz);
+        \Carbon\CarbonImmutable::macro('displayTz', $toDisplayTz);
+
         // Back-office : @adminCan('admin.products.index') … @endadminCan
         // n'affiche un lien que si la route est ouverte au compte connecté.
         Blade::if('adminCan', fn (string $routeName) => (bool) auth()->user()?->canAccessAdminRoute($routeName));
