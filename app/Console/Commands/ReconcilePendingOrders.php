@@ -24,8 +24,12 @@ class ReconcilePendingOrders extends Command
 
     protected $description = 'Confirme ou clôt les commandes restées en attente de paiement direct (KPay / Stripe)';
 
-    /** Au-delà, une tentative de paiement non aboutie est close et le stock rendu. */
-    private const STALE_AFTER_HOURS = 2;
+    /**
+     * Au-delà, une tentative de paiement non aboutie est close et le stock rendu.
+     * Court : le stock d'un paiement abandonné ne doit pas rester bloqué longtemps
+     * (l'app annule déjà elle-même une fenêtre carte fermée sans payer).
+     */
+    private const STALE_AFTER_MINUTES = 30;
 
     public function handle(OrderService $orderService): int
     {
@@ -57,7 +61,7 @@ class ReconcilePendingOrders extends Command
                 }
 
                 if ($order->payment_status === 'pending'
-                    && $order->created_at->lt(now()->subHours(self::STALE_AFTER_HOURS))) {
+                    && $order->created_at->lt(now()->subMinutes(self::STALE_AFTER_MINUTES))) {
                     $order->payment_method === 'stripe_direct'
                         ? $orderService->failStripeOrderPayment($order)
                         : $orderService->failKpayOrderPayment($order);

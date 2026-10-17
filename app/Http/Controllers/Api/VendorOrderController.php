@@ -39,7 +39,12 @@ class VendorOrderController extends Controller
         $query = Order::with(['items' => function($q) use ($user) {
             $q->where('seller_id', $user->id)->with('product.primaryImage');
         }, 'user', 'deliveryPerson', 'deliveryCompany', 'trackingEvents'])
-            ->whereIn('id', $orderIds);
+            ->whereIn('id', $orderIds)
+            // Paiement carte / Mobile Money pas (encore) abouti : ce n'est pas une
+            // commande à préparer. Le vendeur la voit dès la confirmation du paiement
+            // (il est notifié à ce moment-là) ; une tentative abandonnée reste invisible.
+            ->whereNot(fn ($q) => $q->whereIn('payment_method', ['kpay_direct', 'stripe_direct'])
+                ->whereIn('payment_status', ['pending', 'failed']));
 
         if ($request->has('status') && $request->status) {
             $query->where('status', $request->status);

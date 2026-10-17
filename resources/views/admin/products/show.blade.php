@@ -107,7 +107,7 @@
             <div class="bg-dark-100 rounded-xl shadow-lg p-6">
                 <div class="flex items-center justify-between mb-4">
                     <h2 class="text-lg font-semibold text-white"><i class="fas fa-swatchbook text-primary-500 mr-2"></i>Choix proposés au client</h2>
-                    <span class="text-sm text-gray-400">Stock total : <span class="font-bold text-white">{{ $product->variants->sum('stock') }}</span></span>
+                    <span class="text-sm text-gray-400">Stock total : <span class="font-bold text-white">{{ $product->stock }}</span></span>
                 </div>
                 <div class="space-y-3 mb-5">
                     @foreach($variantOptions as $group)
