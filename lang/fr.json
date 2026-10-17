@@ -1099,7 +1099,8 @@
         },
         "storage": {
             "gb": ":size Go",
-            "mb": ":size Mo"
+            "mb": ":size Mo",
+            "unlimited": "Illimité"
         }
     },
     "wallet": {

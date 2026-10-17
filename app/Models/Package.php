@@ -20,6 +20,7 @@ class Package extends Model
         'price',
         'duration_days',
         'storage_size_mb',
+        'is_unlimited_storage',
         'reach_users',
         'benefits',
         'is_active',
@@ -32,6 +33,7 @@ class Package extends Model
         'benefits' => 'array',
         'is_active' => 'boolean',
         'is_popular' => 'boolean',
+        'is_unlimited_storage' => 'boolean',
     ];
 
     /**
@@ -118,6 +120,7 @@ class Package extends Model
      */
     public function getFormattedStorageSizeAttribute(): string
     {
+        if ($this->is_unlimited_storage) return __('packages.storage.unlimited');
         if (!$this->storage_size_mb) return '';
 
         if ($this->storage_size_mb >= 1024) {

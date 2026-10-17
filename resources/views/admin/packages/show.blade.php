@@ -117,7 +117,7 @@
                         </div>
                         <div class="bg-dark-50 p-4 rounded-lg">
                             <div class="text-sm text-gray-400 mb-1">En Mégaoctets</div>
-                            <div class="text-2xl font-bold text-gray-100">{{ number_format($package->storage_size_mb) }} Mo</div>
+                            <div class="text-2xl font-bold text-gray-100">{{ $package->is_unlimited_storage ? '—' : number_format($package->storage_size_mb) . ' Mo' }}</div>
                         </div>
                     </div>
                 </div>

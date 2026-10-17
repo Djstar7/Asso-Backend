@@ -1099,7 +1099,8 @@
         },
         "storage": {
             "gb": ":size GB",
-            "mb": ":size MB"
+            "mb": ":size MB",
+            "unlimited": "Unlimited"
         }
     },
     "wallet": {

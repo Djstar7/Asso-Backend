@@ -87,7 +87,9 @@ class PackageController extends Controller
             'description' => 'nullable|string',
             'price' => 'required|numeric|min:0',
             'duration_days' => 'required|integer|min:1|max:365',
+            // Taille illimitée : pas de plafond à saisir.
             'storage_size_mb' => 'nullable|integer|min:1',
+            'is_unlimited_storage' => 'boolean',
             // Obligatoire pour un boost : un forfait sans quota d'audience se
             // vendrait puis échouerait à l'activation, côté client.
             'reach_users' => 'required_if:type,boost|nullable|integer|min:1|max:10000000',
@@ -100,6 +102,7 @@ class PackageController extends Controller
 
         $validated['is_active'] = $request->has('is_active');
         $validated['is_popular'] = $request->has('is_popular');
+        $validated['is_unlimited_storage'] = $request->boolean('is_unlimited_storage');
 
         // Filtrer les bénéfices vides
         if (isset($validated['benefits'])) {
@@ -111,6 +114,9 @@ class PackageController extends Controller
 
         // Nettoyer les champs non pertinents selon le type
         if ($validated['type'] !== 'storage') {
+            $validated['storage_size_mb'] = null;
+            $validated['is_unlimited_storage'] = false;
+        } elseif ($validated['is_unlimited_storage']) {
             $validated['storage_size_mb'] = null;
         }
         if ($validated['type'] !== 'boost') {
@@ -154,7 +160,9 @@ class PackageController extends Controller
             'description' => 'nullable|string',
             'price' => 'required|numeric|min:0',
             'duration_days' => 'required|integer|min:1|max:365',
+            // Taille illimitée : pas de plafond à saisir.
             'storage_size_mb' => 'nullable|integer|min:1',
+            'is_unlimited_storage' => 'boolean',
             // Obligatoire pour un boost : un forfait sans quota d'audience se
             // vendrait puis échouerait à l'activation, côté client.
             'reach_users' => 'required_if:type,boost|nullable|integer|min:1|max:10000000',
@@ -167,6 +175,7 @@ class PackageController extends Controller
 
         $validated['is_active'] = $request->has('is_active');
         $validated['is_popular'] = $request->has('is_popular');
+        $validated['is_unlimited_storage'] = $request->boolean('is_unlimited_storage');
 
         // Filtrer les bénéfices vides
         if (isset($validated['benefits'])) {
@@ -178,6 +187,9 @@ class PackageController extends Controller
 
         // Nettoyer les champs non pertinents selon le type
         if ($validated['type'] !== 'storage') {
+            $validated['storage_size_mb'] = null;
+            $validated['is_unlimited_storage'] = false;
+        } elseif ($validated['is_unlimited_storage']) {
             $validated['storage_size_mb'] = null;
         }
         if ($validated['type'] !== 'boost') {
