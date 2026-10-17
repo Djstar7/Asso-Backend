@@ -630,7 +630,7 @@
         },
         "order_balance_paid_vendor": {
             "title": "Commande soldée",
-            "body": "Le client a payé le solde de la commande #:order_number : votre vente est créditée."
+            "body": "Le client a payé le solde de la commande #:order_number. Votre part est réservée sur votre Wallet et sera disponible dès que le client confirmera la réception (au plus tard 48 h après la livraison)."
         },
         "order_control_window": {
             "title": "Commande livrée",

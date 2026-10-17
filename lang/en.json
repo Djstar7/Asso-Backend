@@ -630,7 +630,7 @@
         },
         "order_balance_paid_vendor": {
             "title": "Order fully paid",
-            "body": "The customer paid the balance of order #:order_number: your sale has been credited."
+            "body": "The customer paid the balance of order #:order_number. Your share is reserved in your Wallet and becomes available once the customer confirms receipt (at the latest 48 h after delivery)."
         },
         "order_control_window": {
             "title": "Order delivered",
