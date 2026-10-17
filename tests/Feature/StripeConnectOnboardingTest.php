@@ -154,6 +154,57 @@ class StripeConnectOnboardingTest extends TestCase
             ->assertStatus(422);
     }
 
+    public function test_approved_iban_can_be_unlinked_then_replaced(): void
+    {
+        $user = User::factory()->create();
+        $user->forceFill([
+            'stripe_account_id' => 'acct_existing',
+            'stripe_account_status' => 'approved',
+            'stripe_external_last4' => '2606',
+            'stripe_bank_country' => 'FR',
+            'stripe_account_holder_name' => 'Jean Dupont',
+        ])->saveQuietly();
+
+        $this->actingAs($user, 'sanctum')
+            ->deleteJson('/api/v1/stripe/connect')
+            ->assertOk()
+            ->assertJsonPath('data.status', null)
+            ->assertJsonPath('data.iban_last4', null)
+            // Le compte Connect reste : un nouvel IBAN le remplacera.
+            ->assertJsonPath('data.has_account', true);
+
+        $this->assertFalse(\App\Services\StripeWithdrawalService::isReady($user->fresh()));
+    }
+
+    public function test_unlink_refused_while_a_transfer_is_in_progress(): void
+    {
+        $user = User::factory()->create();
+        $user->forceFill([
+            'stripe_account_id' => 'acct_existing',
+            'stripe_account_status' => 'approved',
+            'stripe_external_last4' => '2606',
+        ])->saveQuietly();
+        \App\Models\PlatformWithdrawal::create([
+            'user_id' => $user->id,
+            'amount_requested' => 20,
+            'commission_rate' => 0,
+            'commission_amount' => 0,
+            'amount_sent' => 20,
+            'currency' => 'EUR',
+            'provider' => 'stripe',
+            'payment_method' => 'stripe_connect',
+            'payment_account' => 'IBAN ****2606',
+            'payment_account_name' => 'Jean Dupont',
+            'status' => 'processing',
+            'transaction_reference' => 'TXN-' . uniqid(),
+        ]);
+
+        $this->actingAs($user, 'sanctum')
+            ->deleteJson('/api/v1/stripe/connect')
+            ->assertStatus(422);
+        $this->assertSame('approved', $user->fresh()->stripe_account_status);
+    }
+
     public function test_submit_returns_503_when_stripe_not_configured(): void
     {
         $this->mockStripe(function ($mock) {

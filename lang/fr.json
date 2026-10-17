@@ -318,7 +318,10 @@
             "error_invalid_details": "Certaines informations bancaires sont invalides. Vérifiez vos données puis réessayez.",
             "error_unavailable": "Le paiement par virement (Stripe) n'est pas encore disponible. Veuillez réessayer plus tard.",
             "error_save_failed": "Impossible d'enregistrer vos informations bancaires pour le moment. Veuillez réessayer plus tard.",
-            "error_generic": "Une erreur est survenue lors de l'enregistrement de vos informations bancaires. Veuillez réessayer."
+            "error_generic": "Une erreur est survenue lors de l'enregistrement de vos informations bancaires. Veuillez réessayer.",
+            "nothing_to_unlink": "Aucun IBAN n’est enregistré sur votre compte.",
+            "unlink_withdrawal_in_progress": "Un virement vers cet IBAN est en cours. Vous pourrez le désynchroniser une fois le virement terminé.",
+            "unlinked": "IBAN désynchronisé. Vous pouvez en enregistrer un nouveau à tout moment."
         },
         "transaction_not_found": "Transaction non trouvée",
         "invoice_not_found": "Facture non trouvée",

@@ -318,7 +318,10 @@
             "error_invalid_details": "Some bank details are invalid. Check your information and try again.",
             "error_unavailable": "Bank transfer payout (Stripe) is not available yet. Please try again later.",
             "error_save_failed": "Unable to save your bank details at the moment. Please try again later.",
-            "error_generic": "An error occurred while saving your bank details. Please try again."
+            "error_generic": "An error occurred while saving your bank details. Please try again.",
+            "nothing_to_unlink": "No IBAN is saved on your account.",
+            "unlink_withdrawal_in_progress": "A transfer to this IBAN is in progress. You can unlink it once the transfer is complete.",
+            "unlinked": "IBAN unlinked. You can save a new one at any time."
         },
         "transaction_not_found": "Transaction not found",
         "invoice_not_found": "Invoice not found",
