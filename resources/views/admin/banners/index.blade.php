@@ -47,7 +47,7 @@
                                 <!-- Image Preview -->
                                 <td class="px-6 py-4">
                                     <div class="h-20 w-32 rounded-lg overflow-hidden bg-dark-200">
-                                        <img src="{{ asset('storage/' . $banner->image_path) }}"
+                                        <img src="{{ media_url($banner->image_path) }}"
                                              alt="{{ $banner->title }}"
                                              class="w-full h-full object-cover">
                                     </div>

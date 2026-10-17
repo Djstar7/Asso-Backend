@@ -22,7 +22,7 @@
             <h3 class="text-lg font-semibold text-gray-100 mb-4">Participant 1</h3>
             <div class="flex items-center gap-4 mb-4">
                 @if($conversation->user1->avatar)
-                    <img src="{{ asset('storage/' . $conversation->user1->avatar) }}" alt="{{ $conversation->user1->name }}"
+                    <img src="{{ media_url($conversation->user1->avatar) }}" alt="{{ $conversation->user1->name }}"
                         class="w-16 h-16 rounded-full object-cover">
                 @else
                     <div class="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center">
@@ -47,7 +47,7 @@
             <h3 class="text-lg font-semibold text-gray-100 mb-4">Participant 2</h3>
             <div class="flex items-center gap-4 mb-4">
                 @if($conversation->user2->avatar)
-                    <img src="{{ asset('storage/' . $conversation->user2->avatar) }}" alt="{{ $conversation->user2->name }}"
+                    <img src="{{ media_url($conversation->user2->avatar) }}" alt="{{ $conversation->user2->name }}"
                         class="w-16 h-16 rounded-full object-cover">
                 @else
                     <div class="w-16 h-16 bg-purple-600 rounded-full flex items-center justify-center">
@@ -76,7 +76,7 @@
                         $primaryImage = $conversation->product->primaryImage;
                     @endphp
                     @if($primaryImage)
-                        <img src="{{ asset('storage/' . $primaryImage->image_path) }}"
+                        <img src="{{ media_url($primaryImage->image_path) }}"
                             alt="{{ $conversation->product->name }}"
                             class="w-full h-32 object-cover rounded-lg mb-3">
                     @else

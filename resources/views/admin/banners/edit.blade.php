@@ -40,7 +40,7 @@
                     <!-- Current Image -->
                     <div class="mb-4">
                         <p class="text-sm text-gray-400 mb-2">Image actuelle:</p>
-                        <img src="{{ asset('storage/' . $banner->image_path) }}"
+                        <img src="{{ media_url($banner->image_path) }}"
                              alt="{{ $banner->title }}"
                              class="rounded-lg border-2 border-dark-300 max-h-64"
                              id="currentImage">

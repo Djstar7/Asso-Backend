@@ -56,7 +56,7 @@
                 <!-- Primary Image -->
                 @if($product->primaryImage)
                 <div class="mb-4">
-                    <img src="{{ asset($product->primaryImage->image_path) }}" alt="{{ $product->name }}" class="w-full h-96 object-cover rounded-lg border-2 border-primary-500">
+                    <img src="{{ media_url($product->primaryImage->image_path) }}" alt="{{ $product->name }}" class="w-full h-96 object-cover rounded-lg border-2 border-primary-500">
                     <p class="text-sm text-gray-400 text-center mt-2">
                         <i class="fas fa-star text-primary-500 mr-1"></i>Image principale
                     </p>
@@ -69,7 +69,7 @@
                     @foreach($product->images as $image)
                         @if(!$image->is_primary)
                             <div class="relative">
-                                <img src="{{ asset($image->image_path) }}" alt="{{ $product->name }}" class="w-full h-32 object-cover rounded-lg border-2 border-dark-200">
+                                <img src="{{ media_url($image->image_path) }}" alt="{{ $product->name }}" class="w-full h-32 object-cover rounded-lg border-2 border-dark-200">
                             </div>
                         @endif
                     @endforeach

@@ -132,7 +132,7 @@
                     onclick="focusOnUser({{ $user->id }}, {{ $user->latitude }}, {{ $user->longitude }})">
                     <div class="flex items-center gap-3">
                         @if($user->avatar)
-                            <img src="{{ asset('storage/' . $user->avatar) }}" alt="{{ $user->name }}"
+                            <img src="{{ media_url($user->avatar) }}" alt="{{ $user->name }}"
                                 class="w-12 h-12 rounded-full object-cover">
                         @else
                             <div class="w-12 h-12 rounded-full flex items-center justify-center
