@@ -262,6 +262,10 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::get('/', [SettingsController::class, 'index'])->name('index');
             Route::put('/update', [SettingsController::class, 'update'])->name('update');
 
+            // Mon compte : nom, e-mail et mot de passe du compte connecté.
+            Route::put('/account', [SettingsController::class, 'updateAccount'])->name('account.update');
+            Route::put('/account/password', [SettingsController::class, 'updatePassword'])->name('account.password');
+
             // Maintenance
             Route::get('/maintenance', [SettingsController::class, 'maintenance'])->name('maintenance');
             Route::put('/maintenance/update', [SettingsController::class, 'updateMaintenance'])->name('maintenance.update');

@@ -6,7 +6,7 @@
 @section('content')
 <div class="space-y-6">
     <!-- Tabs Navigation -->
-    <div class="bg-dark-100 rounded-lg shadow-sm border border-dark-200" x-data="{ activeTab: new URLSearchParams(window.location.search).get('tab') || 'general' }">
+    <div class="bg-dark-100 rounded-lg shadow-sm border border-dark-200" x-data="{ activeTab: new URLSearchParams(window.location.search).get('tab') || '{{ $errors->hasBag('account') || $errors->hasBag('password') ? 'account' : 'general' }}' }">
         <div class="border-b border-dark-200">
             <nav class="flex space-x-4 px-6" aria-label="Tabs">
                 <button @click="activeTab = 'general'"
@@ -24,7 +24,100 @@
                         class="py-4 px-1 border-b-2 font-medium text-sm transition-colors">
                     <i class="fas fa-percentage mr-2"></i> Commissions
                 </button>
+                <button @click="activeTab = 'account'"
+                        :class="activeTab === 'account' ? 'border-primary-500 text-primary-500' : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-300'"
+                        class="py-4 px-1 border-b-2 font-medium text-sm transition-colors">
+                    <i class="fas fa-user-shield mr-2"></i> Mon compte
+                </button>
             </nav>
+        </div>
+
+        <!-- Mon compte -->
+        <div x-show="activeTab === 'account'" x-cloak class="p-6 space-y-8">
+            @php $me = auth()->user(); @endphp
+            <form action="{{ route('admin.settings.account.update') }}" method="POST">
+                @csrf
+                @method('PUT')
+                <h3 class="text-lg font-semibold text-white mb-1">Informations du compte</h3>
+                <p class="text-sm text-gray-400 mb-4">Adresse e-mail utilisée pour vous connecter et recevoir les alertes du back-office.</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label for="first_name" class="block text-sm font-medium text-gray-300 mb-2">Prénom</label>
+                            <input type="text" id="first_name" name="first_name" value="{{ old('first_name', $me->first_name) }}" 
+                                   class="w-full px-4 py-2 bg-dark-50 border rounded-lg text-gray-100 focus:ring-2 focus:ring-primary-500 @error('first_name', 'account') border-red-500 @else border-dark-200 @enderror">
+                            @error('first_name', 'account')
+                                <p class="text-red-500 text-sm mt-1"><i class="fas fa-exclamation-circle mr-1"></i>{{ $message }}</p>
+                            @enderror
+                        </div>
+                        <div>
+                            <label for="last_name" class="block text-sm font-medium text-gray-300 mb-2">Nom</label>
+                            <input type="text" id="last_name" name="last_name" value="{{ old('last_name', $me->last_name) }}" 
+                                   class="w-full px-4 py-2 bg-dark-50 border rounded-lg text-gray-100 focus:ring-2 focus:ring-primary-500 @error('last_name', 'account') border-red-500 @else border-dark-200 @enderror">
+                            @error('last_name', 'account')
+                                <p class="text-red-500 text-sm mt-1"><i class="fas fa-exclamation-circle mr-1"></i>{{ $message }}</p>
+                            @enderror
+                        </div>
+                        <div>
+                            <label for="email" class="block text-sm font-medium text-gray-300 mb-2">Adresse e-mail</label>
+                            <input type="email" id="email" name="email" value="{{ old('email', $me->email) }}" autocomplete="email"
+                                   class="w-full px-4 py-2 bg-dark-50 border rounded-lg text-gray-100 focus:ring-2 focus:ring-primary-500 @error('email', 'account') border-red-500 @else border-dark-200 @enderror">
+                            @error('email', 'account')
+                                <p class="text-red-500 text-sm mt-1"><i class="fas fa-exclamation-circle mr-1"></i>{{ $message }}</p>
+                            @enderror
+                        </div>
+                        <div>
+                            <label for="current_password" class="block text-sm font-medium text-gray-300 mb-2">Mot de passe actuel (exigé pour changer d’e-mail)</label>
+                            <input type="password" id="current_password" name="current_password"  autocomplete="current-password"
+                                   class="w-full px-4 py-2 bg-dark-50 border rounded-lg text-gray-100 focus:ring-2 focus:ring-primary-500 @error('current_password', 'account') border-red-500 @else border-dark-200 @enderror">
+                            @error('current_password', 'account')
+                                <p class="text-red-500 text-sm mt-1"><i class="fas fa-exclamation-circle mr-1"></i>{{ $message }}</p>
+                            @enderror
+                        </div>
+                </div>
+                <div class="mt-6 flex justify-end">
+                    <button type="submit" class="px-6 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors">
+                        <i class="fas fa-save mr-2"></i> Enregistrer
+                    </button>
+                </div>
+            </form>
+
+            <form action="{{ route('admin.settings.account.password') }}" method="POST" class="border-t border-dark-200 pt-6">
+                @csrf
+                @method('PUT')
+                <h3 class="text-lg font-semibold text-white mb-1">Mot de passe</h3>
+                <p class="text-sm text-gray-400 mb-4">Au moins 8 caractères, différent de l’actuel.</p>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div>
+                            <label for="current_password" class="block text-sm font-medium text-gray-300 mb-2">Mot de passe actuel</label>
+                            <input type="password" id="current_password" name="current_password"  autocomplete="current-password"
+                                   class="w-full px-4 py-2 bg-dark-50 border rounded-lg text-gray-100 focus:ring-2 focus:ring-primary-500 @error('current_password', 'password') border-red-500 @else border-dark-200 @enderror">
+                            @error('current_password', 'password')
+                                <p class="text-red-500 text-sm mt-1"><i class="fas fa-exclamation-circle mr-1"></i>{{ $message }}</p>
+                            @enderror
+                        </div>
+                        <div>
+                            <label for="password" class="block text-sm font-medium text-gray-300 mb-2">Nouveau mot de passe</label>
+                            <input type="password" id="password" name="password"  autocomplete="new-password"
+                                   class="w-full px-4 py-2 bg-dark-50 border rounded-lg text-gray-100 focus:ring-2 focus:ring-primary-500 @error('password', 'password') border-red-500 @else border-dark-200 @enderror">
+                            @error('password', 'password')
+                                <p class="text-red-500 text-sm mt-1"><i class="fas fa-exclamation-circle mr-1"></i>{{ $message }}</p>
+                            @enderror
+                        </div>
+                        <div>
+                            <label for="password_confirmation" class="block text-sm font-medium text-gray-300 mb-2">Confirmer le nouveau mot de passe</label>
+                            <input type="password" id="password_confirmation" name="password_confirmation"  autocomplete="new-password"
+                                   class="w-full px-4 py-2 bg-dark-50 border rounded-lg text-gray-100 focus:ring-2 focus:ring-primary-500 @error('password_confirmation', 'password') border-red-500 @else border-dark-200 @enderror">
+                            @error('password_confirmation', 'password')
+                                <p class="text-red-500 text-sm mt-1"><i class="fas fa-exclamation-circle mr-1"></i>{{ $message }}</p>
+                            @enderror
+                        </div>
+                </div>
+                <div class="mt-6 flex justify-end">
+                    <button type="submit" class="px-6 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors">
+                        <i class="fas fa-key mr-2"></i> Changer le mot de passe
+                    </button>
+                </div>
+            </form>
         </div>
 
         <!-- General Tab -->
