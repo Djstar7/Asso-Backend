@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\CommissionRange;
 use App\Models\ServiceConfiguration;
 use App\Models\Setting;
+use App\Services\CommissionService;
 use App\Support\Translation\ContentLocale;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -35,6 +36,63 @@ class SettingsController extends Controller
         return view('admin.settings.index', compact(
             'generalSettings', 'systemSettings', 'commissionRanges', 'commissionSettings'
         ));
+    }
+
+    /**
+     * Mon compte : nom et e-mail du compte connecté. Changer d'e-mail exige le mot
+     * de passe actuel. Si ce compte porte le Wallet de la plateforme (commissions
+     * ASSO), le réglage `platform_account_email` suit le nouvel e-mail.
+     */
+    public function updateAccount(Request $request)
+    {
+        $user = $request->user();
+        $validated = $request->validateWithBag('account', [
+            'first_name' => 'required|string|max:100',
+            'last_name' => 'nullable|string|max:100',
+            'email' => 'required|email|max:255|unique:users,email,' . $user->id,
+            'current_password' => 'required_unless:email,' . $user->email . '|nullable|current_password',
+        ], [
+            'first_name.required' => 'Indiquez votre prénom.',
+            'email.required' => 'Indiquez votre adresse e-mail.',
+            'email.email' => 'Cette adresse e-mail n’est pas valide.',
+            'email.unique' => 'Cette adresse e-mail est déjà utilisée par un autre compte.',
+            'current_password.required_unless' => 'Saisissez votre mot de passe actuel pour changer d’adresse e-mail.',
+            'current_password.current_password' => 'Mot de passe actuel incorrect.',
+        ]);
+
+        $wasPlatform = CommissionService::platformAccount()?->is($user) ?? false;
+        $user->update([
+            'first_name' => $validated['first_name'],
+            'last_name' => $validated['last_name'] ?? '',
+            'email' => $validated['email'],
+        ]);
+        if ($wasPlatform && $user->wasChanged('email')) {
+            Setting::set('platform_account_email', $user->email, 'string', 'system', 'Compte qui reçoit les commissions ASSO');
+        }
+
+        return redirect()->route('admin.settings.index', ['tab' => 'account'])
+            ->with('success', 'Vos informations ont été mises à jour.');
+    }
+
+    /** Mon compte : nouveau mot de passe (mot de passe actuel exigé). */
+    public function updatePassword(Request $request)
+    {
+        $validated = $request->validateWithBag('password', [
+            'current_password' => 'required|current_password',
+            'password' => 'required|string|min:8|confirmed|different:current_password',
+        ], [
+            'current_password.required' => 'Saisissez votre mot de passe actuel.',
+            'current_password.current_password' => 'Mot de passe actuel incorrect.',
+            'password.required' => 'Saisissez le nouveau mot de passe.',
+            'password.min' => 'Le nouveau mot de passe doit contenir au moins 8 caractères.',
+            'password.confirmed' => 'La confirmation ne correspond pas au nouveau mot de passe.',
+            'password.different' => 'Le nouveau mot de passe doit être différent de l’actuel.',
+        ]);
+
+        $request->user()->update(['password' => \Illuminate\Support\Facades\Hash::make($validated['password'])]);
+
+        return redirect()->route('admin.settings.index', ['tab' => 'account'])
+            ->with('success', 'Mot de passe modifié.');
     }
 
     /**
