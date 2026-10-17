@@ -42,13 +42,16 @@ class ShopStatisticsTest extends TestCase
         ]);
     }
 
-    private function order(string $status, int $qty = 1): Order
+    private function order(string $status, int $qty = 1, array $extra = []): Order
     {
-        $order = Order::create([
+        $order = Order::create(array_merge([
             'user_id' => $this->buyer->id, 'status' => $status,
             'subtotal' => 11000 * $qty, 'total' => 11000 * $qty, 'delivery_fee' => 0,
             'payment_method' => 'wallet_kpay', 'payment_status' => 'paid',
-        ]);
+            'vendor_net_amount' => 10000 * $qty,
+            // Le vendeur est réglé à la validation (settleOrder).
+            'settled_at' => in_array($status, ['pending', 'cancelled'], true) ? null : now(),
+        ], $extra));
         $order->items()->create([
             'product_id' => $this->product->id, 'seller_id' => $this->vendor->id, 'quantity' => $qty,
             'unit_price' => 11000, 'total_price' => 11000 * $qty,
@@ -145,6 +148,22 @@ class ShopStatisticsTest extends TestCase
             ->assertJsonPath('data.stats.pending_orders', 1);
         $this->assertEquals(20000, $this->getJson('/api/v1/vendor/dashboard')->json('data.stats.total_sales'));
         $this->getJson('/api/v1/vendor/shop')->assertJsonPath('stats.total_visits', 1);
+    }
+
+    public function test_revenue_is_what_the_vendor_actually_receives(): void
+    {
+        // Livraison offerte par le vendeur : 2 385 déduits de sa part.
+        $this->order('delivered', 1, ['free_delivery' => true, 'free_delivery_amount' => 2385, 'vendor_net_amount' => 7615]);
+        // Acompte payé, solde non payé : vendeur pas encore réglé.
+        $this->order('confirmed', 1, ['payment_plan' => 'deposit', 'settled_at' => null]);
+        // Paiement carte abandonné : pas une commande.
+        $this->order('pending', 1, ['payment_method' => 'stripe_direct', 'payment_status' => 'pending']);
+
+        Sanctum::actingAs($this->vendor);
+        $stats = $this->getJson('/api/v1/vendor/dashboard')->assertOk()->json('data.stats');
+
+        $this->assertEquals(7615, $stats['total_sales']);
+        $this->assertSame(2, $stats['total_orders']);
     }
 
     public function test_long_periods_are_grouped_by_month(): void

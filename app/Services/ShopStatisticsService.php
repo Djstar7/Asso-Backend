@@ -17,14 +17,16 @@ use Illuminate\Support\Facades\DB;
  * - Audience (visites, produits consultés, contacts) : table shop_analytics_events,
  *   alimentée par ShopStatisticsService::record() avec dédoublonnage par visiteur.
  * - Commandes, ventes, chiffre d'affaires : order_items (seller_id) + orders.
- *   Le CA vendeur utilise le prix vendeur figé (seller_total_price), le prix
+ *   Le CA vendeur = ce que le vendeur touche réellement : prix vendeur figé
+ *   (seller_total_price) moins sa part de la livraison offerte, sur les seules
+ *   commandes réglées (settled_at). Une commande payée mais non réglée (acompte
+ *   dont le solde n'est pas payé) n'est pas encore un encaissement. Le prix
  *   client (total_price) donne le volume d'affaires ; l'écart = commission ASSO.
+ * - Une commande n'est comptée qu'une fois payée : un paiement carte ou Mobile
+ *   Money abandonné ne fait pas une commande.
  */
 class ShopStatisticsService
 {
-    /** Statuts comptés comme ventes (commande validée, non annulée). */
-    public const SALE_STATUSES = ['confirmed', 'preparing', 'shipped', 'delivered', 'completed'];
-
     public const PERIODS = [
         '7d' => ['days' => 7, 'label' => '7 derniers jours'],
         '30d' => ['days' => 30, 'label' => '30 derniers jours'],
@@ -354,18 +356,37 @@ class ShopStatisticsService
             ->when($to, fn ($q) => $q->where('orders.created_at', '<=', $to));
     }
 
+    /** Commande payée par le client (hors paiement abandonné ou échoué). */
+    private const PAID = "orders.payment_status IN ('paid', 'refunded')";
+
+    /** Vente encaissée par le vendeur : commande réglée, non annulée ni remboursée. */
+    private const SETTLED = "orders.settled_at IS NOT NULL AND orders.refunded_at IS NULL AND orders.status <> 'cancelled'";
+
+    /**
+     * Part nette du vendeur sur une ligne : prix vendeur figé, diminué au prorata
+     * de la livraison offerte par le vendeur (vendor_net_amount = part vendeur −
+     * livraison offerte, cf. OrderService::createOrder).
+     */
+    private const ITEM_NET = 'CASE WHEN orders.vendor_net_amount IS NOT NULL
+            AND (orders.vendor_net_amount + COALESCE(orders.free_delivery_amount, 0)) > 0
+        THEN COALESCE(order_items.seller_total_price, order_items.total_price) * orders.vendor_net_amount
+            / (orders.vendor_net_amount + COALESCE(orders.free_delivery_amount, 0))
+        ELSE COALESCE(order_items.seller_total_price, order_items.total_price) END';
+
     private function salesSelect(): string
     {
-        $sale = "'" . implode("','", self::SALE_STATUSES) . "'";
+        $paid = self::PAID;
+        $settled = self::SETTLED;
+        $net = self::ITEM_NET;
 
         return implode(', ', [
-            "COUNT(DISTINCT CASE WHEN orders.status <> 'cancelled' THEN orders.id END) as orders",
-            "COUNT(DISTINCT CASE WHEN orders.status = 'pending' THEN orders.id END) as pending_orders",
+            "COUNT(DISTINCT CASE WHEN $paid AND orders.status <> 'cancelled' THEN orders.id END) as orders",
+            "COUNT(DISTINCT CASE WHEN $paid AND orders.status = 'pending' THEN orders.id END) as pending_orders",
             "COUNT(DISTINCT CASE WHEN orders.status = 'cancelled' THEN orders.id END) as cancelled_orders",
-            "COUNT(DISTINCT CASE WHEN orders.status IN ($sale) THEN orders.id END) as validated_orders",
-            "COALESCE(SUM(CASE WHEN orders.status IN ($sale) THEN order_items.quantity ELSE 0 END), 0) as items_sold",
-            "COALESCE(SUM(CASE WHEN orders.status IN ($sale) THEN COALESCE(order_items.seller_total_price, order_items.total_price) ELSE 0 END), 0) as revenue",
-            "COALESCE(SUM(CASE WHEN orders.status IN ($sale) THEN order_items.total_price ELSE 0 END), 0) as gross_sales",
+            "COUNT(DISTINCT CASE WHEN $settled THEN orders.id END) as validated_orders",
+            "COALESCE(SUM(CASE WHEN $settled THEN order_items.quantity ELSE 0 END), 0) as items_sold",
+            "COALESCE(SUM(CASE WHEN $settled THEN $net ELSE 0 END), 0) as revenue",
+            "COALESCE(SUM(CASE WHEN $settled THEN order_items.total_price ELSE 0 END), 0) as gross_sales",
         ]);
     }
 
@@ -420,11 +441,13 @@ class ShopStatisticsService
             ->groupBy(DB::raw('DATE(created_at)'), 'event_type')
             ->get();
 
-        $sale = "'" . implode("','", self::SALE_STATUSES) . "'";
+        $paid = self::PAID;
+        $settled = self::SETTLED;
+        $net = self::ITEM_NET;
         $sales = $this->salesQuery($sellerIds, $from, $to)
             ->selectRaw("DATE(orders.created_at) as d,
-                COUNT(DISTINCT CASE WHEN orders.status <> 'cancelled' THEN orders.id END) as orders,
-                COALESCE(SUM(CASE WHEN orders.status IN ($sale) THEN COALESCE(order_items.seller_total_price, order_items.total_price) ELSE 0 END), 0) as revenue")
+                COUNT(DISTINCT CASE WHEN $paid AND orders.status <> 'cancelled' THEN orders.id END) as orders,
+                COALESCE(SUM(CASE WHEN $settled THEN $net ELSE 0 END), 0) as revenue")
             ->groupBy(DB::raw('DATE(orders.created_at)'))
             ->get();
 
@@ -475,12 +498,13 @@ class ShopStatisticsService
             ->groupBy('product_id')
             ->pluck('c', 'product_id');
 
-        $sale = "'" . implode("','", self::SALE_STATUSES) . "'";
+        $settled = self::SETTLED;
+        $net = self::ITEM_NET;
         $sales = $this->salesQuery([(int) $shop->user_id], $from, $to)
             ->whereIn('order_items.product_id', $shop->products()->select('id'))
             ->selectRaw("order_items.product_id,
-                COALESCE(SUM(CASE WHEN orders.status IN ($sale) THEN order_items.quantity ELSE 0 END), 0) as qty,
-                COALESCE(SUM(CASE WHEN orders.status IN ($sale) THEN COALESCE(order_items.seller_total_price, order_items.total_price) ELSE 0 END), 0) as revenue")
+                COALESCE(SUM(CASE WHEN $settled THEN order_items.quantity ELSE 0 END), 0) as qty,
+                COALESCE(SUM(CASE WHEN $settled THEN $net ELSE 0 END), 0) as revenue")
             ->groupBy('order_items.product_id')
             ->get()
             ->keyBy('product_id');

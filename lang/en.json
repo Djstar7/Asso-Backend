@@ -406,8 +406,8 @@
         },
         "new_order_vendor": {
             "title": "New order received",
-            "body": "You have received a new order #:order_number from :client (:total).",
-            "body_no_client": "You have received a new order #:order_number (:total)."
+            "body": "You have received a new order #:order_number from :client (for you: :total).",
+            "body_no_client": "You have received a new order #:order_number (for you: :total)."
         },
         "wholesale_order_created": {
             "title": "Wholesale order created",

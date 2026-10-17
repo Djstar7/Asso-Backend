@@ -369,7 +369,7 @@ class OrderService
                             $seller->localized('notifications.new_order_vendor.body', [
                                 'order_number' => $order->order_number,
                                 'client' => $client->first_name,
-                                'total' => $order->formatted_total,
+                                'total' => $order->formatted_vendor_net,
                             ]),
                             [
                                 'type' => 'new_order_vendor',
@@ -823,11 +823,11 @@ class OrderService
                         ? $seller->localized('notifications.new_order_vendor.body', [
                             'order_number' => $order->order_number,
                             'client' => $client->first_name,
-                            'total' => $order->formatted_total,
+                            'total' => $order->formatted_vendor_net,
                         ])
                         : $seller->localized('notifications.new_order_vendor.body_no_client', [
                             'order_number' => $order->order_number,
-                            'total' => $order->formatted_total,
+                            'total' => $order->formatted_vendor_net,
                         ]),
                     [
                         'type' => 'new_order_vendor',
@@ -1114,11 +1114,11 @@ class OrderService
                         ? $seller->localized('notifications.new_order_vendor.body', [
                             'order_number' => $order->order_number,
                             'client' => $client->first_name,
-                            'total' => $order->formatted_total,
+                            'total' => $order->formatted_vendor_net,
                         ])
                         : $seller->localized('notifications.new_order_vendor.body_no_client', [
                             'order_number' => $order->order_number,
-                            'total' => $order->formatted_total,
+                            'total' => $order->formatted_vendor_net,
                         ]),
                     [
                         'type' => 'new_order_vendor',
