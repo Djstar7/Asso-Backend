@@ -199,7 +199,8 @@ class DepositOrderTest extends TestCase
         // Le client paie le solde depuis son Wallet : commande réglée.
         $this->actingAs($client, 'sanctum')->postJson("/api/v1/orders/{$order->id}/pay-balance", ['payment_mode' => 'wallet'])
             ->assertOk()
-            ->assertJsonPath('order.deposit.balance_status', 'paid');
+            ->assertJsonPath('order.deposit.balance_status', 'paid')
+            ->assertJsonPath('order.deposit.balance_due', 0);
 
         $order->refresh();
         $this->assertNotNull($order->settled_at);
