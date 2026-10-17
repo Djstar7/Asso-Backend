@@ -8,6 +8,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /**
  * Course d'un litige, payée par le vendeur : envoi du produit de remplacement (Cas A)
  * ou retour du produit du client vers le vendeur (Cas B).
+ *
+ * Confiée au livreur partenaire comme une commande : il l'accepte, récupère le colis
+ * puis la termine avec le code à 6 chiffres du destinataire (le client pour un
+ * remplacement, le vendeur pour un retour).
  */
 class DisputeShipment extends Model
 {
@@ -37,10 +41,23 @@ class DisputeShipment extends Model
         'delivered' => 'Produit de remplacement livré',
     ];
 
+    /** Étape de remise au destinataire : validée seulement avec son code. */
+    public const CODE_STEPS = [
+        self::TYPE_REPLACEMENT => 'delivered',
+        self::TYPE_RETURN => 'delivered_to_vendor',
+    ];
+
+    /** Étape « colis récupéré » enregistrée par le livreur. */
+    public const PICKUP_STEPS = [
+        self::TYPE_REPLACEMENT => 'shipped',
+        self::TYPE_RETURN => 'picked_up',
+    ];
+
     protected $fillable = [
-        'dispute_id', 'type', 'deliverer_company_id', 'quote', 'price', 'carrier_amount', 'asso_commission',
+        'dispute_id', 'type', 'deliverer_company_id', 'delivery_person_id', 'quote', 'price', 'carrier_amount', 'asso_commission',
         'payer', 'payment_status', 'payment_mode', 'payment_reference', 'payment_currency', 'payment_amount', 'paid_at',
-        'status', 'carrier_tracking_number', 'proof_path', 'delivered_at',
+        'accepted_at', 'picked_up_at',
+        'status', 'confirmation_code', 'carrier_tracking_number', 'proof_path', 'delivered_at',
     ];
 
     protected $casts = [
@@ -50,11 +67,52 @@ class DisputeShipment extends Model
         'asso_commission' => 'decimal:2',
         'payment_amount' => 'decimal:2',
         'paid_at' => 'datetime',
+        'accepted_at' => 'datetime',
+        'picked_up_at' => 'datetime',
         'delivered_at' => 'datetime',
     ];
 
+    protected $hidden = ['confirmation_code'];
+
+    protected static function booted(): void
+    {
+        static::creating(function (DisputeShipment $shipment) {
+            $shipment->confirmation_code ??= Order::generateConfirmationCode();
+        });
+    }
+
     public function dispute(): BelongsTo { return $this->belongsTo(Dispute::class); }
     public function company(): BelongsTo { return $this->belongsTo(DelivererCompany::class, 'deliverer_company_id'); }
+    public function deliveryPerson(): BelongsTo { return $this->belongsTo(User::class, 'delivery_person_id'); }
+
+    /** Étape qui exige le code du destinataire. */
+    public function codeStep(): string
+    {
+        return self::CODE_STEPS[$this->type];
+    }
+
+    public function pickupStep(): string
+    {
+        return self::PICKUP_STEPS[$this->type];
+    }
+
+    /** Qui détient le code : le client (remplacement) ou le vendeur (retour). */
+    public function codeHolder(): string
+    {
+        return $this->type === self::TYPE_RETURN ? 'vendor' : 'client';
+    }
+
+    /** Remis au destinataire (ou retour confirmé). */
+    public function isHandedOver(): bool
+    {
+        return in_array($this->status, [$this->codeStep(), 'confirmed'], true);
+    }
+
+    /** Course que le livreur peut prendre ou mener : payée, pas encore remise. */
+    public function isOpenForCourier(): bool
+    {
+        return $this->isPaid() && !$this->isHandedOver();
+    }
 
     public function steps(): array
     {
@@ -64,6 +122,15 @@ class DisputeShipment extends Model
     public function isPaid(): bool
     {
         return $this->payment_status === self::PAYMENT_PAID;
+    }
+
+    /**
+     * Étapes que l'équipe ASSO peut enregistrer à la main : « retour confirmé » suit
+     * automatiquement la remise au vendeur, et la remise elle-même demande le code.
+     */
+    public function manualSteps(): array
+    {
+        return array_values(array_diff($this->nextSteps(), ['confirmed']));
     }
 
     /** Étapes suivantes que l'équipe ASSO (ou le partenaire) peut enregistrer. */
@@ -78,8 +145,14 @@ class DisputeShipment extends Model
         return $index === false ? [] : array_slice($keys, $index + 1);
     }
 
-    public function toApi(): array
+    /**
+     * @param string|null $viewer client | vendor : le détenteur du code le voit tant
+     *                            que le colis ne lui a pas été remis.
+     */
+    public function toApi(?string $viewer = null): array
     {
+        $showCode = $viewer !== null && $viewer === $this->codeHolder() && $this->isOpenForCourier();
+
         return [
             'id' => $this->id,
             'type' => $this->type,
@@ -96,6 +169,12 @@ class DisputeShipment extends Model
             'proof_url' => $this->proof_path ? media_url($this->proof_path) : null,
             'paid_at' => $this->paid_at?->toIso8601String(),
             'delivered_at' => $this->delivered_at?->toIso8601String(),
+            // À remettre au livreur : il valide la remise avec ce code.
+            'confirmation_code' => $showCode ? $this->confirmation_code : null,
+            'delivery_person' => $this->deliveryPerson ? [
+                'name' => $this->deliveryPerson->name,
+                'phone' => $this->deliveryPerson->phone,
+            ] : null,
         ];
     }
 }

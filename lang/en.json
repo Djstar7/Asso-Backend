@@ -768,7 +768,23 @@
             "dispute_resolved_vendor": {
                 "title": "Wholesale dispute: replacement validated",
                 "body": "Claim :number: the customer validated the replacement, the case is resolved."
+            },
+            "dispute_replacement_reported": {
+                "title": "Replacement disputed (wholesale)",
+                "body": "The customer reports an issue with the replacement product (claim :number). Review it in the back office."
             }
+        },
+        "dispute_replacement_course": {
+            "title": "New run: replacement product",
+            "body": "Claim :number: collect the replacement product (:from) and deliver it to the customer (:to). Hand over against the customer's code."
+        },
+        "dispute_return_course": {
+            "title": "New run: product return",
+            "body": "Claim :number: collect the product from the customer (:from) and bring it back to the seller (:to). Hand over against the seller's code."
+        },
+        "dispute_replacement_reported": {
+            "title": "Issue with the replacement",
+            "body": "The customer reports an issue with the replacement product (claim :number). Send your reply: ASSO will then decide. Your funds stay on hold."
         }
     },
     "orders": {
@@ -1281,7 +1297,8 @@
             "replacement_conform": "Replacement as described — seller funds released",
             "replacement_auto_validated": "No action after 48 h — replacement approved automatically",
             "bank_transfer_client": "Refund transferred by ASSO to the customer's IBAN (:amount :currency, •••• :last4)",
-            "bank_transfer_vendor": "Vendor share transferred by ASSO to their IBAN (:amount :currency, •••• :last4)"
+            "bank_transfer_vendor": "Vendor share transferred by ASSO to their IBAN (:amount :currency, •••• :last4)",
+            "course_accepted": "Run accepted by the courier"
         },
         "shipment_steps": {
             "return": {
@@ -1299,7 +1316,11 @@
                 "shipped": "Replacement product shipped",
                 "delivered": "Replacement product delivered"
             }
-        }
+        },
+        "confirmation_code_incorrect": "Incorrect code. Ask the recipient for their 6-digit code.",
+        "course_unavailable": "This run is no longer available.",
+        "course_completed": "Run completed: handover confirmed.",
+        "replacement_reported": "Issue reported. The seller will reply, then ASSO will decide."
     },
     "legal": {
         "not_found": "Page not found.",

@@ -88,10 +88,16 @@ class DisputeController extends Controller
         ]);
     }
 
-    /** POST /api/v1/disputes/{id}/report-replacement (multipart : photos[]) */
+    /**
+     * Problème sur le produit de remplacement : le dossier est rouvert (réponse du
+     * vendeur, décision ASSO).
+     *
+     * POST /api/v1/disputes/{id}/report-replacement (multipart : photos[])
+     */
     public function reportReplacement(Request $request, $id)
     {
         $validated = $request->validate([
+            'reason' => 'nullable|in:' . implode(',', Dispute::REASONS),
             'description' => 'required|string|min:10|max:2000',
             'photos' => 'nullable|array|max:6',
             'photos.*' => 'image|max:8192',
@@ -99,14 +105,14 @@ class DisputeController extends Controller
         $dispute = $this->find($request, $id);
 
         try {
-            $this->disputes->reportReplacement($dispute, $request->user(), $validated['description'], $request->file('photos', []));
+            $this->disputes->reportReplacement($dispute, $request->user(), $validated['description'], $request->file('photos', []), $validated['reason'] ?? null);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
 
         return response()->json([
             'success' => true,
-            'message' => __('disputes.return_validated'),
+            'message' => __('disputes.replacement_reported'),
             'dispute' => $this->disputes->toApi($dispute->fresh(), 'client'),
         ]);
     }

@@ -148,14 +148,15 @@ class VendorDisputeController extends Controller
     }
 
     /**
-     * Le vendeur remet le remplacement au livreur, ou confirme la réception du retour.
+     * Le vendeur remet le remplacement au livreur. La réception d'un retour se valide
+     * en donnant son code au livreur (plus de confirmation par le vendeur seul).
      *
      * POST /api/v1/vendor/disputes/shipments/{id}/step
      */
     public function step(Request $request, $shipmentId)
     {
         $validated = $request->validate([
-            'step' => 'required|in:shipped,delivered_to_vendor',
+            'step' => 'required|in:shipped',
             'note' => 'nullable|string|max:500',
             'carrier_tracking_number' => 'nullable|string|max:100',
         ]);

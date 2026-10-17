@@ -128,6 +128,8 @@
                         <p>Prix : <span class="text-white">{{ (float) $shipment->price > 0 ? $fcfa($shipment->price) : '—' }}</span> · payé par {{ $shipment->payer === 'asso' ? 'ASSO' : 'le vendeur' }}</p>
                         <p>Paiement : <span class="text-white">{{ ['pending' => 'En attente', 'paid' => 'Payé', 'failed' => 'Échoué'][$shipment->payment_status] ?? $shipment->payment_status }}</span>@if($shipment->payment_mode) ({{ $shipment->payment_mode }})@endif</p>
                         <p>N° de suivi : <span class="text-white">{{ $shipment->carrier_tracking_number ?? '—' }}</span></p>
+                        <p>Livreur : <span class="text-white">{{ $shipment->deliveryPerson?->name ?? 'pas encore accepté' }}</span>@if($shipment->deliveryPerson?->phone) · {{ $shipment->deliveryPerson->phone }}@endif</p>
+                        <p>Remise contre le code du <span class="text-white">{{ $shipment->codeHolder() === 'client' ? 'client' : 'vendeur' }}</span></p>
                     </div>
                     <ol class="flex flex-wrap gap-2 mb-3">
                         @php $reached = true; @endphp
@@ -139,24 +141,29 @@
                     @if($shipment->proof_path)
                         <a href="{{ media_url($shipment->proof_path) }}" target="_blank" class="text-primary-400 text-xs"><i class="fas fa-file-image mr-1"></i>Preuve de livraison</a>
                     @endif
-                    @if($shipment->nextSteps())
+                    @if($shipment->manualSteps())
                         <form method="POST" action="{{ route('admin.disputes.shipments.step', $shipment) }}" enctype="multipart/form-data" class="grid md:grid-cols-2 gap-2 mt-3">
                             @csrf
                             <select name="step" class="px-3 py-2 bg-dark-200 border border-dark-300 rounded-lg text-white">
-                                @foreach($shipment->nextSteps() as $step)
+                                @foreach($shipment->manualSteps() as $step)
                                     <option value="{{ $step }}">{{ $shipment->steps()[$step] }}</option>
                                 @endforeach
                             </select>
+                            <input type="text" name="confirmation_code" inputmode="numeric" maxlength="6"
+                                   placeholder="Code du {{ $shipment->codeHolder() === 'client' ? 'client' : 'vendeur' }} (étape « {{ $shipment->steps()[$shipment->codeStep()] }} »)"
+                                   class="px-3 py-2 bg-dark-200 border border-dark-300 rounded-lg text-white">
                             <input type="text" name="carrier_tracking_number" placeholder="N° de suivi (facultatif)" class="px-3 py-2 bg-dark-200 border border-dark-300 rounded-lg text-white">
                             <input type="text" name="note" placeholder="Note (facultatif)" class="px-3 py-2 bg-dark-200 border border-dark-300 rounded-lg text-white">
                             <input type="file" name="proof" accept="image/*" class="text-gray-400 text-xs">
                             <button class="md:col-span-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
-                                    onclick="return this.form.step.value !== 'confirmed' || confirm('Confirmer le retour ? Le client sera remboursé sur son Wallet ASSO.')">
+                                    onclick="return this.form.step.value !== 'delivered_to_vendor' || confirm('Confirmer la remise au vendeur ? Le client sera remboursé sur son Wallet ASSO.')">
                                 <i class="fas fa-check mr-1"></i> Enregistrer l'étape
                             </button>
-                            @if($shipment->type === 'return')
-                                <p class="md:col-span-2 text-xs text-gray-500">« Retour confirmé » rembourse le client, même sans confirmation du vendeur.</p>
-                            @endif
+                            <p class="md:col-span-2 text-xs text-gray-500">
+                                Le livreur valide normalement la remise dans son application avec le code du {{ $shipment->codeHolder() === 'client' ? 'client' : 'vendeur' }}.
+                                Saisissez-le ici seulement si le livreur ne peut pas le faire.
+                                @if($shipment->type === 'return') La remise au vendeur rembourse aussitôt le client.@endif
+                            </p>
                         </form>
                     @endif
                 </div>

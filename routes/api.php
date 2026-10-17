@@ -346,6 +346,12 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/active', [DeliveryController::class, 'activeDeliveries']);
             Route::post('/{id}/accept', [DeliveryController::class, 'accept']);
             Route::post('/{id}/complete', [DeliveryController::class, 'complete']);
+
+            // Courses de litige (remplacement, retour) : remise contre le code du destinataire.
+            Route::get('/dispute-courses', [\App\Http\Controllers\Api\DisputeCourseController::class, 'index']);
+            Route::post('/dispute-courses/{id}/accept', [\App\Http\Controllers\Api\DisputeCourseController::class, 'accept']);
+            Route::post('/dispute-courses/{id}/pickup', [\App\Http\Controllers\Api\DisputeCourseController::class, 'pickup']);
+            Route::post('/dispute-courses/{id}/complete', [\App\Http\Controllers\Api\DisputeCourseController::class, 'complete']);
         });
 
         // Wallet - Portefeuille KPay (Mobile Money) + recharge carte (Stripe natif)

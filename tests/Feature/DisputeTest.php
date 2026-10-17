@@ -229,7 +229,8 @@ class DisputeTest extends TestCase
 
     public function test_seller_cannot_decide_and_replacement_is_allowed_once(): void
     {
-        $dispute = $this->openDispute($this->deliveredOrder());
+        $order = $this->deliveredOrder();
+        $dispute = $this->openDispute($order);
         $service = app(DisputeService::class);
 
         // Avant la décision ASSO, le vendeur ne peut rien lancer.
@@ -243,17 +244,76 @@ class DisputeTest extends TestCase
         $this->setBalance($this->seller, 2500, 2000);
         $this->actingAs($this->seller, 'sanctum')
             ->postJson("/api/v1/vendor/disputes/shipments/{$shipment->id}/pay", ['payment_mode' => 'wallet'])->assertOk();
-        $service->recordStep($shipment->fresh(), 'shipped', 'vendor', $this->seller->id);
-        $service->recordStep($shipment->fresh(), 'delivered', 'admin', null);
+        $this->deliverReplacementWithClientCode($dispute);
 
-        // Remplacement encore non conforme → Cas B imposé, pas de second remplacement.
+        // Problème sur le remplacement : le dossier est rouvert (réponse du vendeur,
+        // décision ASSO), sans retour automatique.
         $this->actingAs($this->client, 'sanctum')
             ->postJson("/api/v1/disputes/{$dispute->id}/report-replacement", ['description' => 'Le nouveau sac est aussi abîmé.'])
-            ->assertOk()->assertJsonPath('dispute.status', Dispute::STATUS_RETURN);
+            ->assertOk()
+            ->assertJsonPath('dispute.status', Dispute::STATUS_NEW)
+            ->assertJsonPath('dispute.decision', null);
+        $this->assertSame(1000.0, (float) $dispute->fresh()->held_amount);
 
-        $this->assertSame(1, $dispute->fresh()->replacement_count);
+        // Fondée : pas de second remplacement, le retour est lancé et le vendeur doit le payer.
+        $service->decide($dispute->fresh(), $this->admin(), Dispute::DECISION_FOUNDED, 'Toujours abîmé.');
+        $dispute->refresh();
+        $this->assertSame(Dispute::STATUS_RETURN, $dispute->status);
+        $this->assertSame(1, $dispute->replacement_count);
+        $this->assertSame('vendor', $dispute->shipment(DisputeShipment::TYPE_RETURN)->payer);
         $this->expectException(\Exception::class);
         $service->startReplacement($dispute->fresh(), 'vendor', $this->seller->id);
+    }
+
+    public function test_unfounded_issue_on_the_replacement_concludes_the_sale(): void
+    {
+        $dispute = $this->openDispute($this->deliveredOrder());
+        $service = app(DisputeService::class);
+        $service->decide($dispute, $this->admin(), Dispute::DECISION_FOUNDED, 'Défaut confirmé.');
+        $shipment = $this->priceShipment($service->startReplacement($dispute, 'vendor', $this->seller->id));
+        $this->setBalance($this->seller, 2500, 2000);
+        $service->initiatePayment($shipment, $this->seller, 'wallet');
+        $this->deliverReplacementWithClientCode($dispute);
+
+        $service->reportReplacement($dispute->fresh(), $this->client, 'Couleur différente de la photo.');
+        $service->decide($dispute->fresh(), $this->admin(), Dispute::DECISION_UNFOUNDED, 'Conforme à l\'annonce.');
+
+        $this->assertSame(Dispute::STATUS_REJECTED, $dispute->fresh()->status);
+        $this->assertSame(1000.0, $this->locked($this->seller)); // seul l'autre article reste bloqué
+    }
+
+    /**
+     * Le livreur du partenaire prend la course, récupère le remplacement à la boutique
+     * et le remet au client contre son code (affiché au client seulement).
+     */
+    private function deliverReplacementWithClientCode(Dispute $dispute): void
+    {
+        $shipment = $dispute->fresh()->shipment(DisputeShipment::TYPE_REPLACEMENT);
+        $courses = $this->actingAs($this->courier, 'sanctum')->getJson('/api/v1/delivery/dispute-courses')
+            ->assertOk()->json('courses');
+        $this->assertSame([$shipment->id], array_column($courses, 'id'));
+        $this->assertSame('vendor', $courses[0]['pickup']['role']);
+        $this->assertSame('client', $courses[0]['dropoff']['role']);
+
+        $code = $this->actingAs($this->client, 'sanctum')->getJson("/api/v1/disputes/{$dispute->id}")
+            ->json('dispute.replacement.confirmation_code');
+        $this->assertSame($shipment->confirmation_code, $code);
+        $this->assertNull($this->actingAs($this->seller, 'sanctum')->getJson("/api/v1/vendor/disputes/{$dispute->id}")
+            ->json('dispute.replacement.confirmation_code'));
+
+        $this->actingAs($this->courier, 'sanctum')->postJson("/api/v1/delivery/dispute-courses/{$shipment->id}/accept")->assertOk();
+        $this->actingAs($this->courier, 'sanctum')->postJson("/api/v1/delivery/dispute-courses/{$shipment->id}/pickup")
+            ->assertOk()->assertJsonPath('course.status', 'shipped');
+        $this->actingAs($this->courier, 'sanctum')->postJson("/api/v1/delivery/dispute-courses/{$shipment->id}/complete", ['confirmation_code' => '000000' === $code ? '111111' : '000000'])
+            ->assertStatus(422);
+        $this->actingAs($this->courier, 'sanctum')->postJson("/api/v1/delivery/dispute-courses/{$shipment->id}/complete", ['confirmation_code' => $code])
+            ->assertOk()->assertJsonPath('course.status', 'delivered');
+
+        $this->assertTrue($dispute->fresh()->isInReplacementControl());
+        // Commande : mêmes choix qu'à la première réception.
+        $item = collect($this->actingAs($this->client, 'sanctum')->getJson("/api/v1/orders/{$dispute->order_id}")->json('order.items'))
+            ->firstWhere('id', $dispute->order_item_id);
+        $this->assertNotNull($item['dispute']['replacement_control_until']);
     }
 
     public function test_wholesale_dispute_follows_the_same_rules_as_a_regular_one(): void
@@ -308,7 +368,12 @@ class DisputeTest extends TestCase
         $this->setBalance($this->seller, 2500, 2000);
         $service->initiatePayment($shipment, $this->seller, 'wallet');
         $service->recordStep($shipment->fresh(), 'shipped', 'vendor', $this->seller->id);
-        $service->recordStep($shipment->fresh(), 'delivered', 'admin', null);
+        // Saisie de secours par ASSO : sans le code du client, refusée.
+        $this->actingAs($this->admin())->post("/admin/disputes/shipments/{$shipment->id}/step", ['step' => 'delivered'])
+            ->assertSessionHas('error');
+        $this->actingAs($this->admin())->post("/admin/disputes/shipments/{$shipment->id}/step", [
+            'step' => 'delivered', 'confirmation_code' => $shipment->fresh()->confirmation_code,
+        ])->assertSessionHas('success');
         $this->assertTrue($dispute->fresh()->isInReplacementControl());
 
         $this->actingAs($this->client, 'sanctum')->postJson("/api/v1/disputes/{$dispute->id}/confirm-replacement")
@@ -319,7 +384,7 @@ class DisputeTest extends TestCase
         $this->assertSame(0.0, (float) $dispute->fresh()->held_amount);
     }
 
-    public function test_return_paid_by_seller_then_refund_without_seller_confirmation(): void
+    public function test_return_handed_to_seller_with_his_code_refunds_the_client(): void
     {
         $order = $this->deliveredOrder();
         $dispute = $this->openDispute($order);
@@ -340,9 +405,27 @@ class DisputeTest extends TestCase
         $this->assertSame(800.0, $this->bal($this->courier)); // 400 commande + 400 retour
         $this->assertSame(400.0, $this->bal($this->asso));    // 300 commande + 100 retour
 
-        // ASSO confirme le retour (le vendeur n'a rien confirmé) : remboursement.
+        // « Retour confirmé » ne se saisit plus à la main.
         $this->actingAs($this->admin())
-            ->post("/admin/disputes/shipments/{$shipment->id}/step", ['step' => 'confirmed'])->assertRedirect();
+            ->post("/admin/disputes/shipments/{$shipment->id}/step", ['step' => 'confirmed'])->assertSessionHas('error');
+
+        // Le livreur prend le produit chez le client et le remet au vendeur contre le
+        // code du vendeur : le client est remboursé aussitôt.
+        $code = $this->actingAs($this->seller, 'sanctum')->getJson("/api/v1/vendor/disputes/{$dispute->id}")
+            ->json('dispute.return.confirmation_code');
+        $this->assertNotNull($code);
+        $this->assertNull($this->actingAs($this->client, 'sanctum')->getJson("/api/v1/disputes/{$dispute->id}")
+            ->json('dispute.return.confirmation_code'));
+        $course = $this->actingAs($this->courier, 'sanctum')->getJson('/api/v1/delivery/dispute-courses')->json('courses.0');
+        $this->assertSame('client', $course['pickup']['role']);
+        $this->assertSame('vendor', $course['dropoff']['role']);
+        $this->actingAs($this->courier, 'sanctum')->postJson("/api/v1/delivery/dispute-courses/{$shipment->id}/accept")->assertOk();
+        $this->actingAs($this->courier, 'sanctum')->postJson("/api/v1/delivery/dispute-courses/{$shipment->id}/pickup")
+            ->assertOk()->assertJsonPath('course.status', 'picked_up');
+        $this->actingAs($this->courier, 'sanctum')->postJson("/api/v1/delivery/dispute-courses/{$shipment->id}/complete", ['confirmation_code' => $code])
+            ->assertOk();
+        $this->assertSame('confirmed', $shipment->fresh()->status);
+        $this->assertSame([], $this->actingAs($this->courier, 'sanctum')->getJson('/api/v1/delivery/dispute-courses')->json('courses'));
 
         $dispute->refresh();
         $this->assertSame(Dispute::STATUS_REFUNDED, $dispute->status);
@@ -352,6 +435,38 @@ class DisputeTest extends TestCase
         $this->assertSame(1000.0, $this->bal($this->seller));
         $this->assertSame(1000.0, $this->locked($this->seller));
         $this->assertSame(300.0, $this->bal($this->asso)); // commission de l'article rendue
+    }
+
+    public function test_partner_and_its_couriers_are_notified_when_the_return_is_paid(): void
+    {
+        $synced = User::factory()->create();
+        $code = \App\Models\DelivererSyncCode::create([
+            'sync_code' => 'TEST-' . random_int(1000, 9999), 'company_id' => $this->company->id,
+            'user_id' => $synced->id, 'is_used' => true,
+        ]);
+        \App\Models\DelivererCodeSync::create([
+            'sync_code_id' => $code->id, 'user_id' => $synced->id, 'company_id' => $this->company->id,
+            'is_active' => true, 'is_banned' => false, 'synced_at' => now(),
+        ]);
+        $notified = [];
+        $this->mock(FirebaseMessagingService::class, function ($mock) use (&$notified) {
+            $mock->shouldReceive('sendToUser')->andReturnUsing(function (User $user, $title, $body, array $data = []) use (&$notified) {
+                $notified[] = [$user->id, $data['type']];
+
+                return [];
+            });
+        });
+
+        $dispute = $this->openDispute($this->deliveredOrder());
+        $service = app(DisputeService::class);
+        $service->decide($dispute, $this->admin(), Dispute::DECISION_FOUNDED, 'Défaut confirmé.');
+        $shipment = $this->priceShipment($service->startReturn($dispute, 'admin', null));
+        $this->setBalance($this->seller, 2500, 2000);
+        $service->initiatePayment($shipment, $this->seller, 'wallet');
+
+        $this->assertContains([$this->courier->id, 'dispute_return_course'], $notified);
+        $this->assertContains([$synced->id, 'dispute_return_course'], $notified);
+        $this->assertContains([$this->client->id, 'dispute_return_courier'], $notified);
     }
 
     public function test_return_payment_by_mobile_money_resumes_on_kpay_webhook_reference(): void
