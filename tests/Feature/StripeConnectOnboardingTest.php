@@ -91,7 +91,26 @@ class StripeConnectOnboardingTest extends TestCase
         $this->actingAs($user, 'sanctum')
             ->postJson('/api/v1/stripe/connect/submit', $this->payload(['iban' => 'PAS-UN-IBAN']))
             ->assertStatus(422)
-            ->assertJsonValidationErrors('iban');
+            ->assertJsonValidationErrors('iban')
+            // Message clair, propre au champ (pas le message générique de Laravel).
+            ->assertJsonPath('errors.iban.0', __('payments.stripe_connect.validation.iban_format'));
+    }
+
+    /** Un refus de Stripe sur un paramètre précis s'affiche sous le champ concerné. */
+    public function test_stripe_refusal_is_attached_to_the_matching_field(): void
+    {
+        $this->mockStripe(function ($mock) {
+            $mock->shouldReceive('isConfigured')->andReturn(true);
+            $mock->shouldReceive('mode')->andReturn('test');
+            $mock->shouldReceive('createCustomAccountWithBank')->andThrow(
+                \Stripe\Exception\InvalidRequestException::factory('Invalid postal code for FR', 400, null, null, null, null, 'individual[address][postal_code]')
+            );
+        });
+
+        $this->actingAs(User::factory()->create(), 'sanctum')
+            ->postJson('/api/v1/stripe/connect/submit', $this->payload())
+            ->assertStatus(422)
+            ->assertJsonPath('errors.address_postal_code.0', __('payments.stripe_connect.field_errors.address_postal_code'));
     }
 
     /** Sans KYC, le compte serait créé mais inutilisable : on refuse en amont. */

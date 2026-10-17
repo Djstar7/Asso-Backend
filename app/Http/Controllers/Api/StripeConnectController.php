@@ -104,7 +104,7 @@ class StripeConnectController extends Controller
             'address_city' => 'required|string|max:120',
             'address_postal_code' => 'required|string|max:20',
             'address_state' => 'nullable|string|max:120',
-        ]);
+        ], $this->validationMessages());
 
         $user = $request->user();
 
@@ -200,10 +200,16 @@ class StripeConnectController extends Controller
                     'error' => $e->getMessage(),
                 ]);
 
-            return response()->json([
+            // Refus rattaché à un champ (IBAN, date de naissance, adresse…) : le
+            // message s'affiche sous ce champ dans l'app, comme une erreur de saisie.
+            $message = $this->friendlyErrorMessage($e);
+            $field = $this->fieldForStripeError($e);
+
+            return response()->json(array_filter([
                 'success' => false,
-                'message' => $this->friendlyErrorMessage($e),
-            ], 422);
+                'message' => $message,
+                'errors' => $field ? [$field => [$this->fieldErrorMessage($field, $message)]] : null,
+            ]), 422);
         }
     }
 
@@ -255,6 +261,71 @@ class StripeConnectController extends Controller
             'message' => __('payments.stripe_connect.unlinked'),
             'data' => $this->formatStatus($user->fresh()),
         ]);
+    }
+
+    /**
+     * Un message clair par champ et par règle (« Saisissez votre IBAN », « Vous
+     * devez avoir au moins 18 ans »…), au lieu des messages génériques de Laravel
+     * qui citent le nom technique du champ.
+     */
+    private function validationMessages(): array
+    {
+        $m = fn (string $key) => __("payments.stripe_connect.validation.{$key}");
+
+        return [
+            'country.required' => $m('country_required'),
+            'country.size' => $m('country_size'),
+            'iban.required' => $m('iban_required'),
+            'iban.regex' => $m('iban_format'),
+            'account_holder_name.required' => $m('holder_required'),
+            'account_holder_name.max' => $m('holder_max'),
+            'birth_date.required' => $m('birth_date_required'),
+            'birth_date.date' => $m('birth_date_invalid'),
+            'birth_date.before' => $m('birth_date_minor'),
+            'phone.required' => $m('phone_required'),
+            'phone.max' => $m('phone_invalid'),
+            'address_line1.required' => $m('address_required'),
+            'address_line1.max' => $m('address_max'),
+            'address_city.required' => $m('city_required'),
+            'address_city.max' => $m('city_max'),
+            'address_postal_code.required' => $m('postal_required'),
+            'address_postal_code.max' => $m('postal_invalid'),
+        ];
+    }
+
+    /**
+     * Champ du formulaire concerné par un refus de Stripe, d'après le paramètre
+     * qu'il désigne (ex. `external_account[account_number]`, `individual[dob][year]`).
+     */
+    private function fieldForStripeError(\Throwable $e): ?string
+    {
+        if (!$e instanceof \Stripe\Exception\InvalidRequestException || StripeService::isPlatformConfigError($e)) {
+            return null;
+        }
+        $param = strtolower((string) $e->getStripeParam());
+        $raw = strtolower($e->getMessage());
+
+        return match (true) {
+            str_contains($param, 'account_number') || str_contains($param, 'external_account')
+                || str_contains($raw, 'iban') || str_contains($raw, 'account number') => 'iban',
+            str_contains($param, 'dob') => 'birth_date',
+            str_contains($param, 'phone') => 'phone',
+            str_contains($param, 'postal_code') => 'address_postal_code',
+            str_contains($param, '[city]') => 'address_city',
+            str_contains($param, 'line1') || str_contains($param, '[address]') => 'address_line1',
+            str_contains($param, 'name') => 'account_holder_name',
+            str_contains($param, 'country') || str_contains($raw, 'not currently supported') => 'country',
+            default => null,
+        };
+    }
+
+    /** Message à afficher sous le champ refusé par Stripe. */
+    private function fieldErrorMessage(string $field, string $fallback): string
+    {
+        $key = "payments.stripe_connect.field_errors.{$field}";
+        $message = __($key);
+
+        return $message === $key ? $fallback : $message;
     }
 
     /**
