@@ -7,7 +7,8 @@
     <title>@yield('title', 'Login') - ASSO Admin</title>
 
     <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Servi par ASSO : le CDN tailwindcss.com est parfois injoignable (DNS), la page restait sans style. -->
+    <script src="{{ asset('vendor/tailwindcss/tailwindcss-3.4.17.js') }}"></script>
     <script>
         tailwind.config = {
             theme: {
