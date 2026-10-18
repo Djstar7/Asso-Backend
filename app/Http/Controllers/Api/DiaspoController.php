@@ -206,6 +206,9 @@ class DiaspoController extends Controller
             // Facultatives ensemble pour les anciennes versions de l'app.
             'parcel_nature_id' => 'nullable|required_with:declared_value|integer|exists:parcel_natures,id,is_active,1',
             'declared_value' => 'nullable|required_with:parcel_nature_id|numeric|min:0|max:100000000',
+            // Devise dans laquelle l'expéditeur a saisi la valeur (la sienne) ;
+            // absente = devise de l'offre (anciennes versions de l'app).
+            'declared_value_currency' => 'nullable|string|size:3',
         ]);
 
         $buyer = $request->user();
@@ -240,11 +243,15 @@ class DiaspoController extends Controller
 
             // Supplément d'assurance (revenu ASSO), ajouté au prix du transport.
             $insurance = 0.0;
+            $declaredValue = null;
             if (!empty($data['parcel_nature_id'])) {
                 try {
+                    $declaredValue = ParcelInsuranceService::declaredValueIn(
+                        (float) $data['declared_value'], $data['declared_value_currency'] ?? null, $offer->currency
+                    );
                     $insurance = ParcelInsuranceService::quote(
                         ParcelNature::findOrFail($data['parcel_nature_id']),
-                        (float) $data['declared_value'],
+                        $declaredValue,
                         $offer->currency
                     );
                 } catch (\RuntimeException $e) {
@@ -275,7 +282,7 @@ class DiaspoController extends Controller
                 'commission_amount' => $commission,
                 'total_price' => $total,
                 'parcel_nature_id' => $data['parcel_nature_id'] ?? null,
-                'declared_value' => $data['declared_value'] ?? null,
+                'declared_value' => $declaredValue,
                 'insurance_amount' => $insurance,
                 'status' => 'pending',
                 'confirmation_code' => str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT),
@@ -316,13 +323,14 @@ class DiaspoController extends Controller
         $data = $request->validate([
             'parcel_nature_id' => 'required|integer|exists:parcel_natures,id,is_active,1',
             'declared_value' => 'required|numeric|min:0|max:100000000',
+            'declared_value_currency' => 'nullable|string|size:3',
             'currency' => 'required|string|size:3',
         ]);
 
         try {
             $amount = ParcelInsuranceService::quote(
                 ParcelNature::findOrFail($data['parcel_nature_id']),
-                (float) $data['declared_value'],
+                ParcelInsuranceService::declaredValueIn((float) $data['declared_value'], $data['declared_value_currency'] ?? null, $data['currency']),
                 $data['currency']
             );
         } catch (\RuntimeException $e) {

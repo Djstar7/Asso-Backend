@@ -10,8 +10,9 @@ use App\Models\ParcelNature;
  *
  * supplément = max(valeur déclarée × taux de la nature, minimum de la nature)
  *
- * La valeur déclarée et le supplément sont dans la devise de l'offre ; le
- * minimum, saisi en XAF dans l'admin, est converti dans cette devise.
+ * La valeur déclarée et le supplément sont dans la devise de l'offre (la
+ * valeur saisie dans la devise de l'expéditeur est convertie d'abord, voir
+ * declaredValueIn) ; le minimum, saisi en XAF dans l'admin, est converti aussi.
  */
 class ParcelInsuranceService
 {
@@ -34,5 +35,28 @@ class ParcelInsuranceService
         }
 
         return round(max($byRate, $minimum), 2);
+    }
+
+    /**
+     * Valeur déclarée ramenée dans la devise de l'offre. L'expéditeur la saisit
+     * dans sa propre devise ([$from], ex. XAF) : on la convertit, comme les
+     * autres montants, avant de calculer et d'enregistrer l'assurance.
+     *
+     * @throws \RuntimeException si le taux est inconnu
+     */
+    public static function declaredValueIn(float $value, ?string $from, string $to): float
+    {
+        $from = strtoupper((string) $from);
+        $to = strtoupper($to);
+        if ($from === '' || $from === $to) {
+            return round($value, 2);
+        }
+
+        $converted = ExchangeRateService::convertAmount($from, $to, $value);
+        if ($converted === null) {
+            throw new \RuntimeException(__('payments.rate_unavailable', ['currency' => $from, 'pivot' => $to]));
+        }
+
+        return round($converted, 2);
     }
 }

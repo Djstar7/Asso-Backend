@@ -76,6 +76,7 @@ class MaritimeController extends Controller
             'recipient_phone' => 'required|string|max:30',
             'parcel_nature_id' => 'required|integer|exists:parcel_natures,id,is_active,1',
             'declared_value' => 'required|numeric|min:0|max:100000000',
+            'declared_value_currency' => 'nullable|string|size:3',
             'payment_method' => 'required|in:kpay,stripe',
             'provider' => 'required_if:payment_method,kpay|string',
             'phone_number' => 'required_if:payment_method,kpay|string',

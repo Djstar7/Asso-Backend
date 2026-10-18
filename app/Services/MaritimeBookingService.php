@@ -55,9 +55,13 @@ class MaritimeBookingService
             $commission = round($freight - $freightSubtotal, 2);
 
             try {
+                // Valeur saisie dans la devise de l'expéditeur, ramenée à celle du départ.
+                $declaredValue = ParcelInsuranceService::declaredValueIn(
+                    (float) $data['declared_value'], $data['declared_value_currency'] ?? null, $currency
+                );
                 $insurance = ParcelInsuranceService::quote(
                     ParcelNature::findOrFail($data['parcel_nature_id']),
-                    (float) $data['declared_value'],
+                    $declaredValue,
                     $currency
                 );
             } catch (\RuntimeException $e) {
@@ -91,7 +95,7 @@ class MaritimeBookingService
                 'recipient_country' => strtoupper($data['recipient_country']),
                 'recipient_phone' => $data['recipient_phone'],
                 'parcel_nature_id' => $data['parcel_nature_id'],
-                'declared_value' => $data['declared_value'],
+                'declared_value' => $declaredValue,
                 'insurance_amount' => $insurance,
                 'price_per_kg' => $departure->price_per_kg,
                 'freight_subtotal' => $freightSubtotal,
