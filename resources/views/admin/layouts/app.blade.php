@@ -490,7 +490,7 @@
                     <a href="{{ route('admin.diaspo.offers.index') }}"
                        class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.diaspo.offers.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <i class="fas fa-plane-departure w-5 mr-3"></i>
-                        Offres (Kilos)
+                        Avion : envois
                     </a>
                     @endadminCan
 

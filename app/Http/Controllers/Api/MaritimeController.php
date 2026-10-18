@@ -61,54 +61,108 @@ class MaritimeController extends Controller
     }
 
     /** POST /v1/maritime/departures/{id}/book */
-    public function book(Request $request, $id)
-    {
-        $data = $request->validate([
-            'kg_booked' => 'required|numeric|min:0.5',
-            'parcels_count' => 'nullable|integer|min:1|max:500',
-            'sender_first_name' => 'required|string|max:100',
-            'sender_last_name' => 'required|string|max:100',
-            'sender_phone' => 'required|string|max:30',
-            'emergency_phone' => 'required|string|max:30',
-            'recipient_first_name' => 'required|string|max:100',
-            'recipient_last_name' => 'required|string|max:100',
-            'recipient_country' => 'required|string|size:2|alpha',
-            'recipient_phone' => 'required|string|max:30',
-            'parcel_nature_id' => 'required|integer|exists:parcel_natures,id,is_active,1',
-            'declared_value' => 'required|numeric|min:0|max:100000000',
-            'declared_value_currency' => 'nullable|string|size:3',
-            'payment_method' => 'required|in:kpay,stripe,wallet',
-            'provider' => 'required_if:payment_method,kpay|string',
-            'phone_number' => 'required_if:payment_method,kpay|string',
-        ]);
+public function book(Request $request, $id)
+{
+    $data = $request->validate($this->bookingRules(), $this->bookingMessages(), $this->bookingAttributes());
 
-        if ($data['payment_method'] !== 'wallet' && !PaymentMethodService::isEnabled($data['payment_method'])) {
-            return response()->json(['success' => false, 'message' => __('payments.method_unavailable')], 422);
-        }
-
-        try {
-            $result = $this->service->book($request->user(), (int) $id, $data);
-        } catch (MaritimeBookingException $e) {
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-            throw $e;
-        } catch (\Exception $e) {
-            Log::error('[Maritime] Initialisation du paiement', ['departure_id' => $id, 'error' => $e->getMessage()]);
-
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
-        }
-
-        $booking = $result['booking']->load(['departure.company', 'departure.originHub', 'departure.destinationHub', 'parcelNature']);
-
+    if ($data['payment_method'] !== 'wallet' && !PaymentMethodService::isEnabled($data['payment_method'])) {
         return response()->json([
-            'success' => true,
-            'message' => $result['message'],
-            'data' => $booking->toApi(),
-            'payment' => $result['payment'],
-            'payment_reference' => $booking->payment_reference,
-            'booking_id' => $booking->id,
-        ], 201);
+            'success' => false,
+            'message' => __('payments.method_unavailable'),
+            'errors'  => ['payment_method' => [__('payments.method_unavailable')]],
+        ], 422);
     }
+
+    try {
+        $result = $this->service->book($request->user(), (int) $id, $data);
+    } catch (MaritimeBookingException $e) {
+        return response()->json([
+            'success' => false,
+            'message' => $e->getMessage(),
+            // Si l'exception porte un champ, on l'expose (voir §2)
+            'errors'  => $e->field() ? [$e->field() => [$e->getMessage()]] : (object) [],
+        ], 422);
+    } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+        throw $e;
+    } catch (\Exception $e) {
+        Log::error('[Maritime] Initialisation du paiement', ['departure_id' => $id, 'error' => $e->getMessage()]);
+
+        return response()->json(['success' => false, 'message' => $e->getMessage(), 'errors' => (object) []], 422);
+    }
+
+    $booking = $result['booking']->load(['departure.company', 'departure.originHub', 'departure.destinationHub', 'parcelNature']);
+
+    return response()->json([
+        'success' => true,
+        'message' => $result['message'],
+        'data' => $booking->toApi(),
+        'payment' => $result['payment'],
+        'payment_reference' => $booking->payment_reference,
+        'booking_id' => $booking->id,
+    ], 201);
+}
+
+private function bookingRules(): array
+{
+    return [
+        'kg_booked'               => 'required|numeric|min:0.5',
+        'parcels_count'           => 'nullable|integer|min:1|max:500',
+        'sender_first_name'       => 'required|string|max:100',
+        'sender_last_name'        => 'required|string|max:100',
+        'sender_phone'            => ['required', 'string', 'max:30', 'regex:/^\+?[0-9 ]{8,20}$/'],
+        'emergency_phone'         => ['required', 'string', 'max:30', 'regex:/^\+?[0-9 ]{8,20}$/'],
+        'recipient_first_name'    => 'required|string|max:100',
+        'recipient_last_name'     => 'required|string|max:100',
+        'recipient_country'       => 'required|string|size:2|alpha',
+        'recipient_phone'         => ['required', 'string', 'max:30', 'regex:/^\+?[0-9 ]{8,20}$/'],
+        'parcel_nature_id'        => 'required|integer|exists:parcel_natures,id,is_active,1',
+        'declared_value'          => 'required|numeric|min:0|max:100000000',
+        'declared_value_currency' => 'nullable|string|size:3',
+        'payment_method'          => 'required|in:kpay,stripe,wallet',
+        'provider'                => 'required_if:payment_method,kpay|string',
+        'phone_number'            => 'required_if:payment_method,kpay|string',
+    ];
+}
+
+private function bookingMessages(): array
+{
+    return [
+        'required'              => 'Le champ :attribute est obligatoire.',
+        'required_if'           => 'Le champ :attribute est obligatoire pour ce mode de paiement.',
+        'max'                   => ':attribute est trop long (:max caractères maximum).',
+        'regex'                 => ':attribute n\'est pas un numéro valide (ex. +237 6XX XX XX XX).',
+        'kg_booked.min'         => 'Le poids minimum est de :min kg.',
+        'kg_booked.numeric'     => 'Le poids doit être un nombre.',
+        'parcels_count.min'     => 'Il faut au moins :min colis.',
+        'parcels_count.max'     => 'Maximum :max colis par envoi.',
+        'recipient_country.size'  => 'Sélectionnez un pays de destination valide.',
+        'recipient_country.alpha' => 'Sélectionnez un pays de destination valide.',
+        'parcel_nature_id.exists' => 'Cette nature de colis n\'est plus disponible.',
+        'declared_value.numeric'  => 'La valeur déclarée doit être un nombre.',
+        'declared_value.max'      => 'La valeur déclarée est trop élevée.',
+        'payment_method.in'       => 'Mode de paiement non supporté.',
+    ];
+}
+
+private function bookingAttributes(): array
+{
+    return [
+        'kg_booked'            => 'poids',
+        'parcels_count'        => 'nombre de colis',
+        'sender_first_name'    => 'prénom de l\'expéditeur',
+        'sender_last_name'     => 'nom de l\'expéditeur',
+        'sender_phone'         => 'téléphone de l\'expéditeur',
+        'emergency_phone'      => 'téléphone d\'urgence',
+        'recipient_first_name' => 'prénom du destinataire',
+        'recipient_last_name'  => 'nom du destinataire',
+        'recipient_country'    => 'pays de destination',
+        'recipient_phone'      => 'téléphone du destinataire',
+        'parcel_nature_id'     => 'nature du colis',
+        'declared_value'       => 'valeur déclarée',
+        'provider'             => 'opérateur Mobile Money',
+        'phone_number'         => 'numéro Mobile Money',
+    ];
+}
 
     /** GET /v1/maritime/bookings — envois payés de l'expéditeur. */
     public function bookings(Request $request)

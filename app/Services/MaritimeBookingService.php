@@ -80,6 +80,13 @@ class MaritimeBookingService
                 throw new MaritimeBookingException(__('payments.amount_too_low_for_method'));
             }
 
+            if ($data['kg_booked'] > $departure->remainingKg()) {
+                throw new MaritimeBookingException(
+                    "Il ne reste que {$departure->remainingKg()} kg disponibles.",
+                    'kg_booked'
+                );
+            }
+
             $booking = MaritimeBooking::create([
                 'maritime_departure_id' => $departure->id,
                 'sender_user_id' => $sender->id,
