@@ -55,7 +55,6 @@ class MaritimeController extends Controller
             'commission_rate' => 'required|numeric|min:0|max:100',
             'booking_cutoff_days' => 'required|integer|min:0|max:60',
             'dropoff_days_before' => 'required|integer|min:0|max:60|lte:booking_cutoff_days',
-            'kg_per_cbm' => 'required|numeric|min:1|max:5000',
         ], [
             'dropoff_days_before.lte' => 'La date limite de dépôt doit tomber après la clôture des réservations (nombre de jours inférieur ou égal).',
         ]);
@@ -63,7 +62,6 @@ class MaritimeController extends Controller
         Setting::set('maritime_commission_rate', $data['commission_rate'], 'string', 'maritime', 'Majoration ASSO sur le fret maritime (%)');
         Setting::set('maritime_booking_cutoff_days', $data['booking_cutoff_days'], 'string', 'maritime', 'Clôture des réservations, en jours avant le départ');
         Setting::set('maritime_dropoff_days_before', $data['dropoff_days_before'], 'string', 'maritime', 'Date limite de dépôt du colis, en jours avant le départ');
-        Setting::set('maritime_kg_per_cbm', $data['kg_per_cbm'], 'string', 'maritime', 'Kilos comptés pour 1 m³ (départs tarifés au m³)');
 
         return back()->with('success', 'Réglages maritimes enregistrés.');
     }
@@ -74,7 +72,6 @@ class MaritimeController extends Controller
             'commission_rate' => MaritimeDeparture::commissionRate(),
             'booking_cutoff_days' => MaritimeDeparture::bookingCutoffDays(),
             'dropoff_days_before' => MaritimeDeparture::dropoffDaysBefore(),
-            'kg_per_cbm' => MaritimeDeparture::defaultKgPerCbm(),
         ];
     }
 
@@ -179,8 +176,8 @@ class MaritimeController extends Controller
 
     /**
      * Départ du partenaire. Tarif au kg, ou au m³ comme le facture le
-     * transporteur : l'expéditeur saisit des kilos, convertis en m³ (kilos par
-     * m³ du départ) pour calculer le prix.
+     * transporteur : l'expéditeur saisit des kilos, convertis en m³
+     * (1 m³ = 1 000 kg) pour calculer le prix.
      */
     public function storeDeparture(Request $request, DelivererCompany $partner)
     {
@@ -195,7 +192,6 @@ class MaritimeController extends Controller
             'capacity_kg' => 'required|numeric|min:1',
             'pricing_unit' => 'required|in:cbm,kg',
             'price' => 'required|numeric|min:0.01',
-            'kg_per_cbm' => 'required_if:pricing_unit,cbm|nullable|numeric|min:1|max:5000',
             'currency' => 'required|string|size:3',
             'notes' => 'nullable|string|max:2000',
         ], [
@@ -213,9 +209,9 @@ class MaritimeController extends Controller
             'capacity_kg' => $data['capacity_kg'],
             'remaining_kg' => $data['capacity_kg'],
             'price_per_cbm' => $perCbm ? $data['price'] : null,
-            'kg_per_cbm' => $perCbm ? $data['kg_per_cbm'] : null,
+            'kg_per_cbm' => $perCbm ? MaritimeDeparture::KG_PER_CBM : null,
             // Prix au kilo équivalent, gardé pour l'affichage et l'historique.
-            'price_per_kg' => $perCbm ? round($data['price'] / $data['kg_per_cbm'], 2) : $data['price'],
+            'price_per_kg' => $perCbm ? round($data['price'] / MaritimeDeparture::KG_PER_CBM, 2) : $data['price'],
             'currency' => strtoupper($data['currency']),
             'status' => MaritimeDeparture::STATUS_OPEN,
             'notes' => $data['notes'] ?? null,

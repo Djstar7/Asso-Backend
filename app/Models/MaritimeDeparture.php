@@ -90,11 +90,8 @@ class MaritimeDeparture extends Model
         return max(0, (int) Setting::get('maritime_booking_cutoff_days', 7));
     }
 
-    /** Kilos comptés pour 1 m³ quand un départ est tarifé au m³ (réglable). */
-    public static function defaultKgPerCbm(): float
-    {
-        return max(1.0, (float) Setting::get('maritime_kg_per_cbm', 1000));
-    }
+    /** Départ tarifé au m³ : 1 m³ = 1 000 kg (règle fixée par ASSO). */
+    public const KG_PER_CBM = 1000;
 
     public static function dropoffDaysBefore(): int
     {

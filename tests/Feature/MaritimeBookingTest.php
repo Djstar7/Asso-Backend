@@ -243,17 +243,18 @@ class MaritimeBookingTest extends TestCase
         }
         [$paris, $douala] = $partner->maritimeHubs()->orderBy('id')->pluck('id')->all();
 
-        // Tarif du transporteur au m³ : 900 € le m³, 1 m³ = 200 kg.
+        // Tarif du transporteur au m³ : 900 € le m³, 1 m³ = 1 000 kg.
         $this->post(route('admin.maritime.departures.store', $partner), [
             'origin_hub_id' => $paris, 'destination_hub_id' => $douala,
             'departure_date' => today()->addDays(30)->toDateString(),
-            'capacity_kg' => 5000, 'pricing_unit' => 'cbm', 'price' => 900, 'kg_per_cbm' => 200, 'currency' => 'eur',
+            'capacity_kg' => 5000, 'pricing_unit' => 'cbm', 'price' => 900, 'currency' => 'eur',
         ])->assertSessionHas('success');
         $departure = MaritimeDeparture::where('deliverer_company_id', $partner->id)->firstOrFail();
         $this->assertTrue($departure->isPricedPerCbm());
-        // 50 kg = 0,25 m³ → 225 € de fret partenaire ; 4,50 €/kg, 4,95 €/kg avec 10 % ASSO.
-        $this->assertEquals(225, $departure->partnerFreightFor(50));
-        $this->assertEquals(4.95, $departure->publicPricePerKg());
+        // 500 kg = 0,5 m³ → 450 € de fret partenaire ; 0,90 €/kg, 0,99 €/kg avec 10 % ASSO.
+        $this->assertEquals(1000, (float) $departure->kg_per_cbm);
+        $this->assertEquals(450, $departure->partnerFreightFor(500));
+        $this->assertEquals(0.99, $departure->publicPricePerKg());
 
         $this->get(route('admin.maritime.partners.show', $partner))->assertOk()->assertSee('900,00 EUR/m³', false);
 
@@ -270,13 +271,13 @@ class MaritimeBookingTest extends TestCase
     {
         $this->fakeKpay();
         $departure = $this->departure();
-        $departure->update(['price_per_cbm' => 900, 'kg_per_cbm' => 200]);
+        $departure->update(['price_per_cbm' => 900, 'kg_per_cbm' => 1000]);
         Sanctum::actingAs(User::factory()->create());
 
         $res = $this->postJson("/api/v1/maritime/departures/{$departure->id}/book", $this->payload())->assertStatus(201);
-        // 50 kg = 0,25 m³ × 900 = 225 € ; +10 % = 247,50 ; assurance 2 % × 1000 = 20.
+        // 50 kg = 0,05 m³ × 900 = 45 € ; +10 % = 49,50 ; assurance 2 % × 1000 = 20.
         $this->assertDatabaseHas('maritime_bookings', [
-            'id' => $res->json('booking_id'), 'freight_subtotal' => 225, 'commission_amount' => 22.5, 'total_price' => 267.5, 'volume_cbm' => 0.25,
+            'id' => $res->json('booking_id'), 'freight_subtotal' => 45, 'commission_amount' => 4.5, 'total_price' => 69.5, 'volume_cbm' => 0.05,
         ]);
         $res->assertJsonPath('data.departure.price_per_cbm', 990);
     }

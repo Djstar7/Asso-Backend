@@ -86,9 +86,9 @@
         @if($activeHubs->count() < 2)
             <p class="text-sm text-yellow-300">Ajoutez au moins deux QG actifs (départ et arrivée) pour ouvrir un départ.</p>
         @else
-            <p class="text-sm text-gray-400 mb-4">L'expéditeur saisit toujours des kilos. Au m³, ses kilos sont convertis en m³ (kilos pour 1 m³) puis multipliés par le tarif, avant que le prix lui soit affiché.</p>
+            <p class="text-sm text-gray-400 mb-4">L'expéditeur saisit toujours des kilos. Au m³, ses kilos sont convertis en m³ (1 m³ = 1 000 kg) puis multipliés par le tarif, avant que le prix lui soit affiché.</p>
             <form action="{{ route('admin.maritime.departures.store', $partner) }}" method="POST"
-                  x-data="{ unit: @js(old('pricing_unit', 'cbm')), price: @js(old('price', '')), kg: @js(old('kg_per_cbm', $settings['kg_per_cbm'])) }"
+                  x-data="{ unit: @js(old('pricing_unit', 'cbm')), price: @js(old('price', '')), kg: {{ \App\Models\MaritimeDeparture::KG_PER_CBM }} }"
                   class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                 @csrf
                 <div>
@@ -132,10 +132,6 @@
                         <label class="block text-sm text-gray-300 mb-1">Devise</label>
                         <input name="currency" maxlength="3" required value="{{ old('currency', 'EUR') }}" class="{{ $input }} uppercase">
                     </div>
-                </div>
-                <div x-show="unit === 'cbm'">
-                    <label class="block text-sm text-gray-300 mb-1">Kilos pour 1 m³</label>
-                    <input type="number" step="1" min="1" max="5000" name="kg_per_cbm" x-model="kg" class="{{ $input }}">
                 </div>
                 <div>
                     <label class="block text-sm text-gray-300 mb-1">Capacité (kg)</label>

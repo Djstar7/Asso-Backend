@@ -117,7 +117,7 @@
     <div class="bg-dark-100 rounded-xl shadow-lg border border-dark-200 p-6">
         <h2 class="text-lg font-semibold text-white mb-1"><i class="fas fa-sliders-h mr-2 text-primary-400"></i>Réglages</h2>
         <p class="text-sm text-gray-400 mb-4">Passé la clôture, l'app affiche « Trajet impossible à faire, veuillez consulter les prochaines dates pour cette destination. » Un colis non déposé avant la date limite est remboursé au Wallet, hors commission ASSO.</p>
-        <form action="{{ route('admin.maritime.settings') }}" method="POST" class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+        <form action="{{ route('admin.maritime.settings') }}" method="POST" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
             @csrf
             <div>
                 <label class="block text-sm text-gray-300 mb-1">Commission ASSO (%)</label>
@@ -130,10 +130,6 @@
             <div>
                 <label class="block text-sm text-gray-300 mb-1">Dépôt (jours avant départ)</label>
                 <input type="number" min="0" max="60" name="dropoff_days_before" value="{{ old('dropoff_days_before', $settings['dropoff_days_before']) }}" class="{{ $input }}">
-            </div>
-            <div>
-                <label class="block text-sm text-gray-300 mb-1">Kilos pour 1 m³ (par défaut)</label>
-                <input type="number" step="1" min="1" max="5000" name="kg_per_cbm" value="{{ old('kg_per_cbm', $settings['kg_per_cbm']) }}" class="{{ $input }}">
             </div>
             <button type="submit" class="{{ $btn }}">Enregistrer</button>
         </form>
