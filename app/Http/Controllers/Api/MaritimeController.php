@@ -77,12 +77,12 @@ class MaritimeController extends Controller
             'parcel_nature_id' => 'required|integer|exists:parcel_natures,id,is_active,1',
             'declared_value' => 'required|numeric|min:0|max:100000000',
             'declared_value_currency' => 'nullable|string|size:3',
-            'payment_method' => 'required|in:kpay,stripe',
+            'payment_method' => 'required|in:kpay,stripe,wallet',
             'provider' => 'required_if:payment_method,kpay|string',
             'phone_number' => 'required_if:payment_method,kpay|string',
         ]);
 
-        if (!PaymentMethodService::isEnabled($data['payment_method'])) {
+        if ($data['payment_method'] !== 'wallet' && !PaymentMethodService::isEnabled($data['payment_method'])) {
             return response()->json(['success' => false, 'message' => __('payments.method_unavailable')], 422);
         }
 

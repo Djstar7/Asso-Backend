@@ -76,7 +76,7 @@ class MaritimeBookingService
             if ($totalPivot === null) {
                 throw new MaritimeBookingException(__('payments.rate_unavailable', ['currency' => $currency, 'pivot' => PaymentMethodService::PIVOT]));
             }
-            if ($totalPivot < PaymentMethodService::minPivotFor($method)) {
+            if ($method !== 'wallet' && $totalPivot < PaymentMethodService::minPivotFor($method)) {
                 throw new MaritimeBookingException(__('payments.amount_too_low_for_method'));
             }
 
@@ -112,16 +112,46 @@ class MaritimeBookingService
             $departure->decrement('remaining_kg', (float) $data['kg_booked']);
 
             $payment = match ($method) {
+                'wallet' => $this->payWithWallet($booking, $sender, round($totalPivot, 2)),
                 'kpay' => $this->initKpay($booking, $data),
                 'stripe' => $this->initStripe($booking),
             };
 
             return [
-                'booking' => $booking,
+                // Payé au Wallet : relu pour renvoyer le statut « payé ».
+                'booking' => $booking->fresh(),
                 'payment' => $payment,
-                'message' => $method === 'kpay' ? __('maritime.booking_created_confirm_on_phone') : __('maritime.booking_created_complete_card'),
+                'message' => match ($method) {
+                    'wallet' => __('maritime.booking_paid_with_wallet'),
+                    'kpay' => __('maritime.booking_created_confirm_on_phone'),
+                    default => __('maritime.booking_created_complete_card'),
+                },
             ];
         });
+    }
+
+    /** Paiement par le solde Wallet ASSO (XAF) : débit puis envoi payé immédiatement. */
+    private function payWithWallet(MaritimeBooking $booking, User $sender, float $amountXaf): array
+    {
+        try {
+            $tx = app(WalletService::class)->debit(
+                user: $sender,
+                amount: $amountXaf,
+                description: WalletTransaction::label('maritime_payment', ['booking' => $booking->id]),
+                referenceType: 'maritime_booking',
+                referenceId: $booking->id,
+                metadata: ['maritime_booking_id' => $booking->id],
+                provider: 'kpay'
+            );
+        } catch (\Exception $e) {
+            // Solde insuffisant : la transaction englobante annule l'envoi.
+            throw new MaritimeBookingException(__('payments.wallet_insufficient'));
+        }
+
+        $booking->update(['payment_reference' => "WALLET-{$tx->id}"]);
+        $this->confirmPayment($booking);
+
+        return ['flow' => 'wallet', 'method' => 'wallet', 'reference' => $booking->payment_reference];
     }
 
     private function initKpay(MaritimeBooking $booking, array $data): array
