@@ -1276,7 +1276,6 @@
             "refund_bank_transfer_failed": "Remboursement virement bancaire échoué",
             "refund_withdrawal_failed": "Remboursement retrait échoué - :method (:account)",
             "refund_withdrawal_expired": "Remboursement retrait expiré - :method (:account)",
-            "maritime_freight": "Fret maritime — Envoi #:booking",
             "asso_commission_maritime": "Commission ASSO — Envoi maritime #:booking",
             "maritime_refund": "Remboursement — Envoi maritime #:booking"
         }
@@ -1450,7 +1449,6 @@
         "code_incorrect": "Code de remise incorrect.",
         "not_arrived_yet": "Le colis doit être arrivé au QG de destination avant la remise.",
         "settlement_unavailable": "Règlement impossible pour le moment (taux de change indisponible). Réessayez plus tard.",
-        "partner_without_account": "Ce partenaire n'a pas de compte ASSO lié : son Wallet ne peut pas être crédité. Liez-le avec un code de synchronisation avant la remise.",
         "statuses": {
             "pending": "Paiement en attente",
             "paid": "Payé — colis attendu au QG",

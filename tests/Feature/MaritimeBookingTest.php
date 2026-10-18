@@ -22,8 +22,8 @@ use Tests\TestCase;
 
 /**
  * Diaspo Maritime : réservation sur un départ, clôture J − 7, paiement →
- * équipe prévenue, étapes, remise au code (fret au Wallet du partenaire,
- * commission + assurance à ASSO), remboursement des colis non déposés.
+ * équipe prévenue, étapes, remise au code (fret dû au partenaire, commission
+ * + assurance à ASSO), remboursement des colis non déposés.
  */
 class MaritimeBookingTest extends TestCase
 {
@@ -108,7 +108,7 @@ class MaritimeBookingTest extends TestCase
         ]);
     }
 
-    public function test_full_lifecycle_settles_partner_wallet_and_asso(): void
+    public function test_full_lifecycle_records_partner_due_and_credits_asso(): void
     {
         $this->fakeKpay();
         $admin = User::factory()->create(['role' => 'admin', 'email' => 'boss@asso.test']);
@@ -148,8 +148,10 @@ class MaritimeBookingTest extends TestCase
             ->assertSessionHas('success');
 
         $this->assertEquals('completed', $booking->fresh()->status);
-        // Fret 200 € → 131 200 FCFA au partenaire ; commission 13 120 + assurance 13 120 à ASSO.
-        $this->assertEquals(131200, $partnerUser->fresh()->kpayBalanceFor('XAF'));
+        // Fret 200 € → 131 200 FCFA dus au partenaire (aucun Wallet crédité) ;
+        // commission 13 120 + assurance 13 120 à ASSO.
+        $this->assertEquals(0, $partnerUser->fresh()->kpayBalanceFor('XAF'));
+        $this->assertEquals(131200, \App\Services\PartnerLedgerService::balance($departure->deliverer_company_id)['due']);
         $platform = User::where('email', 'platform@asso.test')->first();
         $this->assertEquals(26240, $platform->kpayBalanceFor('XAF'));
     }
@@ -221,25 +223,7 @@ class MaritimeBookingTest extends TestCase
         $this->assertEquals(500, (float) $departure->fresh()->remaining_kg);
     }
 
-    public function test_completion_refused_when_partner_has_no_account(): void
-    {
-        $this->fakeKpay();
-        $departure = $this->departure();
-        Sanctum::actingAs(User::factory()->create());
-        $id = $this->postJson("/api/v1/maritime/departures/{$departure->id}/book", $this->payload())->json('booking_id');
-        $this->getJson("/api/v1/maritime/bookings/{$id}/payment-status");
-
-        $departure->company->update(['user_id' => null]);
-        MaritimeBooking::whereKey($id)->update(['status' => 'arrived']);
-        $booking = MaritimeBooking::find($id);
-
-        $this->actingAs(User::factory()->create(['role' => 'admin']));
-        $this->post(route('admin.maritime.bookings.complete', $booking), ['confirmation_code' => $booking->confirmation_code])
-            ->assertSessionHas('error');
-        $this->assertEquals('arrived', $booking->fresh()->status);
-    }
-
-    public function test_admin_creates_departure_only_for_linked_partner(): void
+    public function test_admin_creates_departure_between_partner_hubs(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
         $this->actingAs($admin);
@@ -254,11 +238,13 @@ class MaritimeBookingTest extends TestCase
             'departure_date' => today()->addDays(30)->toDateString(),
             'capacity_kg' => 1000, 'price_per_kg' => 3, 'currency' => 'eur',
         ];
+        // Aucun compte ASSO n'est demandé au partenaire.
+        $partner->update(['user_id' => null]);
         $this->post(route('admin.maritime.departures.store'), $payload)->assertSessionHas('success');
         $this->assertEquals(2, MaritimeDeparture::count());
 
-        $partner->update(['user_id' => null]);
-        $this->post(route('admin.maritime.departures.store'), $payload)->assertSessionHas('error');
-        $this->assertEquals(2, MaritimeDeparture::count());
+        // Les QG doivent appartenir au partenaire choisi.
+        $other = $this->departure();
+        $this->post(route('admin.maritime.departures.store'), ['origin_hub_id' => $other->origin_hub_id] + $payload)->assertSessionHas('error');
     }
 }

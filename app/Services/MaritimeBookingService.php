@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Models\DelivererCompany;
 use App\Models\MaritimeBooking;
 use App\Models\MaritimeDeparture;
 use App\Models\ParcelNature;
@@ -18,9 +17,10 @@ use Illuminate\Support\Facades\Mail;
  * clôture au code remis par le destinataire, remboursement si le colis
  * n'est pas déposé à temps.
  *
- * Règlement à la clôture : le fret va au Wallet du partenaire (compte lié à
- * deliverer_companies.user_id, comme les partenaires de livraison), la
- * commission et l'assurance au compte plateforme ASSO.
+ * Règlement à la clôture : le fret reste chez ASSO et s'ajoute à ce qu'elle
+ * doit au partenaire (PartnerLedgerService, versé depuis sa fiche admin, comme
+ * pour les partenaires de livraison) ; commission et assurance vont au compte
+ * plateforme ASSO.
  */
 class MaritimeBookingService
 {
@@ -379,7 +379,7 @@ class MaritimeBookingService
     /**
      * Code remis par le destinataire au QG d'arrivée : clôture et règlement.
      *
-     * @throws MaritimeBookingException code faux, mauvais statut, partenaire sans compte
+     * @throws MaritimeBookingException code faux ou mauvais statut
      */
     public function complete(MaritimeBooking $booking, string $code): MaritimeBooking
     {
@@ -412,14 +412,9 @@ class MaritimeBookingService
         return $b;
     }
 
-    /** Fret au Wallet du partenaire ; commission et assurance à ASSO. */
+    /** Fret dû au partenaire ; commission et assurance au compte ASSO. */
     private function settle(MaritimeBooking $b): void
     {
-        $partnerUser = self::partnerAccount($b->departure()->first()?->company);
-        if (!$partnerUser) {
-            throw new MaritimeBookingException(__('maritime.partner_without_account'));
-        }
-
         $wallet = app(WalletService::class);
         $metadata = [
             'maritime_booking_id' => $b->id,
@@ -434,9 +429,13 @@ class MaritimeBookingService
         $commission = $this->toWalletCurrency($b->currency, (float) $b->commission_amount);
         $insurance = $this->toWalletCurrency($b->currency, (float) $b->insurance_amount);
 
-        if ($freight > 0) {
-            $wallet->credit($partnerUser, $freight, null, WalletTransaction::label('maritime_freight', ['booking' => $b->id]), $metadata, 'kpay');
-        }
+        PartnerLedgerService::earn(
+            (int) MaritimeDeparture::whereKey($b->maritime_departure_id)->value('deliverer_company_id'),
+            $freight,
+            'maritime_booking',
+            $b->id,
+            "Fret maritime — envoi #{$b->id}"
+        );
 
         $platform = CommissionService::platformAccount();
         if (!$platform) {
@@ -449,12 +448,6 @@ class MaritimeBookingService
         if ($insurance > 0) {
             $wallet->credit($platform, $insurance, null, WalletTransaction::label('asso_parcel_insurance', ['reference' => "Maritime #{$b->id}"]), $metadata, 'kpay');
         }
-    }
-
-    /** Compte qui porte le Wallet du partenaire (lié par son code de synchronisation). */
-    public static function partnerAccount(?DelivererCompany $company): ?User
-    {
-        return $company && $company->user_id ? User::find($company->user_id) : null;
     }
 
     private function toWalletCurrency(string $currency, float $amount): float

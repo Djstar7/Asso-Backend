@@ -100,6 +100,7 @@
                     <th class="px-4 py-3 text-center">Grilles / zones urbaines</th>
                     <th class="px-4 py-3 text-center">Trajets</th>
                     <th class="px-4 py-3">TVA</th>
+                    <th class="px-4 py-3 text-right">Dû</th>
                     <th class="px-4 py-3">Statut</th>
                     <th class="px-4 py-3"></th>
                 </tr>
@@ -118,6 +119,11 @@
                         <td class="px-4 py-3 text-center">{{ $partner->city_grids_count }} / {{ $partner->delivery_zones_count }}</td>
                         <td class="px-4 py-3 text-center">{{ $partner->delivery_routes_count }}</td>
                         <td class="px-4 py-3">{{ $partner->prices_exclude_vat ? 'Grille HT + TVA' : 'TTC' }}</td>
+                        <td class="px-4 py-3 text-right whitespace-nowrap">
+                            <a href="{{ route('admin.delivery-partners.edit', $partner) }}#compte" class="{{ ($dueByCompany[$partner->id] ?? 0) > 0 ? 'text-yellow-300' : 'text-gray-500' }}">
+                                {{ number_format($dueByCompany[$partner->id] ?? 0, 0, ',', ' ') }} FCFA
+                            </a>
+                        </td>
                         <td class="px-4 py-3">
                             @if($partner->is_active)
                                 <span class="px-2 py-1 rounded text-xs bg-green-900/30 text-green-400">Actif</span>
@@ -135,7 +141,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="8" class="px-4 py-6 text-center text-gray-500">Aucun partenaire.</td></tr>
+                    <tr><td colspan="9" class="px-4 py-6 text-center text-gray-500">Aucun partenaire.</td></tr>
                 @endforelse
             </tbody>
         </table>

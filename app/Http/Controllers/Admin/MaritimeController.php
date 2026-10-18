@@ -17,7 +17,7 @@ use Illuminate\Validation\Rule;
 /**
  * Diaspo Maritime : réglages, QG des partenaires, départs et suivi des envois.
  * Les partenaires eux-mêmes se créent dans « Partenaires logistiques » (type
- * « Fret maritime ») et lient leur compte ASSO par un code de synchronisation.
+ * « Fret maritime ») ; ce qu'ASSO leur doit se suit et se verse depuis leur fiche.
  */
 class MaritimeController extends Controller
 {
@@ -26,7 +26,7 @@ class MaritimeController extends Controller
     public function index()
     {
         $partners = DelivererCompany::where('service_type', DelivererCompany::SERVICE_MARITIME)
-            ->with(['maritimeHubs' => fn ($q) => $q->orderBy('country')->orderBy('city'), 'user'])
+            ->with(['maritimeHubs' => fn ($q) => $q->orderBy('country')->orderBy('city')])
             ->orderBy('name')
             ->get();
 
@@ -46,6 +46,7 @@ class MaritimeController extends Controller
                 'dropoff_days_before' => MaritimeDeparture::dropoffDaysBefore(),
             ],
             'pendingDropoffs' => MaritimeBooking::where('status', MaritimeBooking::STATUS_PAID)->count(),
+            'dueByCompany' => \App\Services\PartnerLedgerService::dueByCompany(),
         ]);
     }
 
@@ -116,10 +117,6 @@ class MaritimeController extends Controller
         ]);
 
         $partner = DelivererCompany::findOrFail($data['deliverer_company_id']);
-        // Sans compte lié, le fret ne pourrait pas être versé à la remise.
-        if (!MaritimeBookingService::partnerAccount($partner)) {
-            return back()->withInput()->with('error', "« {$partner->name} » n'a pas de compte ASSO lié : générez-lui un code de synchronisation (Livreurs) avant d'ouvrir un départ.");
-        }
         $hubIds = $partner->maritimeHubs()->pluck('id');
         if (!$hubIds->contains($data['origin_hub_id']) || !$hubIds->contains($data['destination_hub_id'])) {
             return back()->withInput()->with('error', 'Les deux QG doivent appartenir au partenaire choisi.');
@@ -183,7 +180,7 @@ class MaritimeController extends Controller
 
     public function showBooking(MaritimeBooking $booking)
     {
-        $booking->load(['departure.originHub', 'departure.destinationHub', 'departure.company.user', 'sender', 'parcelNature']);
+        $booking->load(['departure.originHub', 'departure.destinationHub', 'departure.company', 'sender', 'parcelNature']);
 
         return view('admin.maritime.booking', ['booking' => $booking, 'countries' => CountryCode::NAMES]);
     }
@@ -209,7 +206,7 @@ class MaritimeController extends Controller
             return back()->with('error', $e->getMessage());
         }
 
-        return back()->with('success', 'Colis remis : fret versé au Wallet du partenaire, commission et assurance à ASSO.');
+        return back()->with('success', 'Colis remis : fret ajouté au dû du partenaire, commission et assurance à ASSO.');
     }
 
     public function updateNotes(Request $request, MaritimeBooking $booking)

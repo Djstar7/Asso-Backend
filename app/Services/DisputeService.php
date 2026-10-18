@@ -556,15 +556,14 @@ class DisputeService
                 ]);
             }
 
-            $companyUserId = DelivererCompany::whereKey($locked->deliverer_company_id)->value('user_id');
-            if ($companyUserId && (float) $locked->carrier_amount > 0 && ($companyUser = User::find($companyUserId))) {
-                $this->wallet->credit(
-                    $companyUser,
+            // Course du partenaire : due par ASSO, versée depuis sa fiche admin.
+            if ($locked->deliverer_company_id && (float) $locked->carrier_amount > 0) {
+                PartnerLedgerService::earn(
+                    (int) $locked->deliverer_company_id,
                     (float) $locked->carrier_amount,
-                    null,
-                    WalletTransaction::label('dispute_course_'.$this->shipmentKind($locked), ['number' => $dispute->number]),
-                    ['dispute_shipment_id' => $locked->id],
-                    'kpay'
+                    'dispute_shipment',
+                    $locked->id,
+                    'Course ' . ($this->shipmentKind($locked) === 'return' ? 'retour' : 'remplacement') . " — litige {$dispute->number}"
                 );
             }
             if ($locked->payer === 'vendor' && (float) $locked->asso_commission > 0 && ($platform = CommissionService::platformAccount())) {

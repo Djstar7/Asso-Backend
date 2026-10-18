@@ -5,7 +5,6 @@
     $d = $booking->departure;
     $money = fn ($v) => number_format((float) $v, 2, ',', ' ') . ' ' . $booking->currency;
     $next = MaritimeBooking::NEXT_STEP[$booking->status] ?? null;
-    $partnerUser = $d->company->user;
 @endphp
 
 @section('content')
@@ -96,9 +95,7 @@
                             <input name="confirmation_code" maxlength="6" required class="flex-1 px-3 py-2 bg-dark-50 border border-dark-200 rounded-lg text-white tracking-widest">
                             <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">Remettre</button>
                         </div>
-                        <p class="text-xs mt-2 {{ $partnerUser ? 'text-gray-500' : 'text-red-300' }}">
-                            {{ $partnerUser ? "Le fret sera versé au Wallet de {$partnerUser->name}." : 'Partenaire sans compte lié : la remise sera refusée.' }}
-                        </p>
+                        <p class="text-xs mt-2 text-gray-500">Le fret s'ajoutera à ce qu'ASSO doit à {{ $d->company->name }}.</p>
                     </form>
                 @endif
             </div>

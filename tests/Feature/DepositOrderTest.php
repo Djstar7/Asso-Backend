@@ -205,7 +205,9 @@ class DepositOrderTest extends TestCase
         $order->refresh();
         $this->assertNotNull($order->settled_at);
         $this->assertEquals(20000, $this->bal($c['seller']));
-        $this->assertEquals(400, $this->bal($c['delivererUser']));
+        // Course due au partenaire (versée depuis l'admin), plus de crédit Wallet.
+        $this->assertEquals(0, $this->bal($c['delivererUser']));
+        $this->assertEquals(400, \App\Services\PartnerLedgerService::balance((int) \App\Models\DelivererCompany::where('user_id', $c['delivererUser']->id)->value('id'))['due']);
         $this->assertEquals(1000 + 100, $this->bal($asso));
         $this->assertEquals(50000 - 21500, $this->bal($client));
         $this->assertEquals(0, $this->locked($client));
@@ -324,7 +326,9 @@ class DepositOrderTest extends TestCase
         $this->assertEquals(50000 - 4700 + 3000, $this->bal($order->user));
         $this->assertEquals(0, $this->locked($order->user));
         $this->assertEquals(800, $this->bal($c['seller']));
-        $this->assertEquals(400, $this->bal($c['delivererUser']));
+        // Course due au partenaire (versée depuis l'admin), plus de crédit Wallet.
+        $this->assertEquals(0, $this->bal($c['delivererUser']));
+        $this->assertEquals(400, \App\Services\PartnerLedgerService::balance((int) \App\Models\DelivererCompany::where('user_id', $c['delivererUser']->id)->value('id'))['due']);
         $this->assertEquals(500, $this->bal($asso));
         $this->assertEquals(10, $c['product']->fresh()->stock);
     }

@@ -28,12 +28,18 @@ class DelivererCompany extends Model
         'conditions',
         'max_weight_kg',
         'tracking_url_template',
+        'stripe_account_id',
+        'stripe_external_last4',
+        'stripe_bank_country',
+        'stripe_account_holder_name',
+        'stripe_submitted_at',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
         'prices_exclude_vat' => 'boolean',
         'max_weight_kg' => 'float',
+        'stripe_submitted_at' => 'datetime',
     ];
 
     public const SERVICE_LOCAL = 'local';

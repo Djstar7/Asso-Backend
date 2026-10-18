@@ -15,6 +15,8 @@
         @include('admin.delivery_partners._services_summary', ['partner' => $partner, 'compact' => true])
     </div>
 
+    @include('admin.delivery_partners._account')
+
     <!-- Coursiers : l'app ASSO reçoit les livraisons à domicile du partenaire -->
     @php
         $activeSyncs = $partner->activeCodeSyncs()->with('user')->get();

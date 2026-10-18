@@ -48,7 +48,7 @@
         <h2 class="text-lg font-semibold text-white mb-1"><i class="fas fa-anchor mr-2 text-primary-400"></i>Partenaires maritimes et QG</h2>
         <p class="text-sm text-gray-400 mb-4">
             Créez le partenaire dans <a href="{{ route('admin.delivery-partners.index') }}" class="text-primary-400 underline">Partenaires logistiques</a> avec la catégorie « Fret maritime (Diaspo) ».
-            Son fret est versé sur son Wallet ASSO : liez son compte avec un code de synchronisation (Livreurs) avant d'ouvrir un départ.
+            Le fret encaissé reste chez ASSO : il s'ajoute à ce qu'on doit au partenaire, à lui verser depuis sa fiche (compte partenaire).
         </p>
 
         @forelse($partners as $partner)
@@ -57,11 +57,9 @@
                     <p class="text-white font-semibold">{{ $partner->name }}
                         @unless($partner->is_active)<span class="ml-2 text-xs text-yellow-400">(inactif)</span>@endunless
                     </p>
-                    @if($partner->user)
-                        <span class="text-sm text-green-300"><i class="fas fa-wallet mr-1"></i>Wallet : {{ $partner->user->name }} ({{ $partner->user->email ?? $partner->user->phone }})</span>
-                    @else
-                        <a href="{{ route('admin.deliverers.show', $partner) }}" class="text-sm text-red-300 underline"><i class="fas fa-exclamation-triangle mr-1"></i>Aucun compte lié : générer un code de synchronisation</a>
-                    @endif
+                    <a href="{{ route('admin.delivery-partners.edit', $partner) }}#compte" class="text-sm text-primary-400 underline">
+                        <i class="fas fa-file-invoice-dollar mr-1"></i>Dû : {{ number_format($dueByCompany[$partner->id] ?? 0, 0, ',', ' ') }} FCFA
+                    </a>
                 </div>
 
                 <div class="overflow-x-auto">

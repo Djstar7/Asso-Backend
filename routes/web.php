@@ -132,6 +132,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::post('/', [\App\Http\Controllers\Admin\DeliveryPartnerController::class, 'store'])->name('store');
             Route::get('/{partner}', [\App\Http\Controllers\Admin\DeliveryPartnerController::class, 'edit'])->name('edit');
             Route::put('/{partner}', [\App\Http\Controllers\Admin\DeliveryPartnerController::class, 'update'])->name('update');
+            Route::post('/{partner}/iban', [\App\Http\Controllers\Admin\DeliveryPartnerController::class, 'syncIban'])->name('iban');
+            Route::post('/{partner}/payout', [\App\Http\Controllers\Admin\DeliveryPartnerController::class, 'payout'])->name('payout');
+            Route::post('/{partner}/payouts/manual', [\App\Http\Controllers\Admin\DeliveryPartnerController::class, 'recordPayout'])->name('payouts.manual');
             Route::post('/{partner}/routes', [\App\Http\Controllers\Admin\DeliveryPartnerController::class, 'storeRoute'])->name('routes.store');
             Route::put('/{partner}/routes/{route}', [\App\Http\Controllers\Admin\DeliveryPartnerController::class, 'updateRoute'])->name('routes.update');
             Route::delete('/{partner}/routes/{route}', [\App\Http\Controllers\Admin\DeliveryPartnerController::class, 'destroyRoute'])->name('routes.destroy');
