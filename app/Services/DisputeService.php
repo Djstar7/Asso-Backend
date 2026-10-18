@@ -556,14 +556,15 @@ class DisputeService
                 ]);
             }
 
-            // Course du partenaire : due par ASSO, versée depuis sa fiche admin.
+            // Course du partenaire : Wallet de son compte interne.
             if ($locked->deliverer_company_id && (float) $locked->carrier_amount > 0) {
-                PartnerLedgerService::earn(
+                PartnerAccountService::credit(
                     (int) $locked->deliverer_company_id,
                     (float) $locked->carrier_amount,
+                    WalletTransaction::label('dispute_course_'.$this->shipmentKind($locked), ['number' => $dispute->number]),
                     'dispute_shipment',
                     $locked->id,
-                    'Course ' . ($this->shipmentKind($locked) === 'return' ? 'retour' : 'remplacement') . " — litige {$dispute->number}"
+                    ['dispute_shipment_id' => $locked->id]
                 );
             }
             if ($locked->payer === 'vendor' && (float) $locked->asso_commission > 0 && ($platform = CommissionService::platformAccount())) {

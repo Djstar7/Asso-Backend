@@ -17,7 +17,7 @@
     <div>
         <label class="block text-sm text-gray-400 mb-1">Catégorie principale (tri de la liste) <span class="text-red-500">*</span></label>
         <select name="service_type" class="{{ $input }}">
-            @foreach(\App\Models\DelivererCompany::SERVICE_TYPES as $value => $label)
+            @foreach(\App\Models\DelivererCompany::deliveryServiceTypes() as $value => $label)
                 <option value="{{ $value }}" @selected(old('service_type', $partner?->service_type ?? 'intercity') === $value)>{{ $label }}</option>
             @endforeach
         </select>

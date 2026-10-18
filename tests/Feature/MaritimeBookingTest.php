@@ -108,7 +108,7 @@ class MaritimeBookingTest extends TestCase
         ]);
     }
 
-    public function test_full_lifecycle_records_partner_due_and_credits_asso(): void
+    public function test_full_lifecycle_credits_partner_wallet_and_asso(): void
     {
         $this->fakeKpay();
         $admin = User::factory()->create(['role' => 'admin', 'email' => 'boss@asso.test']);
@@ -148,10 +148,10 @@ class MaritimeBookingTest extends TestCase
             ->assertSessionHas('success');
 
         $this->assertEquals('completed', $booking->fresh()->status);
-        // Fret 200 € → 131 200 FCFA dus au partenaire (aucun Wallet crédité) ;
+        // Fret 200 € → 131 200 FCFA au Wallet du compte interne du partenaire ;
         // commission 13 120 + assurance 13 120 à ASSO.
         $this->assertEquals(0, $partnerUser->fresh()->kpayBalanceFor('XAF'));
-        $this->assertEquals(131200, \App\Services\PartnerLedgerService::balance($departure->deliverer_company_id)['due']);
+        $this->assertEquals(131200, (\App\Models\DelivererCompany::find($departure->deliverer_company_id)?->account?->kpayBalanceFor('XAF') ?? 0));
         $platform = User::where('email', 'platform@asso.test')->first();
         $this->assertEquals(26240, $platform->kpayBalanceFor('XAF'));
     }
@@ -223,28 +223,83 @@ class MaritimeBookingTest extends TestCase
         $this->assertEquals(500, (float) $departure->fresh()->remaining_kg);
     }
 
-    public function test_admin_creates_departure_between_partner_hubs(): void
+    public function test_admin_manages_maritime_partner_apart_from_delivery(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
-        $this->actingAs($admin);
-        $existing = $this->departure();
-        $partner = $existing->company;
-        $this->get(route('admin.maritime.index'))->assertOk()->assertSee($partner->name);
+        $this->actingAs(User::factory()->create(['role' => 'admin']));
 
-        $payload = [
-            'deliverer_company_id' => $partner->id,
-            'origin_hub_id' => $existing->origin_hub_id,
-            'destination_hub_id' => $existing->destination_hub_id,
+        $this->post(route('admin.maritime.partners.store'), ['name' => 'Marins', 'phone' => '674693625'])->assertRedirect();
+        $partner = DelivererCompany::where('name', 'Marins')->firstOrFail();
+        $this->assertEquals(DelivererCompany::SERVICE_MARITIME, $partner->service_type);
+
+        $this->get(route('admin.maritime.partners.show', $partner))->assertOk(); // consomme le message de création
+
+        // Hors de la livraison locale : ni dans Partenaires logistiques ni dans Livreurs.
+        $this->get(route('admin.delivery-partners.index'))->assertOk()->assertDontSee('Marins');
+        $this->get(route('admin.deliverers.index'))->assertOk()->assertDontSee('Marins');
+        $this->get(route('admin.delivery-partners.edit', $partner))->assertRedirect(route('admin.maritime.partners.show', $partner));
+
+        foreach ([['QG Paris', 'FR', 'Paris'], ['QG Douala', 'CM', 'Douala']] as [$name, $country, $city]) {
+            $this->post(route('admin.maritime.hubs.store', $partner), ['name' => $name, 'country' => $country, 'city' => $city, 'address' => '1 rue'])->assertSessionHas('success');
+        }
+        [$paris, $douala] = $partner->maritimeHubs()->orderBy('id')->pluck('id')->all();
+
+        // Tarif du transporteur au m³ : 900 € le m³, 1 m³ = 200 kg.
+        $this->post(route('admin.maritime.departures.store', $partner), [
+            'origin_hub_id' => $paris, 'destination_hub_id' => $douala,
             'departure_date' => today()->addDays(30)->toDateString(),
-            'capacity_kg' => 1000, 'price_per_kg' => 3, 'currency' => 'eur',
-        ];
-        // Aucun compte ASSO n'est demandé au partenaire.
-        $partner->update(['user_id' => null]);
-        $this->post(route('admin.maritime.departures.store'), $payload)->assertSessionHas('success');
-        $this->assertEquals(2, MaritimeDeparture::count());
+            'capacity_kg' => 5000, 'pricing_unit' => 'cbm', 'price' => 900, 'kg_per_cbm' => 200, 'currency' => 'eur',
+        ])->assertSessionHas('success');
+        $departure = MaritimeDeparture::where('deliverer_company_id', $partner->id)->firstOrFail();
+        $this->assertTrue($departure->isPricedPerCbm());
+        // 50 kg = 0,25 m³ → 225 € de fret partenaire ; 4,50 €/kg, 4,95 €/kg avec 10 % ASSO.
+        $this->assertEquals(225, $departure->partnerFreightFor(50));
+        $this->assertEquals(4.95, $departure->publicPricePerKg());
 
-        // Les QG doivent appartenir au partenaire choisi.
+        $this->get(route('admin.maritime.partners.show', $partner))->assertOk()->assertSee('900,00 EUR/m³', false);
+
+        // Un QG d'un autre partenaire est refusé.
         $other = $this->departure();
-        $this->post(route('admin.maritime.departures.store'), ['origin_hub_id' => $other->origin_hub_id] + $payload)->assertSessionHas('error');
+        $this->post(route('admin.maritime.departures.store', $partner), [
+            'origin_hub_id' => $other->origin_hub_id, 'destination_hub_id' => $douala,
+            'departure_date' => today()->addDays(30)->toDateString(),
+            'capacity_kg' => 100, 'pricing_unit' => 'kg', 'price' => 3, 'currency' => 'EUR',
+        ])->assertSessionHasErrors('origin_hub_id');
+    }
+
+    public function test_booking_on_cbm_departure_converts_kilos(): void
+    {
+        $this->fakeKpay();
+        $departure = $this->departure();
+        $departure->update(['price_per_cbm' => 900, 'kg_per_cbm' => 200]);
+        Sanctum::actingAs(User::factory()->create());
+
+        $res = $this->postJson("/api/v1/maritime/departures/{$departure->id}/book", $this->payload())->assertStatus(201);
+        // 50 kg = 0,25 m³ × 900 = 225 € ; +10 % = 247,50 ; assurance 2 % × 1000 = 20.
+        $this->assertDatabaseHas('maritime_bookings', [
+            'id' => $res->json('booking_id'), 'freight_subtotal' => 225, 'commission_amount' => 22.5, 'total_price' => 267.5, 'volume_cbm' => 0.25,
+        ]);
+        $res->assertJsonPath('data.departure.price_per_cbm', 990);
+    }
+
+    public function test_partner_payout_page_uses_platform_withdrawal_principle(): void
+    {
+        $partner = $this->departure()->company;
+        \App\Services\PartnerAccountService::credit($partner->id, 131200, \App\Models\WalletTransaction::label('maritime_freight', ['booking' => 1]), 'maritime_booking', 1);
+        // Idempotent.
+        \App\Services\PartnerAccountService::credit($partner->id, 131200, \App\Models\WalletTransaction::label('maritime_freight', ['booking' => 1]), 'maritime_booking', 1);
+        $account = $partner->fresh()->account;
+        $this->assertTrue(\App\Services\PartnerAccountService::isPartnerAccount($account));
+        $this->assertEquals(131200, $account->kpayBalanceFor('XAF'));
+
+        $this->actingAs(User::factory()->create(['role' => 'admin']));
+        $this->get(route('admin.partner-payouts.show', $partner))
+            ->assertOk()
+            ->assertSee('Paiements — ' . $partner->name)
+            ->assertSee('Mobile Money')
+            ->assertSee('Virement bancaire');
+
+        // Gestionnaire : pas d'accès aux paiements.
+        $this->actingAs(User::factory()->create(['role' => 'product_manager']));
+        $this->get(route('admin.partner-payouts.show', $partner))->assertForbidden();
     }
 }

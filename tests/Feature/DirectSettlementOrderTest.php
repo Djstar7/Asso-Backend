@@ -137,9 +137,9 @@ class DirectSettlementOrderTest extends TestCase
         $this->assertEquals($subtotal, $this->bal($seller));
         $this->assertEquals($subtotal, $this->locked($seller));
         $this->assertSame(Order::VENDOR_FUNDS_HELD, $order->vendor_funds_status);
-        // Course due au partenaire (versée depuis l'admin), plus de crédit Wallet.
+        // Course créditée au Wallet du compte interne du partenaire, plus au coursier.
         $this->assertEquals(0, $this->bal($deliverer));
-        $this->assertEquals($base, \App\Services\PartnerLedgerService::balance((int) $order->fresh()->delivery_company_id)['due']);
+        $this->assertEquals($base, (\App\Models\DelivererCompany::find((int) $order->fresh()->delivery_company_id)?->account?->kpayBalanceFor('XAF') ?? 0));
         $this->assertEquals(0, $this->locked($deliverer));
         $this->assertEquals($commission, $this->bal($asso));
         $this->assertEquals(0, $this->locked($asso));
@@ -220,9 +220,9 @@ class DirectSettlementOrderTest extends TestCase
         // Vendeur crédité mais bloqué ; livreur et ASSO disponibles.
         $this->assertEquals($subtotal, $this->bal($seller));
         $this->assertEquals($subtotal, $this->locked($seller));
-        // Course due au partenaire (versée depuis l'admin), plus de crédit Wallet.
+        // Course créditée au Wallet du compte interne du partenaire, plus au coursier.
         $this->assertEquals(0, $this->bal($deliverer));
-        $this->assertEquals($base, \App\Services\PartnerLedgerService::balance((int) $order->fresh()->delivery_company_id)['due']);
+        $this->assertEquals($base, (\App\Models\DelivererCompany::find((int) $order->fresh()->delivery_company_id)?->account?->kpayBalanceFor('XAF') ?? 0));
         $this->assertEquals($commission, $this->bal($asso));
     }
 

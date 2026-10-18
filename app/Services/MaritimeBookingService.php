@@ -17,10 +17,10 @@ use Illuminate\Support\Facades\Mail;
  * clôture au code remis par le destinataire, remboursement si le colis
  * n'est pas déposé à temps.
  *
- * Règlement à la clôture : le fret reste chez ASSO et s'ajoute à ce qu'elle
- * doit au partenaire (PartnerLedgerService, versé depuis sa fiche admin, comme
- * pour les partenaires de livraison) ; commission et assurance vont au compte
- * plateforme ASSO.
+ * Règlement à la clôture : le fret va au Wallet du compte interne du
+ * partenaire (PartnerAccountService, retiré pour lui depuis sa fiche admin,
+ * comme pour les partenaires de livraison) ; commission et assurance vont au
+ * compte plateforme ASSO.
  */
 class MaritimeBookingService
 {
@@ -49,8 +49,9 @@ class MaritimeBookingService
             }
 
             $currency = strtoupper($departure->currency);
-            $freightSubtotal = round($data['kg_booked'] * (float) $departure->price_per_kg, 2);
-            $freight = round($data['kg_booked'] * $departure->publicPricePerKg(), 2);
+            // Départ au m³ : kilos convertis en m³, puis tarif au m³ (voir MaritimeDeparture).
+            $freightSubtotal = $departure->partnerFreightFor((float) $data['kg_booked']);
+            $freight = $departure->publicFreightFor((float) $data['kg_booked']);
             $commission = round($freight - $freightSubtotal, 2);
 
             try {
@@ -79,6 +80,7 @@ class MaritimeBookingService
                 'maritime_departure_id' => $departure->id,
                 'sender_user_id' => $sender->id,
                 'kg_booked' => $data['kg_booked'],
+                'volume_cbm' => $departure->volumeForKg((float) $data['kg_booked']),
                 'parcels_count' => $data['parcels_count'] ?? 1,
                 'sender_first_name' => $data['sender_first_name'],
                 'sender_last_name' => $data['sender_last_name'],
@@ -412,7 +414,7 @@ class MaritimeBookingService
         return $b;
     }
 
-    /** Fret dû au partenaire ; commission et assurance au compte ASSO. */
+    /** Fret au Wallet du partenaire ; commission et assurance au compte ASSO. */
     private function settle(MaritimeBooking $b): void
     {
         $wallet = app(WalletService::class);
@@ -429,12 +431,13 @@ class MaritimeBookingService
         $commission = $this->toWalletCurrency($b->currency, (float) $b->commission_amount);
         $insurance = $this->toWalletCurrency($b->currency, (float) $b->insurance_amount);
 
-        PartnerLedgerService::earn(
+        PartnerAccountService::credit(
             (int) MaritimeDeparture::whereKey($b->maritime_departure_id)->value('deliverer_company_id'),
             $freight,
+            WalletTransaction::label('maritime_freight', ['booking' => $b->id]),
             'maritime_booking',
             $b->id,
-            "Fret maritime — envoi #{$b->id}"
+            $metadata
         );
 
         $platform = CommissionService::platformAccount();

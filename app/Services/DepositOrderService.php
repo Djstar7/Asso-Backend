@@ -383,9 +383,9 @@ class DepositOrderService
             if ($vendorShare > 0 && ($vendor = User::find($locked->items->first()?->seller_id))) {
                 $this->wallet->credit($vendor, $vendorShare, null, WalletTransaction::label('deposit_vendor_share', ['order_number' => $locked->order_number]), $meta, 'kpay');
             }
-            // Part du livreur : due au partenaire, versée depuis sa fiche admin.
+            // Part du livreur : Wallet du compte interne du partenaire.
             if ($deliveryShare > 0 && $locked->delivery_company_id) {
-                PartnerLedgerService::earn((int) $locked->delivery_company_id, $deliveryShare, 'deposit_order', $locked->id, "Course — acompte commande #{$locked->order_number}");
+                PartnerAccountService::credit((int) $locked->delivery_company_id, $deliveryShare, WalletTransaction::label('deposit_delivery_share', ['order_number' => $locked->order_number]), 'deposit_order', $locked->id, $meta);
             }
             if ($assoShare > 0 && ($platform = CommissionService::platformAccount())) {
                 $this->wallet->credit($platform, $assoShare, null, WalletTransaction::label('deposit_asso_share', ['order_number' => $locked->order_number]), $meta, 'kpay');

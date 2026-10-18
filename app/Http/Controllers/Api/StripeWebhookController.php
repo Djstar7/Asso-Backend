@@ -98,17 +98,12 @@ class StripeWebhookController extends Controller
     /** Règlement d'un payout : logique partagée avec `stripe:reconcile-payouts`. */
     private function handlePayoutPaid(object $payout): void
     {
-        // Virement à un partenaire (livraison, maritime) ou retrait d'un utilisateur.
-        if (!\App\Services\PartnerPayoutService::settle($payout, true)) {
-            app(\App\Services\StripePayoutSettlementService::class)->settlePaid($payout, 'StripeWebhook');
-        }
+        app(\App\Services\StripePayoutSettlementService::class)->settlePaid($payout, 'StripeWebhook');
     }
 
     private function handlePayoutFailed(object $payout): void
     {
-        if (!\App\Services\PartnerPayoutService::settle($payout, false)) {
-            app(\App\Services\StripePayoutSettlementService::class)->settleFailed($payout, 'StripeWebhook');
-        }
+        app(\App\Services\StripePayoutSettlementService::class)->settleFailed($payout, 'StripeWebhook');
     }
 
     /**

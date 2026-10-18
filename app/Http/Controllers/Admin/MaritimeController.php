@@ -11,42 +11,41 @@ use App\Models\Setting;
 use App\Services\MaritimeBookingException;
 use App\Services\MaritimeBookingService;
 use App\Support\CountryCode;
+use App\Support\Translation\ContentLocale;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
 /**
  * Diaspo Maritime : réglages, QG des partenaires, départs et suivi des envois.
- * Les partenaires eux-mêmes se créent dans « Partenaires logistiques » (type
- * « Fret maritime ») ; ce qu'ASSO leur doit se suit et se verse depuis leur fiche.
+ * Rubrique séparée de la livraison locale : les partenaires maritimes n'ont ni
+ * coursiers, ni grilles de ville, ni trajets au poids. Leur fret est crédité sur
+ * le Wallet de leur compte interne et versé depuis leur page de paiement.
  */
 class MaritimeController extends Controller
 {
     public function __construct(private MaritimeBookingService $service) {}
 
+    /** Partenaires maritimes, réglages et départs à venir. */
     public function index()
     {
         $partners = DelivererCompany::where('service_type', DelivererCompany::SERVICE_MARITIME)
-            ->with(['maritimeHubs' => fn ($q) => $q->orderBy('country')->orderBy('city')])
+            ->with('account')
+            ->withCount(['maritimeHubs', 'maritimeDepartures as upcoming_departures_count' => fn ($q) => $q->upcoming()])
             ->orderBy('name')
             ->get();
 
         $departures = MaritimeDeparture::with(['company', 'originHub', 'destinationHub'])
             ->withCount(['bookings as paid_bookings_count' => fn ($q) => $q->where('payment_status', '!=', 'pending')])
-            ->orderByRaw("case when status in ('open', 'closed') then 0 else 1 end")
+            ->upcoming()
             ->orderBy('departure_date')
-            ->paginate(20);
+            ->limit(50)
+            ->get();
 
         return view('admin.maritime.index', [
             'partners' => $partners,
             'departures' => $departures,
-            'countries' => CountryCode::NAMES,
-            'settings' => [
-                'commission_rate' => MaritimeDeparture::commissionRate(),
-                'booking_cutoff_days' => MaritimeDeparture::bookingCutoffDays(),
-                'dropoff_days_before' => MaritimeDeparture::dropoffDaysBefore(),
-            ],
+            'settings' => $this->settings(),
             'pendingDropoffs' => MaritimeBooking::where('status', MaritimeBooking::STATUS_PAID)->count(),
-            'dueByCompany' => \App\Services\PartnerLedgerService::dueByCompany(),
         ]);
     }
 
@@ -56,6 +55,7 @@ class MaritimeController extends Controller
             'commission_rate' => 'required|numeric|min:0|max:100',
             'booking_cutoff_days' => 'required|integer|min:0|max:60',
             'dropoff_days_before' => 'required|integer|min:0|max:60|lte:booking_cutoff_days',
+            'kg_per_cbm' => 'required|numeric|min:1|max:5000',
         ], [
             'dropoff_days_before.lte' => 'La date limite de dépôt doit tomber après la clôture des réservations (nombre de jours inférieur ou égal).',
         ]);
@@ -63,8 +63,83 @@ class MaritimeController extends Controller
         Setting::set('maritime_commission_rate', $data['commission_rate'], 'string', 'maritime', 'Majoration ASSO sur le fret maritime (%)');
         Setting::set('maritime_booking_cutoff_days', $data['booking_cutoff_days'], 'string', 'maritime', 'Clôture des réservations, en jours avant le départ');
         Setting::set('maritime_dropoff_days_before', $data['dropoff_days_before'], 'string', 'maritime', 'Date limite de dépôt du colis, en jours avant le départ');
+        Setting::set('maritime_kg_per_cbm', $data['kg_per_cbm'], 'string', 'maritime', 'Kilos comptés pour 1 m³ (départs tarifés au m³)');
 
         return back()->with('success', 'Réglages maritimes enregistrés.');
+    }
+
+    private function settings(): array
+    {
+        return [
+            'commission_rate' => MaritimeDeparture::commissionRate(),
+            'booking_cutoff_days' => MaritimeDeparture::bookingCutoffDays(),
+            'dropoff_days_before' => MaritimeDeparture::dropoffDaysBefore(),
+            'kg_per_cbm' => MaritimeDeparture::defaultKgPerCbm(),
+        ];
+    }
+
+    // ------------------------------------------------------------------
+    // Partenaires maritimes
+    // ------------------------------------------------------------------
+
+    public function storePartner(Request $request)
+    {
+        $partner = DelivererCompany::create($this->validatePartner($request) + [
+            'service_type' => DelivererCompany::SERVICE_MARITIME,
+            'service_mode' => DelivererCompany::MODE_AGENCY,
+            'is_active' => true,
+        ]);
+        $partner->syncTranslations($request->input('translations'));
+
+        return redirect()->route('admin.maritime.partners.show', $partner)
+            ->with('success', "Partenaire « {$partner->name} » créé. Ajoutez ses QG puis ses départs.");
+    }
+
+    public function showPartner(DelivererCompany $partner)
+    {
+        $this->ensureMaritime($partner);
+        $partner->load(['maritimeHubs' => fn ($q) => $q->orderBy('country')->orderBy('city'), 'account']);
+
+        return view('admin.maritime.partner', [
+            'partner' => $partner,
+            'departures' => $partner->maritimeDepartures()
+                ->with(['originHub', 'destinationHub'])
+                ->withCount(['bookings as paid_bookings_count' => fn ($q) => $q->where('payment_status', '!=', 'pending')])
+                ->orderByRaw("case when status in ('open', 'closed') then 0 else 1 end")
+                ->orderByDesc('departure_date')
+                ->paginate(20),
+            'countries' => CountryCode::NAMES,
+            'settings' => $this->settings(),
+            'walletBalance' => $partner->account?->kpayAvailableFor('XAF') ?? 0.0,
+        ]);
+    }
+
+    public function updatePartner(Request $request, DelivererCompany $partner)
+    {
+        $this->ensureMaritime($partner);
+        $partner->update($this->validatePartner($request, $partner) + ['is_active' => $request->boolean('is_active')]);
+        $partner->syncTranslations($request->input('translations'));
+
+        return back()->with('success', 'Partenaire mis à jour.');
+    }
+
+    private function validatePartner(Request $request, ?DelivererCompany $partner = null): array
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255', Rule::unique('deliverer_companies', 'name')->ignore($partner?->id)],
+            'phone' => 'nullable|string|max:30',
+            'email' => 'nullable|email|max:255',
+            'description' => 'nullable|string|max:1000',
+            'conditions' => 'nullable|string|max:3000',
+        ] + ContentLocale::rules(['description' => 'string|max:1000', 'conditions' => 'string|max:3000']));
+        unset($data['translations']);
+
+        return $data;
+    }
+
+    private function ensureMaritime(DelivererCompany $partner): void
+    {
+        abort_unless($partner->service_type === DelivererCompany::SERVICE_MARITIME, 404);
     }
 
     // ------------------------------------------------------------------
@@ -73,7 +148,7 @@ class MaritimeController extends Controller
 
     public function storeHub(Request $request, DelivererCompany $partner)
     {
-        abort_unless($partner->service_type === DelivererCompany::SERVICE_MARITIME, 404);
+        $this->ensureMaritime($partner);
         $partner->maritimeHubs()->create($this->validateHub($request) + ['is_active' => true]);
 
         return back()->with('success', 'QG ajouté.');
@@ -102,30 +177,48 @@ class MaritimeController extends Controller
     // Départs
     // ------------------------------------------------------------------
 
-    public function storeDeparture(Request $request)
+    /**
+     * Départ du partenaire. Tarif au kg, ou au m³ comme le facture le
+     * transporteur : l'expéditeur saisit des kilos, convertis en m³ (kilos par
+     * m³ du départ) pour calculer le prix.
+     */
+    public function storeDeparture(Request $request, DelivererCompany $partner)
     {
+        $this->ensureMaritime($partner);
+        $hubIds = $partner->maritimeHubs()->pluck('id')->all();
+
         $data = $request->validate([
-            'deliverer_company_id' => ['required', Rule::exists('deliverer_companies', 'id')->where('service_type', DelivererCompany::SERVICE_MARITIME)],
-            'origin_hub_id' => 'required|exists:maritime_hubs,id',
-            'destination_hub_id' => 'required|exists:maritime_hubs,id|different:origin_hub_id',
+            'origin_hub_id' => ['required', Rule::in($hubIds)],
+            'destination_hub_id' => ['required', Rule::in($hubIds), 'different:origin_hub_id'],
             'departure_date' => 'required|date|after:today',
             'estimated_arrival_date' => 'nullable|date|after:departure_date',
             'capacity_kg' => 'required|numeric|min:1',
-            'price_per_kg' => 'required|numeric|min:0.01',
+            'pricing_unit' => 'required|in:cbm,kg',
+            'price' => 'required|numeric|min:0.01',
+            'kg_per_cbm' => 'required_if:pricing_unit,cbm|nullable|numeric|min:1|max:5000',
             'currency' => 'required|string|size:3',
             'notes' => 'nullable|string|max:2000',
+        ], [
+            'origin_hub_id.in' => 'Choisissez un QG de ce partenaire.',
+            'destination_hub_id.in' => 'Choisissez un QG de ce partenaire.',
         ]);
 
-        $partner = DelivererCompany::findOrFail($data['deliverer_company_id']);
-        $hubIds = $partner->maritimeHubs()->pluck('id');
-        if (!$hubIds->contains($data['origin_hub_id']) || !$hubIds->contains($data['destination_hub_id'])) {
-            return back()->withInput()->with('error', 'Les deux QG doivent appartenir au partenaire choisi.');
-        }
-
-        MaritimeDeparture::create($data + [
-            'currency' => strtoupper($data['currency']),
+        $perCbm = $data['pricing_unit'] === 'cbm';
+        MaritimeDeparture::create([
+            'deliverer_company_id' => $partner->id,
+            'origin_hub_id' => $data['origin_hub_id'],
+            'destination_hub_id' => $data['destination_hub_id'],
+            'departure_date' => $data['departure_date'],
+            'estimated_arrival_date' => $data['estimated_arrival_date'] ?? null,
+            'capacity_kg' => $data['capacity_kg'],
             'remaining_kg' => $data['capacity_kg'],
+            'price_per_cbm' => $perCbm ? $data['price'] : null,
+            'kg_per_cbm' => $perCbm ? $data['kg_per_cbm'] : null,
+            // Prix au kilo équivalent, gardé pour l'affichage et l'historique.
+            'price_per_kg' => $perCbm ? round($data['price'] / $data['kg_per_cbm'], 2) : $data['price'],
+            'currency' => strtoupper($data['currency']),
             'status' => MaritimeDeparture::STATUS_OPEN,
+            'notes' => $data['notes'] ?? null,
         ]);
 
         return back()->with('success', 'Départ créé et ouvert aux réservations.');
@@ -206,7 +299,7 @@ class MaritimeController extends Controller
             return back()->with('error', $e->getMessage());
         }
 
-        return back()->with('success', 'Colis remis : fret ajouté au dû du partenaire, commission et assurance à ASSO.');
+        return back()->with('success', 'Colis remis : fret crédité au Wallet du partenaire, commission et assurance à ASSO.');
     }
 
     public function updateNotes(Request $request, MaritimeBooking $booking)

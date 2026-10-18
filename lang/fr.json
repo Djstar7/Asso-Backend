@@ -1277,7 +1277,8 @@
             "refund_withdrawal_failed": "Remboursement retrait échoué - :method (:account)",
             "refund_withdrawal_expired": "Remboursement retrait expiré - :method (:account)",
             "asso_commission_maritime": "Commission ASSO — Envoi maritime #:booking",
-            "maritime_refund": "Remboursement — Envoi maritime #:booking"
+            "maritime_refund": "Remboursement — Envoi maritime #:booking",
+            "maritime_freight": "Fret maritime — Envoi #:booking"
         }
     },
     "sales_program": {

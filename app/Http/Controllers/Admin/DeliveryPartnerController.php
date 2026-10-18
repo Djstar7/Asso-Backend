@@ -24,7 +24,9 @@ class DeliveryPartnerController extends Controller
 {
     public function index()
     {
-        $partners = DelivererCompany::withCount(['deliveryZones', 'deliveryRoutes', 'cityGrids'])
+        $partners = DelivererCompany::where('service_type', '!=', DelivererCompany::SERVICE_MARITIME)
+            ->with('account')
+            ->withCount(['deliveryZones', 'deliveryRoutes', 'cityGrids'])
             ->with(['cityGrids:id,deliverer_company_id,city', 'deliveryRoutes:id,deliverer_company_id,origin_country,destination_country', 'deliveryZones:id,deliverer_company_id'])
             ->orderByRaw("CASE service_type WHEN 'intercity' THEN 0 WHEN 'international' THEN 1 ELSE 2 END")
             ->orderBy('name')
@@ -32,7 +34,6 @@ class DeliveryPartnerController extends Controller
 
         return view('admin.delivery_partners.index', [
             'partners' => $partners,
-            'dueByCompany' => \App\Services\PartnerLedgerService::dueByCompany(),
             'radiusKm' => DeliveryQuoteService::radiusKm(),
             'vatRate' => DeliveryQuoteService::vatRate(),
             'defaultWeightKg' => DeliveryQuoteService::defaultProductWeightKg(),
@@ -75,85 +76,17 @@ class DeliveryPartnerController extends Controller
     {
         $partner->load(['deliveryRoutes' => fn ($q) => $q->orderBy('origin_city')->orderBy('destination_city'), 'cityGrids', 'deliveryZones']);
 
-        $payouts = app(\App\Services\PartnerPayoutService::class);
+        // Un partenaire maritime se gère dans la rubrique Maritime.
+        if ($partner->service_type === DelivererCompany::SERVICE_MARITIME) {
+            return redirect()->route('admin.maritime.partners.show', $partner);
+        }
 
         return view('admin.delivery_partners.edit', [
             'partner' => $partner,
-            'ledger' => \App\Services\PartnerLedgerService::balance($partner->id),
-            'ledgerEntries' => \App\Models\PartnerLedgerEntry::with('recorder')
-                ->where('deliverer_company_id', $partner->id)->latest('id')->limit(100)->get(),
-            'stripeState' => $payouts->accountState($partner),
+            'walletBalance' => $partner->account?->kpayAvailableFor('XAF') ?? 0.0,
             'countries' => CountryCode::NAMES,
             'vatRate' => DeliveryQuoteService::vatRate(),
         ]);
-    }
-
-    // ------------------------------------------------------------------
-    // Compte partenaire : dû, IBAN, versements
-    // ------------------------------------------------------------------
-
-    /** Synchronise l'IBAN du partenaire chez Stripe (compte Connect). */
-    public function syncIban(Request $request, DelivererCompany $partner, \App\Services\PartnerPayoutService $payouts)
-    {
-        $data = $request->validate([
-            'country' => 'required|string|size:2|alpha',
-            'iban' => ['required', 'string', 'regex:/^[A-Za-z]{2}[0-9]{2}[A-Za-z0-9 ]{11,40}$/'],
-            'account_holder_name' => 'required|string|max:255',
-            'first_name' => 'required|string|max:100',
-            'last_name' => 'required|string|max:100',
-            'email' => 'nullable|email|max:255',
-            'birth_date' => 'required|date|before:-18 years',
-            'phone' => 'required|string|max:30',
-            'address_line1' => 'required|string|max:255',
-            'address_city' => 'required|string|max:120',
-            'address_postal_code' => 'required|string|max:20',
-        ], [
-            'iban.regex' => 'IBAN invalide (2 lettres, 2 chiffres puis le numéro de compte).',
-            'birth_date.before' => 'Le représentant doit être majeur.',
-        ]);
-
-        try {
-            $payouts->syncIban($partner, $data, $request->ip());
-        } catch (\RuntimeException $e) {
-            return redirect(route('admin.delivery-partners.edit', $partner) . '#compte')->withInput()->with('error', $e->getMessage());
-        }
-
-        return redirect(route('admin.delivery-partners.edit', $partner) . '#compte')
-            ->with('success', 'IBAN synchronisé chez Stripe. Le virement est possible dès que Stripe a activé le compte.');
-    }
-
-    /** Vire le montant choisi (au plus le dû) sur l'IBAN du partenaire. */
-    public function payout(Request $request, DelivererCompany $partner, \App\Services\PartnerPayoutService $payouts)
-    {
-        $data = $request->validate(['amount' => 'required|numeric|min:1']);
-
-        try {
-            $entry = $payouts->payout($partner, (float) $data['amount'], auth()->id());
-        } catch (\RuntimeException $e) {
-            return redirect(route('admin.delivery-partners.edit', $partner) . '#compte')->with('error', $e->getMessage());
-        }
-
-        return redirect(route('admin.delivery-partners.edit', $partner) . '#compte')
-            ->with('success', 'Virement lancé : ' . number_format((float) $entry->payout_amount, 2, ',', ' ') . " {$entry->payout_currency} vers l'IBAN ****{$partner->stripe_external_last4}.");
-    }
-
-    /** Paiement fait hors application (espèces, Mobile Money…), enregistré pour le suivi. */
-    public function recordPayout(Request $request, DelivererCompany $partner)
-    {
-        $data = $request->validate([
-            'amount' => 'required|numeric|min:1',
-            'payment_method' => ['required', Rule::in(['bank_transfer', 'mobile_money', 'cash', 'other'])],
-            'reference' => 'nullable|string|max:255',
-            'paid_on' => 'required|date|before_or_equal:today',
-            'note' => 'nullable|string|max:255',
-        ]);
-
-        \App\Services\PartnerLedgerService::recordPayout(
-            $partner, (float) $data['amount'], $data['payment_method'], $data['reference'] ?? null,
-            $data['paid_on'], auth()->id(), $data['note'] ?? null
-        );
-
-        return redirect(route('admin.delivery-partners.edit', $partner) . '#compte')->with('success', 'Versement enregistré.');
     }
 
     public function update(Request $request, DelivererCompany $partner)
@@ -374,7 +307,8 @@ class DeliveryPartnerController extends Controller
             'phone' => 'nullable|string|max:30',
             'email' => 'nullable|email|max:255',
             'description' => 'nullable|string|max:1000',
-            'service_type' => ['required', Rule::in(array_keys(DelivererCompany::SERVICE_TYPES))],
+            // Les partenaires maritimes se créent dans la rubrique Maritime.
+            'service_type' => ['required', Rule::in(array_keys(DelivererCompany::deliveryServiceTypes()))],
             'service_mode' => ['required', Rule::in(array_keys(DelivererCompany::SERVICE_MODES))],
             'conditions' => 'nullable|string|max:3000',
             'max_weight_kg' => 'nullable|numeric|min:0.1',

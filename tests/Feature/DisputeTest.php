@@ -402,9 +402,9 @@ class DisputeTest extends TestCase
             ->assertOk()->assertJsonPath('shipment.status', 'courier_selected');
 
         $this->assertSame(2000.0, $this->bal($this->seller));
-        // 400 commande + 400 retour, dus au partenaire (versés depuis l'admin).
+        // 400 commande + 400 retour, au Wallet du compte interne du partenaire.
         $this->assertSame(0.0, $this->bal($this->courier));
-        $this->assertSame(800.0, \App\Services\PartnerLedgerService::balance($this->company->id)['due']);
+        $this->assertSame(800.0, (\App\Models\DelivererCompany::find($this->company->id)?->account?->kpayBalanceFor('XAF') ?? 0));
         $this->assertSame(400.0, $this->bal($this->asso));    // 300 commande + 100 retour
 
         // « Retour confirmé » ne se saisit plus à la main.
@@ -485,9 +485,9 @@ class DisputeTest extends TestCase
         $service->confirmPayment($resolved); // idempotent
 
         $this->assertSame(DisputeShipment::PAYMENT_PAID, $shipment->fresh()->payment_status);
-        // 400 commande + 400 retour, dus au partenaire (versés depuis l'admin).
+        // 400 commande + 400 retour, au Wallet du compte interne du partenaire.
         $this->assertSame(0.0, $this->bal($this->courier));
-        $this->assertSame(800.0, \App\Services\PartnerLedgerService::balance($this->company->id)['due']);
+        $this->assertSame(800.0, (\App\Models\DelivererCompany::find($this->company->id)?->account?->kpayBalanceFor('XAF') ?? 0));
         $this->assertDatabaseHas('wallet_transactions', [
             'user_id' => $this->seller->id, 'reference_type' => 'dispute_shipment', 'reference_id' => $shipment->id, 'type' => 'debit',
         ]);
