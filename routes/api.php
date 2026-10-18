@@ -217,6 +217,8 @@ Route::middleware('auth:sanctum')->group(function () {
         // Les OFFRES et la VÉRIFICATION sont servies par DiaspoOfferController (schéma
         // unifié upstream), plus bas dans le groupe prefix('v1/diaspo'). Chaque chemin
         // n'est défini qu'une seule fois (pas de collision de routes).
+        Route::get('/diaspo/parcel-natures', [DiaspoController::class, 'parcelNatures']);
+        Route::post('/diaspo/insurance-quote', [DiaspoController::class, 'insuranceQuote']);
         Route::post('/diaspo/offers/{id}/book', [DiaspoController::class, 'bookOffer']);
         Route::post('/diaspo/confirm-by-code', [DiaspoController::class, 'confirmByCode']);
         Route::get('/diaspo/bookings', [DiaspoController::class, 'bookings']);

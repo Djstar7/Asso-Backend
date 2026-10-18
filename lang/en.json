@@ -1227,6 +1227,7 @@
             "dispute_funds_released": "Dispute :number — funds released",
             "diaspo_booking": "Diaspo booking #:booking",
             "asso_commission_diaspo": "ASSO commission — Diaspo booking #:booking",
+            "asso_parcel_insurance": "Parcel insurance — :reference",
             "asso_package": "Package paid — :reference",
             "asso_dispute_course": "Dispute course paid by ASSO — :reference",
             "asso_sales_commission": "Sales agent commission — code :reference",

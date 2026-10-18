@@ -455,6 +455,16 @@ Route::prefix('admin')->name('admin.')->group(function () {
                 Route::delete('/{post}/comments/{comment}', [PostController::class, 'deleteComment'])->name('comments.destroy');
             });
 
+            // Natures de colis et assurance (avion et maritime)
+            Route::prefix('parcel-natures')->name('parcel-natures.')->group(function () {
+                Route::get('/', [App\Http\Controllers\Admin\ParcelNatureController::class, 'index'])->name('index');
+                Route::post('/settings', [App\Http\Controllers\Admin\ParcelNatureController::class, 'updateSettings'])->name('settings');
+                Route::post('/', [App\Http\Controllers\Admin\ParcelNatureController::class, 'store'])->name('store');
+                Route::put('/{parcelNature}', [App\Http\Controllers\Admin\ParcelNatureController::class, 'update'])->name('update');
+                Route::patch('/{parcelNature}/toggle-status', [App\Http\Controllers\Admin\ParcelNatureController::class, 'toggleStatus'])->name('toggle-status');
+                Route::delete('/{parcelNature}', [App\Http\Controllers\Admin\ParcelNatureController::class, 'destroy'])->name('destroy');
+            });
+
             // Offers management
             Route::prefix('offers')->name('offers.')->group(function () {
                 Route::get('/', [DiaspoOfferController::class, 'index'])->name('index');

@@ -28,6 +28,7 @@ class PlatformRevenueService
         'sale_commission' => [self::REVENUE, 'Commissions', 'Commission sur les produits', 'Majoration ASSO figée sur chaque commande réglée.'],
         'delivery_commission' => [self::REVENUE, 'Commissions', 'Commission sur les livraisons', 'Part ASSO de chaque course, y compris quand la livraison est offerte au client, et des courses de litige payées par le vendeur.'],
         'diaspo_commission' => [self::REVENUE, 'Commissions', 'Commission Diaspo', 'Part ASSO des réservations de kilos, acquise à la validation du code.'],
+        'parcel_insurance' => [self::REVENUE, 'Commissions', 'Assurance des colis', 'Suppléments d\'assurance des colis Diaspo (avion et maritime), acquis à la validation du code.'],
         'deposit_kept' => [self::REVENUE, 'Commissions', 'Acomptes conservés', 'Part d\'acompte revenant à ASSO lors de la clôture d\'une commande avec acompte.'],
         'platform_products' => [self::REVENUE, 'Produits ASSO', 'Ventes des produits ASSO', 'Part vendeur des articles vendus par les boutiques du compte plateforme (la commission est comptée à part).'],
 
@@ -142,6 +143,7 @@ class PlatformRevenueService
             'sale_commission' => $this->settledOrders('o.sale_commission'),
             'delivery_commission' => $this->deliveryCommissions(),
             'diaspo_commission' => $this->platformLedger('asso_commission_diaspo', 'diaspo'),
+            'parcel_insurance' => $this->platformLedger('asso_parcel_insurance', 'diaspo'),
             'deposit_kept' => $this->platformLedger('deposit_asso_share', 'order'),
             'platform_products' => $this->platformProducts(),
             'dispute_refunds' => $this->disputeRefunds(),
