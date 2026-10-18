@@ -269,7 +269,10 @@ class MaritimeBookingTest extends TestCase
         $partner = DelivererCompany::where('name', 'Marins')->firstOrFail();
         $this->assertEquals(DelivererCompany::SERVICE_MARITIME, $partner->service_type);
 
-        $this->get(route('admin.maritime.partners.show', $partner))->assertOk(); // consomme le message de création
+        $this->get(route('admin.maritime.partners.show', $partner))
+            ->assertOk()
+            ->assertSee('admin-searchable-select.js')
+            ->assertSee('<option value="IN">Inde</option>', false); // consomme le message de création
 
         // Hors de la livraison locale : ni dans Partenaires logistiques ni dans Livreurs.
         $this->get(route('admin.delivery-partners.index'))->assertOk()->assertDontSee('Marins');
@@ -279,6 +282,9 @@ class MaritimeBookingTest extends TestCase
         foreach ([['QG Paris', 'FR', 'Paris'], ['QG Douala', 'CM', 'Douala']] as [$name, $country, $city]) {
             $this->post(route('admin.maritime.hubs.store', $partner), ['name' => $name, 'country' => $country, 'city' => $city, 'address' => '1 rue'])->assertSessionHas('success');
         }
+        $this->post(route('admin.maritime.hubs.store', $partner), [
+            'name' => 'QG Mumbai', 'country' => 'IN', 'city' => 'Mumbai', 'address' => '1 rue',
+        ])->assertSessionHas('success');
         [$paris, $douala] = $partner->maritimeHubs()->orderBy('id')->pluck('id')->all();
 
         // Tarif du transporteur au m³ : 900 € le m³, 1 m³ = 1 000 kg.

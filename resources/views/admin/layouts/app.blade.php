@@ -159,6 +159,7 @@
             #pageLoader .page-loader-ring::before { animation-duration: 2s; }
         }
     </style>
+    <link rel="stylesheet" href="{{ asset('css/admin-searchable-select.css') }}">
     <noscript><style>#pageLoader, #pageProgress { display: none !important; }</style></noscript>
 
     @stack('styles')
@@ -1045,6 +1046,7 @@
     })();
     </script>
 
+    <script defer src="{{ asset('js/admin-searchable-select.js') }}"></script>
     @stack('scripts')
 </body>
 </html>

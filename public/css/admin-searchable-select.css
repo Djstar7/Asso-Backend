@@ -1,0 +1,106 @@
+.admin-searchable-select {
+    position: relative;
+    display: inline-grid;
+    grid-template-columns: minmax(0, 1fr);
+    max-width: 100%;
+    vertical-align: middle;
+}
+
+.admin-searchable-select__native,
+.admin-searchable-select__trigger {
+    grid-area: 1 / 1;
+    min-width: 0;
+    width: 100%;
+}
+
+.admin-searchable-select__native {
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
+
+.admin-searchable-select__trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    min-height: 2.5rem;
+    cursor: pointer;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.admin-searchable-select__trigger-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.admin-searchable-select__trigger:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+
+.admin-searchable-select__panel {
+    position: fixed;
+    z-index: 1000;
+    max-width: calc(100vw - 2rem);
+    padding: 0.5rem;
+    border: 1px solid #3f3f46;
+    border-radius: 0.65rem;
+    background: #18181b;
+    box-shadow: 0 12px 28px rgb(0 0 0 / 0.4);
+}
+
+.admin-searchable-select__search {
+    display: block;
+    width: 100%;
+    margin-bottom: 0.4rem;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid #3f3f46;
+    border-radius: 0.45rem;
+    background: #09090b;
+    color: #fff;
+    outline: none;
+}
+
+.admin-searchable-select__search:focus {
+    border-color: #ff7344;
+    box-shadow: 0 0 0 2px rgb(255 115 68 / 0.2);
+}
+
+.admin-searchable-select__options {
+    display: grid;
+    gap: 0.15rem;
+    max-height: 15rem;
+    overflow-y: auto;
+}
+
+.admin-searchable-select__option {
+    width: 100%;
+    padding: 0.55rem 0.65rem;
+    border: 0;
+    border-radius: 0.4rem;
+    background: transparent;
+    color: #e5e7eb;
+    cursor: pointer;
+    text-align: left;
+}
+
+.admin-searchable-select__option:hover,
+.admin-searchable-select__option[aria-selected="true"] {
+    background: #27272a;
+    color: #fff;
+}
+
+.admin-searchable-select__option:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.admin-searchable-select__empty {
+    margin: 0;
+    padding: 0.7rem 0.65rem;
+    color: #9ca3af;
+    font-size: 0.875rem;
+}
