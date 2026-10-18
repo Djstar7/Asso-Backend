@@ -156,6 +156,27 @@ class MaritimeBookingTest extends TestCase
         $this->assertEquals(26240, $platform->kpayBalanceFor('XAF'));
     }
 
+    public function test_shipment_paid_with_wallet(): void
+    {
+        $departure = $this->departure();
+        $sender = User::factory()->create();
+        $sender->creditKpay('XAF', 200000);
+        Sanctum::actingAs($sender);
+
+        $payload = ['payment_method' => 'wallet'] + $this->payload();
+        unset($payload['provider'], $payload['phone_number']);
+        // 240 € = 157 440 FCFA débités, envoi payé tout de suite.
+        $this->postJson("/api/v1/maritime/departures/{$departure->id}/book", $payload)
+            ->assertStatus(201)
+            ->assertJsonPath('payment.flow', 'wallet')
+            ->assertJsonPath('data.status', 'paid');
+        $this->assertEquals(200000 - 157440, $sender->fresh()->kpayBalanceFor('XAF'));
+
+        // Solde restant insuffisant pour un second envoi : refusé, kilos rendus.
+        $this->postJson("/api/v1/maritime/departures/{$departure->id}/book", $payload)->assertStatus(422);
+        $this->assertEquals(450, (float) $departure->fresh()->remaining_kg);
+    }
+
     public function test_booking_refused_inside_cutoff_window(): void
     {
         $departure = $this->departure(6); // clôture à J − 7 : déjà passée

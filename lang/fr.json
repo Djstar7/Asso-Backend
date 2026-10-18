@@ -287,7 +287,8 @@
         "identity_already_verified": "Votre identité est déjà vérifiée.",
         "documents_uploaded": "Documents uploadés avec succès. Votre profil sera vérifié sous 24-48h.",
         "documents_upload_error": "Erreur lors de l'upload des documents: :error",
-        "passport_required_abroad": "Vous résidez hors de votre pays de nationalité : le passeport est exigé."
+        "passport_required_abroad": "Vous résidez hors de votre pays de nationalité : le passeport est exigé.",
+        "booking_paid_with_wallet": "Réservation payée avec votre Wallet."
     },
     "payments": {
         "method_unavailable": "Ce moyen de paiement est actuellement indisponible.",
@@ -368,7 +369,8 @@
         "invalid_payout_amount": "Montant de virement invalide.",
         "rate_unavailable": "Taux de change :currency → :pivot indisponible.",
         "kpay_payment_initiated": "Paiement initié",
-        "kpay_withdrawal_initiated": "Retrait initié"
+        "kpay_withdrawal_initiated": "Retrait initié",
+        "wallet_insufficient": "Solde Wallet insuffisant pour ce paiement. Rechargez votre Wallet ou choisissez un autre moyen."
     },
     "notifications": {
         "diaspo_booking_paid": {
@@ -1278,7 +1280,9 @@
             "refund_withdrawal_expired": "Remboursement retrait expiré - :method (:account)",
             "asso_commission_maritime": "Commission ASSO — Envoi maritime #:booking",
             "maritime_refund": "Remboursement — Envoi maritime #:booking",
-            "maritime_freight": "Fret maritime — Envoi #:booking"
+            "maritime_freight": "Fret maritime — Envoi #:booking",
+            "diaspo_booking_payment": "Paiement — Réservation Diaspo #:booking",
+            "maritime_payment": "Paiement — Envoi maritime #:booking"
         }
     },
     "sales_program": {
@@ -1458,6 +1462,7 @@
             "arrived": "Arrivé au QG de destination",
             "completed": "Remis au destinataire",
             "cancelled": "Annulé"
-        }
+        },
+        "booking_paid_with_wallet": "Envoi payé avec votre Wallet."
     }
 }

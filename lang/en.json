@@ -287,7 +287,8 @@
         "identity_already_verified": "Your identity is already verified.",
         "documents_uploaded": "Documents uploaded successfully. Your profile will be verified within 24-48 hours.",
         "documents_upload_error": "Error while uploading the documents: :error",
-        "passport_required_abroad": "You live outside your country of nationality: a passport is required."
+        "passport_required_abroad": "You live outside your country of nationality: a passport is required.",
+        "booking_paid_with_wallet": "Booking paid with your Wallet."
     },
     "payments": {
         "method_unavailable": "This payment method is currently unavailable.",
@@ -368,7 +369,8 @@
         "invalid_payout_amount": "Invalid payout amount.",
         "rate_unavailable": "Exchange rate :currency → :pivot is unavailable.",
         "kpay_payment_initiated": "Payment initiated",
-        "kpay_withdrawal_initiated": "Withdrawal initiated"
+        "kpay_withdrawal_initiated": "Withdrawal initiated",
+        "wallet_insufficient": "Insufficient Wallet balance for this payment. Top up your Wallet or choose another method."
     },
     "notifications": {
         "diaspo_booking_paid": {
@@ -1278,7 +1280,9 @@
             "refund_withdrawal_expired": "Refund for expired withdrawal - :method (:account)",
             "asso_commission_maritime": "ASSO commission — Sea shipment #:booking",
             "maritime_refund": "Refund — Sea shipment #:booking",
-            "maritime_freight": "Sea freight — Shipment #:booking"
+            "maritime_freight": "Sea freight — Shipment #:booking",
+            "diaspo_booking_payment": "Payment — Diaspo booking #:booking",
+            "maritime_payment": "Payment — Sea shipment #:booking"
         }
     },
     "sales_program": {
@@ -1458,6 +1462,7 @@
             "arrived": "Arrived at the destination hub",
             "completed": "Handed over to the recipient",
             "cancelled": "Cancelled"
-        }
+        },
+        "booking_paid_with_wallet": "Shipment paid with your Wallet."
     }
 }

@@ -139,6 +139,64 @@ class ParcelInsuranceTest extends TestCase
         ]);
     }
 
+    public function test_declared_value_entered_in_user_currency_is_converted(): void
+    {
+        Http::fake([
+            '*/api/v1/payments/init' => Http::response(['id' => 'pay_ins_2', 'status' => 'PENDING'], 200),
+        ]);
+        Setting::set('diaspo_commission_rate', 10);
+        $nature = $this->nature();
+        $offer = DiaspoOffer::create([
+            'user_id' => User::factory()->create()->id, 'status' => 'approved', 'verification_status' => 'verified',
+            'departure_country' => 'FR', 'departure_city' => 'Paris', 'departure_datetime' => now()->addDays(5),
+            'arrival_country' => 'CM', 'arrival_city' => 'Douala', 'arrival_datetime' => now()->addDays(6),
+            'price_per_kg' => 10, 'available_kg' => 20, 'remaining_kg' => 20, 'currency' => 'EUR',
+        ]);
+        Sanctum::actingAs(User::factory()->create());
+
+        // 328 000 FCFA saisis par l'acheteur = 500 € → 5 % = 25 €.
+        $this->postJson('/api/v1/diaspo/insurance-quote', [
+            'parcel_nature_id' => $nature->id, 'declared_value' => 328000, 'declared_value_currency' => 'XAF', 'currency' => 'EUR',
+        ])->assertOk()->assertJsonPath('data.insurance_amount', 25);
+
+        $id = $this->postJson("/api/v1/diaspo/offers/{$offer->id}/book", [
+            'kg_booked' => 5, 'payment_method' => 'kpay', 'provider' => 'MTN_MOMO_CMR', 'phone_number' => '237653456789',
+            'parcel_nature_id' => $nature->id, 'declared_value' => 328000, 'declared_value_currency' => 'XAF',
+        ])->assertStatus(201)->json('booking_id');
+
+        // Enregistrée dans la devise de l'offre.
+        $this->assertDatabaseHas('diaspo_bookings', ['id' => $id, 'declared_value' => 500, 'insurance_amount' => 25]);
+    }
+
+    public function test_air_booking_paid_with_wallet(): void
+    {
+        Setting::set('diaspo_commission_rate', 10);
+        $offer = DiaspoOffer::create([
+            'user_id' => User::factory()->create()->id, 'status' => 'approved', 'verification_status' => 'verified',
+            'departure_country' => 'FR', 'departure_city' => 'Paris', 'departure_datetime' => now()->addDays(5),
+            'arrival_country' => 'CM', 'arrival_city' => 'Douala', 'arrival_datetime' => now()->addDays(6),
+            'price_per_kg' => 10, 'available_kg' => 20, 'remaining_kg' => 20, 'currency' => 'EUR',
+        ]);
+        $buyer = User::factory()->create();
+        Sanctum::actingAs($buyer);
+
+        // Solde insuffisant : rien n'est réservé.
+        $buyer->creditKpay('XAF', 1000);
+        $this->postJson("/api/v1/diaspo/offers/{$offer->id}/book", ['kg_booked' => 5, 'payment_method' => 'wallet'])
+            ->assertStatus(422);
+        $this->assertEquals(0, DiaspoBooking::count());
+        $this->assertEquals(20, (float) $offer->fresh()->remaining_kg);
+
+        // 5 kg × 11 € = 55 € = 36 080 FCFA débités du Wallet, réservation payée tout de suite.
+        $buyer->creditKpay('XAF', 40000);
+        $res = $this->postJson("/api/v1/diaspo/offers/{$offer->id}/book", ['kg_booked' => 5, 'payment_method' => 'wallet'])
+            ->assertStatus(201)
+            ->assertJsonPath('payment.flow', 'wallet')
+            ->assertJsonPath('data.status', 'paid');
+        $this->assertEquals(41000 - 36080, $buyer->fresh()->kpayBalanceFor('XAF'));
+        $this->assertEquals('wallet', DiaspoBooking::find($res->json('booking_id'))->payment_method);
+    }
+
     public function test_nature_requires_declared_value(): void
     {
         $nature = $this->nature();

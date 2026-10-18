@@ -198,7 +198,7 @@ class DiaspoController extends Controller
     {
         $data = $request->validate([
             'kg_booked' => 'required|numeric|min:0.5',
-            'payment_method' => 'required|in:kpay,stripe',
+            'payment_method' => 'required|in:kpay,stripe,wallet',         // wallet = solde Wallet ASSO
             'provider' => 'required_if:payment_method,kpay|string',       // code opérateur KPay
             'phone_number' => 'required_if:payment_method,kpay|string',   // numéro Mobile Money
             'notes' => 'nullable|string|max:500',
@@ -206,12 +206,15 @@ class DiaspoController extends Controller
             // Facultatives ensemble pour les anciennes versions de l'app.
             'parcel_nature_id' => 'nullable|required_with:declared_value|integer|exists:parcel_natures,id,is_active,1',
             'declared_value' => 'nullable|required_with:parcel_nature_id|numeric|min:0|max:100000000',
+            // Devise dans laquelle l'expéditeur a saisi la valeur (la sienne) ;
+            // absente = devise de l'offre (anciennes versions de l'app).
+            'declared_value_currency' => 'nullable|string|size:3',
         ]);
 
         $buyer = $request->user();
         $method = $data['payment_method'];
 
-        if (!PaymentMethodService::isEnabled($method)) {
+        if ($method !== 'wallet' && !PaymentMethodService::isEnabled($method)) {
             return response()->json(['success' => false, 'message' => __('payments.method_unavailable')], 422);
         }
 
@@ -240,11 +243,15 @@ class DiaspoController extends Controller
 
             // Supplément d'assurance (revenu ASSO), ajouté au prix du transport.
             $insurance = 0.0;
+            $declaredValue = null;
             if (!empty($data['parcel_nature_id'])) {
                 try {
+                    $declaredValue = ParcelInsuranceService::declaredValueIn(
+                        (float) $data['declared_value'], $data['declared_value_currency'] ?? null, $offer->currency
+                    );
                     $insurance = ParcelInsuranceService::quote(
                         ParcelNature::findOrFail($data['parcel_nature_id']),
-                        (float) $data['declared_value'],
+                        $declaredValue,
                         $offer->currency
                     );
                 } catch (\RuntimeException $e) {
@@ -261,7 +268,7 @@ class DiaspoController extends Controller
             if ($totalPivot === null) {
                 return response()->json(['success' => false, 'message' => __('payments.rate_unavailable', ['currency' => $offer->currency, 'pivot' => PaymentMethodService::PIVOT])], 422);
             }
-            if ($totalPivot < PaymentMethodService::minPivotFor($method)) {
+            if ($method !== 'wallet' && $totalPivot < PaymentMethodService::minPivotFor($method)) {
                 return response()->json(['success' => false, 'message' => __('payments.amount_too_low_for_method')], 422);
             }
 
@@ -275,7 +282,7 @@ class DiaspoController extends Controller
                 'commission_amount' => $commission,
                 'total_price' => $total,
                 'parcel_nature_id' => $data['parcel_nature_id'] ?? null,
-                'declared_value' => $data['declared_value'] ?? null,
+                'declared_value' => $declaredValue,
                 'insurance_amount' => $insurance,
                 'status' => 'pending',
                 'confirmation_code' => str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT),
@@ -289,6 +296,7 @@ class DiaspoController extends Controller
             $offer->increment('bookings_count');
 
             return match ($method) {
+                'wallet' => $this->payBookingWithWallet($booking, $buyer, round($totalPivot, 2)),
                 'kpay' => $this->initKpayBooking($booking, $offer, $data, $total),
                 'stripe' => $this->initStripeBooking($booking, $offer, $total),
             };
@@ -316,13 +324,14 @@ class DiaspoController extends Controller
         $data = $request->validate([
             'parcel_nature_id' => 'required|integer|exists:parcel_natures,id,is_active,1',
             'declared_value' => 'required|numeric|min:0|max:100000000',
+            'declared_value_currency' => 'nullable|string|size:3',
             'currency' => 'required|string|size:3',
         ]);
 
         try {
             $amount = ParcelInsuranceService::quote(
                 ParcelNature::findOrFail($data['parcel_nature_id']),
-                (float) $data['declared_value'],
+                ParcelInsuranceService::declaredValueIn((float) $data['declared_value'], $data['declared_value_currency'] ?? null, $data['currency']),
                 $data['currency']
             );
         } catch (\RuntimeException $e) {
@@ -332,6 +341,39 @@ class DiaspoController extends Controller
         return response()->json([
             'success' => true,
             'data' => ['insurance_amount' => $amount, 'currency' => strtoupper($data['currency'])],
+        ]);
+    }
+
+    /**
+     * Paiement par le solde Wallet ASSO (XAF) : débit sous verrou puis
+     * réservation payée immédiatement. Solde insuffisant : tout est annulé.
+     */
+    private function payBookingWithWallet(DiaspoBooking $booking, User $buyer, float $amountXaf)
+    {
+        try {
+            $tx = app(WalletService::class)->debit(
+                user: $buyer,
+                amount: $amountXaf,
+                description: \App\Models\WalletTransaction::label('diaspo_booking_payment', ['booking' => $booking->id]),
+                referenceType: 'diaspo_booking',
+                referenceId: $booking->id,
+                metadata: ['diaspo_booking_id' => $booking->id],
+                provider: 'kpay'
+            );
+        } catch (\Exception $e) {
+            // Annule la réservation et la réservation des kilos (transaction englobante).
+            throw new \Illuminate\Http\Exceptions\HttpResponseException(
+                response()->json(['success' => false, 'message' => __('payments.wallet_insufficient')], 422)
+            );
+        }
+
+        $booking->update(['payment_reference' => "WALLET-{$tx->id}"]);
+        $this->confirmBookingPayment($booking);
+
+        return $this->bookingCreatedResponse($booking->fresh(), __('diaspo.booking_paid_with_wallet'), [
+            'flow' => 'wallet',
+            'method' => 'wallet',
+            'reference' => $booking->payment_reference,
         ]);
     }
 
