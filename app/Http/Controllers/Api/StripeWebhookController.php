@@ -125,6 +125,11 @@ class StripeWebhookController extends Controller
                     'payment_intent' => $pi->id ?? null,
                 ]);
             }
+        } elseif ($kind === 'maritime_booking') {
+            $booking = \App\Models\MaritimeBooking::find((int) ($pi->metadata->booking_id ?? 0));
+            if ($booking) {
+                app(\App\Services\MaritimeBookingService::class)->confirmPayment($booking);
+            }
         } elseif ($kind === 'order') {
             $orderId = (int) ($pi->metadata->order_id ?? 0);
             $order = \App\Models\Order::find($orderId);
@@ -216,6 +221,11 @@ class StripeWebhookController extends Controller
                     'booking_id' => $bookingId,
                     'payment_intent' => $pi->id ?? null,
                 ]);
+            }
+        } elseif ($kind === 'maritime_booking') {
+            $booking = \App\Models\MaritimeBooking::find((int) ($pi->metadata->booking_id ?? 0));
+            if ($booking) {
+                app(\App\Services\MaritimeBookingService::class)->failPayment($booking);
             }
         } elseif ($kind === 'order') {
             $orderId = (int) ($pi->metadata->order_id ?? 0);

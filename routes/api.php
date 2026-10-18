@@ -220,6 +220,15 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/diaspo/parcel-natures', [DiaspoController::class, 'parcelNatures']);
         Route::post('/diaspo/insurance-quote', [DiaspoController::class, 'insuranceQuote']);
         Route::post('/diaspo/offers/{id}/book', [DiaspoController::class, 'bookOffer']);
+
+        // Diaspo Maritime : départs des partenaires maritimes et envois.
+        Route::get('/maritime/departures', [\App\Http\Controllers\Api\MaritimeController::class, 'departures']);
+        Route::get('/maritime/departures/{id}', [\App\Http\Controllers\Api\MaritimeController::class, 'showDeparture']);
+        Route::post('/maritime/departures/{id}/book', [\App\Http\Controllers\Api\MaritimeController::class, 'book']);
+        Route::get('/maritime/bookings', [\App\Http\Controllers\Api\MaritimeController::class, 'bookings']);
+        Route::get('/maritime/bookings/{id}/payment-status', [\App\Http\Controllers\Api\MaritimeController::class, 'paymentStatus']);
+        Route::get('/maritime/bookings/{id}', [\App\Http\Controllers\Api\MaritimeController::class, 'showBooking']);
+        Route::post('/maritime/bookings/{id}/cancel', [\App\Http\Controllers\Api\MaritimeController::class, 'cancel']);
         Route::post('/diaspo/confirm-by-code', [DiaspoController::class, 'confirmByCode']);
         Route::get('/diaspo/bookings', [DiaspoController::class, 'bookings']);
         Route::get('/diaspo/bookings/{id}/payment-status', [DiaspoController::class, 'bookingPaymentStatus']);

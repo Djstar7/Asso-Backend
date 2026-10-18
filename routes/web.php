@@ -437,6 +437,21 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::post('/{userId}/reject', [App\Http\Controllers\Admin\StripeConnectController::class, 'rejectWeb'])->name('reject');
         });
 
+        // DIASPO Maritime : réglages, QG, départs et envois
+        Route::prefix('maritime')->name('maritime.')->controller(App\Http\Controllers\Admin\MaritimeController::class)->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::post('/settings', 'updateSettings')->name('settings');
+            Route::post('/partners/{partner}/hubs', 'storeHub')->name('hubs.store');
+            Route::put('/hubs/{hub}', 'updateHub')->name('hubs.update');
+            Route::post('/departures', 'storeDeparture')->name('departures.store');
+            Route::put('/departures/{departure}', 'updateDeparture')->name('departures.update');
+            Route::get('/bookings', 'bookings')->name('bookings.index');
+            Route::get('/bookings/{booking}', 'showBooking')->name('bookings.show');
+            Route::post('/bookings/{booking}/advance', 'advanceBooking')->name('bookings.advance');
+            Route::post('/bookings/{booking}/complete', 'completeBooking')->name('bookings.complete');
+            Route::post('/bookings/{booking}/notes', 'updateNotes')->name('bookings.notes');
+        });
+
         // DIASPO - Vérification des documents d'identité
         Route::prefix('diaspo')->name('diaspo.')->group(function () {
             Route::prefix('verifications')->name('verifications.')->group(function () {

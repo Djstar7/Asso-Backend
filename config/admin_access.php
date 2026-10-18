@@ -145,6 +145,7 @@ return [
         'admin.support.*' => 'support',
         'admin.messages.*' => 'messages',
         'admin.diaspo.*' => 'diaspo',
+        'admin.maritime.*' => 'diaspo',
         'admin.affiliate.*' => 'affiliate',
         'admin.sales.*' => 'sales',
         'admin.banners.*' => 'banners',
