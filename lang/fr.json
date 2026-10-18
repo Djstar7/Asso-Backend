@@ -286,7 +286,8 @@
         "offer_delete_has_active_bookings": "Cette offre ne peut pas être supprimée car elle a des réservations actives",
         "identity_already_verified": "Votre identité est déjà vérifiée.",
         "documents_uploaded": "Documents uploadés avec succès. Votre profil sera vérifié sous 24-48h.",
-        "documents_upload_error": "Erreur lors de l'upload des documents: :error"
+        "documents_upload_error": "Erreur lors de l'upload des documents: :error",
+        "passport_required_abroad": "Vous résidez hors de votre pays de nationalité : le passeport est exigé."
     },
     "payments": {
         "method_unavailable": "Ce moyen de paiement est actuellement indisponible.",

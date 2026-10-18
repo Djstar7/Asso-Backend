@@ -60,6 +60,8 @@ class User extends Authenticatable implements HasLocalePreference
         'diaspo_id_document_id',
         'diaspo_verified_at',
         'diaspo_rejection_reason',
+        'nationality',
+        'residence_country',
         'stripe_account_id',
         'stripe_account_status',
         'stripe_rejection_reason',

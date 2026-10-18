@@ -319,7 +319,19 @@ class DiaspoVerificationController extends Controller
             ? media_url($backDocument->file_path)
             : null;
 
-        return view('admin.diaspo.verifications.show', compact('user', 'frontDocument', 'backDocument', 'frontUrl', 'backUrl', 'offers', 'events'));
+        // Parcours renforcé : selfie, titre de séjour / visa, justificatifs de voyage.
+        $extraDocuments = \App\Services\DiaspoVerificationService::latestIdentityDocuments($user)
+            ->whereNull('side')
+            ->sortBy(fn ($d) => $d->type === \App\Models\DiaspoIdentityDocument::TYPE_SELFIE ? 0 : 1)
+            ->values();
+        $travelProofs = \App\Models\DiaspoIdentityDocument::with('document')
+            ->where('user_id', $user->id)
+            ->where('type', \App\Models\DiaspoIdentityDocument::TYPE_TRAVEL_PROOF)
+            ->get()
+            ->keyBy('diaspo_offer_id');
+        $required = \App\Services\DiaspoVerificationService::requiredDocuments($user->nationality, $user->residence_country);
+
+        return view('admin.diaspo.verifications.show', compact('user', 'frontDocument', 'backDocument', 'frontUrl', 'backUrl', 'offers', 'events', 'extraDocuments', 'travelProofs', 'required'));
     }
 
     /**

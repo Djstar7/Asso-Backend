@@ -3,12 +3,15 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\DiaspoIdentityDocument;
 use App\Models\DiaspoOffer;
 use App\Models\Document;
 use App\Services\DiaspoVerificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class DiaspoOfferController extends Controller
 {
@@ -109,7 +112,10 @@ class DiaspoOfferController extends Controller
             'price_per_kg' => 'required|numeric|min:0',
             'available_kg' => 'required|numeric|min:0.1',
             'currency' => 'nullable|string|max:3',
+            // Billet ou réservation justifiant le départ et la destination.
+            'travel_proof' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
         ]);
+        unset($validated['travel_proof']);
 
         // Une identité non validée ne bloque pas la publication : l'offre est en ligne
         // avec la mention « Profil non vérifié » (non réservable) jusqu'à la validation,
@@ -124,6 +130,10 @@ class DiaspoOfferController extends Controller
 
         if (!$isVerified) {
             app(DiaspoVerificationService::class)->publishUnverified($offer);
+        }
+
+        if ($request->hasFile('travel_proof')) {
+            $this->storeIdentityFile($user, $request->file('travel_proof'), DiaspoIdentityDocument::TYPE_TRAVEL_PROOF, null, $offer->id);
         }
 
         // Refresh to get updated status from observer
@@ -225,17 +235,44 @@ class DiaspoOfferController extends Controller
     }
 
     /**
-     * Upload verification document (CNI ou Passeport) - Recto/Verso
+     * POST /v1/diaspo/upload-verification — pièces du voyageur.
+     *
+     * Parcours renforcé (nationalité + pays de résidence envoyés) : pièces exigées
+     * par DiaspoVerificationService::requiredDocuments, selfie pris en direct.
+     * Sans nationalité (anciennes versions de l'app) : CNI ou passeport recto/verso.
      */
     public function uploadVerificationDocument(Request $request)
     {
-        $request->validate([
-            'document_front' => 'required|file|mimes:jpg,jpeg,png|max:5120',
-            'document_back' => 'required|file|mimes:jpg,jpeg,png|max:5120',
-            'document_type' => 'nullable|in:cni,passport',
-        ]);
-
         $user = auth()->user();
+        $countries = array_keys(\App\Support\CountryCode::NAMES);
+        $image = 'file|mimes:jpg,jpeg,png|max:5120';
+        $reinforced = $request->filled('nationality');
+
+        if ($reinforced) {
+            $base = $request->validate([
+                'nationality' => ['required', Rule::in($countries)],
+                'residence_country' => ['required', Rule::in($countries)],
+            ]);
+            $required = DiaspoVerificationService::requiredDocuments($base['nationality'], $base['residence_country']);
+            $data = $request->validate([
+                'document_type' => ['required', Rule::in($required['identity'])],
+                'document_front' => "required|{$image}",
+                // Verso exigé pour une CNI ; le passeport n'a qu'une page utile.
+                'document_back' => ($request->input('document_type') === DiaspoIdentityDocument::TYPE_CNI ? 'required|' : 'nullable|') . $image,
+                'residence_document_type' => $required['residence'] ? ['required', Rule::in($required['residence'])] : 'nullable',
+                'residence_document' => ($required['residence'] ? 'required|' : 'nullable|') . $image,
+                'selfie' => "required|{$image}",
+            ], [
+                'document_type.in' => __('diaspo.passport_required_abroad'),
+            ]);
+        } else {
+            $data = $request->validate([
+                'document_front' => "required|{$image}",
+                'document_back' => "required|{$image}",
+                'document_type' => 'nullable|in:cni,passport',
+            ]);
+            $data['document_type'] = $data['document_type'] ?? DiaspoIdentityDocument::TYPE_CNI;
+        }
 
         if ($user->isDiaspoVerified()) {
             return response()->json([
@@ -247,49 +284,24 @@ class DiaspoOfferController extends Controller
 
         DB::beginTransaction();
         try {
-            // Upload front image
-            $frontFile = $request->file('document_front');
-            $frontFileName = 'diaspo_' . $user->id . '_front_' . time() . '.' . $frontFile->getClientOriginalExtension();
-            $frontFilePath = $frontFile->storeAs('documents/diaspo_verification', $frontFileName, 'public');
+            $type = $data['document_type'];
+            $front = $this->storeIdentityFile($user, $request->file('document_front'), $type, 'front');
+            $back = $request->hasFile('document_back')
+                ? $this->storeIdentityFile($user, $request->file('document_back'), $type, 'back')
+                : null;
+            if ($reinforced) {
+                if ($request->hasFile('residence_document')) {
+                    $this->storeIdentityFile($user, $request->file('residence_document'), $data['residence_document_type']);
+                }
+                $this->storeIdentityFile($user, $request->file('selfie'), DiaspoIdentityDocument::TYPE_SELFIE);
+            }
 
-            $frontDocument = Document::create([
-                'category_id' => null,
-                'title' => 'Document DIASPO (Recto) - ' . strtoupper($request->document_type ?? 'CNI'),
-                'description' => 'Recto du document uploadé pour vérification DIASPO',
-                'file_name' => $frontFileName,
-                'file_path' => $frontFilePath,
-                'file_type' => $frontFile->getClientOriginalExtension(),
-                'file_size' => $frontFile->getSize(),
-                'mime_type' => $frontFile->getMimeType(),
-                'uploaded_by' => $user->id,
-                'visibility' => 'restricted',
-                'allowed_users' => [$user->id],
-            ]);
-
-            // Upload back image
-            $backFile = $request->file('document_back');
-            $backFileName = 'diaspo_' . $user->id . '_back_' . time() . '.' . $backFile->getClientOriginalExtension();
-            $backFilePath = $backFile->storeAs('documents/diaspo_verification', $backFileName, 'public');
-
-            $backDocument = Document::create([
-                'category_id' => null,
-                'title' => 'Document DIASPO (Verso) - ' . strtoupper($request->document_type ?? 'CNI'),
-                'description' => 'Verso du document uploadé pour vérification DIASPO',
-                'file_name' => $backFileName,
-                'file_path' => $backFilePath,
-                'file_type' => $backFile->getClientOriginalExtension(),
-                'file_size' => $backFile->getSize(),
-                'mime_type' => $backFile->getMimeType(),
-                'uploaded_by' => $user->id,
-                'visibility' => 'restricted',
-                'allowed_users' => [$user->id],
-            ]);
-
-            // Update user with front document ID (primary reference)
-            $user->update([
-                'diaspo_id_document_id' => $frontDocument->id,
+            $user->update(array_filter([
+                'diaspo_id_document_id' => $front->id,
                 'diaspo_verification_status' => 'pending',
-            ]);
+                'nationality' => $reinforced ? $base['nationality'] : null,
+                'residence_country' => $reinforced ? $base['residence_country'] : null,
+            ]));
 
             app(DiaspoVerificationService::class)->documentsSubmitted($user, $previousStatus);
 
@@ -299,12 +311,11 @@ class DiaspoOfferController extends Controller
                 'success' => true,
                 'message' => __('diaspo.documents_uploaded'),
                 'data' => [
-                    'document_front' => $frontDocument,
-                    'document_back' => $backDocument,
+                    'document_front' => $front,
+                    'document_back' => $back,
                     'verification_status' => 'pending',
                 ],
             ]);
-
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json([
@@ -312,6 +323,49 @@ class DiaspoOfferController extends Controller
                 'message' => __('diaspo.documents_upload_error', ['error' => $e->getMessage()]),
             ], 500);
         }
+    }
+
+    /**
+     * Enregistre une pièce (fichier privé + Document restreint) et la rattache
+     * au voyageur, et à l'offre pour un justificatif de voyage.
+     */
+    private function storeIdentityFile($user, \Illuminate\Http\UploadedFile $file, string $type, ?string $side = null, ?int $offerId = null): Document
+    {
+        $suffix = $type . ($side ? "_{$side}" : '');
+        $fileName = 'diaspo_' . $user->id . '_' . $suffix . '_' . time() . '_' . Str::random(6) . '.' . $file->getClientOriginalExtension();
+        $path = $file->storeAs('documents/diaspo_verification', $fileName, 'public');
+
+        // Titres repris de l'ancien format (« Document DIASPO (Recto) - CNI »),
+        // que l'écran admin utilise encore pour retrouver le verso.
+        $title = match (true) {
+            $side === 'front' => 'Document DIASPO (Recto) - ' . strtoupper($type),
+            $side === 'back' => 'Document DIASPO (Verso) - ' . strtoupper($type),
+            default => 'Document DIASPO - ' . (DiaspoIdentityDocument::LABELS[$type] ?? $type),
+        };
+
+        $document = Document::create([
+            'category_id' => null,
+            'title' => $title,
+            'description' => 'Pièce uploadée pour vérification DIASPO',
+            'file_name' => $fileName,
+            'file_path' => $path,
+            'file_type' => $file->getClientOriginalExtension(),
+            'file_size' => $file->getSize(),
+            'mime_type' => $file->getMimeType(),
+            'uploaded_by' => $user->id,
+            'visibility' => 'restricted',
+            'allowed_users' => [$user->id],
+        ]);
+
+        DiaspoIdentityDocument::create([
+            'user_id' => $user->id,
+            'type' => $type,
+            'side' => $side,
+            'document_id' => $document->id,
+            'diaspo_offer_id' => $offerId,
+        ]);
+
+        return $document;
     }
 
     /**
@@ -333,6 +387,11 @@ class DiaspoOfferController extends Controller
                 'grace_days' => DiaspoVerificationService::graceDays(),
                 // Échéance la plus proche avant retrait d'une offre non vérifiée.
                 'next_deadline' => $nextDeadline?->toIso8601String(),
+                'nationality' => $user->nationality,
+                'residence_country' => $user->residence_country,
+                'required_documents' => DiaspoVerificationService::requiredDocuments($user->nationality, $user->residence_country),
+                'documents' => DiaspoVerificationService::latestIdentityDocuments($user)
+                    ->map(fn ($d) => ['type' => $d->type, 'side' => $d->side, 'status' => $d->status])->values(),
             ],
         ]);
     }

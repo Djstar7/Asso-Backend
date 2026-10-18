@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\DiaspoIdentityDocument;
 use App\Models\DiaspoOffer;
 use App\Models\DiaspoVerificationEvent;
 use App\Models\Setting;
@@ -26,6 +27,42 @@ class DiaspoVerificationService
     public const REMINDER_HOURS = 48;
 
     public const DEADLINE_REMOVAL_REASON = 'Pièces d\'identité non fournies ou non conformes dans le délai de régularisation';
+
+    /**
+     * Pièces exigées du voyageur selon sa nationalité et son pays de résidence :
+     *  - il vit dans son pays : CNI ou passeport ;
+     *  - il vit à l'étranger : passeport + titre de séjour ou visa ;
+     *  - toujours : un selfie pris en direct, comparé à la pièce par l'admin.
+     * Le justificatif de voyage (billet, réservation) se joint à chaque offre.
+     *
+     * @return array{identity: string[], residence: string[], selfie: bool}
+     */
+    public static function requiredDocuments(?string $nationality, ?string $residenceCountry): array
+    {
+        $abroad = $nationality && $residenceCountry && strtoupper($nationality) !== strtoupper($residenceCountry);
+
+        return [
+            'identity' => $abroad
+                ? [DiaspoIdentityDocument::TYPE_PASSPORT]
+                : [DiaspoIdentityDocument::TYPE_CNI, DiaspoIdentityDocument::TYPE_PASSPORT],
+            'residence' => $abroad
+                ? [DiaspoIdentityDocument::TYPE_RESIDENCE_PERMIT, DiaspoIdentityDocument::TYPE_VISA]
+                : [],
+            'selfie' => true,
+        ];
+    }
+
+    /** Dernière pièce de chaque type (et côté) déposée par le voyageur, hors justificatifs de voyage. */
+    public static function latestIdentityDocuments(User $user): \Illuminate\Support\Collection
+    {
+        return DiaspoIdentityDocument::with('document')
+            ->where('user_id', $user->id)
+            ->where('type', '!=', DiaspoIdentityDocument::TYPE_TRAVEL_PROOF)
+            ->latest('id')
+            ->get()
+            ->unique(fn ($d) => $d->type . '|' . $d->side)
+            ->values();
+    }
 
     public static function graceDays(): int
     {
@@ -110,6 +147,9 @@ class DiaspoVerificationService
                 'diaspo_rejection_reason' => null,
             ]);
             self::log(DiaspoVerificationEvent::IDENTITY_VERIFIED, $user->id, actorId: $adminId, from: $previous, to: 'verified');
+            DiaspoIdentityDocument::where('user_id', $user->id)->where('status', 'pending')
+                ->where('type', '!=', DiaspoIdentityDocument::TYPE_TRAVEL_PROOF)
+                ->update(['status' => 'approved']);
 
             $offers = DiaspoOffer::where('user_id', $user->id)->awaitingVerification()->get();
             foreach ($offers as $offer) {
@@ -144,6 +184,9 @@ class DiaspoVerificationService
                 'diaspo_rejection_reason' => $reason,
             ]);
             self::log(DiaspoVerificationEvent::IDENTITY_REJECTED, $user->id, actorId: $adminId, from: $previous, to: 'rejected', reason: $reason);
+            DiaspoIdentityDocument::where('user_id', $user->id)->where('status', 'pending')
+                ->where('type', '!=', DiaspoIdentityDocument::TYPE_TRAVEL_PROOF)
+                ->update(['status' => 'rejected']);
         });
 
         $deadline = self::nextDeadlineFor($user);

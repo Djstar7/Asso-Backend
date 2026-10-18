@@ -286,7 +286,8 @@
         "offer_delete_has_active_bookings": "This offer cannot be deleted because it has active bookings",
         "identity_already_verified": "Your identity is already verified.",
         "documents_uploaded": "Documents uploaded successfully. Your profile will be verified within 24-48 hours.",
-        "documents_upload_error": "Error while uploading the documents: :error"
+        "documents_upload_error": "Error while uploading the documents: :error",
+        "passport_required_abroad": "You live outside your country of nationality: a passport is required."
     },
     "payments": {
         "method_unavailable": "This payment method is currently unavailable.",
