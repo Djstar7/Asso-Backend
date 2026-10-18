@@ -56,9 +56,13 @@
                 <h2 class="text-lg font-semibold text-white mb-4">Montants</h2>
                 <dl class="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
                     <dt class="text-gray-500">Fret partenaire</dt><dd class="text-white">{{ $money($booking->freight_subtotal) }}</dd>
-                    <dt class="text-gray-500">Commission ASSO</dt><dd class="text-white">{{ $money($booking->commission_amount) }}</dd>
                     <dt class="text-gray-500">Assurance</dt><dd class="text-white">{{ $money($booking->insurance_amount) }}</dd>
-                    <dt class="text-gray-500">Total payé</dt><dd class="text-white font-semibold">{{ $money($booking->total_price) }} ({{ $booking->payment_method }})</dd>
+                    <dt class="text-gray-500">Commission ASSO</dt><dd class="text-white">{{ $money($booking->commission_amount) }}</dd>
+                    <dt class="text-gray-500">Total payé</dt>
+                        <dd class="text-white font-semibold">
+                            {{ $money((float) $booking->total_price - (float) $booking->insurance_amount) }}
+                            ({{ $booking->payment_method }})
+                        </dd>
                     @if($booking->refunded_at)
                         <dt class="text-gray-500">Remboursé</dt><dd class="text-yellow-300">{{ number_format((float) $booking->refunded_amount, 0, ',', ' ') }} FCFA le {{ $booking->refunded_at->format('d/m/Y') }}</dd>
                     @endif

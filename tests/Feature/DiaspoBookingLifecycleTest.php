@@ -6,6 +6,7 @@ use App\Models\Currency;
 use App\Models\DiaspoBooking;
 use App\Models\DiaspoOffer;
 use App\Models\ExchangeRate;
+use App\Models\ParcelNature;
 use App\Models\ServiceConfiguration;
 use App\Models\Setting;
 use App\Models\User;
@@ -87,6 +88,12 @@ class DiaspoBookingLifecycleTest extends TestCase
         // test ne dépende pas de la configuration de l'environnement.
         Setting::set('diaspo_commission_rate', 10);
         $platform = $this->makePlatformAccount();
+        $parcelNature = ParcelNature::create([
+            'name' => 'Téléphone test',
+            'insurance_rate' => 5,
+            'min_insurance_amount' => 0,
+            'is_active' => true,
+        ]);
 
         $seller = User::factory()->create(['pending_earnings' => 0]);
         $buyer = User::factory()->create();
@@ -99,8 +106,16 @@ class DiaspoBookingLifecycleTest extends TestCase
             'payment_method' => 'kpay',
             'provider' => 'MTN_MOMO_CMR',
             'phone_number' => '237653456789',
+            'parcel_nature_id' => $parcelNature->id,
+            'declared_value' => 100,
+            'declared_value_currency' => 'EUR',
         ]);
-        $book->assertStatus(201)->assertJsonPath('success', true);
+        $book->assertStatus(201)
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.price_per_kg', 11)
+            ->assertJsonPath('data.subtotal', 55)
+            ->assertJsonPath('data.total_price', 55)
+            ->assertJsonPath('data.insurance_amount', 0);
         $bookingId = $book->json('booking_id');
 
         $this->assertDatabaseHas('diaspo_bookings', [
@@ -112,10 +127,16 @@ class DiaspoBookingLifecycleTest extends TestCase
         // kg réservés : 20 - 5 = 15
         $this->assertEquals(15, (float) $offer->fresh()->remaining_kg);
 
-        // subtotal = 50, commission 10% = 5, total = 55
-        $this->assertDatabaseHas('diaspo_bookings', ['id' => $bookingId, 'subtotal' => 50, 'total_price' => 55]);
+        // Le client paie uniquement 5 kg × 11 €/kg ; l'assurance n'est pas facturée.
+        $this->assertDatabaseHas('diaspo_bookings', [
+            'id' => $bookingId,
+            'subtotal' => 50,
+            'commission_amount' => 5,
+            'insurance_amount' => 0,
+            'total_price' => 55,
+        ]);
 
-        // L'opérateur camerounais encaisse en XAF : 55 € × 656 = 36 080 XAF, pas 55.
+        // L'opérateur camerounais encaisse en XAF : 55 € × 656 = 36 080 XAF.
         Http::assertSent(fn ($request) => str_ends_with($request->url(), '/api/v1/payments/init')
             && (float) $request['amount'] === 36080.0);
 

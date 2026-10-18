@@ -26,16 +26,16 @@ use Illuminate\Support\Facades\Log;
  */
 class DiaspoController extends Controller
 {
-
     private function paginate($query, Request $request, ?int $viewerId = null): array
     {
         $perPage = (int) $request->query('per_page', 20);
         $p = $query->paginate($perPage);
+
         return [
             'current_page' => $p->currentPage(),
             // $viewerId transmis à toApi : nécessaire pour masquer le code secret des
             // bookings aux non-acheteurs (ignoré par les modèles sans ce paramètre).
-            'data' => collect($p->items())->map(fn($m) => $m->toApi($viewerId))->values(),
+            'data' => collect($p->items())->map(fn ($m) => $m->toApi($viewerId))->values(),
             'per_page' => $p->perPage(),
             'last_page' => $p->lastPage(),
             'total' => $p->total(),
@@ -50,6 +50,7 @@ class DiaspoController extends Controller
     {
         $v = DiaspoVerification::where('user_id', $request->user()->id)->first();
         $status = $v->status ?? 'unverified';
+
         return response()->json([
             'success' => true,
             'data' => [
@@ -100,7 +101,7 @@ class DiaspoController extends Controller
             'departure_country', 'arrival_country', 'departure_city', 'arrival_city',
         ] as $f) {
             if ($request->filled($f)) {
-                $q->where($f, 'ilike', '%' . $request->query($f) . '%');
+                $q->where($f, 'ilike', '%'.$request->query($f).'%');
             }
         }
         if ($request->filled('max_price')) {
@@ -114,6 +115,7 @@ class DiaspoController extends Controller
     public function myOffers(Request $request)
     {
         $q = DiaspoOffer::with('user')->where('user_id', $request->user()->id)->latest();
+
         return response()->json(['success' => true, 'data' => $this->paginate($q, $request)]);
     }
 
@@ -121,6 +123,7 @@ class DiaspoController extends Controller
     {
         $offer = DiaspoOffer::with('user')->findOrFail($id);
         $offer->increment('views_count');
+
         return response()->json(['success' => true, 'data' => $offer->toApi()]);
     }
 
@@ -128,7 +131,7 @@ class DiaspoController extends Controller
     {
         $user = $request->user();
         $verified = DiaspoVerification::where('user_id', $user->id)->where('status', 'verified')->exists();
-        if (!$verified) {
+        if (! $verified) {
             return response()->json(['success' => false, 'message' => __('diaspo.identity_required_to_create_offer')], 403);
         }
 
@@ -169,6 +172,7 @@ class DiaspoController extends Controller
             $data['remaining_kg'] = max(0, $data['available_kg'] - $booked);
         }
         $offer->update($data);
+
         return response()->json(['success' => true, 'message' => __('diaspo.offer_updated'), 'data' => $offer->fresh()->load('user')->toApi()]);
     }
 
@@ -179,6 +183,7 @@ class DiaspoController extends Controller
             return response()->json(['success' => false, 'message' => __('diaspo.offer_delete_has_bookings')], 422);
         }
         $offer->delete();
+
         return response()->json(['success' => true, 'message' => __('diaspo.offer_deleted')]);
     }
 
@@ -214,7 +219,7 @@ class DiaspoController extends Controller
         $buyer = $request->user();
         $method = $data['payment_method'];
 
-        if ($method !== 'wallet' && !PaymentMethodService::isEnabled($method)) {
+        if ($method !== 'wallet' && ! PaymentMethodService::isEnabled($method)) {
             return response()->json(['success' => false, 'message' => __('payments.method_unavailable')], 422);
         }
 
@@ -241,24 +246,20 @@ class DiaspoController extends Controller
             $freight = round($data['kg_booked'] * $offer->publicPricePerKg(), 2);
             $commission = round($freight - $subtotal, 2);
 
-            // Supplément d'assurance (revenu ASSO), ajouté au prix du transport.
+            // Les informations de colis sont conservées, mais l'assurance n'est
+            // pas facturée : le client paie uniquement kg × tarif public au kilo.
             $insurance = 0.0;
             $declaredValue = null;
-            if (!empty($data['parcel_nature_id'])) {
+            if (! empty($data['parcel_nature_id'])) {
                 try {
                     $declaredValue = ParcelInsuranceService::declaredValueIn(
                         (float) $data['declared_value'], $data['declared_value_currency'] ?? null, $offer->currency
-                    );
-                    $insurance = ParcelInsuranceService::quote(
-                        ParcelNature::findOrFail($data['parcel_nature_id']),
-                        $declaredValue,
-                        $offer->currency
                     );
                 } catch (\RuntimeException $e) {
                     return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
                 }
             }
-            $total = round($freight + $insurance, 2);
+            $total = $freight;
 
             // Garde-fou serveur : le montant doit atteindre le minimum du moyen choisi
             // (comparaison dans la devise pivot XAF, via les taux stockés).
@@ -414,8 +415,8 @@ class DiaspoController extends Controller
     /** Initie l'encaissement carte Stripe NATIF (PaymentIntent) — devise via config, taux stockés. */
     private function initStripeBooking(DiaspoBooking $booking, DiaspoOffer $offer, float $total)
     {
-        $stripe = new StripeService();
-        if (!$stripe->isConfigured()) {
+        $stripe = new StripeService;
+        if (! $stripe->isConfigured()) {
             throw new \Exception(__('payments.card_temporarily_unavailable'));
         }
 
@@ -517,7 +518,9 @@ class DiaspoController extends Controller
             // Schéma unifié (upstream) : payment_status ∈ pending|completed|refunded, status ∈
             // pending|paid|confirmed|cancelled|completed. Cycle : pending → paid (payé) →
             // confirmed (voyageur valide le code) → completed (réception).
-            if (!$b || $b->payment_status === 'completed') return;
+            if (! $b || $b->payment_status === 'completed') {
+                return;
+            }
             $b->update(['payment_status' => 'completed', 'status' => 'paid', 'paid_at' => now()]);
         });
         try {
@@ -530,7 +533,7 @@ class DiaspoController extends Controller
                 );
             }
         } catch (\Exception $e) {
-            Log::warning('[Diaspo] FCM booking_paid: ' . $e->getMessage());
+            Log::warning('[Diaspo] FCM booking_paid: '.$e->getMessage());
         }
     }
 
@@ -547,7 +550,9 @@ class DiaspoController extends Controller
     {
         DB::transaction(function () use ($booking) {
             $b = DiaspoBooking::whereKey($booking->id)->lockForUpdate()->first();
-            if (!$b || $b->payment_status !== 'pending' || $b->status === 'cancelled') return;
+            if (! $b || $b->payment_status !== 'pending' || $b->status === 'cancelled') {
+                return;
+            }
             $b->update(['status' => 'cancelled', 'cancelled_at' => now()]);
             DiaspoOffer::whereKey($b->diaspo_offer_id)->increment('remaining_kg', (float) $b->kg_booked);
         });
@@ -560,9 +565,10 @@ class DiaspoController extends Controller
     private function syncStripeBooking(DiaspoBooking $booking): void
     {
         try {
-            $intent = (new StripeService())->retrievePaymentIntent($booking->payment_reference);
+            $intent = (new StripeService)->retrievePaymentIntent($booking->payment_reference);
         } catch (\Throwable $e) {
-            Log::warning('[Diaspo] Stripe retrieve PaymentIntent: ' . $e->getMessage());
+            Log::warning('[Diaspo] Stripe retrieve PaymentIntent: '.$e->getMessage());
+
             return;
         }
 
@@ -594,7 +600,7 @@ class DiaspoController extends Controller
             // (→ code secret masqué).
             $q->where('seller_user_id', $uid);
         } else {
-            $q->where(fn($x) => $x->where('buyer_user_id', $uid)->orWhere('seller_user_id', $uid));
+            $q->where(fn ($x) => $x->where('buyer_user_id', $uid)->orWhere('seller_user_id', $uid));
         }
         $q->latest();
 
@@ -606,8 +612,9 @@ class DiaspoController extends Controller
         $uid = $request->user()->id;
         $booking = DiaspoBooking::with(['offer.user', 'buyer', 'seller', 'parcelNature'])
             ->where('id', $id)
-            ->where(fn($x) => $x->where('buyer_user_id', $uid)->orWhere('seller_user_id', $uid))
+            ->where(fn ($x) => $x->where('buyer_user_id', $uid)->orWhere('seller_user_id', $uid))
             ->firstOrFail();
+
         return response()->json(['success' => true, 'data' => $booking->toApi($uid)]);
     }
 
@@ -840,7 +847,7 @@ class DiaspoController extends Controller
         $uid = $request->user()->id;
         $booking = DiaspoBooking::with(['offer.user', 'buyer', 'seller', 'parcelNature'])
             ->where('confirmation_code', $request->input('confirmation_code'))
-            ->where(fn($x) => $x->where('buyer_user_id', $uid)->orWhere('seller_user_id', $uid))
+            ->where(fn ($x) => $x->where('buyer_user_id', $uid)->orWhere('seller_user_id', $uid))
             ->firstOrFail();
 
         return response()->json(['success' => true, 'data' => $booking->toApi($uid)]);

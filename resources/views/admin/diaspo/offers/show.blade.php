@@ -269,14 +269,27 @@
                                     <div class="text-sm text-gray-400 mb-2">
                                         <i class="fas fa-phone mr-1"></i>{{ $booking->buyer->phone }}
                                     </div>
+                                    @php
+                                        $freightTotal = $booking->freightTotal();
+                                        $publicPricePerKg = (float) $booking->kg_booked > 0
+                                            ? $freightTotal / (float) $booking->kg_booked
+                                            : 0;
+                                    @endphp
                                     <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
                                         <div>
                                             <span class="text-gray-400">Kg réservés:</span>
                                             <p class="text-white font-semibold">{{ $booking->kg_booked }} kg</p>
                                         </div>
                                         <div>
-                                            <span class="text-gray-400">Total:</span>
-                                            <p class="text-white font-semibold">{{ $booking->formatted_total }}</p>
+                                            <span class="text-gray-400">Tarif public:</span>
+                                            <p class="text-white font-semibold">{{ number_format($publicPricePerKg, 2, ',', ' ') }} {{ $offer->currency }}/kg</p>
+                                        </div>
+                                        <div>
+                                            <span class="text-gray-400">Total transport (kg × tarif, hors assurance):</span>
+                                            <p class="text-white font-semibold">{{ number_format($freightTotal, 2, ',', ' ') }} {{ $offer->currency }}</p>
+                                            @if((float) $booking->total_price > $freightTotal)
+                                                <p class="text-xs text-gray-500">Total historique encaissé : {{ $booking->formatted_total }}</p>
+                                            @endif
                                         </div>
                                         <div>
                                             <span class="text-gray-400">Code:</span>
