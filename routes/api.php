@@ -1,35 +1,35 @@
 <?php
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Api\SettingController;
-// use App\Http\Controllers\Api\ConfessionController;
-use App\Http\Controllers\Api\AuthController;
-use App\Http\Controllers\Api\OtpController;
-use App\Http\Controllers\Api\ProductController;
-use App\Http\Controllers\Api\CategoryController;
-use App\Http\Controllers\Api\CurrencyController;
-use App\Http\Controllers\Api\AppController;
-use App\Http\Controllers\Api\PostController;
-use App\Http\Controllers\Api\DiaspoController;
-use App\Http\Controllers\Api\OrderController;
-use App\Http\Controllers\Api\ProfileController;
-use App\Http\Controllers\Api\PaymentController;
-use App\Http\Controllers\Api\BannerController;
-use App\Http\Controllers\Api\VendorOrderController;
-use App\Http\Controllers\Api\DeliveryController;
-use App\Http\Controllers\Api\WalletController;
-use App\Http\Controllers\Api\ConversationController;
-use App\Http\Controllers\Api\PackageController;
-use App\Http\Controllers\Api\InvoiceController;
-use App\Http\Controllers\Api\VendorProductController;
-use App\Http\Controllers\Api\DeviceTokenController;
-use App\Http\Controllers\Api\NotificationController;
-use App\Http\Controllers\Api\DelivererSyncController;
-use App\Http\Controllers\Api\ShopController;
-use App\Http\Controllers\Api\SearchController;
 use App\Http\Controllers\Api\AnalyzeProductController;
+use App\Http\Controllers\Api\AppController;
+use App\Http\Controllers\Api\AuthController;
+// use App\Http\Controllers\Api\ConfessionController;
+use App\Http\Controllers\Api\BannerController;
+use App\Http\Controllers\Api\CategoryController;
+use App\Http\Controllers\Api\ConversationController;
+use App\Http\Controllers\Api\CurrencyController;
+use App\Http\Controllers\Api\DelivererSyncController;
+use App\Http\Controllers\Api\DeliveryController;
+use App\Http\Controllers\Api\DeviceTokenController;
+use App\Http\Controllers\Api\DiaspoController;
+use App\Http\Controllers\Api\InvoiceController;
+use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\OrderController;
+use App\Http\Controllers\Api\OtpController;
+use App\Http\Controllers\Api\PackageController;
+use App\Http\Controllers\Api\PaymentController;
+use App\Http\Controllers\Api\PostController;
+use App\Http\Controllers\Api\ProductController;
+use App\Http\Controllers\Api\ProfileController;
+use App\Http\Controllers\Api\SearchController;
+use App\Http\Controllers\Api\SettingController;
+use App\Http\Controllers\Api\ShopController;
+use App\Http\Controllers\Api\VendorOrderController;
+use App\Http\Controllers\Api\VendorProductController;
+use App\Http\Controllers\Api\WalletController;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Broadcast;
+use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
@@ -229,6 +229,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/maritime/bookings/{id}/payment-status', [\App\Http\Controllers\Api\MaritimeController::class, 'paymentStatus']);
         Route::get('/maritime/bookings/{id}', [\App\Http\Controllers\Api\MaritimeController::class, 'showBooking']);
         Route::post('/maritime/bookings/{id}/cancel', [\App\Http\Controllers\Api\MaritimeController::class, 'cancel']);
+        Route::post('/maritime/bookings/{id}/loss-reports', [\App\Http\Controllers\Api\MaritimeController::class, 'reportLoss']);
+        Route::post('/maritime/bookings/{id}/contact-platform', [\App\Http\Controllers\Api\MaritimeController::class, 'contactPlatform']);
         Route::post('/diaspo/confirm-by-code', [DiaspoController::class, 'confirmByCode']);
         Route::get('/diaspo/bookings', [DiaspoController::class, 'bookings']);
         Route::get('/diaspo/bookings/{id}/payment-status', [DiaspoController::class, 'bookingPaymentStatus']);

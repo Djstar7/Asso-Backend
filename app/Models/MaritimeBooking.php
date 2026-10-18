@@ -4,6 +4,9 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
  * Envoi maritime : kilos réservés sur un départ, payés par l'expéditeur.
@@ -16,11 +19,17 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class MaritimeBooking extends Model
 {
     public const STATUS_PENDING = 'pending';
+
     public const STATUS_PAID = 'paid';
+
     public const STATUS_DROPPED_OFF = 'dropped_off';
+
     public const STATUS_SHIPPED = 'shipped';
+
     public const STATUS_ARRIVED = 'arrived';
+
     public const STATUS_COMPLETED = 'completed';
+
     public const STATUS_CANCELLED = 'cancelled';
 
     public const STATUSES = [
@@ -56,6 +65,10 @@ class MaritimeBooking extends Model
         'recipient_phone',
         'parcel_nature_id',
         'declared_value',
+        'insurance_opt_in',
+        'insurance_rate_applied',
+        'insurance_quote_amount',
+        'insurance_status',
         'insurance_amount',
         'price_per_kg',
         'freight_subtotal',
@@ -85,6 +98,9 @@ class MaritimeBooking extends Model
         'volume_cbm' => 'decimal:4',
         'parcels_count' => 'integer',
         'declared_value' => 'decimal:2',
+        'insurance_opt_in' => 'boolean',
+        'insurance_rate_applied' => 'decimal:4',
+        'insurance_quote_amount' => 'decimal:2',
         'insurance_amount' => 'decimal:2',
         'price_per_kg' => 'decimal:2',
         'freight_subtotal' => 'decimal:2',
@@ -116,6 +132,22 @@ class MaritimeBooking extends Model
         return $this->belongsTo(ParcelNature::class);
     }
 
+    public function insuranceHistory(): HasMany
+    {
+        return $this->hasMany(MaritimeBookingHistory::class, 'maritime_booking_id')->oldest();
+    }
+
+    public function indemnityClaim(): HasOne
+    {
+        return $this->hasOne(MaritimeIndemnityClaim::class, 'maritime_booking_id');
+    }
+
+    public function conversations(): BelongsToMany
+    {
+        return $this->belongsToMany(Conversation::class, 'conversation_maritime_booking')
+            ->withTimestamps();
+    }
+
     public function senderName(): string
     {
         return trim("{$this->sender_first_name} {$this->sender_last_name}");
@@ -129,7 +161,7 @@ class MaritimeBooking extends Model
     /** Prix du transport payé par l'expéditeur (total hors assurance). */
     public function freightTotal(): float
     {
-        return round((float) $this->total_price - (float) $this->insurance_amount, 2);
+        return round((float) $this->total_price - ((bool) $this->insurance_opt_in ? (float) $this->insurance_quote_amount : 0), 2);
     }
 
     public function statusLabel(): string
@@ -137,7 +169,7 @@ class MaritimeBooking extends Model
         return __("maritime.statuses.{$this->status}");
     }
 
-    public function toApi(): array
+    public function toApi(?User $viewer = null): array
     {
         return [
             'id' => $this->id,
@@ -157,6 +189,10 @@ class MaritimeBooking extends Model
             'recipient_phone' => $this->recipient_phone,
             'parcel_nature' => $this->relationLoaded('parcelNature') && $this->parcelNature ? $this->parcelNature->toApi() : null,
             'declared_value' => (float) $this->declared_value,
+            'insurance_opt_in' => (bool) $this->insurance_opt_in,
+            'insurance_rate_applied' => (float) $this->insurance_rate_applied,
+            'insurance_quote_amount' => (float) $this->insurance_quote_amount,
+            'insurance_status' => $this->insurance_status,
             // L'expéditeur voit le prix public ; la commission ASSO n'est pas détaillée.
             'price_per_kg' => (float) $this->kg_booked > 0 ? round($this->freightTotal() / (float) $this->kg_booked, 2) : 0.0,
             'freight_total' => $this->freightTotal(),
@@ -179,6 +215,62 @@ class MaritimeBooking extends Model
             'cancel_reason' => $this->cancel_reason,
             'cancelled_at' => $this->cancelled_at?->toIso8601String(),
             'created_at' => $this->created_at?->toIso8601String(),
+            'can_report_loss' => $this->canReportLoss($viewer),
+            'claim_summary' => $this->claimSummary(),
+            'claim_history' => $this->indemnityClaim?->histories->map(fn (MaritimeClaimHistory $history) => [
+                'action' => $history->action,
+                'from_status' => $history->from_status,
+                'to_status' => $history->to_status,
+                'reason' => $history->reason,
+                'amount_xaf' => $history->amount_xaf !== null ? (float) $history->amount_xaf : null,
+                'created_at' => $history->created_at?->toIso8601String(),
+            ])->values()->all() ?? [],
+            'insurance_history' => $this->insuranceHistory->map(fn (MaritimeBookingHistory $history) => [
+                'event' => $history->event,
+                'status' => $history->status,
+                'reason' => $history->reason,
+                'created_at' => $history->created_at?->toIso8601String(),
+            ])->values()->all(),
+        ];
+    }
+
+    public function canReportLoss(?User $viewer): bool
+    {
+        return $viewer !== null
+            && (int) $this->sender_user_id === (int) $viewer->id
+            && (bool) $this->insurance_opt_in
+            && $this->insurance_status === 'active'
+            && (float) $this->insurance_amount > 0
+            && $this->payment_status === 'completed'
+            && in_array($this->status, [self::STATUS_SHIPPED, self::STATUS_ARRIVED], true)
+            && ($this->relationLoaded('indemnityClaim')
+                ? $this->getRelation('indemnityClaim') === null
+                : ! $this->indemnityClaim()->exists());
+    }
+
+    private function claimSummary(): ?array
+    {
+        $claim = $this->indemnityClaim;
+        if (! $claim) {
+            return null;
+        }
+
+        return [
+            'id' => $claim->id,
+            'status' => $claim->status,
+            'reason' => $claim->customer_reason,
+            'loss_confirmation_reason' => $claim->loss_confirmation_reason,
+            'decision_reason' => $claim->decision_reason,
+            'payout_amount_xaf' => $claim->payout_amount_xaf !== null ? (float) $claim->payout_amount_xaf : null,
+            'paid_at' => $claim->paid_at?->toIso8601String(),
+            'history' => $claim->histories->map(fn (MaritimeClaimHistory $history) => [
+                'action' => $history->action,
+                'from_status' => $history->from_status,
+                'to_status' => $history->to_status,
+                'reason' => $history->reason,
+                'amount_xaf' => $history->amount_xaf !== null ? (float) $history->amount_xaf : null,
+                'created_at' => $history->created_at?->toIso8601String(),
+            ])->values()->all(),
         ];
     }
 }

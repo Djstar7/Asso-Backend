@@ -2,12 +2,12 @@
 
 namespace App\Services;
 
-use App\Support\Translation\LocalizedText;
-use App\Models\User;
 use App\Models\Order;
-use App\Models\WalletTransaction;
-use App\Models\WalletBalance;
 use App\Models\Transaction;
+use App\Models\User;
+use App\Models\WalletBalance;
+use App\Models\WalletTransaction;
+use App\Support\Translation\LocalizedText;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -29,10 +29,14 @@ class WalletService
      */
     private function lockedKpayBalance(User $user): WalletBalance
     {
-        WalletBalance::firstOrCreate(
-            ['user_id' => $user->id, 'currency' => self::KPAY_CURRENCY],
-            ['balance' => 0, 'locked_balance' => 0]
-        );
+        DB::table('wallet_balances')->insertOrIgnore([
+            'user_id' => $user->id,
+            'currency' => self::KPAY_CURRENCY,
+            'balance' => 0,
+            'locked_balance' => 0,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
 
         return WalletBalance::where('user_id', $user->id)
             ->where('currency', self::KPAY_CURRENCY)
@@ -43,13 +47,8 @@ class WalletService
     /**
      * Recharge le wallet d'un utilisateur.
      *
-     * @param User $user
-     * @param float $amount
-     * @param Transaction|null $transaction Transaction source (KPay, etc.)
-     * @param string|LocalizedText $description
-     * @param array $metadata
-     * @param string $provider Provider (kpay)
-     * @return WalletTransaction
+     * @param  Transaction|null  $transaction  Transaction source (KPay, etc.)
+     * @param  string  $provider  Provider (kpay)
      */
     public function credit(
         User $user,
@@ -81,7 +80,7 @@ class WalletService
                 'provider' => $provider,
             ]);
 
-            Log::info("[WalletService] Wallet credited", [
+            Log::info('[WalletService] Wallet credited', [
                 'user_id' => $user->id,
                 'provider' => $provider,
                 'amount' => $amount,
@@ -96,14 +95,10 @@ class WalletService
     /**
      * Débite le wallet d'un utilisateur.
      *
-     * @param User $user
-     * @param float $amount
-     * @param string|LocalizedText $description
-     * @param string|null $referenceType Type de référence (order, subscription, etc.)
-     * @param int|null $referenceId ID de la référence
-     * @param array $metadata
-     * @param string $provider Provider (kpay)
-     * @return WalletTransaction
+     * @param  string|null  $referenceType  Type de référence (order, subscription, etc.)
+     * @param  int|null  $referenceId  ID de la référence
+     * @param  string  $provider  Provider (kpay)
+     *
      * @throws \Exception Si solde insuffisant
      */
     public function debit(
@@ -147,7 +142,7 @@ class WalletService
                 'provider' => $provider,
             ]);
 
-            Log::info("[WalletService] Wallet debited", [
+            Log::info('[WalletService] Wallet debited', [
                 'user_id' => $user->id,
                 'provider' => $provider,
                 'amount' => $amount,
@@ -161,11 +156,112 @@ class WalletService
     }
 
     /**
+     * Atomically moves XAF between two real WalletBalance rows and records both
+     * ledger entries. The caller must wrap related business-state changes in the
+     * same database transaction.
+     *
+     * @return array{debit: WalletTransaction, credit: WalletTransaction}
+     */
+    public function transferBetweenUsers(
+        User $from,
+        User $to,
+        float $amount,
+        string $referenceType,
+        int $referenceId,
+        string $operationReference,
+        string $reason,
+        int $adminId
+    ): array {
+        if ($from->is($to) || $amount <= 0 || ! is_finite($amount)) {
+            throw new \InvalidArgumentException('A positive transfer between different wallet owners is required.');
+        }
+
+        $amount = round($amount, 2);
+
+        return DB::transaction(function () use ($from, $to, $amount, $referenceType, $referenceId, $operationReference, $reason, $adminId) {
+            $existing = WalletTransaction::where('reference_type', $referenceType)
+                ->where('reference_id', $referenceId)
+                ->get()
+                ->filter(fn (WalletTransaction $transaction) => ($transaction->metadata['transfer_operation_reference'] ?? null) === $operationReference)
+                ->keyBy(fn (WalletTransaction $transaction) => $transaction->metadata['transfer_direction'] ?? '');
+
+            if ($existing->has('debit') && $existing->has('credit')) {
+                return ['debit' => $existing->get('debit'), 'credit' => $existing->get('credit')];
+            }
+            if ($existing->isNotEmpty()) {
+                throw new \RuntimeException('The wallet transfer ledger is incomplete.');
+            }
+
+            $users = [$from->id => $from, $to->id => $to];
+            ksort($users);
+            $balances = [];
+            foreach ($users as $user) {
+                $balances[$user->id] = $this->lockedKpayBalance($user);
+            }
+
+            $source = $balances[$from->id];
+            $destination = $balances[$to->id];
+            $sourceBefore = (float) $source->balance;
+            $sourceAvailable = $sourceBefore - (float) $source->locked_balance;
+            if ($sourceAvailable < $amount) {
+                throw new \RuntimeException(__('wallet.insufficient_available_balance', [
+                    'available' => $sourceAvailable,
+                    'amount' => $amount,
+                ]));
+            }
+
+            $destinationBefore = (float) $destination->balance;
+            $sourceAfter = round($sourceBefore - $amount, 2);
+            $destinationAfter = round($destinationBefore + $amount, 2);
+            $source->balance = $sourceAfter;
+            $destination->balance = $destinationAfter;
+            $source->save();
+            $destination->save();
+
+            $metadata = [
+                'transfer_operation_reference' => $operationReference,
+                'reason' => $reason,
+                'admin_id' => $adminId,
+                'occurred_at' => now()->toIso8601String(),
+            ];
+            $debit = WalletTransaction::create([
+                'user_id' => $from->id,
+                'type' => 'debit',
+                'amount' => $amount,
+                'balance_before' => $sourceBefore,
+                'balance_after' => $sourceAfter,
+                'description' => "Indemnisation maritime — {$operationReference}",
+                'reference_type' => $referenceType,
+                'reference_id' => $referenceId,
+                'metadata' => $metadata + ['transfer_direction' => 'debit'],
+                'status' => 'completed',
+                'admin_id' => $adminId,
+                'provider' => 'kpay',
+            ]);
+            $credit = WalletTransaction::create([
+                'user_id' => $to->id,
+                'type' => 'credit',
+                'amount' => $amount,
+                'balance_before' => $destinationBefore,
+                'balance_after' => $destinationAfter,
+                'description' => "Indemnisation maritime — {$operationReference}",
+                'reference_type' => $referenceType,
+                'reference_id' => $referenceId,
+                'metadata' => $metadata + ['transfer_direction' => 'credit'],
+                'status' => 'completed',
+                'admin_id' => $adminId,
+                'provider' => 'kpay',
+            ]);
+
+            return ['debit' => $debit, 'credit' => $credit];
+        });
+    }
+
+    /**
      * Rembourse une transaction (remet l'argent dans le wallet).
      *
-     * @param WalletTransaction $originalTransaction Transaction à rembourser
-     * @param string|null $reason Raison du remboursement
-     * @return WalletTransaction
+     * @param  WalletTransaction  $originalTransaction  Transaction à rembourser
+     * @param  string|null  $reason  Raison du remboursement
      */
     public function refund(WalletTransaction $originalTransaction, ?string $reason = null): WalletTransaction
     {
@@ -180,7 +276,7 @@ class WalletService
 
         $user = $originalTransaction->user;
         $amount = abs($originalTransaction->amount);
-        $description = "Remboursement: " . ($reason ?? $originalTransaction->description);
+        $description = 'Remboursement: '.($reason ?? $originalTransaction->description);
 
         return $this->credit(
             $user,
@@ -198,13 +294,6 @@ class WalletService
 
     /**
      * Ajoute un bonus au wallet (promotion, parrainage, etc.).
-     *
-     * @param User $user
-     * @param float $amount
-     * @param string|LocalizedText $description
-     * @param array $metadata
-     * @param string $provider
-     * @return WalletTransaction
      */
     public function addBonus(
         User $user,
@@ -232,7 +321,7 @@ class WalletService
                 'provider' => $provider,
             ]);
 
-            Log::info("[WalletService] Bonus added", [
+            Log::info('[WalletService] Bonus added', [
                 'user_id' => $user->id,
                 'amount' => $amount,
                 'balance_after' => $balanceAfter,
@@ -246,12 +335,9 @@ class WalletService
     /**
      * Ajustement manuel par un admin.
      *
-     * @param User $user
-     * @param float $amount Positif pour ajouter, négatif pour retirer
-     * @param User $admin Admin effectuant l'ajustement
-     * @param string $reason Raison de l'ajustement
-     * @param string $provider
-     * @return WalletTransaction
+     * @param  float  $amount  Positif pour ajouter, négatif pour retirer
+     * @param  User  $admin  Admin effectuant l'ajustement
+     * @param  string  $reason  Raison de l'ajustement
      */
     public function adjustBalance(
         User $user,
@@ -289,7 +375,7 @@ class WalletService
                 'provider' => $provider,
             ]);
 
-            Log::warning("[WalletService] Balance adjusted by admin", [
+            Log::warning('[WalletService] Balance adjusted by admin', [
                 'user_id' => $user->id,
                 'admin_id' => $admin->id,
                 'amount' => $amount,
@@ -306,10 +392,8 @@ class WalletService
     /**
      * Récupère l'historique des transactions avec pagination.
      *
-     * @param User $user
-     * @param int $perPage
-     * @param string|null $type Filtrer par type
-     * @param string|null $provider Filtrer par provider
+     * @param  string|null  $type  Filtrer par type
+     * @param  string|null  $provider  Filtrer par provider
      * @return \Illuminate\Pagination\LengthAwarePaginator
      */
     public function getTransactionHistory(User $user, int $perPage = 20, ?string $type = null, ?string $provider = null)
@@ -329,16 +413,13 @@ class WalletService
 
     /**
      * Statistiques du wallet pour un utilisateur.
-     *
-     * @param User $user
-     * @return array
      */
     public function getWalletStats(User $user): array
     {
         $transactions = $user->walletTransactions()->completed();
 
         // Soldes KPay multi-devise (source de vérité : wallet_balances)
-        $kpayBalances = $user->walletBalances()->get()->map(fn($wb) => [
+        $kpayBalances = $user->walletBalances()->get()->map(fn ($wb) => [
             'currency' => $wb->currency,
             'balance' => max(0, (float) $wb->balance),
             'locked' => max(0, (float) $wb->locked_balance),
@@ -367,13 +448,13 @@ class WalletService
             'kpay_wallet_balance' => $kpayBalance,
             'kpay_balances' => $kpayBalances, // multi-devise (par devise)
             'current_balance' => $totalBalance,
-            'formatted_balance' => number_format($totalBalance, 0, ',', ' ') . ' FCFA',
+            'formatted_balance' => number_format($totalBalance, 0, ',', ' ').' FCFA',
 
             // Soldes bloqués (escrow)
             'locked_kpay_balance' => $lockedKPay,
             'total_locked_balance' => $totalLocked,
             'available_balance' => $availableTotal,
-            'formatted_available_balance' => number_format($availableTotal, 0, ',', ' ') . ' FCFA',
+            'formatted_available_balance' => number_format($availableTotal, 0, ',', ' ').' FCFA',
 
             // Totaux
             'total_credits' => $totalCredits,
@@ -437,7 +518,7 @@ class WalletService
                 'provider' => $provider,
             ]);
 
-            Log::info("[WalletService] Funds locked (escrow)", [
+            Log::info('[WalletService] Funds locked (escrow)', [
                 'user_id' => $user->id,
                 'provider' => $provider,
                 'amount' => $amount,
@@ -493,7 +574,7 @@ class WalletService
                 'provider' => $provider,
             ]);
 
-            Log::info("[WalletService] Funds unlocked", [
+            Log::info('[WalletService] Funds unlocked', [
                 'user_id' => $user->id,
                 'provider' => $provider,
                 'amount' => $amount,
@@ -552,7 +633,7 @@ class WalletService
                 'provider' => $provider,
             ]);
 
-            Log::info("[WalletService] Escrow released", [
+            Log::info('[WalletService] Escrow released', [
                 'user_id' => $user->id,
                 'provider' => $provider,
                 'amount' => $amount,
@@ -568,9 +649,7 @@ class WalletService
     /**
      * Vérifie si un user peut effectuer un paiement avec son wallet KPay.
      *
-     * @param User $user
-     * @param float $amount
-     * @param string|null $provider Provider spécifique (kpay)
+     * @param  string|null  $provider  Provider spécifique (kpay)
      * @return array ['can_pay' => bool, 'message' => string, 'missing_amount' => float]
      */
     public function canPayWithWallet(User $user, float $amount, ?string $provider = null): array

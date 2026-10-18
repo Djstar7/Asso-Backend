@@ -845,6 +845,10 @@
         "maritime_staff_paid": {
             "title": "Nouvel envoi maritime payé",
             "body": ":name a payé :kg kg (:route). À contacter au :phone."
+        },
+        "maritime_indemnity_paid": {
+            "title": "Indemnisation maritime versée",
+            "body": "Votre indemnisation de :amount XAF pour l’envoi maritime #:booking (référence d’opération : :reference) a été créditée sur votre Wallet."
         }
     },
     "orders": {

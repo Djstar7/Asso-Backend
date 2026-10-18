@@ -49,6 +49,9 @@
                     <dt class="text-gray-500">Poids / colis</dt><dd class="text-white">{{ (float) $booking->kg_booked }} kg{{ $booking->volume_cbm !== null ? ' (' . rtrim(rtrim(number_format((float) $booking->volume_cbm, 4, ',', ' '), '0'), ',') . ' m³)' : '' }} · {{ $booking->parcels_count }} colis</dd>
                     <dt class="text-gray-500">Nature</dt><dd class="text-white">{{ $booking->parcelNature?->name ?? '—' }}</dd>
                     <dt class="text-gray-500">Valeur déclarée</dt><dd class="text-white">{{ $money($booking->declared_value) }}</dd>
+                    <dt class="text-gray-500">Assurance facultative</dt><dd class="text-white">{{ $booking->insurance_opt_in ? 'Souscrite' : 'Refusée' }} · {{ $booking->insurance_status }}</dd>
+                    <dt class="text-gray-500">Taux enregistré</dt><dd class="text-white">{{ number_format((float) $booking->insurance_rate_applied, 2, ',', ' ') }} %</dd>
+                    <dt class="text-gray-500">Devis indicatif</dt><dd class="text-white">{{ $money($booking->insurance_quote_amount) }}</dd>
                 </dl>
             </div>
 
@@ -56,11 +59,11 @@
                 <h2 class="text-lg font-semibold text-white mb-4">Montants</h2>
                 <dl class="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
                     <dt class="text-gray-500">Fret partenaire</dt><dd class="text-white">{{ $money($booking->freight_subtotal) }}</dd>
-                    <dt class="text-gray-500">Assurance</dt><dd class="text-white">{{ $money($booking->insurance_amount) }}</dd>
+                    <dt class="text-gray-500">Assurance effectivement payée</dt><dd class="text-white">{{ $money($booking->insurance_amount) }}</dd>
                     <dt class="text-gray-500">Commission ASSO</dt><dd class="text-white">{{ $money($booking->commission_amount) }}</dd>
                     <dt class="text-gray-500">Total payé</dt>
                         <dd class="text-white font-semibold">
-                            {{ $money((float) $booking->total_price - (float) $booking->insurance_amount) }}
+                            {{ $money($booking->total_price) }}
                             ({{ $booking->payment_method }})
                         </dd>
                     @if($booking->refunded_at)
@@ -68,6 +71,121 @@
                     @endif
                 </dl>
             </div>
+
+            @if($booking->indemnityClaim)
+                @php $claim = $booking->indemnityClaim; @endphp
+                <div class="bg-dark-100 rounded-xl border border-dark-200 p-6">
+                    <h2 class="text-lg font-semibold text-white mb-3">Demande d’indemnisation #{{ $claim->id }} · {{ $claim->status }}</h2>
+                    <p class="text-sm text-gray-300 whitespace-pre-line"><strong>Déclaration client :</strong> {{ $claim->customer_reason }}</p>
+                    @if($claim->loss_confirmation_reason)<p class="text-sm text-gray-300 mt-2"><strong>Confirmation de perte :</strong> {{ $claim->loss_confirmation_reason }}</p>@endif
+                    @if($claim->decision_reason)<p class="text-sm text-gray-300 mt-2"><strong>Décision :</strong> {{ $claim->decision_reason }}</p>@endif
+                    @if($claim->paid_at)<p class="text-sm text-green-300 mt-2">Versé : {{ number_format((float) $claim->payout_amount_xaf, 0, ',', ' ') }} XAF le {{ $claim->paid_at->format('d/m/Y H:i') }}</p>@endif
+
+                    @if($claim->status === 'reported')
+                        <form action="{{ route('admin.maritime.claims.confirm-loss', $claim) }}" method="POST" class="mt-4 space-y-2">
+                            @csrf
+                            <textarea name="reason" required minlength="5" maxlength="5000" placeholder="Motif / constat de confirmation de perte" class="w-full px-3 py-2 bg-dark-50 border border-dark-200 rounded-lg text-white"></textarea>
+                            <button class="px-4 py-2 bg-yellow-600 text-white rounded-lg">Confirmer la perte</button>
+                        </form>
+                    @elseif($claim->status === 'loss_confirmed')
+                        @foreach(['approve' => 'Approuver', 'refuse' => 'Refuser'] as $decision => $label)
+                            <form action="{{ route('admin.maritime.claims.review', $claim) }}" method="POST" class="mt-3 space-y-2">
+                                @csrf
+                                <input type="hidden" name="decision" value="{{ $decision }}">
+                                <textarea name="reason" required minlength="5" maxlength="5000" placeholder="Motif de la décision" class="w-full px-3 py-2 bg-dark-50 border border-dark-200 rounded-lg text-white"></textarea>
+                                <button class="px-4 py-2 {{ $decision === 'approve' ? 'bg-green-600' : 'bg-red-600' }} text-white rounded-lg">{{ $label }}</button>
+                            </form>
+                        @endforeach
+                    @elseif($claim->status === 'approved')
+                        @if($indemnityCapXaf)
+                            <p class="text-sm text-gray-400 mt-3">Plafond global actuel : {{ number_format((float) $indemnityCapXaf, 0, ',', ' ') }} XAF. Le montant sera calculé par le serveur à partir de la valeur déclarée convertie, plafonné à ce montant.</p>
+                            <button type="button"
+                                    class="mt-3 px-4 py-2 bg-green-600 text-white rounded-lg"
+                                    data-payout-proposal-url="{{ route('admin.maritime.claims.payout-proposal', $claim) }}"
+                                    data-payout-form-url="{{ route('admin.maritime.claims.pay', $claim) }}"
+                                    onclick="showMaritimePayoutConfirmation(this)">
+                                Prévisualiser et confirmer le versement
+                            </button>
+                            <dialog id="maritime-payout-confirmation" class="w-full max-w-lg rounded-xl bg-dark-100 p-0 text-white shadow-2xl backdrop:bg-black/70">
+                                <form id="maritime-payout-form" method="POST" class="space-y-4 p-6">
+                                    @csrf
+                                    <h3 class="text-xl font-semibold">Confirmer l’indemnisation</h3>
+                                    <p class="text-sm text-gray-300">Vérifiez les informations et indiquez le motif avant de confirmer.</p>
+                                    <dl class="grid grid-cols-2 gap-2 text-sm">
+                                        <dt class="text-gray-400">Client</dt><dd id="payout-client"></dd>
+                                        <dt class="text-gray-400">Référence</dt><dd id="payout-booking-reference"></dd>
+                                        <dt class="text-gray-400">Valeur déclarée</dt><dd id="payout-declared-value"></dd>
+                                        <dt class="text-gray-400">Montant proposé par le serveur</dt><dd id="payout-amount" class="font-semibold text-green-300"></dd>
+                                    </dl>
+                                    <input type="hidden" name="confirmed_proposal_xaf" id="payout-confirmed-amount">
+                                    <label class="block text-sm text-gray-300">
+                                        Motif du versement
+                                        <textarea name="reason" required minlength="5" maxlength="5000" class="mt-1 w-full rounded-lg border border-dark-200 bg-dark-50 px-3 py-2 text-white"></textarea>
+                                    </label>
+                                    <div class="flex justify-end gap-2">
+                                        <button type="button" onclick="document.getElementById('maritime-payout-confirmation').close()" class="rounded-lg bg-dark-200 px-4 py-2">Annuler</button>
+                                        <button id="payout-confirm-submit" type="submit" class="rounded-lg bg-green-600 px-4 py-2">Confirmer le versement</button>
+                                    </div>
+                                </form>
+                            </dialog>
+                            <script>
+                                async function showMaritimePayoutConfirmation(button) {
+                                    button.disabled = true;
+                                    try {
+                                        const response = await fetch(button.dataset.payoutProposalUrl, {
+                                            headers: { 'Accept': 'application/json' },
+                                            credentials: 'same-origin',
+                                        });
+                                        const payload = await response.json();
+                                        if (!response.ok || !payload.success) {
+                                            throw new Error(payload.message || 'Impossible de calculer la proposition.');
+                                        }
+                                        const proposal = payload.data.proposal;
+                                        const money = value => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 }).format(value);
+                                        document.getElementById('payout-client').textContent = proposal.client || '—';
+                                        document.getElementById('payout-booking-reference').textContent = proposal.booking_reference;
+                                        document.getElementById('payout-declared-value').textContent =
+                                            `${money(proposal.declared_value)} ${proposal.declared_value_currency} (${money(proposal.declared_value_xaf)} XAF)`;
+                                        document.getElementById('payout-amount').textContent = `${money(proposal.amount_xaf)} XAF`;
+                                        document.getElementById('payout-confirmed-amount').value = proposal.amount_xaf;
+                                        document.getElementById('maritime-payout-form').action = button.dataset.payoutFormUrl;
+                                        document.getElementById('maritime-payout-confirmation').showModal();
+                                    } catch (error) {
+                                        window.alert(error.message);
+                                    } finally {
+                                        button.disabled = false;
+                                    }
+                                }
+                            </script>
+                        @else
+                            <p class="text-sm text-yellow-300 mt-3">Configurez le plafond global dans les réglages maritimes avant tout versement.</p>
+                        @endif
+                    @endif
+
+                    <h3 class="text-sm font-semibold text-white mt-5 mb-2">Historique administratif et financier</h3>
+                    <ol class="space-y-2 text-sm">
+                        @foreach($claim->histories as $history)
+                            <li class="border-l-2 border-primary-500 pl-3 text-gray-300">
+                                <strong>{{ $history->action }}</strong> : {{ $history->from_status ?? '—' }} → {{ $history->to_status }}
+                                · {{ $history->actor?->name ?? 'Client / système' }} · {{ $history->created_at->format('d/m/Y H:i') }}
+                                @if($history->reason)<br>{{ $history->reason }}@endif
+                                @if($history->amount_xaf !== null)<br>{{ number_format((float) $history->amount_xaf, 0, ',', ' ') }} XAF · {{ $history->operation_reference }}@endif
+                            </li>
+                        @endforeach
+                    </ol>
+                </div>
+            @endif
+
+            @if($booking->insuranceHistory->isNotEmpty())
+                <div class="bg-dark-100 rounded-xl border border-dark-200 p-6">
+                    <h2 class="text-lg font-semibold text-white mb-3">Historique assurance</h2>
+                    <ul class="space-y-2 text-sm text-gray-300">
+                        @foreach($booking->insuranceHistory as $history)
+                            <li>{{ $history->created_at->format('d/m/Y H:i') }} · {{ $history->event }} · {{ $history->status }}@if($history->reason) · {{ $history->reason }}@endif</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
         </div>
 
         <div class="space-y-6">

@@ -7,9 +7,11 @@ use App\Models\DelivererCompany;
 use App\Models\MaritimeBooking;
 use App\Models\MaritimeDeparture;
 use App\Models\MaritimeHub;
+use App\Models\MaritimeIndemnityClaim;
 use App\Models\Setting;
 use App\Services\MaritimeBookingException;
 use App\Services\MaritimeBookingService;
+use App\Services\MaritimeClaimService;
 use App\Support\CountryCode;
 use App\Support\Translation\ContentLocale;
 use Illuminate\Http\Request;
@@ -23,7 +25,10 @@ use Illuminate\Validation\Rule;
  */
 class MaritimeController extends Controller
 {
-    public function __construct(private MaritimeBookingService $service) {}
+    public function __construct(
+        private MaritimeBookingService $service,
+        private MaritimeClaimService $claims
+    ) {}
 
     /** Partenaires maritimes, réglages et départs à venir. */
     public function index()
@@ -45,8 +50,24 @@ class MaritimeController extends Controller
             'partners' => $partners,
             'departures' => $departures,
             'settings' => $this->settings(),
+            'indemnityCapXaf' => Setting::get('maritime_indemnity_cap_xaf'),
             'pendingDropoffs' => MaritimeBooking::where('status', MaritimeBooking::STATUS_PAID)->count(),
         ]);
+    }
+
+    public function updateIndemnityCap(Request $request)
+    {
+        $this->authorizeAdmin($request);
+        $data = $request->validate(['indemnity_cap_xaf' => 'required|integer|min:1|max:1000000000000']);
+        Setting::set(
+            'maritime_indemnity_cap_xaf',
+            $data['indemnity_cap_xaf'],
+            'integer',
+            'maritime',
+            'Plafond global d’indemnisation maritime (XAF)'
+        );
+
+        return back()->with('success', 'Plafond global d’indemnisation enregistré.');
     }
 
     public function updateSettings(Request $request)
@@ -250,7 +271,7 @@ class MaritimeController extends Controller
 
     public function bookings(Request $request)
     {
-        $q = MaritimeBooking::with(['departure.originHub', 'departure.destinationHub', 'departure.company'])
+        $q = MaritimeBooking::with(['departure.originHub', 'departure.destinationHub', 'departure.company', 'indemnityClaim'])
             ->where('payment_status', '!=', 'pending')
             ->latest();
 
@@ -260,18 +281,95 @@ class MaritimeController extends Controller
         if ($departureId = $request->query('departure')) {
             $q->where('maritime_departure_id', $departureId);
         }
+        if ($claimStatus = $request->query('claim_status')) {
+            $q->whereHas('indemnityClaim', fn ($claim) => $claim->where('status', $claimStatus));
+        }
 
         return view('admin.maritime.bookings', [
             'bookings' => $q->paginate(30)->withQueryString(),
             'statuses' => MaritimeBooking::STATUSES,
+            'claimStatuses' => [
+                MaritimeIndemnityClaim::REPORTED => 'Signalé',
+                MaritimeIndemnityClaim::LOSS_CONFIRMED => 'Perte confirmée',
+                MaritimeIndemnityClaim::APPROVED => 'Approuvé',
+                MaritimeIndemnityClaim::REFUSED => 'Refusé',
+                MaritimeIndemnityClaim::PAID => 'Indemnisé',
+            ],
         ]);
     }
 
     public function showBooking(MaritimeBooking $booking)
     {
-        $booking->load(['departure.originHub', 'departure.destinationHub', 'departure.company', 'sender', 'parcelNature']);
+        $booking->load([
+            'departure.originHub', 'departure.destinationHub', 'departure.company', 'sender', 'parcelNature',
+            'insuranceHistory.actor', 'indemnityClaim.histories.actor',
+        ]);
 
-        return view('admin.maritime.booking', ['booking' => $booking, 'countries' => CountryCode::NAMES]);
+        return view('admin.maritime.booking', [
+            'booking' => $booking,
+            'countries' => CountryCode::NAMES,
+            'indemnityCapXaf' => Setting::get('maritime_indemnity_cap_xaf'),
+        ]);
+    }
+
+    public function confirmLoss(Request $request, MaritimeIndemnityClaim $claim)
+    {
+        $this->authorizeAdmin($request);
+        $data = $request->validate(['reason' => 'required|string|min:5|max:5000']);
+        try {
+            $this->claims->confirmLoss($claim, $request->user(), $data['reason']);
+        } catch (MaritimeBookingException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', 'Perte confirmée. La demande peut maintenant être approuvée ou refusée.');
+    }
+
+    public function reviewClaim(Request $request, MaritimeIndemnityClaim $claim)
+    {
+        $this->authorizeAdmin($request);
+        $data = $request->validate([
+            'decision' => 'required|in:approve,refuse',
+            'reason' => 'required|string|min:5|max:5000',
+        ]);
+        try {
+            $this->claims->review($claim, $request->user(), $data['decision'], $data['reason']);
+        } catch (MaritimeBookingException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', $data['decision'] === 'approve' ? 'Demande approuvée.' : 'Demande refusée.');
+    }
+
+    public function payClaim(Request $request, MaritimeIndemnityClaim $claim)
+    {
+        $this->authorizeAdmin($request);
+        $data = $request->validate([
+            'reason' => 'required|string|min:5|max:5000',
+            'confirmed_proposal_xaf' => 'required|numeric|gt:0',
+        ]);
+        try {
+            $paid = $this->claims->pay($claim, $request->user(), $data['reason'], (float) $data['confirmed_proposal_xaf']);
+        } catch (MaritimeBookingException $e) {
+            return back()->with('error', $e->getMessage());
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', 'Indemnisation versée : '.number_format((float) $paid->payout_amount_xaf, 0, ',', ' ').' XAF.');
+    }
+
+    public function payoutProposal(Request $request, MaritimeIndemnityClaim $claim)
+    {
+        $this->authorizeAdmin($request);
+        try {
+            return response()->json([
+                'success' => true,
+                'data' => ['proposal' => $this->claims->payoutProposal($claim)],
+            ]);
+        } catch (MaritimeBookingException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
     }
 
     public function advanceBooking(MaritimeBooking $booking)
@@ -282,7 +380,7 @@ class MaritimeController extends Controller
             return back()->with('error', $e->getMessage());
         }
 
-        return back()->with('success', 'Étape enregistrée : ' . MaritimeBooking::STATUSES[$b->status] . '. L\'expéditeur est prévenu.');
+        return back()->with('success', 'Étape enregistrée : '.MaritimeBooking::STATUSES[$b->status].'. L\'expéditeur est prévenu.');
     }
 
     public function completeBooking(Request $request, MaritimeBooking $booking)
@@ -303,5 +401,10 @@ class MaritimeController extends Controller
         $booking->update($request->validate(['admin_notes' => 'nullable|string|max:5000']));
 
         return back()->with('success', 'Notes enregistrées.');
+    }
+
+    private function authorizeAdmin(Request $request): void
+    {
+        abort_unless($request->user()?->isAdmin(), 403);
     }
 }

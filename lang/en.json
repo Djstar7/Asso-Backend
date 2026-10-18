@@ -845,6 +845,10 @@
         "maritime_staff_paid": {
             "title": "New paid sea shipment",
             "body": ":name paid for :kg kg (:route). Contact them at :phone."
+        },
+        "maritime_indemnity_paid": {
+            "title": "Maritime indemnity paid",
+            "body": "Your indemnity of :amount XAF for maritime booking #:booking (operation reference: :reference) was credited to your Wallet."
         }
     },
     "orders": {

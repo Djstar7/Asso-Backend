@@ -1,13 +1,14 @@
 <?php
+
 namespace App\Http\Controllers\Api;
 
+use App\Events\MessageSent;
+use App\Events\UserOnlineStatus;
+use App\Events\UserTyping;
 use App\Http\Controllers\Controller;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\User;
-use App\Events\MessageSent;
-use App\Events\UserTyping;
-use App\Events\UserOnlineStatus;
 use App\Services\FirebaseMessagingService;
 use Illuminate\Http\Request;
 
@@ -20,8 +21,8 @@ class ConversationController extends Controller
     {
         $userId = $request->user()->id;
 
-        $conversations = Conversation::with(['user1', 'user2', 'product', 'diaspoOffer', 'latestMessage'])
-            ->where(function($q) use ($userId) {
+        $conversations = Conversation::with(['user1', 'user2', 'product', 'diaspoOffer', 'latestMessage', 'maritimeBookings:id'])
+            ->where(function ($q) use ($userId) {
                 $q->where('user1_id', $userId)->orWhere('user2_id', $userId);
             })
             ->notHiddenBy($userId) // Exclure les conversations cachées par l'utilisateur
@@ -30,7 +31,7 @@ class ConversationController extends Controller
 
         return response()->json([
             'success' => true,
-            'conversations' => $conversations->getCollection()->map(function($conv) use ($userId) {
+            'conversations' => $conversations->getCollection()->map(function ($conv) use ($userId) {
                 $otherUser = $conv->getOtherUser($userId);
                 $unreadCount = $conv->messages()->where('sender_id', '!=', $userId)->where('is_read', false)->count();
 
@@ -58,6 +59,10 @@ class ConversationController extends Controller
                         'currency' => $conv->diaspoOffer->currency,
                         'remaining_kg' => (float) $conv->diaspoOffer->remaining_kg,
                     ] : null,
+                    'maritime_bookings' => $conv->maritimeBookings->map(fn ($booking) => [
+                        'id' => $booking->id,
+                        'reference' => "MARITIME-{$booking->id}",
+                    ])->values(),
                     'last_message' => $conv->latestMessage ? [
                         'message' => $conv->latestMessage->message,
                         'sender_id' => $conv->latestMessage->sender_id,
@@ -95,9 +100,9 @@ class ConversationController extends Controller
         }
 
         // Find existing conversation (including hidden ones)
-        $conversation = Conversation::where(function($q) use ($userId, $otherUserId) {
+        $conversation = Conversation::where(function ($q) use ($userId, $otherUserId) {
             $q->where('user1_id', $userId)->where('user2_id', $otherUserId);
-        })->orWhere(function($q) use ($userId, $otherUserId) {
+        })->orWhere(function ($q) use ($userId, $otherUserId) {
             $q->where('user1_id', $otherUserId)->where('user2_id', $userId);
         });
 
@@ -111,7 +116,7 @@ class ConversationController extends Controller
 
         $conversation = $conversation->first();
 
-        if (!$conversation) {
+        if (! $conversation) {
             // Créer une nouvelle conversation
             $conversation = Conversation::create([
                 'user1_id' => $userId,
@@ -138,16 +143,16 @@ class ConversationController extends Controller
                 }
 
                 // Créer un message système seulement s'il n'y en a pas déjà un après le hide
-                if (!$hasSystemMessageAfterHide) {
+                if (! $hasSystemMessageAfterHide) {
                     // Récupérer l'utilisateur système
                     $systemUser = \App\Models\User::where('email', 'system@asso.app')->first();
 
                     if ($systemUser) {
                         // Message de sécurité à envoyer automatiquement
-                        $securityMessage = "Vous prenez un risque en envoyant votre numéro de téléphone / e-mail\n\n" .
-                            "Ici nous garantissons la sécurité de vos échanges, c'est pourquoi nous vous conseillons de " .
-                            "rester sur la messagerie pour discuter et passer par le paiement sécurisé pour vos transactions.\n\n" .
-                            "→ En savoir plus";
+                        $securityMessage = "Vous prenez un risque en envoyant votre numéro de téléphone / e-mail\n\n".
+                            "Ici nous garantissons la sécurité de vos échanges, c'est pourquoi nous vous conseillons de ".
+                            "rester sur la messagerie pour discuter et passer par le paiement sécurisé pour vos transactions.\n\n".
+                            '→ En savoir plus';
 
                         // Créer le message système
                         Message::create([
@@ -202,7 +207,7 @@ class ConversationController extends Controller
     {
         $userId = $request->user()->id;
 
-        $conversation = Conversation::where(function($q) use ($userId) {
+        $conversation = Conversation::where(function ($q) use ($userId) {
             $q->where('user1_id', $userId)->orWhere('user2_id', $userId);
         })->findOrFail($conversationId);
 
@@ -225,7 +230,7 @@ class ConversationController extends Controller
         // Ne marquer comme lus que les messages créés après le hide (si existe)
         if ($hideEntry) {
             $markAsReadQuery->where('created_at', '>', $hideEntry->created_at);
-            \Log::info("📧 [CHAT] Marking messages as read only after hide date");
+            \Log::info('📧 [CHAT] Marking messages as read only after hide date');
         }
 
         $markAsReadQuery->update(['is_read' => true, 'read_at' => now()]);
@@ -243,14 +248,14 @@ class ConversationController extends Controller
         $messages = $messagesQuery->orderBy('created_at', 'desc')
             ->paginate($request->get('per_page', 50));
 
-        \Log::info("📊 [CHAT] Messages loaded", [
+        \Log::info('📊 [CHAT] Messages loaded', [
             'total_messages' => $messages->total(),
             'current_page' => $messages->currentPage(),
         ]);
 
         return response()->json([
             'success' => true,
-            'messages' => $messages->getCollection()->map(fn($msg) => [
+            'messages' => $messages->getCollection()->map(fn ($msg) => [
                 'id' => $msg->id,
                 'sender_id' => $msg->sender_id,
                 'message' => $msg->message,
@@ -265,7 +270,7 @@ class ConversationController extends Controller
                     'image' => $msg->product->primaryImage ?
                         media_url($msg->product->primaryImage->image_path) : null,
                     'images' => $msg->product->images ?
-                        $msg->product->images->map(fn($img) => media_url($img->image_path))->toArray() : [],
+                        $msg->product->images->map(fn ($img) => media_url($img->image_path))->toArray() : [],
                 ] : null,
                 'diaspo_offer_id' => $msg->diaspo_offer_id,
                 'diaspo_offer' => $msg->diaspoOffer ? [
@@ -303,16 +308,16 @@ class ConversationController extends Controller
         ]);
 
         // Au moins un message ou une image doit être fourni
-        if (!$request->message && !$request->hasFile('image')) {
+        if (! $request->message && ! $request->hasFile('image')) {
             return response()->json([
                 'success' => false,
-                'message' => __('conversations.message_or_image_required')
+                'message' => __('conversations.message_or_image_required'),
             ], 422);
         }
 
         $userId = $request->user()->id;
 
-        $conversation = Conversation::where(function($q) use ($userId) {
+        $conversation = Conversation::where(function ($q) use ($userId) {
             $q->where('user1_id', $userId)->orWhere('user2_id', $userId);
         })->findOrFail($conversationId);
 
@@ -339,13 +344,13 @@ class ConversationController extends Controller
             }
 
             // Créer un message système pour l'autre utilisateur s'il n'y en a pas déjà un
-            if (!$hasSystemMessageAfterHide) {
+            if (! $hasSystemMessageAfterHide) {
                 $systemUser = \App\Models\User::where('email', 'system@asso.app')->first();
                 if ($systemUser) {
-                    $securityMessage = "Vous prenez un risque en envoyant votre numéro de téléphone / e-mail\n\n" .
-                        "Ici nous garantissons la sécurité de vos échanges, c'est pourquoi nous vous conseillons de " .
-                        "rester sur la messagerie pour discuter et passer par le paiement sécurisé pour vos transactions.\n\n" .
-                        "→ En savoir plus";
+                    $securityMessage = "Vous prenez un risque en envoyant votre numéro de téléphone / e-mail\n\n".
+                        "Ici nous garantissons la sécurité de vos échanges, c'est pourquoi nous vous conseillons de ".
+                        "rester sur la messagerie pour discuter et passer par le paiement sécurisé pour vos transactions.\n\n".
+                        '→ En savoir plus';
 
                     Message::create([
                         'conversation_id' => $conversationId,
@@ -404,7 +409,7 @@ class ConversationController extends Controller
                 // Construire le titre et le corps de la notification
                 $notificationTitle = $sender->name;
                 $notificationBody = $message->message
-                    ? (strlen($message->message) > 100 ? substr($message->message, 0, 100) . '...' : $message->message)
+                    ? (strlen($message->message) > 100 ? substr($message->message, 0, 100).'...' : $message->message)
                     : ($message->image_path ? $recipient->localized('notifications.new_message.photo_body') : $recipient->localized('notifications.new_message.text_body'));
 
                 // Données supplémentaires pour la navigation
@@ -483,7 +488,7 @@ class ConversationController extends Controller
         $userName = $request->user()->name;
 
         // Vérifier que l'utilisateur fait partie de la conversation
-        $conversation = Conversation::where(function($q) use ($userId) {
+        $conversation = Conversation::where(function ($q) use ($userId) {
             $q->where('user1_id', $userId)->orWhere('user2_id', $userId);
         })->findOrFail($conversationId);
 
@@ -532,7 +537,7 @@ class ConversationController extends Controller
     {
         $userId = $request->user()->id;
 
-        $conversation = Conversation::where(function($q) use ($userId) {
+        $conversation = Conversation::where(function ($q) use ($userId) {
             $q->where('user1_id', $userId)->orWhere('user2_id', $userId);
         })->findOrFail($conversationId);
 

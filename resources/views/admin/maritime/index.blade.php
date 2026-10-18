@@ -114,7 +114,7 @@
     </div>
 
     <!-- Réglages -->
-    <div class="bg-dark-100 rounded-xl shadow-lg border border-dark-200 p-6">
+    <div class="bg-dark-100 rounded-xl shadow-lg border border-dark-200 p-6 mb-6">
         <h2 class="text-lg font-semibold text-white mb-1"><i class="fas fa-sliders-h mr-2 text-primary-400"></i>Réglages</h2>
         <p class="text-sm text-gray-400 mb-4">Passé la clôture, l'app affiche « Trajet impossible à faire, veuillez consulter les prochaines dates pour cette destination. » Un colis non déposé avant la date limite est remboursé au Wallet, hors commission ASSO.</p>
         <form action="{{ route('admin.maritime.settings') }}" method="POST" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
@@ -132,6 +132,20 @@
                 <input type="number" min="0" max="60" name="dropoff_days_before" value="{{ old('dropoff_days_before', $settings['dropoff_days_before']) }}" class="{{ $input }}">
             </div>
             <button type="submit" class="{{ $btn }}">Enregistrer</button>
+        </form>
+    </div>
+
+    <div class="bg-dark-100 rounded-xl shadow-lg border border-dark-200 p-6">
+        <h2 class="text-lg font-semibold text-white mb-1">Plafond global d’indemnisation</h2>
+        <p class="text-sm text-gray-400 mb-4">Plafond unique appliqué au montant calculé par le serveur ; obligatoire avant tout versement.</p>
+        <form action="{{ route('admin.maritime.indemnity-cap') }}" method="POST" class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+            @csrf
+            <div>
+                <label class="block text-sm text-gray-300 mb-1">Plafond global (XAF)</label>
+                <input type="number" step="1" min="1" max="1000000000000" required name="indemnity_cap_xaf" value="{{ old('indemnity_cap_xaf', $indemnityCapXaf) }}" class="{{ $input }}">
+            </div>
+            <div class="text-sm text-gray-400">Valeur actuelle : {{ $indemnityCapXaf ? number_format((float) $indemnityCapXaf, 0, ',', ' ') . ' XAF' : 'Non configurée' }}</div>
+            <button type="submit" class="{{ $btn }}">Enregistrer le plafond</button>
         </form>
     </div>
 </div>

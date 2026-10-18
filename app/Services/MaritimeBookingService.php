@@ -34,6 +34,7 @@ class MaritimeBookingService
      * Crée la réservation et lance l'encaissement.
      *
      * @return array{booking: MaritimeBooking, payment: array, message: string}
+     *
      * @throws MaritimeBookingException refus métier (422)
      */
     public function book(User $sender, int $departureId, array $data): array
@@ -41,7 +42,7 @@ class MaritimeBookingService
         return DB::transaction(function () use ($sender, $departureId, $data) {
             $departure = MaritimeDeparture::with(['originHub', 'company'])->lockForUpdate()->findOrFail($departureId);
 
-            if (!$departure->isBookable()) {
+            if (! $departure->isBookable()) {
                 throw new MaritimeBookingException(__('maritime.trip_impossible'));
             }
             if ((float) $departure->remaining_kg < (float) $data['kg_booked']) {
@@ -59,13 +60,16 @@ class MaritimeBookingService
                 $declaredValue = ParcelInsuranceService::declaredValueIn(
                     (float) $data['declared_value'], $data['declared_value_currency'] ?? null, $currency
                 );
-                $insurance = ParcelInsuranceService::quote(
-                    ParcelNature::findOrFail($data['parcel_nature_id']),
-                    $declaredValue
-                );
+                $nature = ParcelNature::findOrFail($data['parcel_nature_id']);
+                $insuranceQuote = ParcelInsuranceService::quote($nature, $declaredValue);
             } catch (\RuntimeException $e) {
                 throw new MaritimeBookingException($e->getMessage());
             }
+            if ($declaredValue <= 0) {
+                throw new MaritimeBookingException(__('validation.gt.numeric', ['attribute' => 'declared_value', 'value' => 0]));
+            }
+            $insuranceOptIn = (bool) ($data['insurance_opt_in'] ?? false);
+            $insurance = $insuranceOptIn ? $insuranceQuote : 0.0;
             $total = round($freight + $insurance, 2);
 
             $method = $data['payment_method'];
@@ -95,7 +99,11 @@ class MaritimeBookingService
                 'recipient_phone' => $data['recipient_phone'],
                 'parcel_nature_id' => $data['parcel_nature_id'],
                 'declared_value' => $declaredValue,
-                'insurance_amount' => $insurance,
+                'insurance_opt_in' => $insuranceOptIn,
+                'insurance_rate_applied' => (float) $nature->insurance_rate,
+                'insurance_quote_amount' => $insuranceQuote,
+                'insurance_status' => $insuranceOptIn ? 'pending_payment' : 'not_opted_in',
+                'insurance_amount' => 0,
                 'price_per_kg' => $departure->price_per_kg,
                 'freight_subtotal' => $freightSubtotal,
                 'commission_amount' => $commission,
@@ -107,6 +115,14 @@ class MaritimeBookingService
                 'payment_status' => 'pending',
                 'payment_method' => $method,
             ]);
+            $this->recordBookingHistory(
+                $booking,
+                $insuranceOptIn ? 'insurance_opted_in' : 'insurance_opted_out',
+                $booking->insurance_status,
+                null,
+                null,
+                ['rate' => (float) $nature->insurance_rate, 'quote_amount' => $insuranceQuote]
+            );
 
             $departure->decrement('remaining_kg', (float) $data['kg_booked']);
 
@@ -181,8 +197,8 @@ class MaritimeBookingService
 
     private function initStripe(MaritimeBooking $booking): array
     {
-        $stripe = new StripeService();
-        if (!$stripe->isConfigured()) {
+        $stripe = new StripeService;
+        if (! $stripe->isConfigured()) {
             throw new MaritimeBookingException(__('payments.card_temporarily_unavailable'));
         }
 
@@ -224,15 +240,16 @@ class MaritimeBookingService
     /** Re-vérifie un paiement en attente auprès de son rail (polling de l'app). */
     public function syncPayment(MaritimeBooking $booking): void
     {
-        if ($booking->payment_status !== 'pending' || !$booking->payment_reference || $booking->status !== MaritimeBooking::STATUS_PENDING) {
+        if ($booking->payment_status !== 'pending' || ! $booking->payment_reference || $booking->status !== MaritimeBooking::STATUS_PENDING) {
             return;
         }
 
         if ($booking->payment_method === 'stripe') {
             try {
-                $intent = (new StripeService())->retrievePaymentIntent($booking->payment_reference);
+                $intent = (new StripeService)->retrievePaymentIntent($booking->payment_reference);
             } catch (\Throwable $e) {
-                Log::warning('[Maritime] Stripe retrieve PaymentIntent: ' . $e->getMessage());
+                Log::warning('[Maritime] Stripe retrieve PaymentIntent: '.$e->getMessage());
+
                 return;
             }
             $status = strtolower($intent['status'] ?? '');
@@ -241,6 +258,7 @@ class MaritimeBookingService
             } elseif ($status === 'canceled') {
                 $this->failPayment($booking);
             }
+
             return;
         }
 
@@ -258,14 +276,25 @@ class MaritimeBookingService
     {
         $confirmed = DB::transaction(function () use ($booking) {
             $b = MaritimeBooking::whereKey($booking->id)->lockForUpdate()->first();
-            if (!$b || $b->payment_status !== 'pending' || $b->status !== MaritimeBooking::STATUS_PENDING) {
+            if (! $b || $b->payment_status !== 'pending' || $b->status !== MaritimeBooking::STATUS_PENDING) {
                 return false;
             }
-            $b->update(['payment_status' => 'completed', 'status' => MaritimeBooking::STATUS_PAID, 'paid_at' => now()]);
+            $insuranceStatus = $b->insurance_opt_in ? 'active' : 'not_opted_in';
+            $b->update([
+                'payment_status' => 'completed',
+                'status' => MaritimeBooking::STATUS_PAID,
+                'paid_at' => now(),
+                'insurance_status' => $insuranceStatus,
+                'insurance_amount' => $b->insurance_opt_in ? $b->insurance_quote_amount : 0,
+            ]);
+            $this->recordBookingHistory($b, 'payment_completed', $insuranceStatus, null, null, [
+                'payment_method' => $b->payment_method,
+                'insurance_amount' => (float) $b->insurance_amount,
+            ]);
 
             return true;
         });
-        if (!$confirmed) {
+        if (! $confirmed) {
             return;
         }
 
@@ -283,10 +312,17 @@ class MaritimeBookingService
     {
         DB::transaction(function () use ($booking) {
             $b = MaritimeBooking::whereKey($booking->id)->lockForUpdate()->first();
-            if (!$b || $b->payment_status !== 'pending' || $b->status !== MaritimeBooking::STATUS_PENDING) {
+            if (! $b || $b->payment_status !== 'pending' || $b->status !== MaritimeBooking::STATUS_PENDING) {
                 return;
             }
-            $b->update(['status' => MaritimeBooking::STATUS_CANCELLED, 'cancelled_at' => now(), 'cancel_reason' => 'payment_failed']);
+            $insuranceStatus = $b->insurance_opt_in ? 'payment_failed' : 'not_opted_in';
+            $b->update([
+                'status' => MaritimeBooking::STATUS_CANCELLED,
+                'cancelled_at' => now(),
+                'cancel_reason' => 'payment_failed',
+                'insurance_status' => $insuranceStatus,
+            ]);
+            $this->recordBookingHistory($b, 'payment_failed', $insuranceStatus, null, 'Payment failed.');
             MaritimeDeparture::whereKey($b->maritime_departure_id)->increment('remaining_kg', (float) $b->kg_booked);
         });
     }
@@ -303,7 +339,7 @@ class MaritimeBookingService
     {
         DB::transaction(function () use ($booking, $reason) {
             $b = MaritimeBooking::whereKey($booking->id)->lockForUpdate()->first();
-            if (!in_array($b->status, [MaritimeBooking::STATUS_PENDING, MaritimeBooking::STATUS_PAID], true)) {
+            if (! in_array($b->status, [MaritimeBooking::STATUS_PENDING, MaritimeBooking::STATUS_PAID], true)) {
                 throw new MaritimeBookingException(__('maritime.cannot_cancel'));
             }
 
@@ -313,7 +349,11 @@ class MaritimeBookingService
             $b->status = MaritimeBooking::STATUS_CANCELLED;
             $b->cancel_reason = $reason ?: 'cancelled_by_sender';
             $b->cancelled_at = now();
+            if ($b->insurance_opt_in) {
+                $b->insurance_status = 'refunded';
+            }
             $b->save();
+            $this->recordBookingHistory($b, 'booking_cancelled', $b->insurance_status, null, $b->cancel_reason);
 
             MaritimeDeparture::whereKey($b->maritime_departure_id)->increment('remaining_kg', (float) $b->kg_booked);
         });
@@ -334,7 +374,7 @@ class MaritimeBookingService
             try {
                 $done = DB::transaction(function () use ($id) {
                     $b = MaritimeBooking::whereKey($id)->lockForUpdate()->first();
-                    if (!$b || $b->status !== MaritimeBooking::STATUS_PAID || $b->payment_status !== 'completed') {
+                    if (! $b || $b->status !== MaritimeBooking::STATUS_PAID || $b->payment_status !== 'completed') {
                         return null;
                     }
                     $refundable = round((float) $b->total_price - (float) $b->commission_amount, 2);
@@ -342,20 +382,25 @@ class MaritimeBookingService
                     $b->status = MaritimeBooking::STATUS_CANCELLED;
                     $b->cancel_reason = 'dropoff_missed';
                     $b->cancelled_at = now();
+                    if ($b->insurance_opt_in) {
+                        $b->insurance_status = 'refunded';
+                    }
                     $b->save();
+                    $this->recordBookingHistory($b, 'booking_cancelled', $b->insurance_status, null, $b->cancel_reason);
 
                     return $b;
                 });
             } catch (\RuntimeException $e) {
                 // Sans taux de change, on réessaiera au prochain passage.
                 Log::error('[Maritime] Remboursement impossible', ['booking_id' => $id, 'error' => $e->getMessage()]);
+
                 continue;
             }
 
             if ($done) {
                 $count++;
                 $this->notifySender($done, 'maritime_dropoff_missed', [
-                    'amount' => number_format((float) $done->refunded_amount, 0, ',', ' ') . ' FCFA',
+                    'amount' => number_format((float) $done->refunded_amount, 0, ',', ' ').' FCFA',
                 ]);
             }
         }
@@ -392,12 +437,13 @@ class MaritimeBookingService
         $b = DB::transaction(function () use ($booking) {
             $b = MaritimeBooking::whereKey($booking->id)->lockForUpdate()->first();
             $next = MaritimeBooking::NEXT_STEP[$b->status] ?? null;
-            if (!$next) {
+            if (! $next || $b->payment_status !== 'completed') {
                 throw new MaritimeBookingException('Aucune étape suivante pour ce statut.');
             }
             $b->status = $next;
             $b->{"{$next}_at"} = now();
             $b->save();
+            $this->recordBookingHistory($b, 'booking_status', $next, null, null);
 
             return $b;
         });
@@ -418,7 +464,7 @@ class MaritimeBookingService
      */
     public function complete(MaritimeBooking $booking, string $code): MaritimeBooking
     {
-        if (!hash_equals($booking->confirmation_code, $code)) {
+        if (! hash_equals($booking->confirmation_code, $code)) {
             throw new MaritimeBookingException(__('maritime.code_incorrect'));
         }
 
@@ -474,8 +520,9 @@ class MaritimeBookingService
         );
 
         $platform = CommissionService::platformAccount();
-        if (!$platform) {
+        if (! $platform) {
             Log::warning('[Maritime] Compte plateforme ASSO introuvable, commission non créditée', ['booking_id' => $b->id]);
+
             return;
         }
         if ($commission > 0) {
@@ -506,9 +553,10 @@ class MaritimeBookingService
     private function notifySender(MaritimeBooking $b, string $type, array $replace): void
     {
         $sender = User::find($b->sender_user_id);
-        if (!$sender) {
+        if (! $sender) {
             return;
         }
+
         try {
             $this->fcm->sendToUser(
                 $sender,
@@ -517,8 +565,25 @@ class MaritimeBookingService
                 ['type' => $type, 'maritime_booking_id' => (string) $b->id]
             );
         } catch (\Throwable $e) {
-            Log::warning("[Maritime] FCM {$type}: " . $e->getMessage());
+            Log::warning("[Maritime] FCM {$type}: ".$e->getMessage());
         }
+    }
+
+    private function recordBookingHistory(
+        MaritimeBooking $booking,
+        string $event,
+        string $status,
+        ?int $actorId,
+        ?string $reason,
+        array $metadata = []
+    ): void {
+        $booking->insuranceHistory()->create([
+            'event' => $event,
+            'status' => $status,
+            'actor_user_id' => $actorId,
+            'reason' => $reason,
+            'metadata' => $metadata ?: null,
+        ]);
     }
 
     /** Comptes back-office ayant accès à Diaspo : à contacter l'expéditeur après paiement. */
@@ -526,7 +591,7 @@ class MaritimeBookingService
     {
         return User::whereIn('role', config('admin_access.staff_roles', []))
             ->get()
-            ->filter(fn (User $user) => !$user->isTechnicalAccount() && $user->hasAdminPermission('diaspo'))
+            ->filter(fn (User $user) => ! $user->isTechnicalAccount() && $user->hasAdminPermission('diaspo'))
             ->values();
     }
 
@@ -536,7 +601,7 @@ class MaritimeBookingService
             'name' => $b->senderName(),
             'phone' => $b->sender_phone,
             'kg' => (float) $b->kg_booked,
-            'route' => $b->departure->originHub->city . ' → ' . ($b->departure->destinationHub()->value('city') ?? ''),
+            'route' => $b->departure->originHub->city.' → '.($b->departure->destinationHub()->value('city') ?? ''),
         ];
 
         foreach (self::staff() as $employee) {
@@ -549,16 +614,16 @@ class MaritimeBookingService
                     'maritime_booking_id' => (string) $b->id,
                 ]);
             } catch (\Throwable $e) {
-                Log::warning('[Maritime] FCM staff: ' . $e->getMessage());
+                Log::warning('[Maritime] FCM staff: '.$e->getMessage());
             }
-            if (!$employee->email) {
+            if (! $employee->email) {
                 continue;
             }
             try {
                 $url = route('admin.maritime.bookings.show', $b->id);
                 Mail::raw("{$body}\n\n{$url}", fn ($m) => $m->to($employee->email)->subject($title));
             } catch (\Throwable $e) {
-                Log::warning('[Maritime] e-mail staff: ' . $e->getMessage());
+                Log::warning('[Maritime] e-mail staff: '.$e->getMessage());
             }
         }
     }

@@ -14,9 +14,9 @@ use App\Http\Controllers\Admin\DiaspoVerificationController;
 use App\Http\Controllers\Admin\DocumentController;
 use App\Http\Controllers\Admin\ExchangeController;
 use App\Http\Controllers\Admin\FcmTokenController;
+use App\Http\Controllers\Admin\GuideController;
 use App\Http\Controllers\Admin\ImportCountryController;
 use App\Http\Controllers\Admin\ImportShippingOptionController;
-use App\Http\Controllers\Admin\GuideController;
 use App\Http\Controllers\Admin\LegalPageController;
 use App\Http\Controllers\Admin\MaintenanceController;
 use App\Http\Controllers\Admin\MapController;
@@ -450,6 +450,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::prefix('maritime')->name('maritime.')->controller(App\Http\Controllers\Admin\MaritimeController::class)->group(function () {
             Route::get('/', 'index')->name('index');
             Route::post('/settings', 'updateSettings')->name('settings');
+            Route::post('/indemnity-cap', 'updateIndemnityCap')->name('indemnity-cap');
             Route::post('/partners', 'storePartner')->name('partners.store');
             Route::get('/partners/{partner}', 'showPartner')->name('partners.show');
             Route::put('/partners/{partner}', 'updatePartner')->name('partners.update');
@@ -462,6 +463,10 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::post('/bookings/{booking}/advance', 'advanceBooking')->name('bookings.advance');
             Route::post('/bookings/{booking}/complete', 'completeBooking')->name('bookings.complete');
             Route::post('/bookings/{booking}/notes', 'updateNotes')->name('bookings.notes');
+            Route::post('/claims/{claim}/confirm-loss', 'confirmLoss')->name('claims.confirm-loss');
+            Route::post('/claims/{claim}/review', 'reviewClaim')->name('claims.review');
+            Route::get('/claims/{claim}/payout-proposal', 'payoutProposal')->name('claims.payout-proposal');
+            Route::post('/claims/{claim}/pay', 'payClaim')->name('claims.pay');
         });
 
         // DIASPO - Vérification des documents d'identité

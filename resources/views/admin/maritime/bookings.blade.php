@@ -18,6 +18,12 @@
             @continue($value === 'pending')
             <button name="status" value="{{ $value }}" class="px-3 py-1.5 rounded-lg text-sm {{ request('status') === $value ? 'bg-primary-600 text-white' : 'bg-dark-200 text-gray-300' }}">{{ $label }}</button>
         @endforeach
+        <select name="claim_status" class="px-3 py-1.5 rounded-lg bg-dark-200 text-gray-300" onchange="this.form.submit()">
+            <option value="">Toutes les demandes d’indemnisation</option>
+            @foreach($claimStatuses as $value => $label)
+                <option value="{{ $value }}" @selected(request('claim_status') === $value)>{{ $label }}</option>
+            @endforeach
+        </select>
     </form>
 
     <div class="bg-dark-100 rounded-xl shadow-lg border border-dark-200 overflow-hidden">
@@ -26,7 +32,7 @@
                 <thead class="bg-dark-50">
                     <tr class="text-left text-xs font-semibold text-white uppercase tracking-wider">
                         <th class="px-4 py-3">#</th><th class="px-4 py-3">Expéditeur</th><th class="px-4 py-3">Trajet</th><th class="px-4 py-3">Kilos</th>
-                        <th class="px-4 py-3">Total</th><th class="px-4 py-3">Dépôt avant</th><th class="px-4 py-3">Statut</th><th></th>
+                        <th class="px-4 py-3">Total</th><th class="px-4 py-3">Dépôt avant</th><th class="px-4 py-3">Statut</th><th class="px-4 py-3">Indemnisation</th><th></th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-dark-200 text-gray-300">
@@ -39,10 +45,11 @@
                             <td class="px-4 py-3 whitespace-nowrap">{{ number_format((float) $b->total_price, 2, ',', ' ') }} {{ $b->currency }}</td>
                             <td class="px-4 py-3 whitespace-nowrap {{ $b->status === 'paid' && $b->dropoff_deadline->isPast() ? 'text-red-300' : '' }}">{{ $b->dropoff_deadline->format('d/m/Y') }}</td>
                             <td class="px-4 py-3">{{ $statuses[$b->status] ?? $b->status }}</td>
+                            <td class="px-4 py-3">{{ $claimStatuses[$b->indemnityClaim?->status] ?? '—' }}</td>
                             <td class="px-4 py-3 text-right"><a href="{{ route('admin.maritime.bookings.show', $b) }}" class="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Ouvrir</a></td>
                         </tr>
                     @empty
-                        <tr><td colspan="8" class="px-4 py-8 text-center text-gray-400">Aucun envoi.</td></tr>
+                        <tr><td colspan="9" class="px-4 py-8 text-center text-gray-400">Aucun envoi.</td></tr>
                     @endforelse
                 </tbody>
             </table>

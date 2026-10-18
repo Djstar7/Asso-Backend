@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Conversation extends Model
@@ -63,6 +64,12 @@ class Conversation extends Model
         return $this->hasMany(Message::class);
     }
 
+    public function maritimeBookings(): BelongsToMany
+    {
+        return $this->belongsToMany(MaritimeBooking::class, 'conversation_maritime_booking')
+            ->withTimestamps();
+    }
+
     /**
      * Utilisateurs qui ont caché cette conversation
      */
@@ -108,7 +115,7 @@ class Conversation extends Model
      */
     public function scopeWithUnread($query)
     {
-        return $query->whereHas('messages', function($q) {
+        return $query->whereHas('messages', function ($q) {
             $q->where('is_read', false);
         });
     }
@@ -121,21 +128,21 @@ class Conversation extends Model
      */
     public function scopeNotHiddenBy($query, $userId)
     {
-        return $query->where(function($q) use ($userId) {
+        return $query->where(function ($q) use ($userId) {
             // Soit pas de hide du tout
-            $q->whereDoesntHave('hides', function($hideQuery) use ($userId) {
+            $q->whereDoesntHave('hides', function ($hideQuery) use ($userId) {
                 $hideQuery->where('user_id', $userId);
             })
             // Soit hide mais avec un nouveau message après
-            ->orWhere(function($orQuery) use ($userId) {
-                $orQuery->whereHas('hides', function($hideQuery) use ($userId) {
-                    $hideQuery->where('user_id', $userId);
-                })
-                ->whereHas('messages', function($msgQuery) use ($userId) {
-                    // Il y a au moins un message créé après le hide
-                    $msgQuery->whereRaw('created_at > (SELECT created_at FROM conversation_hides WHERE conversation_id = conversations.id AND user_id = ?)', [$userId]);
+                ->orWhere(function ($orQuery) use ($userId) {
+                    $orQuery->whereHas('hides', function ($hideQuery) use ($userId) {
+                        $hideQuery->where('user_id', $userId);
+                    })
+                        ->whereHas('messages', function ($msgQuery) use ($userId) {
+                            // Il y a au moins un message créé après le hide
+                            $msgQuery->whereRaw('created_at > (SELECT created_at FROM conversation_hides WHERE conversation_id = conversations.id AND user_id = ?)', [$userId]);
+                        });
                 });
-            });
         });
     }
 

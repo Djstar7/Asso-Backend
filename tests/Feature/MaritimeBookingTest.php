@@ -44,6 +44,9 @@ class MaritimeBookingTest extends TestCase
         $this->mock(FirebaseMessagingService::class, function ($m) {
             $m->shouldReceive('sendToUser')->andReturnUsing(function ($user, $title, $body, $data = []) {
                 $this->pushes[] = ['user_id' => $user->id, 'type' => $data['type'] ?? null];
+                if (($data['type'] ?? null) === 'maritime_arrived') {
+                    (new FirebaseMessagingService)->sendToUser($user, $title, $body, $data);
+                }
 
                 return [];
             });
@@ -66,7 +69,7 @@ class MaritimeBookingTest extends TestCase
     private function departure(int $daysAhead = 20, ?User $partnerUser = null): MaritimeDeparture
     {
         $partner = DelivererCompany::create([
-            'name' => 'Transit Mer ' . uniqid(),
+            'name' => 'Transit Mer '.uniqid(),
             'service_type' => DelivererCompany::SERVICE_MARITIME,
             'is_active' => true,
             'user_id' => ($partnerUser ?? User::factory()->create())->id,
@@ -96,6 +99,7 @@ class MaritimeBookingTest extends TestCase
             'recipient_first_name' => 'Paul', 'recipient_last_name' => 'Etoa', 'recipient_country' => 'CM', 'recipient_phone' => '+237690000000',
             'parcel_nature_id' => $nature->id,
             'declared_value' => 1000,
+            'insurance_opt_in' => true,
             'payment_method' => 'kpay', 'provider' => 'MTN_MOMO_CMR', 'phone_number' => '237653456789',
         ];
     }
@@ -120,14 +124,19 @@ class MaritimeBookingTest extends TestCase
         $res = $this->postJson("/api/v1/maritime/departures/{$departure->id}/book", $this->payload())->assertStatus(201);
         $id = $res->json('booking_id');
 
-        // Fret 50 × 4 = 200 € ; client 50 × 4,40 = 220 € (commission 20) ; assurance 2 % × 1000 = 20 → 240 €.
+        // À l'initialisation KPay est en attente : le devis est figé, mais la prime payée reste à zéro.
         $this->assertDatabaseHas('maritime_bookings', [
-            'id' => $id, 'freight_subtotal' => 200, 'commission_amount' => 20, 'insurance_amount' => 20, 'total_price' => 240,
+            'id' => $id, 'freight_subtotal' => 200, 'commission_amount' => 20, 'insurance_amount' => 0,
+            'insurance_opt_in' => true, 'insurance_rate_applied' => 2, 'insurance_quote_amount' => 20, 'total_price' => 240,
             'dropoff_deadline' => today()->addDays(16)->toDateString().' 00:00:00',
         ]);
+        $res->assertJsonPath('data.insurance_opt_in', true)
+            ->assertJsonPath('data.insurance_amount', 0)
+            ->assertJsonPath('data.insurance_status', 'pending_payment');
         $this->assertEquals(450, (float) $departure->fresh()->remaining_kg);
 
         $this->getJson("/api/v1/maritime/bookings/{$id}/payment-status")->assertJsonPath('data.status', 'paid');
+        $this->assertDatabaseHas('maritime_bookings', ['id' => $id, 'insurance_amount' => 20, 'insurance_status' => 'active']);
 
         // L'équipe ASSO est prévenue pour contacter l'expéditeur.
         $this->assertContains(['user_id' => $admin->id, 'type' => 'maritime_staff_paid'], $this->pushes);
@@ -141,8 +150,14 @@ class MaritimeBookingTest extends TestCase
             $this->post(route('admin.maritime.bookings.advance', $booking))->assertRedirect();
             $this->assertEquals($step, $booking->fresh()->status);
         }
+        // Replayed arrival transition is rejected without a duplicate client notification.
+        $this->post(route('admin.maritime.bookings.advance', $booking))->assertSessionHas('error');
+        $this->assertSame(1, collect($this->pushes)->where('type', 'maritime_arrived')->count());
+        $this->assertNotNull($booking->fresh()->arrived_at);
+        $this->assertDatabaseCount('notifications', 1);
+        $this->assertDatabaseHas('notifications', ['user_id' => $sender->id, 'type' => 'maritime_arrived']);
 
-        $this->post(route('admin.maritime.bookings.complete', $booking), ['confirmation_code' => '000000' === $booking->confirmation_code ? '111111' : '000000'])
+        $this->post(route('admin.maritime.bookings.complete', $booking), ['confirmation_code' => $booking->confirmation_code === '000000' ? '111111' : '000000'])
             ->assertSessionHas('error');
         $this->post(route('admin.maritime.bookings.complete', $booking), ['confirmation_code' => $booking->confirmation_code])
             ->assertSessionHas('success');
@@ -166,10 +181,12 @@ class MaritimeBookingTest extends TestCase
         $payload = ['payment_method' => 'wallet'] + $this->payload();
         unset($payload['provider'], $payload['phone_number']);
         // 240 € = 157 440 FCFA débités, envoi payé tout de suite.
-        $this->postJson("/api/v1/maritime/departures/{$departure->id}/book", $payload)
+        $walletBooking = $this->postJson("/api/v1/maritime/departures/{$departure->id}/book", $payload)
             ->assertStatus(201)
             ->assertJsonPath('payment.flow', 'wallet')
             ->assertJsonPath('data.status', 'paid');
+        $walletBooking->assertJsonPath('data.insurance_status', 'active')
+            ->assertJsonPath('data.insurance_amount', 20);
         $this->assertEquals(200000 - 157440, $sender->fresh()->kpayBalanceFor('XAF'));
 
         // Solde restant insuffisant pour un second envoi : refusé, kilos rendus.
@@ -316,7 +333,7 @@ class MaritimeBookingTest extends TestCase
         $this->actingAs(User::factory()->create(['role' => 'admin']));
         $this->get(route('admin.partner-payouts.show', $partner))
             ->assertOk()
-            ->assertSee('Paiements — ' . $partner->name)
+            ->assertSee('Paiements — '.$partner->name)
             ->assertSee('Mobile Money')
             ->assertSee('Virement bancaire');
 
