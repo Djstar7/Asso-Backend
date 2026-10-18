@@ -9,10 +9,8 @@ use App\Services\MaritimeBookingException;
 use App\Services\MaritimeBookingService;
 use App\Services\MobileMoneyGateway;
 use App\Services\PaymentMethodService;
-use App\Support\CountryCode;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Validation\Rule;
 
 /**
  * Diaspo Maritime — départs des partenaires maritimes et envois des expéditeurs.
@@ -74,7 +72,7 @@ class MaritimeController extends Controller
             'emergency_phone' => 'required|string|max:30',
             'recipient_first_name' => 'required|string|max:100',
             'recipient_last_name' => 'required|string|max:100',
-            'recipient_country' => ['required', 'string', Rule::in(array_keys(CountryCode::NAMES))],
+            'recipient_country' => 'required|string|size:2|alpha',
             'recipient_phone' => 'required|string|max:30',
             'parcel_nature_id' => 'required|integer|exists:parcel_natures,id,is_active,1',
             'declared_value' => 'required|numeric|min:0|max:100000000',

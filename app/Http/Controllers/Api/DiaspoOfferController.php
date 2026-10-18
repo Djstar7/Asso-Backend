@@ -244,15 +244,16 @@ class DiaspoOfferController extends Controller
     public function uploadVerificationDocument(Request $request)
     {
         $user = auth()->user();
-        $countries = array_keys(\App\Support\CountryCode::NAMES);
         $image = 'file|mimes:jpg,jpeg,png|max:5120';
         $reinforced = $request->filled('nationality');
 
         if ($reinforced) {
+            // Tout code pays ISO à 2 lettres (l'app propose la liste complète).
             $base = $request->validate([
-                'nationality' => ['required', Rule::in($countries)],
-                'residence_country' => ['required', Rule::in($countries)],
+                'nationality' => 'required|string|size:2|alpha',
+                'residence_country' => 'required|string|size:2|alpha',
             ]);
+            $base = array_map('strtoupper', $base);
             $required = DiaspoVerificationService::requiredDocuments($base['nationality'], $base['residence_country']);
             $data = $request->validate([
                 'document_type' => ['required', Rule::in($required['identity'])],
