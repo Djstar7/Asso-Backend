@@ -15,7 +15,18 @@
         @include('admin.delivery_partners._services_summary', ['partner' => $partner, 'compact' => true])
     </div>
 
-    @include('admin.delivery_partners._account')
+    <!-- Paiements : Wallet du compte interne du partenaire, versé comme le retrait ASSO -->
+    <div class="bg-dark-100 rounded-xl shadow-lg border border-dark-200 p-6 mb-6 flex flex-wrap items-center justify-between gap-4">
+        <div>
+            <h2 class="text-lg font-semibold text-white mb-1"><i class="fas fa-wallet mr-2 text-primary-400"></i>Paiements du partenaire</h2>
+            <p class="text-sm text-gray-400">Ses courses sont créditées sur son Wallet à chaque règlement. Solde à verser : <span class="text-white font-semibold">{{ number_format($walletBalance, 0, ',', ' ') }} FCFA</span></p>
+        </div>
+        @if(auth()->user()->isAdmin())
+            <a href="{{ route('admin.partner-payouts.show', $partner) }}" class="px-4 py-2 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-lg hover:shadow-lg">
+                <i class="fas fa-paper-plane mr-1"></i>Payer (Mobile Money / IBAN)
+            </a>
+        @endif
+    </div>
 
     <!-- Coursiers : l'app ASSO reçoit les livraisons à domicile du partenaire -->
     @php

@@ -39,6 +39,8 @@ class MaritimeDeparture extends Model
         'capacity_kg',
         'remaining_kg',
         'price_per_kg',
+        'price_per_cbm',
+        'kg_per_cbm',
         'currency',
         'status',
         'notes',
@@ -50,6 +52,8 @@ class MaritimeDeparture extends Model
         'capacity_kg' => 'decimal:2',
         'remaining_kg' => 'decimal:2',
         'price_per_kg' => 'decimal:2',
+        'price_per_cbm' => 'decimal:2',
+        'kg_per_cbm' => 'decimal:2',
     ];
 
     public function company(): BelongsTo
@@ -86,6 +90,9 @@ class MaritimeDeparture extends Model
         return max(0, (int) Setting::get('maritime_booking_cutoff_days', 7));
     }
 
+    /** Départ tarifé au m³ : 1 m³ = 1 000 kg (règle fixée par ASSO). */
+    public const KG_PER_CBM = 1000;
+
     public static function dropoffDaysBefore(): int
     {
         return max(0, (int) Setting::get('maritime_dropoff_days_before', 4));
@@ -120,10 +127,42 @@ class MaritimeDeparture extends Model
             && (float) $this->remaining_kg > 0;
     }
 
-    /** Prix au kilo payé par l'expéditeur : prix du partenaire majoré de la commission ASSO. */
+    public function isPricedPerCbm(): bool
+    {
+        return (float) $this->price_per_cbm > 0 && (float) $this->kg_per_cbm > 0;
+    }
+
+    /** Volume (m³) correspondant à des kilos, selon la conversion du départ. */
+    public function volumeForKg(float $kg): ?float
+    {
+        return $this->isPricedPerCbm() ? round($kg / (float) $this->kg_per_cbm, 4) : null;
+    }
+
+    /**
+     * Fret du partenaire pour des kilos, sans commission. Départ au m³ : les
+     * kilos sont convertis en m³ puis multipliés par le tarif au m³.
+     */
+    public function partnerFreightFor(float $kg): float
+    {
+        return $this->isPricedPerCbm()
+            ? round($kg / (float) $this->kg_per_cbm * (float) $this->price_per_cbm, 2)
+            : round($kg * (float) $this->price_per_kg, 2);
+    }
+
+    /** Fret payé par l'expéditeur : fret du partenaire majoré de la commission ASSO. */
+    public function publicFreightFor(float $kg): float
+    {
+        return round($this->partnerFreightFor($kg) * (1 + self::commissionRate() / 100), 2);
+    }
+
+    /** Prix au kilo affiché : prix du partenaire majoré de la commission ASSO. */
     public function publicPricePerKg(): float
     {
-        return round((float) $this->price_per_kg * (1 + self::commissionRate() / 100), 2);
+        $partnerPerKg = $this->isPricedPerCbm()
+            ? (float) $this->price_per_cbm / (float) $this->kg_per_cbm
+            : (float) $this->price_per_kg;
+
+        return round($partnerPerKg * (1 + self::commissionRate() / 100), 2);
     }
 
     public function scopeUpcoming($query)
@@ -154,6 +193,11 @@ class MaritimeDeparture extends Model
             'capacity_kg' => (float) $this->capacity_kg,
             'remaining_kg' => (float) $this->remaining_kg,
             'price_per_kg' => $this->publicPricePerKg(),
+            // Départ tarifé au m³ : tarif public au m³ et conversion, pour l'affichage.
+            'price_per_cbm' => $this->isPricedPerCbm()
+                ? round((float) $this->price_per_cbm * (1 + self::commissionRate() / 100), 2)
+                : null,
+            'kg_per_cbm' => $this->isPricedPerCbm() ? (float) $this->kg_per_cbm : null,
             'currency' => $this->currency,
             'status' => $this->status,
             'notes' => $this->notes,

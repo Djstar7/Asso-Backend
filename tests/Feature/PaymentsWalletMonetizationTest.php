@@ -372,9 +372,9 @@ class PaymentsWalletMonetizationTest extends TestCase
             ->assertJsonPath('order.items.0.unit_price', 10000);
 
         $this->assertEquals(20000, $this->bal($c['seller']));
-        // Course due au partenaire (versée depuis l'admin), plus de crédit Wallet.
+        // Course créditée au Wallet du compte interne du partenaire, plus au coursier.
         $this->assertEquals(0, $this->bal($c['delivererUser']));
-        $this->assertEquals(400, \App\Services\PartnerLedgerService::balance((int) \App\Models\DelivererCompany::where('user_id', $c['delivererUser']->id)->value('id'))['due']);
+        $this->assertEquals(400, (\App\Models\DelivererCompany::find((int) \App\Models\DelivererCompany::where('user_id', $c['delivererUser']->id)->value('id'))?->account?->kpayBalanceFor('XAF') ?? 0));
         $this->assertEquals(1000 + 100, $this->bal($asso));
         $this->assertEquals(50000 - 21500, $this->bal($client));
 

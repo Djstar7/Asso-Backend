@@ -44,6 +44,7 @@ class MaritimeBooking extends Model
         'maritime_departure_id',
         'sender_user_id',
         'kg_booked',
+        'volume_cbm',
         'parcels_count',
         'sender_first_name',
         'sender_last_name',
@@ -81,6 +82,7 @@ class MaritimeBooking extends Model
 
     protected $casts = [
         'kg_booked' => 'decimal:2',
+        'volume_cbm' => 'decimal:4',
         'parcels_count' => 'integer',
         'declared_value' => 'decimal:2',
         'insurance_amount' => 'decimal:2',
@@ -143,6 +145,7 @@ class MaritimeBooking extends Model
             'maritime_departure_id' => $this->maritime_departure_id,
             'departure' => $this->relationLoaded('departure') && $this->departure ? $this->departure->toApi() : null,
             'kg_booked' => (float) $this->kg_booked,
+            'volume_cbm' => $this->volume_cbm !== null ? (float) $this->volume_cbm : null,
             'parcels_count' => $this->parcels_count,
             'sender_first_name' => $this->sender_first_name,
             'sender_last_name' => $this->sender_last_name,

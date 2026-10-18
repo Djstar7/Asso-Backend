@@ -1,8 +1,8 @@
-{{-- IBAN du compte plateforme : même soumission Stripe Connect que dans l'app (KYC exigé par Stripe). --}}
+{{-- IBAN du compte (plateforme ou partenaire) : même soumission Stripe Connect que dans l'app (KYC exigé par Stripe). --}}
 @php
     $field = 'w-full bg-dark-200 border border-dark-300 rounded-lg px-3 py-2 text-gray-100 focus:outline-none focus:border-primary-500';
 @endphp
-<form method="POST" action="{{ route('admin.revenue.withdrawal.iban') }}" class="space-y-3">
+<form method="POST" action="{{ $routes['iban'] }}" class="space-y-3">
     @csrf
     <p class="text-sm font-semibold text-gray-200"><i class="fas fa-sync mr-1"></i>Synchroniser l'IBAN</p>
     @if($errors->any())
@@ -11,7 +11,7 @@
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div>
             <label class="block text-sm text-gray-300 mb-1">Pays</label>
-            <input type="text" name="country" value="{{ old('country', $platform->stripe_bank_country ?? 'FR') }}" maxlength="2" required class="{{ $field }} uppercase">
+            <input type="text" name="country" value="{{ old('country', $account->stripe_bank_country ?? 'FR') }}" maxlength="2" required class="{{ $field }} uppercase">
         </div>
         <div class="sm:col-span-2">
             <label class="block text-sm text-gray-300 mb-1">IBAN</label>
@@ -20,16 +20,16 @@
     </div>
     <div>
         <label class="block text-sm text-gray-300 mb-1">Titulaire du compte</label>
-        <input type="text" name="account_holder_name" value="{{ old('account_holder_name', $platform->stripe_account_holder_name) }}" required class="{{ $field }}">
+        <input type="text" name="account_holder_name" value="{{ old('account_holder_name', $account->stripe_account_holder_name) }}" required class="{{ $field }}">
     </div>
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
             <label class="block text-sm text-gray-300 mb-1">Prénom</label>
-            <input type="text" name="first_name" value="{{ old('first_name', $platform->first_name) }}" class="{{ $field }}">
+            <input type="text" name="first_name" value="{{ old('first_name', $account->first_name) }}" class="{{ $field }}">
         </div>
         <div>
             <label class="block text-sm text-gray-300 mb-1">Nom</label>
-            <input type="text" name="last_name" value="{{ old('last_name', $platform->last_name) }}" class="{{ $field }}">
+            <input type="text" name="last_name" value="{{ old('last_name', $account->last_name) }}" class="{{ $field }}">
         </div>
         <div>
             <label class="block text-sm text-gray-300 mb-1">Date de naissance</label>
@@ -37,7 +37,7 @@
         </div>
         <div>
             <label class="block text-sm text-gray-300 mb-1">Téléphone</label>
-            <input type="tel" name="phone" value="{{ old('phone', $platform->phone) }}" required class="{{ $field }}">
+            <input type="tel" name="phone" value="{{ old('phone', $account->phone) }}" required class="{{ $field }}">
         </div>
     </div>
     <div>

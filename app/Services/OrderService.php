@@ -1533,17 +1533,17 @@ class OrderService
             $order->vendor_funds_held_amount = $vendorNet;
         }
 
-        // c) Entreprise de livraison (prix de base de la course) : le montant reste
-        //    chez ASSO et s'ajoute à ce qu'elle doit au partenaire, versé depuis
-        //    sa fiche dans l'admin (PartnerLedgerService). Aucun Wallet crédité.
+        // c) Entreprise de livraison (prix de base de la course) : Wallet du compte
+        //    interne du partenaire, retiré pour lui depuis sa fiche admin.
         $baseDeliveryPrice = (float) $order->base_delivery_price;
         if ($baseDeliveryPrice > 0 && $order->delivery_company_id) {
-            PartnerLedgerService::earn(
+            PartnerAccountService::credit(
                 (int) $order->delivery_company_id,
                 $baseDeliveryPrice,
+                WalletTransaction::label('delivery_commission', ['order_number' => $order->order_number]),
                 'order',
                 $order->id,
-                "Course — commande #{$order->order_number}"
+                ['order_id' => $order->id]
             );
         }
 

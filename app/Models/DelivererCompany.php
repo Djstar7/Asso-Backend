@@ -28,18 +28,13 @@ class DelivererCompany extends Model
         'conditions',
         'max_weight_kg',
         'tracking_url_template',
-        'stripe_account_id',
-        'stripe_external_last4',
-        'stripe_bank_country',
-        'stripe_account_holder_name',
-        'stripe_submitted_at',
+        'account_user_id',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
         'prices_exclude_vat' => 'boolean',
         'max_weight_kg' => 'float',
-        'stripe_submitted_at' => 'datetime',
     ];
 
     public const SERVICE_LOCAL = 'local';
@@ -62,6 +57,12 @@ class DelivererCompany extends Model
         self::MODE_DOOR => 'Livraison à domicile',
         self::MODE_AGENCY => "D'agence en agence (dépôt et retrait en agence)",
     ];
+
+    /** Catégories de la livraison de produits (hors fret maritime, géré dans Maritime). */
+    public static function deliveryServiceTypes(): array
+    {
+        return array_diff_key(self::SERVICE_TYPES, [self::SERVICE_MARITIME => true]);
+    }
 
     /** Libellés dans la langue de la requête (les constantes restent ceux du back-office). */
     public static function serviceTypeLabel(?string $type): ?string
@@ -123,6 +124,12 @@ class DelivererCompany extends Model
     }
 
     /** Grilles urbaines zone à zone (ex. SOLEX Douala : moto, tricycle, 600 kg, 1 t). */
+    /** Compte interne géré par ASSO dont le Wallet reçoit les courses et le fret du partenaire. */
+    public function account(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'account_user_id');
+    }
+
     public function maritimeHubs(): HasMany
     {
         return $this->hasMany(MaritimeHub::class);

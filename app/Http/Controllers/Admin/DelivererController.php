@@ -21,9 +21,11 @@ class DelivererController extends Controller
     public function index(Request $request)
     {
         // Récupérer les entreprises de livraison avec leurs relations
-        $query = DelivererCompany::with(['user', 'deliveryZones', 'cityGrids', 'deliveryRoutes', 'syncCodes' => function($q) {
-            $q->latest();
-        }]);
+        // Les partenaires maritimes n'ont ni coursiers ni code de synchronisation.
+        $query = DelivererCompany::where('service_type', '!=', DelivererCompany::SERVICE_MARITIME)
+            ->with(['user', 'deliveryZones', 'cityGrids', 'deliveryRoutes', 'syncCodes' => function($q) {
+                $q->latest();
+            }]);
 
         if ($request->filled('search')) {
             $search = $request->search;

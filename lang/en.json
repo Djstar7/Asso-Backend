@@ -1277,7 +1277,8 @@
             "refund_withdrawal_failed": "Refund for failed withdrawal - :method (:account)",
             "refund_withdrawal_expired": "Refund for expired withdrawal - :method (:account)",
             "asso_commission_maritime": "ASSO commission — Sea shipment #:booking",
-            "maritime_refund": "Refund — Sea shipment #:booking"
+            "maritime_refund": "Refund — Sea shipment #:booking",
+            "maritime_freight": "Sea freight — Shipment #:booking"
         }
     },
     "sales_program": {

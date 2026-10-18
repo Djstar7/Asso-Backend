@@ -100,7 +100,7 @@
                     <th class="px-4 py-3 text-center">Grilles / zones urbaines</th>
                     <th class="px-4 py-3 text-center">Trajets</th>
                     <th class="px-4 py-3">TVA</th>
-                    <th class="px-4 py-3 text-right">Dû</th>
+                    <th class="px-4 py-3 text-right">À verser</th>
                     <th class="px-4 py-3">Statut</th>
                     <th class="px-4 py-3"></th>
                 </tr>
@@ -120,8 +120,9 @@
                         <td class="px-4 py-3 text-center">{{ $partner->delivery_routes_count }}</td>
                         <td class="px-4 py-3">{{ $partner->prices_exclude_vat ? 'Grille HT + TVA' : 'TTC' }}</td>
                         <td class="px-4 py-3 text-right whitespace-nowrap">
-                            <a href="{{ route('admin.delivery-partners.edit', $partner) }}#compte" class="{{ ($dueByCompany[$partner->id] ?? 0) > 0 ? 'text-yellow-300' : 'text-gray-500' }}">
-                                {{ number_format($dueByCompany[$partner->id] ?? 0, 0, ',', ' ') }} FCFA
+                            @php $toPay = $partner->account?->kpayAvailableFor('XAF') ?? 0; @endphp
+                            <a href="{{ auth()->user()->isAdmin() ? route('admin.partner-payouts.show', $partner) : route('admin.delivery-partners.edit', $partner) }}" class="{{ $toPay > 0 ? 'text-yellow-300' : 'text-gray-500' }}">
+                                {{ number_format($toPay, 0, ',', ' ') }} FCFA
                             </a>
                         </td>
                         <td class="px-4 py-3">

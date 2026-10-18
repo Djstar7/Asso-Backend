@@ -132,15 +132,21 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::post('/', [\App\Http\Controllers\Admin\DeliveryPartnerController::class, 'store'])->name('store');
             Route::get('/{partner}', [\App\Http\Controllers\Admin\DeliveryPartnerController::class, 'edit'])->name('edit');
             Route::put('/{partner}', [\App\Http\Controllers\Admin\DeliveryPartnerController::class, 'update'])->name('update');
-            Route::post('/{partner}/iban', [\App\Http\Controllers\Admin\DeliveryPartnerController::class, 'syncIban'])->name('iban');
-            Route::post('/{partner}/payout', [\App\Http\Controllers\Admin\DeliveryPartnerController::class, 'payout'])->name('payout');
-            Route::post('/{partner}/payouts/manual', [\App\Http\Controllers\Admin\DeliveryPartnerController::class, 'recordPayout'])->name('payouts.manual');
             Route::post('/{partner}/routes', [\App\Http\Controllers\Admin\DeliveryPartnerController::class, 'storeRoute'])->name('routes.store');
             Route::put('/{partner}/routes/{route}', [\App\Http\Controllers\Admin\DeliveryPartnerController::class, 'updateRoute'])->name('routes.update');
             Route::delete('/{partner}/routes/{route}', [\App\Http\Controllers\Admin\DeliveryPartnerController::class, 'destroyRoute'])->name('routes.destroy');
             Route::put('/{partner}/city-grids/{grid}', [\App\Http\Controllers\Admin\DeliveryPartnerController::class, 'updateCityGrid'])->name('city-grids.update');
             Route::post('/{partner}/city-grids', [\App\Http\Controllers\Admin\DeliveryPartnerController::class, 'storeCityGrid'])->name('city-grids.store');
             Route::delete('/{partner}/city-grids/{grid}', [\App\Http\Controllers\Admin\DeliveryPartnerController::class, 'destroyCityGrid'])->name('city-grids.destroy');
+        });
+        // Paiement des partenaires (livraison et maritime) : même page que le retrait ASSO.
+        Route::prefix('partners/{partner}/payouts')->name('partner-payouts.')->controller(\App\Http\Controllers\Admin\PartnerWithdrawalController::class)->group(function () {
+            Route::get('/', 'show')->name('show');
+            Route::post('/mobile', 'mobile')->name('mobile');
+            Route::post('/bank', 'bank')->name('bank');
+            Route::post('/iban', 'iban')->name('iban');
+            Route::post('/iban/approve', 'approveIban')->name('iban.approve');
+            Route::post('/{withdrawal}/refresh', 'refresh')->name('refresh');
         });
         Route::get('/shipments', [\App\Http\Controllers\Admin\ShipmentController::class, 'index'])->name('shipments.index');
         Route::get('/shipments/{order}', [\App\Http\Controllers\Admin\ShipmentController::class, 'show'])->name('shipments.show');
@@ -444,9 +450,12 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::prefix('maritime')->name('maritime.')->controller(App\Http\Controllers\Admin\MaritimeController::class)->group(function () {
             Route::get('/', 'index')->name('index');
             Route::post('/settings', 'updateSettings')->name('settings');
+            Route::post('/partners', 'storePartner')->name('partners.store');
+            Route::get('/partners/{partner}', 'showPartner')->name('partners.show');
+            Route::put('/partners/{partner}', 'updatePartner')->name('partners.update');
             Route::post('/partners/{partner}/hubs', 'storeHub')->name('hubs.store');
             Route::put('/hubs/{hub}', 'updateHub')->name('hubs.update');
-            Route::post('/departures', 'storeDeparture')->name('departures.store');
+            Route::post('/partners/{partner}/departures', 'storeDeparture')->name('departures.store');
             Route::put('/departures/{departure}', 'updateDeparture')->name('departures.update');
             Route::get('/bookings', 'bookings')->name('bookings.index');
             Route::get('/bookings/{booking}', 'showBooking')->name('bookings.show');

@@ -41,12 +41,12 @@
             <div class="bg-dark-100 rounded-xl border border-dark-200 p-6">
                 <h2 class="text-lg font-semibold text-white mb-4">Colis et trajet</h2>
                 <dl class="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
-                    <dt class="text-gray-500">Partenaire</dt><dd class="text-white">{{ $d->company->name }}</dd>
+                    <dt class="text-gray-500">Partenaire</dt><dd class="text-white"><a href="{{ route('admin.maritime.partners.show', $d->company) }}" class="underline">{{ $d->company->name }}</a></dd>
                     <dt class="text-gray-500">QG de départ</dt><dd class="text-white">{{ $d->originHub->name }}, {{ $d->originHub->address }}, {{ $d->originHub->city }}</dd>
                     <dt class="text-gray-500">QG d'arrivée</dt><dd class="text-white">{{ $d->destinationHub->name }}, {{ $d->destinationHub->address }}, {{ $d->destinationHub->city }}</dd>
                     <dt class="text-gray-500">Départ</dt><dd class="text-white">{{ $d->departure_date->format('d/m/Y') }}</dd>
                     <dt class="text-gray-500">Dépôt avant le</dt><dd class="text-white">{{ $booking->dropoff_deadline->format('d/m/Y') }}</dd>
-                    <dt class="text-gray-500">Poids / colis</dt><dd class="text-white">{{ (float) $booking->kg_booked }} kg · {{ $booking->parcels_count }} colis</dd>
+                    <dt class="text-gray-500">Poids / colis</dt><dd class="text-white">{{ (float) $booking->kg_booked }} kg{{ $booking->volume_cbm !== null ? ' (' . rtrim(rtrim(number_format((float) $booking->volume_cbm, 4, ',', ' '), '0'), ',') . ' m³)' : '' }} · {{ $booking->parcels_count }} colis</dd>
                     <dt class="text-gray-500">Nature</dt><dd class="text-white">{{ $booking->parcelNature?->name ?? '—' }}</dd>
                     <dt class="text-gray-500">Valeur déclarée</dt><dd class="text-white">{{ $money($booking->declared_value) }}</dd>
                 </dl>
@@ -95,7 +95,7 @@
                             <input name="confirmation_code" maxlength="6" required class="flex-1 px-3 py-2 bg-dark-50 border border-dark-200 rounded-lg text-white tracking-widest">
                             <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">Remettre</button>
                         </div>
-                        <p class="text-xs mt-2 text-gray-500">Le fret s'ajoutera à ce qu'ASSO doit à {{ $d->company->name }}.</p>
+                        <p class="text-xs mt-2 text-gray-500">Le fret sera crédité sur le Wallet de {{ $d->company->name }}.</p>
                     </form>
                 @endif
             </div>
