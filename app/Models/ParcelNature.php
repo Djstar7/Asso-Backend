@@ -19,7 +19,6 @@ class ParcelNature extends Model
     protected $fillable = [
         'name',
         'insurance_rate',
-        'min_insurance_amount',
         'sort_order',
         'is_active',
     ];
@@ -28,7 +27,6 @@ class ParcelNature extends Model
     {
         return [
             'insurance_rate' => 'decimal:2',
-            'min_insurance_amount' => 'decimal:2',
             'sort_order' => 'integer',
             'is_active' => 'boolean',
         ];
@@ -45,8 +43,6 @@ class ParcelNature extends Model
             'id' => $this->id,
             'name' => $this->name,
             'insurance_rate' => (float) $this->insurance_rate,
-            'min_insurance_amount' => (float) $this->min_insurance_amount,
-            'min_insurance_currency' => 'XAF',
         ];
     }
 }

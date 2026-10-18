@@ -4,7 +4,7 @@
 <div class="p-6">
     <div class="mb-6">
         <h1 class="text-2xl font-bold text-white">Natures de colis &amp; assurance</h1>
-        <p class="text-gray-400">L'expéditeur choisit la nature de son colis dans cette liste et en déclare la valeur, en avion comme en maritime. Supplément d'assurance = valeur déclarée × taux, sans descendre sous le minimum. Le supplément revient à ASSO ; un sinistre se traite à la main, jusqu'à la valeur déclarée.</p>
+        <p class="text-gray-400">L'expéditeur choisit la nature de son colis dans cette liste et en déclare la valeur, en avion comme en maritime. Supplément d'assurance = valeur déclarée × taux. Le supplément revient à ASSO ; un sinistre se traite à la main, jusqu'à la valeur déclarée.</p>
     </div>
 
     @if($errors->any())
@@ -35,7 +35,7 @@
     <!-- Ajout -->
     <div class="bg-dark-100 rounded-xl shadow-lg border border-dark-200 p-6 mb-6">
         <h2 class="text-lg font-semibold text-white mb-4"><i class="fas fa-plus-circle mr-2 text-primary-400"></i>Ajouter une nature</h2>
-        <form action="{{ route('admin.diaspo.parcel-natures.store') }}" method="POST" class="grid grid-cols-1 md:grid-cols-6 gap-3 items-end">
+        <form action="{{ route('admin.diaspo.parcel-natures.store') }}" method="POST" class="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
             @csrf
             <div class="md:col-span-2">
                 <label class="block text-sm text-gray-300 mb-1">Nom</label>
@@ -50,11 +50,6 @@
             <div>
                 <label class="block text-sm text-gray-300 mb-1">Taux (%)</label>
                 <input type="number" step="0.01" min="0" max="100" name="insurance_rate" required value="{{ old('insurance_rate') }}"
-                       class="w-full px-3 py-2 bg-dark-50 border border-dark-200 rounded-lg text-white focus:border-primary-500 focus:outline-none">
-            </div>
-            <div>
-                <label class="block text-sm text-gray-300 mb-1">Minimum (FCFA)</label>
-                <input type="number" step="1" min="0" name="min_insurance_amount" required value="{{ old('min_insurance_amount', 0) }}"
                        class="w-full px-3 py-2 bg-dark-50 border border-dark-200 rounded-lg text-white focus:border-primary-500 focus:outline-none">
             </div>
             <div class="flex gap-2">
@@ -74,7 +69,6 @@
                         <th class="px-4 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">Nom</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">Anglais</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">Taux (%)</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">Minimum (FCFA)</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">Ordre</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">Statut</th>
                         <th class="px-4 py-3 text-right text-xs font-semibold text-white uppercase tracking-wider">Actions</th>
@@ -100,10 +94,6 @@
                                        class="w-24 px-2 py-1 bg-dark-50 border border-dark-200 rounded text-white">
                             </td>
                             <td class="px-4 py-3">
-                                <input form="nature-{{ $nature->id }}" type="number" step="1" min="0" name="min_insurance_amount" required value="{{ (float) $nature->min_insurance_amount }}"
-                                       class="w-32 px-2 py-1 bg-dark-50 border border-dark-200 rounded text-white">
-                            </td>
-                            <td class="px-4 py-3">
                                 <input form="nature-{{ $nature->id }}" type="number" min="0" name="sort_order" value="{{ $nature->sort_order }}"
                                        class="w-16 px-2 py-1 bg-dark-50 border border-dark-200 rounded text-white">
                             </td>
@@ -126,7 +116,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="7" class="px-4 py-8 text-center text-gray-400">Aucune nature de colis.</td></tr>
+                        <tr><td colspan="6" class="px-4 py-8 text-center text-gray-400">Aucune nature de colis.</td></tr>
                     @endforelse
                 </tbody>
             </table>

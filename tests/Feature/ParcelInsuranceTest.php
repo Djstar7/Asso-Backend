@@ -14,11 +14,12 @@ use App\Services\FirebaseMessagingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Schema;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 /**
- * Assurance des colis Diaspo : supplément = max(valeur × taux, minimum),
+ * Assurance des colis Diaspo : supplément = valeur × taux,
  * ajouté au prix payé par l'acheteur et crédité à ASSO à la validation du code.
  */
 class ParcelInsuranceTest extends TestCase
@@ -50,29 +51,29 @@ class ParcelInsuranceTest extends TestCase
 
     private function nature(): ParcelNature
     {
-        return ParcelNature::create(['name' => 'Téléphone test', 'insurance_rate' => 5, 'min_insurance_amount' => 2000, 'is_active' => true]);
+        return ParcelNature::create(['name' => 'Téléphone test', 'insurance_rate' => 5, 'is_active' => true]);
     }
 
-    public function test_quote_applies_rate_or_minimum(): void
+    public function test_quote_uses_only_the_configured_rate(): void
     {
         $nature = $this->nature();
         Sanctum::actingAs(User::factory()->create());
 
-        // 5 % de 100 000 = 5 000 FCFA, au-dessus du minimum.
+        // 5 % de 100 000 = 5 000 FCFA.
         $this->postJson('/api/v1/diaspo/insurance-quote', [
             'parcel_nature_id' => $nature->id, 'declared_value' => 100000, 'currency' => 'XAF',
         ])->assertOk()->assertJsonPath('data.insurance_amount', 5000);
 
-        // 5 % de 1 000 = 50 FCFA → minimum de 2 000.
+        // Aucun plancher : 5 % de 1 000 = 50 FCFA.
         $this->postJson('/api/v1/diaspo/insurance-quote', [
             'parcel_nature_id' => $nature->id, 'declared_value' => 1000, 'currency' => 'XAF',
-        ])->assertOk()->assertJsonPath('data.insurance_amount', 2000);
+        ])->assertOk()->assertJsonPath('data.insurance_amount', 50);
     }
 
     public function test_parcel_natures_list_only_active_with_air_hint(): void
     {
         $this->nature();
-        ParcelNature::create(['name' => 'Masquée', 'insurance_rate' => 1, 'min_insurance_amount' => 0, 'is_active' => false]);
+        ParcelNature::create(['name' => 'Masquée', 'insurance_rate' => 1, 'is_active' => false]);
         Setting::set('diaspo_air_max_kg_hint', 30);
         Sanctum::actingAs(User::factory()->create());
 
@@ -81,6 +82,7 @@ class ParcelInsuranceTest extends TestCase
         $this->assertTrue($names->contains('Téléphone test'));
         $this->assertFalse($names->contains('Masquée'));
         $this->assertEquals(30, $res->json('meta.air_max_kg_hint'));
+        $this->assertArrayNotHasKey('min_insurance_amount', $res->json('data.0'));
     }
 
     public function test_air_booking_adds_insurance_and_credits_it_to_asso(): void
@@ -216,17 +218,23 @@ class ParcelInsuranceTest extends TestCase
 
     public function test_admin_manages_natures(): void
     {
+        $this->assertFalse(Schema::hasColumn('parcel_natures', 'min_insurance_amount'));
+
         $admin = User::factory()->create(['role' => 'admin']);
         $this->actingAs($admin);
 
         $this->post(route('admin.diaspo.parcel-natures.store'), [
-            'name' => 'Montre', 'insurance_rate' => 6, 'min_insurance_amount' => 1500,
+            'name' => 'Montre', 'insurance_rate' => 6,
             'translations' => ['en' => ['name' => 'Watch']],
         ])->assertRedirect();
         $nature = ParcelNature::where('name', 'Montre')->firstOrFail();
         $this->assertEquals('Watch', $nature->getTranslation('name', 'en'));
 
-        $this->get(route('admin.diaspo.parcel-natures.index'))->assertOk()->assertSee('Montre');
+        $this->get(route('admin.diaspo.parcel-natures.index'))
+            ->assertOk()
+            ->assertSee('Montre')
+            ->assertDontSee('Minimum (FCFA)')
+            ->assertDontSee('min_insurance_amount');
         $this->post(route('admin.diaspo.parcel-natures.settings'), ['air_max_kg_hint' => 25])->assertRedirect();
         $this->assertEquals(25, (float) Setting::get('diaspo_air_max_kg_hint'));
     }

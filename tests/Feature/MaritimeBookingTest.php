@@ -86,7 +86,7 @@ class MaritimeBookingTest extends TestCase
 
     private function payload(array $extra = []): array
     {
-        $nature = ParcelNature::firstOrCreate(['name' => 'Chaussures test'], ['insurance_rate' => 2, 'min_insurance_amount' => 0, 'is_active' => true]);
+        $nature = ParcelNature::firstOrCreate(['name' => 'Chaussures test'], ['insurance_rate' => 2, 'is_active' => true]);
 
         return $extra + [
             'kg_booked' => 50,

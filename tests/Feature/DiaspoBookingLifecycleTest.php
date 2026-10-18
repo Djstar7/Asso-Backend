@@ -91,7 +91,6 @@ class DiaspoBookingLifecycleTest extends TestCase
         $parcelNature = ParcelNature::create([
             'name' => 'Téléphone test',
             'insurance_rate' => 5,
-            'min_insurance_amount' => 0,
             'is_active' => true,
         ]);
 

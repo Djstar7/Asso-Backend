@@ -67,14 +67,12 @@ class ParcelNatureController extends Controller
         $data = $request->validate([
             'name' => 'required|string|max:255',
             'insurance_rate' => 'required|numeric|min:0|max:100',
-            'min_insurance_amount' => 'required|numeric|min:0',
             'sort_order' => 'nullable|integer|min:0',
         ] + ContentLocale::rules(['name' => 'string|max:255']));
 
         return [
             'name' => $data['name'],
             'insurance_rate' => $data['insurance_rate'],
-            'min_insurance_amount' => $data['min_insurance_amount'],
             'sort_order' => $data['sort_order'] ?? 0,
         ];
     }

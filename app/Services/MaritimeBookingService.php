@@ -61,8 +61,7 @@ class MaritimeBookingService
                 );
                 $insurance = ParcelInsuranceService::quote(
                     ParcelNature::findOrFail($data['parcel_nature_id']),
-                    $declaredValue,
-                    $currency
+                    $declaredValue
                 );
             } catch (\RuntimeException $e) {
                 throw new MaritimeBookingException($e->getMessage());

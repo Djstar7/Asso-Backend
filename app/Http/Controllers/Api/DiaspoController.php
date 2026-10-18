@@ -332,8 +332,7 @@ class DiaspoController extends Controller
         try {
             $amount = ParcelInsuranceService::quote(
                 ParcelNature::findOrFail($data['parcel_nature_id']),
-                ParcelInsuranceService::declaredValueIn((float) $data['declared_value'], $data['declared_value_currency'] ?? null, $data['currency']),
-                $data['currency']
+                ParcelInsuranceService::declaredValueIn((float) $data['declared_value'], $data['declared_value_currency'] ?? null, $data['currency'])
             );
         } catch (\RuntimeException $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
