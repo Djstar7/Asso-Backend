@@ -267,6 +267,20 @@ class PaymentController extends Controller
             return response()->json(['message' => 'Diaspo booking webhook processed']);
         }
 
+        // Envoi maritime payé en direct KPay (externalId = MARITIME-{bookingId})
+        if (str_starts_with($externalId, 'MARITIME-')) {
+            $booking = \App\Models\MaritimeBooking::find((int) substr($externalId, strlen('MARITIME-')));
+            if ($booking) {
+                $maritime = app(\App\Services\MaritimeBookingService::class);
+                if (in_array($status, ['COMPLETED', 'SUCCESS', 'SUCCESSFUL'])) {
+                    $maritime->confirmPayment($booking);
+                } elseif (in_array($status, ['FAILED', 'CANCELLED'])) {
+                    $maritime->failPayment($booking);
+                }
+            }
+            return response()->json(['message' => 'Maritime booking webhook processed']);
+        }
+
         // Course d'un litige payée par le vendeur (externalId = LITIGE-{shipmentId})
         if ($disputeShipment = \App\Services\DisputeService::shipmentForKpayReference($externalId)) {
             $disputes = app(\App\Services\DisputeService::class);

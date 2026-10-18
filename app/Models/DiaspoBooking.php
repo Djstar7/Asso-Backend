@@ -20,6 +20,9 @@ class DiaspoBooking extends Model
         'subtotal',
         'commission_amount',
         'total_price',
+        'parcel_nature_id',
+        'declared_value',
+        'insurance_amount',
         'status',
         'confirmation_code',
         'confirmed_by_buyer_at',
@@ -40,6 +43,8 @@ class DiaspoBooking extends Model
         'subtotal' => 'decimal:2',
         'commission_amount' => 'decimal:2',
         'total_price' => 'decimal:2',
+        'declared_value' => 'decimal:2',
+        'insurance_amount' => 'decimal:2',
         'confirmed_by_buyer_at' => 'datetime',
         'paid_at' => 'datetime',
         'refunded_at' => 'datetime',
@@ -198,6 +203,17 @@ class DiaspoBooking extends Model
      * NB : le schéma unifié n'a pas de colonne `currency` sur les réservations ; la devise
      * est dérivée de l'offre.
      */
+    public function parcelNature(): BelongsTo
+    {
+        return $this->belongsTo(ParcelNature::class);
+    }
+
+    /** Prix du transport payé par l'acheteur (total hors supplément d'assurance). */
+    public function freightTotal(): float
+    {
+        return round((float) $this->total_price - (float) $this->insurance_amount, 2);
+    }
+
     /**
      * @param int|null $viewerId ID de l'utilisateur qui consulte. Le code secret de
      *   remise (`confirmation_code`) n'est renvoyé QU'À L'ACHETEUR : c'est lui qui
@@ -219,11 +235,17 @@ class DiaspoBooking extends Model
             // L'acheteur voit uniquement le prix public (commission ASSO incluse) ;
             // le voyageur voit son prix et ce qu'il touche (sous-total).
             'price_per_kg' => $isBuyer && (float) $this->kg_booked > 0
-                ? round((float) $this->total_price / (float) $this->kg_booked, 2)
+                ? round($this->freightTotal() / (float) $this->kg_booked, 2)
                 : (float) $this->price_per_kg,
-            'subtotal' => $isBuyer ? (float) $this->total_price : (float) $this->subtotal,
+            'subtotal' => $isBuyer ? $this->freightTotal() : (float) $this->subtotal,
             'commission_amount' => $isBuyer ? 0.0 : (float) $this->commission_amount,
-            'total_price' => (float) $this->total_price,
+            // Assurance : nature et valeur visibles des deux côtés (contenu du colis),
+            // supplément visible de l'acheteur seul (revenu ASSO).
+            'parcel_nature' => $this->relationLoaded('parcelNature') && $this->parcelNature ? $this->parcelNature->toApi() : null,
+            'parcel_nature_id' => $this->parcel_nature_id,
+            'declared_value' => $this->declared_value !== null ? (float) $this->declared_value : null,
+            'insurance_amount' => $isBuyer ? (float) $this->insurance_amount : 0.0,
+            'total_price' => $isBuyer ? (float) $this->total_price : (float) $this->subtotal + (float) $this->commission_amount,
             'currency' => $currency,
             'status' => $this->status,
             // Visible uniquement par l'acheteur (voir docblock).

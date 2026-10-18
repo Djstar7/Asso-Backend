@@ -6,10 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Models\DiaspoBooking;
 use App\Models\DiaspoOffer;
 use App\Models\DiaspoVerification;
+use App\Models\ParcelNature;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\CommissionService;
 use App\Services\ExchangeRateService;
+use App\Services\ParcelInsuranceService;
 use App\Services\PaymentMethodService;
 use App\Services\StripeService;
 use App\Services\WalletService;
@@ -200,6 +202,10 @@ class DiaspoController extends Controller
             'provider' => 'required_if:payment_method,kpay|string',       // code opérateur KPay
             'phone_number' => 'required_if:payment_method,kpay|string',   // numéro Mobile Money
             'notes' => 'nullable|string|max:500',
+            // Assurance : nature (liste admin) + valeur déclarée, dans la devise de l'offre.
+            // Facultatives ensemble pour les anciennes versions de l'app.
+            'parcel_nature_id' => 'nullable|required_with:declared_value|integer|exists:parcel_natures,id,is_active,1',
+            'declared_value' => 'nullable|required_with:parcel_nature_id|numeric|min:0|max:100000000',
         ]);
 
         $buyer = $request->user();
@@ -229,8 +235,23 @@ class DiaspoController extends Controller
             // Le voyageur touche son prix ; le client paie le prix public au kilo
             // (majoré de la commission ASSO, exactement celui affiché dans l'app).
             $subtotal = round($data['kg_booked'] * (float) $offer->price_per_kg, 2);
-            $total = round($data['kg_booked'] * $offer->publicPricePerKg(), 2);
-            $commission = round($total - $subtotal, 2);
+            $freight = round($data['kg_booked'] * $offer->publicPricePerKg(), 2);
+            $commission = round($freight - $subtotal, 2);
+
+            // Supplément d'assurance (revenu ASSO), ajouté au prix du transport.
+            $insurance = 0.0;
+            if (!empty($data['parcel_nature_id'])) {
+                try {
+                    $insurance = ParcelInsuranceService::quote(
+                        ParcelNature::findOrFail($data['parcel_nature_id']),
+                        (float) $data['declared_value'],
+                        $offer->currency
+                    );
+                } catch (\RuntimeException $e) {
+                    return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+                }
+            }
+            $total = round($freight + $insurance, 2);
 
             // Garde-fou serveur : le montant doit atteindre le minimum du moyen choisi
             // (comparaison dans la devise pivot XAF, via les taux stockés).
@@ -253,7 +274,9 @@ class DiaspoController extends Controller
                 'subtotal' => $subtotal,
                 'commission_amount' => $commission,
                 'total_price' => $total,
-                'currency' => $offer->currency,
+                'parcel_nature_id' => $data['parcel_nature_id'] ?? null,
+                'declared_value' => $data['declared_value'] ?? null,
+                'insurance_amount' => $insurance,
                 'status' => 'pending',
                 'confirmation_code' => str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT),
                 'payment_status' => 'pending',
@@ -270,6 +293,46 @@ class DiaspoController extends Controller
                 'stripe' => $this->initStripeBooking($booking, $offer, $total),
             };
         });
+    }
+
+    /**
+     * GET /v1/diaspo/parcel-natures — natures de colis assurables (taux pour
+     * l'aperçu) et seuil indicatif avion / maritime.
+     */
+    public function parcelNatures()
+    {
+        return response()->json([
+            'success' => true,
+            'data' => ParcelNature::activeOrdered()->get()->map->toApi()->values(),
+            'meta' => [
+                'air_max_kg_hint' => (float) Setting::get('diaspo_air_max_kg_hint', 23),
+            ],
+        ]);
+    }
+
+    /** POST /v1/diaspo/insurance-quote — supplément d'assurance d'un colis. */
+    public function insuranceQuote(Request $request)
+    {
+        $data = $request->validate([
+            'parcel_nature_id' => 'required|integer|exists:parcel_natures,id,is_active,1',
+            'declared_value' => 'required|numeric|min:0|max:100000000',
+            'currency' => 'required|string|size:3',
+        ]);
+
+        try {
+            $amount = ParcelInsuranceService::quote(
+                ParcelNature::findOrFail($data['parcel_nature_id']),
+                (float) $data['declared_value'],
+                $data['currency']
+            );
+        } catch (\RuntimeException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => ['insurance_amount' => $amount, 'currency' => strtoupper($data['currency'])],
+        ]);
     }
 
     /** Initie l'encaissement KPay (Mobile Money) et renvoie la réponse de réservation. */
@@ -356,7 +419,7 @@ class DiaspoController extends Controller
             'success' => true,
             'message' => $message,
             // Réponse à l'acheteur (créateur de la réservation) → code visible pour lui.
-            'data' => $booking->load(['offer.user', 'buyer', 'seller'])->toApi($booking->buyer_user_id),
+            'data' => $booking->load(['offer.user', 'buyer', 'seller', 'parcelNature'])->toApi($booking->buyer_user_id),
             'payment' => $payment,
             'payment_reference' => $booking->payment_reference,
             'booking_id' => $booking->id,
@@ -474,7 +537,7 @@ class DiaspoController extends Controller
         $uid = $request->user()->id;
         $role = $request->query('role'); // 'buyer' (Mes Achats) | 'seller' (Mes Ventes) | null (tous)
 
-        $q = DiaspoBooking::with(['offer.user', 'buyer', 'seller']);
+        $q = DiaspoBooking::with(['offer.user', 'buyer', 'seller', 'parcelNature']);
 
         // Masquer les réservations dont le paiement n'a PAS abouti : une réservation
         // n'apparaît (acheteur comme vendeur) qu'une fois le paiement confirmé.
@@ -499,7 +562,7 @@ class DiaspoController extends Controller
     public function showBooking(Request $request, $id)
     {
         $uid = $request->user()->id;
-        $booking = DiaspoBooking::with(['offer.user', 'buyer', 'seller'])
+        $booking = DiaspoBooking::with(['offer.user', 'buyer', 'seller', 'parcelNature'])
             ->where('id', $id)
             ->where(fn($x) => $x->where('buyer_user_id', $uid)->orWhere('seller_user_id', $uid))
             ->firstOrFail();
@@ -525,7 +588,7 @@ class DiaspoController extends Controller
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
 
-        return response()->json(['success' => true, 'message' => __('diaspo.booking_cancelled'), 'data' => $booking->fresh()->load(['offer.user', 'buyer', 'seller'])->toApi($request->user()->id)]);
+        return response()->json(['success' => true, 'message' => __('diaspo.booking_cancelled'), 'data' => $booking->fresh()->load(['offer.user', 'buyer', 'seller', 'parcelNature'])->toApi($request->user()->id)]);
     }
 
     /** Annulation + remboursement + libération des kg, en une transaction. */
@@ -577,7 +640,7 @@ class DiaspoController extends Controller
             return $error;
         }
 
-        return response()->json(['success' => true, 'message' => __('diaspo.receipt_confirmed_traveler_credited'), 'data' => $booking->fresh()->load(['offer.user', 'buyer', 'seller'])->toApi($request->user()->id)]);
+        return response()->json(['success' => true, 'message' => __('diaspo.receipt_confirmed_traveler_credited'), 'data' => $booking->fresh()->load(['offer.user', 'buyer', 'seller', 'parcelNature'])->toApi($request->user()->id)]);
     }
 
     /**
@@ -631,6 +694,8 @@ class DiaspoController extends Controller
         $currency = strtoupper(DiaspoOffer::withTrashed()->whereKey($b->diaspo_offer_id)->value('currency') ?: 'XAF');
         $travelerAmount = $this->toWalletCurrency($currency, (float) $b->subtotal);
         $commissionAmount = $this->toWalletCurrency($currency, (float) $b->commission_amount);
+        // Le supplément d'assurance revient à ASSO, sur une ligne à part (Revenus ASSO).
+        $insuranceAmount = $this->toWalletCurrency($currency, (float) $b->insurance_amount);
 
         $wallet = app(WalletService::class);
         $metadata = [
@@ -639,6 +704,7 @@ class DiaspoController extends Controller
             'currency' => $currency,
             'subtotal' => (float) $b->subtotal,
             'commission_amount' => (float) $b->commission_amount,
+            'insurance_amount' => (float) $b->insurance_amount,
         ];
 
         if ($travelerAmount > 0) {
@@ -669,6 +735,17 @@ class DiaspoController extends Controller
                     'commission' => $commissionAmount,
                 ]);
             }
+        }
+
+        if ($insuranceAmount > 0 && ($platform = CommissionService::platformAccount())) {
+            $wallet->credit(
+                $platform,
+                $insuranceAmount,
+                null,
+                \App\Models\WalletTransaction::label('asso_parcel_insurance', ['reference' => "Diaspo #{$b->id}"]),
+                $metadata,
+                'kpay'
+            );
         }
     }
 
@@ -711,7 +788,7 @@ class DiaspoController extends Controller
             return $error;
         }
 
-        return response()->json(['success' => true, 'message' => __('diaspo.code_validated'), 'data' => $booking->fresh()->load(['offer.user', 'buyer', 'seller'])->toApi($request->user()->id)]);
+        return response()->json(['success' => true, 'message' => __('diaspo.code_validated'), 'data' => $booking->fresh()->load(['offer.user', 'buyer', 'seller', 'parcelNature'])->toApi($request->user()->id)]);
     }
 
     /** POST /v1/diaspo/confirm-by-code — recherche une réservation par son code. */
@@ -719,7 +796,7 @@ class DiaspoController extends Controller
     {
         $request->validate(['confirmation_code' => 'required|string|size:6']);
         $uid = $request->user()->id;
-        $booking = DiaspoBooking::with(['offer.user', 'buyer', 'seller'])
+        $booking = DiaspoBooking::with(['offer.user', 'buyer', 'seller', 'parcelNature'])
             ->where('confirmation_code', $request->input('confirmation_code'))
             ->where(fn($x) => $x->where('buyer_user_id', $uid)->orWhere('seller_user_id', $uid))
             ->firstOrFail();

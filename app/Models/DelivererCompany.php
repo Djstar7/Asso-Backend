@@ -28,22 +28,31 @@ class DelivererCompany extends Model
         'conditions',
         'max_weight_kg',
         'tracking_url_template',
+        'stripe_account_id',
+        'stripe_external_last4',
+        'stripe_bank_country',
+        'stripe_account_holder_name',
+        'stripe_submitted_at',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
         'prices_exclude_vat' => 'boolean',
         'max_weight_kg' => 'float',
+        'stripe_submitted_at' => 'datetime',
     ];
 
     public const SERVICE_LOCAL = 'local';
     public const SERVICE_INTERCITY = 'intercity';
     public const SERVICE_INTERNATIONAL = 'international';
+    /** Fret maritime Diaspo : départs entre QG (voir MaritimeDeparture). */
+    public const SERVICE_MARITIME = 'maritime';
 
     public const SERVICE_TYPES = [
         self::SERVICE_LOCAL => 'Urbain (même ville)',
         self::SERVICE_INTERCITY => 'Interurbain (Cameroun)',
         self::SERVICE_INTERNATIONAL => 'Livraison internationale',
+        self::SERVICE_MARITIME => 'Fret maritime (Diaspo)',
     ];
 
     public const MODE_DOOR = 'door_to_door';
@@ -114,6 +123,16 @@ class DelivererCompany extends Model
     }
 
     /** Grilles urbaines zone à zone (ex. SOLEX Douala : moto, tricycle, 600 kg, 1 t). */
+    public function maritimeHubs(): HasMany
+    {
+        return $this->hasMany(MaritimeHub::class);
+    }
+
+    public function maritimeDepartures(): HasMany
+    {
+        return $this->hasMany(MaritimeDeparture::class);
+    }
+
     public function cityGrids(): HasMany
     {
         return $this->hasMany(DeliveryCityGrid::class);

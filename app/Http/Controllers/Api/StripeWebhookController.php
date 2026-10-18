@@ -98,12 +98,17 @@ class StripeWebhookController extends Controller
     /** Règlement d'un payout : logique partagée avec `stripe:reconcile-payouts`. */
     private function handlePayoutPaid(object $payout): void
     {
-        app(\App\Services\StripePayoutSettlementService::class)->settlePaid($payout, 'StripeWebhook');
+        // Virement à un partenaire (livraison, maritime) ou retrait d'un utilisateur.
+        if (!\App\Services\PartnerPayoutService::settle($payout, true)) {
+            app(\App\Services\StripePayoutSettlementService::class)->settlePaid($payout, 'StripeWebhook');
+        }
     }
 
     private function handlePayoutFailed(object $payout): void
     {
-        app(\App\Services\StripePayoutSettlementService::class)->settleFailed($payout, 'StripeWebhook');
+        if (!\App\Services\PartnerPayoutService::settle($payout, false)) {
+            app(\App\Services\StripePayoutSettlementService::class)->settleFailed($payout, 'StripeWebhook');
+        }
     }
 
     /**
@@ -124,6 +129,11 @@ class StripeWebhookController extends Controller
                     'booking_id' => $bookingId,
                     'payment_intent' => $pi->id ?? null,
                 ]);
+            }
+        } elseif ($kind === 'maritime_booking') {
+            $booking = \App\Models\MaritimeBooking::find((int) ($pi->metadata->booking_id ?? 0));
+            if ($booking) {
+                app(\App\Services\MaritimeBookingService::class)->confirmPayment($booking);
             }
         } elseif ($kind === 'order') {
             $orderId = (int) ($pi->metadata->order_id ?? 0);
@@ -216,6 +226,11 @@ class StripeWebhookController extends Controller
                     'booking_id' => $bookingId,
                     'payment_intent' => $pi->id ?? null,
                 ]);
+            }
+        } elseif ($kind === 'maritime_booking') {
+            $booking = \App\Models\MaritimeBooking::find((int) ($pi->metadata->booking_id ?? 0));
+            if ($booking) {
+                app(\App\Services\MaritimeBookingService::class)->failPayment($booking);
             }
         } elseif ($kind === 'order') {
             $orderId = (int) ($pi->metadata->order_id ?? 0);

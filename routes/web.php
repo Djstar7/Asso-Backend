@@ -132,6 +132,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::post('/', [\App\Http\Controllers\Admin\DeliveryPartnerController::class, 'store'])->name('store');
             Route::get('/{partner}', [\App\Http\Controllers\Admin\DeliveryPartnerController::class, 'edit'])->name('edit');
             Route::put('/{partner}', [\App\Http\Controllers\Admin\DeliveryPartnerController::class, 'update'])->name('update');
+            Route::post('/{partner}/iban', [\App\Http\Controllers\Admin\DeliveryPartnerController::class, 'syncIban'])->name('iban');
+            Route::post('/{partner}/payout', [\App\Http\Controllers\Admin\DeliveryPartnerController::class, 'payout'])->name('payout');
+            Route::post('/{partner}/payouts/manual', [\App\Http\Controllers\Admin\DeliveryPartnerController::class, 'recordPayout'])->name('payouts.manual');
             Route::post('/{partner}/routes', [\App\Http\Controllers\Admin\DeliveryPartnerController::class, 'storeRoute'])->name('routes.store');
             Route::put('/{partner}/routes/{route}', [\App\Http\Controllers\Admin\DeliveryPartnerController::class, 'updateRoute'])->name('routes.update');
             Route::delete('/{partner}/routes/{route}', [\App\Http\Controllers\Admin\DeliveryPartnerController::class, 'destroyRoute'])->name('routes.destroy');
@@ -437,6 +440,21 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::post('/{userId}/reject', [App\Http\Controllers\Admin\StripeConnectController::class, 'rejectWeb'])->name('reject');
         });
 
+        // DIASPO Maritime : réglages, QG, départs et envois
+        Route::prefix('maritime')->name('maritime.')->controller(App\Http\Controllers\Admin\MaritimeController::class)->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::post('/settings', 'updateSettings')->name('settings');
+            Route::post('/partners/{partner}/hubs', 'storeHub')->name('hubs.store');
+            Route::put('/hubs/{hub}', 'updateHub')->name('hubs.update');
+            Route::post('/departures', 'storeDeparture')->name('departures.store');
+            Route::put('/departures/{departure}', 'updateDeparture')->name('departures.update');
+            Route::get('/bookings', 'bookings')->name('bookings.index');
+            Route::get('/bookings/{booking}', 'showBooking')->name('bookings.show');
+            Route::post('/bookings/{booking}/advance', 'advanceBooking')->name('bookings.advance');
+            Route::post('/bookings/{booking}/complete', 'completeBooking')->name('bookings.complete');
+            Route::post('/bookings/{booking}/notes', 'updateNotes')->name('bookings.notes');
+        });
+
         // DIASPO - Vérification des documents d'identité
         Route::prefix('diaspo')->name('diaspo.')->group(function () {
             Route::prefix('verifications')->name('verifications.')->group(function () {
@@ -453,6 +471,16 @@ Route::prefix('admin')->name('admin.')->group(function () {
                 Route::get('/{post}', [PostController::class, 'show'])->name('show');
                 Route::delete('/{post}', [PostController::class, 'destroy'])->name('destroy');
                 Route::delete('/{post}/comments/{comment}', [PostController::class, 'deleteComment'])->name('comments.destroy');
+            });
+
+            // Natures de colis et assurance (avion et maritime)
+            Route::prefix('parcel-natures')->name('parcel-natures.')->group(function () {
+                Route::get('/', [App\Http\Controllers\Admin\ParcelNatureController::class, 'index'])->name('index');
+                Route::post('/settings', [App\Http\Controllers\Admin\ParcelNatureController::class, 'updateSettings'])->name('settings');
+                Route::post('/', [App\Http\Controllers\Admin\ParcelNatureController::class, 'store'])->name('store');
+                Route::put('/{parcelNature}', [App\Http\Controllers\Admin\ParcelNatureController::class, 'update'])->name('update');
+                Route::patch('/{parcelNature}/toggle-status', [App\Http\Controllers\Admin\ParcelNatureController::class, 'toggleStatus'])->name('toggle-status');
+                Route::delete('/{parcelNature}', [App\Http\Controllers\Admin\ParcelNatureController::class, 'destroy'])->name('destroy');
             });
 
             // Offers management

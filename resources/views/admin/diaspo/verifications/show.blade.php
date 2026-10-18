@@ -141,6 +141,37 @@
         </div>
     </div>
 
+    <!-- Parcours renforcé : nationalité, selfie, titre de séjour / visa -->
+    @if($user->nationality || $extraDocuments->isNotEmpty())
+    @php $countryNames = \App\Support\CountryCode::NAMES; @endphp
+    <div class="bg-dark-100 rounded-xl shadow-lg p-6 mb-6">
+        <h2 class="text-xl font-bold text-white mb-2 flex items-center">
+            <i class="fas fa-user-check text-primary-500 mr-3"></i>
+            Pièces complémentaires
+        </h2>
+        <p class="text-sm text-gray-400 mb-4">
+            Nationalité : <span class="text-white">{{ $countryNames[$user->nationality] ?? $user->nationality ?? '—' }}</span>
+            · Résidence : <span class="text-white">{{ $countryNames[$user->residence_country] ?? $user->residence_country ?? '—' }}</span>
+            · Exigé : {{ collect($required['identity'])->map(fn ($t) => \App\Models\DiaspoIdentityDocument::LABELS[$t])->implode(' ou ') }}
+            @if($required['residence']) + {{ collect($required['residence'])->map(fn ($t) => \App\Models\DiaspoIdentityDocument::LABELS[$t])->implode(' ou ') }} @endif
+            + selfie. Comparez le selfie à la photo de la pièce avant d'approuver.
+        </p>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            @foreach($extraDocuments as $doc)
+                @php $url = media_url($doc->document?->file_path); @endphp
+                <div class="space-y-2">
+                    <h3 class="text-white font-semibold">{{ $doc->label() }}</h3>
+                    @if($url)
+                        <img src="{{ $url }}" alt="{{ $doc->label() }}"
+                             class="w-full rounded-lg border-2 border-dark-200 hover:border-primary-500 cursor-pointer"
+                             onclick="openImageModal('{{ $url }}', '{{ $doc->label() }}')">
+                    @endif
+                </div>
+            @endforeach
+        </div>
+    </div>
+    @endif
+
     <!-- Offres du voyageur -->
     <div class="bg-dark-100 rounded-xl shadow-lg p-6 mb-6">
         <h2 class="text-xl font-bold text-white mb-4 flex items-center">
@@ -157,7 +188,13 @@
                             <a href="{{ route('admin.diaspo.offers.show', $offer->id) }}" class="text-white font-medium hover:text-primary-500">
                                 #{{ $offer->id }} {{ $offer->departure_city }} → {{ $offer->arrival_city }}
                             </a>
-                            <div class="text-xs text-gray-500 mt-0.5">Départ le {{ $offer->departure_datetime->displayTz()->format('d/m/Y') }}</div>
+                            <div class="text-xs text-gray-500 mt-0.5">Départ le {{ $offer->departure_datetime->displayTz()->format('d/m/Y') }}
+                                @if($proof = $travelProofs->get($offer->id))
+                                    · <a href="{{ media_url($proof->document?->file_path) }}" target="_blank" class="text-primary-400 underline"><i class="fas fa-ticket-alt mr-1"></i>Justificatif de voyage</a>
+                                @else
+                                    · <span class="text-orange-400">sans justificatif de voyage</span>
+                                @endif
+                            </div>
                         </div>
                         <div class="text-sm">
                             @if($offer->trashed())

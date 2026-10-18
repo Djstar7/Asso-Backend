@@ -147,6 +147,14 @@ Schedule::command('diaspo:enforce-verification-deadline')
     ->hourly()
     ->withoutOverlapping(300);
 
+/*
+ * Diaspo Maritime : ferme les départs dont la clôture est passée et rembourse
+ * (hors commission ASSO) les colis non déposés au QG avant la date limite.
+ */
+Schedule::command('maritime:refund-missed-dropoffs')
+    ->dailyAt('01:30')
+    ->withoutOverlapping(300);
+
 /**
  * =====================================================
  * ASSO ADS — CLÔTURE DES CAMPAGNES DE SPONSORING

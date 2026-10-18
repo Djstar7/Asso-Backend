@@ -136,7 +136,9 @@ class FreeDeliveryTest extends TestCase
             ->assertJsonPath('order.free_delivery_amount', 500);
 
         $this->assertEquals(19500, $this->bal($c['seller']));
-        $this->assertEquals(400, $this->bal($c['delivererUser']));
+        // Course due au partenaire (versée depuis l'admin), plus de crédit Wallet.
+        $this->assertEquals(0, $this->bal($c['delivererUser']));
+        $this->assertEquals(400, \App\Services\PartnerLedgerService::balance((int) \App\Models\DelivererCompany::where('user_id', $c['delivererUser']->id)->value('id'))['due']);
         $this->assertEquals(1000 + 100, $this->bal($asso));
         $this->assertEquals(50000 - 21000, $this->bal($order->user));
     }

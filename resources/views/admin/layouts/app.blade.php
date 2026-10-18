@@ -458,7 +458,7 @@
                 @endif
 
                 <!-- Section DIASPO -->
-                @if(collect(['admin.diaspo.verifications.index', 'admin.diaspo.posts.index', 'admin.diaspo.offers.index'])->contains(fn ($r) => auth()->user()->canAccessAdminRoute($r)))
+                @if(collect(['admin.diaspo.verifications.index', 'admin.diaspo.posts.index', 'admin.diaspo.offers.index', 'admin.diaspo.parcel-natures.index', 'admin.maritime.index'])->contains(fn ($r) => auth()->user()->canAccessAdminRoute($r)))
                 <div class="mt-8 pt-6 border-t border-dark-200">
                     <p class="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">DIASPO Exchange</p>
 
@@ -490,6 +490,27 @@
                        class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.diaspo.offers.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <i class="fas fa-plane-departure w-5 mr-3"></i>
                         Offres (Kilos)
+                    </a>
+                    @endadminCan
+
+                    @adminCan('admin.maritime.index')
+                    <a href="{{ route('admin.maritime.index') }}"
+                       class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.maritime.index') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
+                        <i class="fas fa-ship w-5 mr-3"></i>
+                        Maritime : départs
+                    </a>
+                    <a href="{{ route('admin.maritime.bookings.index') }}"
+                       class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.maritime.bookings.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
+                        <i class="fas fa-boxes w-5 mr-3"></i>
+                        Maritime : envois
+                    </a>
+                    @endadminCan
+
+                    @adminCan('admin.diaspo.parcel-natures.index')
+                    <a href="{{ route('admin.diaspo.parcel-natures.index') }}"
+                       class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.diaspo.parcel-natures.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
+                        <i class="fas fa-shield-alt w-5 mr-3"></i>
+                        Natures &amp; assurance
                     </a>
                     @endadminCan
                 </div>

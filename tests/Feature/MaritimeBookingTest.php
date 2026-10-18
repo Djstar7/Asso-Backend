@@ -1,0 +1,250 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Currency;
+use App\Models\DelivererCompany;
+use App\Models\ExchangeRate;
+use App\Models\MaritimeBooking;
+use App\Models\MaritimeDeparture;
+use App\Models\MaritimeHub;
+use App\Models\ParcelNature;
+use App\Models\ServiceConfiguration;
+use App\Models\Setting;
+use App\Models\User;
+use App\Services\FirebaseMessagingService;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Mail;
+use Laravel\Sanctum\Sanctum;
+use Tests\TestCase;
+
+/**
+ * Diaspo Maritime : réservation sur un départ, clôture J − 7, paiement →
+ * équipe prévenue, étapes, remise au code (fret dû au partenaire, commission
+ * + assurance à ASSO), remboursement des colis non déposés.
+ */
+class MaritimeBookingTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private array $pushes = [];
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        Cache::flush();
+        Mail::fake();
+        ServiceConfiguration::updateOrCreate(
+            ['service_name' => 'kpay'],
+            ['service_type' => 'payment', 'is_active' => true, 'configuration' => ['api_key' => 'k', 'secret_key' => 's', 'base_url' => 'https://kpay.test']]
+        );
+        $this->mock(FirebaseMessagingService::class, function ($m) {
+            $m->shouldReceive('sendToUser')->andReturnUsing(function ($user, $title, $body, $data = []) {
+                $this->pushes[] = ['user_id' => $user->id, 'type' => $data['type'] ?? null];
+
+                return [];
+            });
+        });
+
+        Currency::firstOrCreate(['code' => 'XAF'], ['name' => 'Franc CFA', 'symbol' => 'FCFA', 'is_active' => true]);
+        Currency::firstOrCreate(['code' => 'EUR'], ['name' => 'Euro', 'symbol' => '€', 'is_active' => true]);
+        ExchangeRate::create([
+            'from_currency' => 'EUR', 'to_currency' => 'XAF', 'rate' => 656,
+            'effective_date' => now()->toDateString(), 'is_active' => true, 'source' => 'test',
+        ]);
+
+        Setting::set('maritime_commission_rate', 10);
+        Setting::set('maritime_booking_cutoff_days', 7);
+        Setting::set('maritime_dropoff_days_before', 4);
+        User::factory()->create(['email' => 'platform@asso.test']);
+        Setting::set('platform_account_email', 'platform@asso.test');
+    }
+
+    private function departure(int $daysAhead = 20, ?User $partnerUser = null): MaritimeDeparture
+    {
+        $partner = DelivererCompany::create([
+            'name' => 'Transit Mer ' . uniqid(),
+            'service_type' => DelivererCompany::SERVICE_MARITIME,
+            'is_active' => true,
+            'user_id' => ($partnerUser ?? User::factory()->create())->id,
+        ]);
+        $from = MaritimeHub::create(['deliverer_company_id' => $partner->id, 'name' => 'QG Le Havre', 'country' => 'FR', 'city' => 'Le Havre', 'address' => '1 quai', 'is_active' => true]);
+        $to = MaritimeHub::create(['deliverer_company_id' => $partner->id, 'name' => 'QG Douala', 'country' => 'CM', 'city' => 'Douala', 'address' => 'Port', 'is_active' => true]);
+
+        return MaritimeDeparture::create([
+            'deliverer_company_id' => $partner->id,
+            'origin_hub_id' => $from->id,
+            'destination_hub_id' => $to->id,
+            'departure_date' => today()->addDays($daysAhead),
+            'capacity_kg' => 500, 'remaining_kg' => 500,
+            'price_per_kg' => 4, 'currency' => 'EUR', 'status' => 'open',
+        ]);
+    }
+
+    private function payload(array $extra = []): array
+    {
+        $nature = ParcelNature::firstOrCreate(['name' => 'Chaussures test'], ['insurance_rate' => 2, 'min_insurance_amount' => 0, 'is_active' => true]);
+
+        return $extra + [
+            'kg_booked' => 50,
+            'parcels_count' => 3,
+            'sender_first_name' => 'Awa', 'sender_last_name' => 'Ndiaye', 'sender_phone' => '+33600000000',
+            'emergency_phone' => '+33611111111',
+            'recipient_first_name' => 'Paul', 'recipient_last_name' => 'Etoa', 'recipient_country' => 'CM', 'recipient_phone' => '+237690000000',
+            'parcel_nature_id' => $nature->id,
+            'declared_value' => 1000,
+            'payment_method' => 'kpay', 'provider' => 'MTN_MOMO_CMR', 'phone_number' => '237653456789',
+        ];
+    }
+
+    private function fakeKpay(string $status = 'SUCCESS'): void
+    {
+        Http::fake([
+            '*/api/v1/payments/init' => Http::response(['id' => 'pay_sea_1', 'status' => 'PENDING'], 200),
+            '*/api/v1/payments/*' => Http::response(['status' => $status], 200),
+        ]);
+    }
+
+    public function test_full_lifecycle_records_partner_due_and_credits_asso(): void
+    {
+        $this->fakeKpay();
+        $admin = User::factory()->create(['role' => 'admin', 'email' => 'boss@asso.test']);
+        $partnerUser = User::factory()->create();
+        $departure = $this->departure(20, $partnerUser);
+        $sender = User::factory()->create();
+
+        Sanctum::actingAs($sender);
+        $res = $this->postJson("/api/v1/maritime/departures/{$departure->id}/book", $this->payload())->assertStatus(201);
+        $id = $res->json('booking_id');
+
+        // Fret 50 × 4 = 200 € ; client 50 × 4,40 = 220 € (commission 20) ; assurance 2 % × 1000 = 20 → 240 €.
+        $this->assertDatabaseHas('maritime_bookings', [
+            'id' => $id, 'freight_subtotal' => 200, 'commission_amount' => 20, 'insurance_amount' => 20, 'total_price' => 240,
+            'dropoff_deadline' => today()->addDays(16)->toDateString().' 00:00:00',
+        ]);
+        $this->assertEquals(450, (float) $departure->fresh()->remaining_kg);
+
+        $this->getJson("/api/v1/maritime/bookings/{$id}/payment-status")->assertJsonPath('data.status', 'paid');
+
+        // L'équipe ASSO est prévenue pour contacter l'expéditeur.
+        $this->assertContains(['user_id' => $admin->id, 'type' => 'maritime_staff_paid'], $this->pushes);
+        $this->assertContains(['user_id' => $sender->id, 'type' => 'maritime_booking_paid'], $this->pushes);
+
+        $booking = MaritimeBooking::find($id);
+        $this->actingAs($admin);
+        $this->get(route('admin.maritime.bookings.index'))->assertOk()->assertSee('Awa Ndiaye');
+        $this->get(route('admin.maritime.bookings.show', $booking))->assertOk()->assertSee('+33611111111');
+        foreach (['dropped_off', 'shipped', 'arrived'] as $step) {
+            $this->post(route('admin.maritime.bookings.advance', $booking))->assertRedirect();
+            $this->assertEquals($step, $booking->fresh()->status);
+        }
+
+        $this->post(route('admin.maritime.bookings.complete', $booking), ['confirmation_code' => '000000' === $booking->confirmation_code ? '111111' : '000000'])
+            ->assertSessionHas('error');
+        $this->post(route('admin.maritime.bookings.complete', $booking), ['confirmation_code' => $booking->confirmation_code])
+            ->assertSessionHas('success');
+
+        $this->assertEquals('completed', $booking->fresh()->status);
+        // Fret 200 € → 131 200 FCFA dus au partenaire (aucun Wallet crédité) ;
+        // commission 13 120 + assurance 13 120 à ASSO.
+        $this->assertEquals(0, $partnerUser->fresh()->kpayBalanceFor('XAF'));
+        $this->assertEquals(131200, \App\Services\PartnerLedgerService::balance($departure->deliverer_company_id)['due']);
+        $platform = User::where('email', 'platform@asso.test')->first();
+        $this->assertEquals(26240, $platform->kpayBalanceFor('XAF'));
+    }
+
+    public function test_booking_refused_inside_cutoff_window(): void
+    {
+        $departure = $this->departure(6); // clôture à J − 7 : déjà passée
+        Sanctum::actingAs(User::factory()->create());
+
+        $this->postJson("/api/v1/maritime/departures/{$departure->id}/book", $this->payload())
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Trajet impossible à faire, veuillez consulter les prochaines dates pour cette destination.');
+
+        $this->getJson("/api/v1/maritime/departures/{$departure->id}")
+            ->assertJsonPath('data.is_bookable', false);
+    }
+
+    public function test_booking_refused_beyond_remaining_kg(): void
+    {
+        $departure = $this->departure();
+        Sanctum::actingAs(User::factory()->create());
+
+        $this->postJson("/api/v1/maritime/departures/{$departure->id}/book", $this->payload(['kg_booked' => 600]))
+            ->assertStatus(422);
+    }
+
+    public function test_failed_payment_restores_kg(): void
+    {
+        $this->fakeKpay('FAILED');
+        $departure = $this->departure();
+        Sanctum::actingAs(User::factory()->create());
+
+        $id = $this->postJson("/api/v1/maritime/departures/{$departure->id}/book", $this->payload())->json('booking_id');
+        $this->getJson("/api/v1/maritime/bookings/{$id}/payment-status")->assertJsonPath('data.status', 'cancelled');
+        $this->assertEquals(500, (float) $departure->fresh()->remaining_kg);
+    }
+
+    public function test_missed_dropoff_refunds_total_minus_commission(): void
+    {
+        $this->fakeKpay();
+        $departure = $this->departure();
+        $sender = User::factory()->create();
+        Sanctum::actingAs($sender);
+        $id = $this->postJson("/api/v1/maritime/departures/{$departure->id}/book", $this->payload())->json('booking_id');
+        $this->getJson("/api/v1/maritime/bookings/{$id}/payment-status");
+
+        MaritimeBooking::whereKey($id)->update(['dropoff_deadline' => today()->subDay()]);
+        $this->artisan('maritime:refund-missed-dropoffs')->assertSuccessful();
+
+        $b = MaritimeBooking::find($id);
+        $this->assertEquals('cancelled', $b->status);
+        $this->assertEquals('refunded', $b->payment_status);
+        // 240 − 20 de commission = 220 € → 144 320 FCFA.
+        $this->assertEquals(144320, $sender->fresh()->kpayBalanceFor('XAF'));
+        $this->assertContains(['user_id' => $sender->id, 'type' => 'maritime_dropoff_missed'], $this->pushes);
+    }
+
+    public function test_sender_cancel_before_dropoff_refunds_everything(): void
+    {
+        $this->fakeKpay();
+        $departure = $this->departure();
+        $sender = User::factory()->create();
+        Sanctum::actingAs($sender);
+        $id = $this->postJson("/api/v1/maritime/departures/{$departure->id}/book", $this->payload())->json('booking_id');
+        $this->getJson("/api/v1/maritime/bookings/{$id}/payment-status");
+
+        $this->postJson("/api/v1/maritime/bookings/{$id}/cancel")->assertOk();
+        $this->assertEquals(157440, $sender->fresh()->kpayBalanceFor('XAF'));
+        $this->assertEquals(500, (float) $departure->fresh()->remaining_kg);
+    }
+
+    public function test_admin_creates_departure_between_partner_hubs(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $this->actingAs($admin);
+        $existing = $this->departure();
+        $partner = $existing->company;
+        $this->get(route('admin.maritime.index'))->assertOk()->assertSee($partner->name);
+
+        $payload = [
+            'deliverer_company_id' => $partner->id,
+            'origin_hub_id' => $existing->origin_hub_id,
+            'destination_hub_id' => $existing->destination_hub_id,
+            'departure_date' => today()->addDays(30)->toDateString(),
+            'capacity_kg' => 1000, 'price_per_kg' => 3, 'currency' => 'eur',
+        ];
+        // Aucun compte ASSO n'est demandé au partenaire.
+        $partner->update(['user_id' => null]);
+        $this->post(route('admin.maritime.departures.store'), $payload)->assertSessionHas('success');
+        $this->assertEquals(2, MaritimeDeparture::count());
+
+        // Les QG doivent appartenir au partenaire choisi.
+        $other = $this->departure();
+        $this->post(route('admin.maritime.departures.store'), ['origin_hub_id' => $other->origin_hub_id] + $payload)->assertSessionHas('error');
+    }
+}

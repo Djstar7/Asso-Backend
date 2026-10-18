@@ -286,7 +286,8 @@
         "offer_delete_has_active_bookings": "Cette offre ne peut pas être supprimée car elle a des réservations actives",
         "identity_already_verified": "Votre identité est déjà vérifiée.",
         "documents_uploaded": "Documents uploadés avec succès. Votre profil sera vérifié sous 24-48h.",
-        "documents_upload_error": "Erreur lors de l'upload des documents: :error"
+        "documents_upload_error": "Erreur lors de l'upload des documents: :error",
+        "passport_required_abroad": "Vous résidez hors de votre pays de nationalité : le passeport est exigé."
     },
     "payments": {
         "method_unavailable": "Ce moyen de paiement est actuellement indisponible.",
@@ -814,6 +815,34 @@
         "dispute_replacement_reported": {
             "title": "Problème sur le remplacement",
             "body": "Le client signale un problème sur le produit de remplacement (réclamation :number). Donnez votre réponse : ASSO décidera ensuite. Vos fonds restent bloqués."
+        },
+        "maritime_booking_paid": {
+            "title": "Envoi maritime confirmé",
+            "body": "Paiement reçu. Déposez votre colis à :hub avant le :date. Passé ce délai, votre argent vous sera retourné, hors frais ASSO."
+        },
+        "maritime_dropped_off": {
+            "title": "Colis déposé",
+            "body": "Votre colis a bien été reçu au QG de départ."
+        },
+        "maritime_shipped": {
+            "title": "Colis embarqué",
+            "body": "Votre colis est en route par bateau vers :hub."
+        },
+        "maritime_arrived": {
+            "title": "Colis arrivé",
+            "body": "Votre colis est arrivé à :hub. Le destinataire doit présenter le code de remise."
+        },
+        "maritime_completed": {
+            "title": "Colis remis",
+            "body": "Votre colis a été remis au destinataire. Merci d'avoir utilisé ASSO Maritime."
+        },
+        "maritime_dropoff_missed": {
+            "title": "Envoi annulé",
+            "body": "Votre colis n'a pas été déposé avant la date limite. :amount ont été crédités sur votre Wallet (hors frais ASSO)."
+        },
+        "maritime_staff_paid": {
+            "title": "Nouvel envoi maritime payé",
+            "body": ":name a payé :kg kg (:route). À contacter au :phone."
         }
     },
     "orders": {
@@ -1041,7 +1070,8 @@
         "service_types": {
             "local": "Urbain (même ville)",
             "intercity": "Interurbain (Cameroun)",
-            "international": "Livraison internationale"
+            "international": "Livraison internationale",
+            "maritime": "Fret maritime (Diaspo)"
         },
         "service_modes": {
             "door_to_door": "Livraison à domicile",
@@ -1227,6 +1257,7 @@
             "dispute_funds_released": "Litige :number — fonds débloqués",
             "diaspo_booking": "Réservation Diaspo #:booking",
             "asso_commission_diaspo": "Commission ASSO — Réservation Diaspo #:booking",
+            "asso_parcel_insurance": "Assurance colis — :reference",
             "asso_package": "Forfait encaissé — :reference",
             "asso_dispute_course": "Course de litige payée par ASSO — :reference",
             "asso_sales_commission": "Commission commercial — code :reference",
@@ -1244,7 +1275,9 @@
             "refund_bank_transfer_failed_ref": "Remboursement — virement IBAN non abouti (réf. :reference)",
             "refund_bank_transfer_failed": "Remboursement virement bancaire échoué",
             "refund_withdrawal_failed": "Remboursement retrait échoué - :method (:account)",
-            "refund_withdrawal_expired": "Remboursement retrait expiré - :method (:account)"
+            "refund_withdrawal_expired": "Remboursement retrait expiré - :method (:account)",
+            "asso_commission_maritime": "Commission ASSO — Envoi maritime #:booking",
+            "maritime_refund": "Remboursement — Envoi maritime #:booking"
         }
     },
     "sales_program": {
@@ -1404,6 +1437,26 @@
             "cta": "Ouvrir le litige dans le back-office",
             "footer": "Cet e-mail a été envoyé automatiquement, merci de ne pas y répondre.",
             "team": "L'équipe ASSO"
+        }
+    },
+    "maritime": {
+        "trip_impossible": "Trajet impossible à faire, veuillez consulter les prochaines dates pour cette destination.",
+        "not_enough_kg": "Il ne reste que :kg kg sur ce départ.",
+        "booking_created_confirm_on_phone": "Envoi enregistré. Confirmez le paiement sur votre téléphone.",
+        "booking_created_complete_card": "Envoi enregistré. Finalisez le paiement par carte.",
+        "cannot_cancel": "Cet envoi ne peut plus être annulé : le colis a déjà été déposé.",
+        "booking_cancelled": "Envoi annulé. Le montant payé a été crédité sur votre Wallet.",
+        "code_incorrect": "Code de remise incorrect.",
+        "not_arrived_yet": "Le colis doit être arrivé au QG de destination avant la remise.",
+        "settlement_unavailable": "Règlement impossible pour le moment (taux de change indisponible). Réessayez plus tard.",
+        "statuses": {
+            "pending": "Paiement en attente",
+            "paid": "Payé — colis attendu au QG",
+            "dropped_off": "Colis déposé au QG",
+            "shipped": "Embarqué",
+            "arrived": "Arrivé au QG de destination",
+            "completed": "Remis au destinataire",
+            "cancelled": "Annulé"
         }
     }
 }

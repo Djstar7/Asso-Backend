@@ -286,7 +286,8 @@
         "offer_delete_has_active_bookings": "This offer cannot be deleted because it has active bookings",
         "identity_already_verified": "Your identity is already verified.",
         "documents_uploaded": "Documents uploaded successfully. Your profile will be verified within 24-48 hours.",
-        "documents_upload_error": "Error while uploading the documents: :error"
+        "documents_upload_error": "Error while uploading the documents: :error",
+        "passport_required_abroad": "You live outside your country of nationality: a passport is required."
     },
     "payments": {
         "method_unavailable": "This payment method is currently unavailable.",
@@ -814,6 +815,34 @@
         "dispute_replacement_reported": {
             "title": "Issue with the replacement",
             "body": "The customer reports an issue with the replacement product (claim :number). Send your reply: ASSO will then decide. Your funds stay on hold."
+        },
+        "maritime_booking_paid": {
+            "title": "Sea shipment confirmed",
+            "body": "Payment received. Drop off your parcel at :hub before :date. After that, your money will be returned, minus ASSO fees."
+        },
+        "maritime_dropped_off": {
+            "title": "Parcel dropped off",
+            "body": "Your parcel has been received at the departure hub."
+        },
+        "maritime_shipped": {
+            "title": "Parcel shipped",
+            "body": "Your parcel is on its way by boat to :hub."
+        },
+        "maritime_arrived": {
+            "title": "Parcel arrived",
+            "body": "Your parcel has arrived at :hub. The recipient must show the handover code."
+        },
+        "maritime_completed": {
+            "title": "Parcel handed over",
+            "body": "Your parcel has been handed over to the recipient. Thank you for using ASSO Maritime."
+        },
+        "maritime_dropoff_missed": {
+            "title": "Shipment cancelled",
+            "body": "Your parcel was not dropped off before the deadline. :amount has been credited to your Wallet (minus ASSO fees)."
+        },
+        "maritime_staff_paid": {
+            "title": "New paid sea shipment",
+            "body": ":name paid for :kg kg (:route). Contact them at :phone."
         }
     },
     "orders": {
@@ -1041,7 +1070,8 @@
         "service_types": {
             "local": "Local (same city)",
             "intercity": "Intercity (Cameroon)",
-            "international": "International delivery"
+            "international": "International delivery",
+            "maritime": "Sea freight (Diaspo)"
         },
         "service_modes": {
             "door_to_door": "Home delivery",
@@ -1227,6 +1257,7 @@
             "dispute_funds_released": "Dispute :number — funds released",
             "diaspo_booking": "Diaspo booking #:booking",
             "asso_commission_diaspo": "ASSO commission — Diaspo booking #:booking",
+            "asso_parcel_insurance": "Parcel insurance — :reference",
             "asso_package": "Package paid — :reference",
             "asso_dispute_course": "Dispute course paid by ASSO — :reference",
             "asso_sales_commission": "Sales agent commission — code :reference",
@@ -1244,7 +1275,9 @@
             "refund_bank_transfer_failed_ref": "Refund — IBAN transfer failed (ref. :reference)",
             "refund_bank_transfer_failed": "Refund for failed bank transfer",
             "refund_withdrawal_failed": "Refund for failed withdrawal - :method (:account)",
-            "refund_withdrawal_expired": "Refund for expired withdrawal - :method (:account)"
+            "refund_withdrawal_expired": "Refund for expired withdrawal - :method (:account)",
+            "asso_commission_maritime": "ASSO commission — Sea shipment #:booking",
+            "maritime_refund": "Refund — Sea shipment #:booking"
         }
     },
     "sales_program": {
@@ -1404,6 +1437,26 @@
             "cta": "Open the dispute in the back office",
             "footer": "This email was sent automatically, please do not reply.",
             "team": "The ASSO team"
+        }
+    },
+    "maritime": {
+        "trip_impossible": "This trip is no longer possible. Please check the next dates for this destination.",
+        "not_enough_kg": "Only :kg kg are left on this departure.",
+        "booking_created_confirm_on_phone": "Shipment recorded. Confirm the payment on your phone.",
+        "booking_created_complete_card": "Shipment recorded. Complete the card payment.",
+        "cannot_cancel": "This shipment can no longer be cancelled: the parcel has already been dropped off.",
+        "booking_cancelled": "Shipment cancelled. The amount paid has been credited to your Wallet.",
+        "code_incorrect": "Incorrect handover code.",
+        "not_arrived_yet": "The parcel must have arrived at the destination hub before handover.",
+        "settlement_unavailable": "Settlement is not possible right now (exchange rate unavailable). Please try again later.",
+        "statuses": {
+            "pending": "Payment pending",
+            "paid": "Paid — parcel expected at the hub",
+            "dropped_off": "Parcel dropped off at the hub",
+            "shipped": "Shipped",
+            "arrived": "Arrived at the destination hub",
+            "completed": "Handed over to the recipient",
+            "cancelled": "Cancelled"
         }
     }
 }
