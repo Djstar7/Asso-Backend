@@ -224,6 +224,7 @@ class Listing extends Model
 
         return [
             'id' => $this->id,
+            'is_owner' => $viewer !== null && (int) $viewer->getKey() === (int) $this->owner_id,
             'reference' => $this->reference,
             'type' => $this->type,
             'property_kind' => $this->property_kind,

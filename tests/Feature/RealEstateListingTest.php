@@ -102,6 +102,7 @@ class RealEstateListingTest extends TestCase
         $tenant = User::factory()->create();
 
         $res = $this->getJson("/api/v1/real-estate/listings/{$listing->id}")->assertOk();
+        $this->assertFalse($res->json('data.is_owner'));
         $this->assertFalse($res->json('data.unlocked'));
         $this->assertNull($res->json('data.location.address'));
         $this->assertNull($res->json('data.location.latitude'));
@@ -116,10 +117,27 @@ class RealEstateListingTest extends TestCase
         ]);
         Sanctum::actingAs($tenant);
         $res = $this->getJson("/api/v1/real-estate/listings/{$listing->id}")->assertOk();
+        $this->assertFalse($res->json('data.is_owner'));
         $this->assertTrue($res->json('data.unlocked'));
         $this->assertSame('Rue 12, porte bleue', $res->json('data.location.address'));
         $this->assertSame('Paul Mbarga', $res->json('data.owner.name'));
         $this->assertSame('690000001', $res->json('data.owner.phone'));
+    }
+
+    public function test_listing_responses_mark_the_authenticated_owner_without_exposing_owner_id(): void
+    {
+        $listing = $this->house();
+        $owner = $this->landlord();
+
+        Sanctum::actingAs($owner);
+        $this->getJson('/api/v1/real-estate/listings')
+            ->assertOk()
+            ->assertJsonPath('data.0.is_owner', true)
+            ->assertJsonMissingPath('data.0.owner_id');
+        $this->getJson("/api/v1/real-estate/listings/{$listing->id}")
+            ->assertOk()
+            ->assertJsonPath('data.is_owner', true)
+            ->assertJsonMissingPath('data.owner_id');
     }
 
     public function test_unpublished_listing_is_hidden_from_public(): void
