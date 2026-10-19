@@ -456,8 +456,10 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::put('/partners/{partner}', 'updatePartner')->name('partners.update');
             Route::post('/partners/{partner}/hubs', 'storeHub')->name('hubs.store');
             Route::put('/hubs/{hub}', 'updateHub')->name('hubs.update');
+            Route::delete('/hubs/{hub}', 'destroyHub')->name('hubs.destroy');
             Route::post('/partners/{partner}/departures', 'storeDeparture')->name('departures.store');
             Route::put('/departures/{departure}', 'updateDeparture')->name('departures.update');
+            Route::delete('/departures/{departure}', 'destroyDeparture')->name('departures.destroy');
             Route::get('/bookings', 'bookings')->name('bookings.index');
             Route::get('/bookings/{booking}', 'showBooking')->name('bookings.show');
             Route::post('/bookings/{booking}/advance', 'advanceBooking')->name('bookings.advance');

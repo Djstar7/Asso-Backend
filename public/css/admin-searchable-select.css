@@ -14,6 +14,15 @@
 }
 
 .admin-searchable-select__native {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
     visibility: hidden !important;
     pointer-events: none !important;
 }
@@ -103,4 +112,138 @@
     padding: 0.7rem 0.65rem;
     color: #9ca3af;
     font-size: 0.875rem;
+}
+
+.admin-date-picker {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    max-width: 100%;
+    vertical-align: middle;
+}
+
+.admin-date-picker__native {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
+}
+
+.admin-date-picker__date,
+.admin-date-picker__time {
+    min-width: 0;
+    color: #fff;
+}
+
+.admin-date-picker__date {
+    flex: 1 1 10rem;
+}
+
+.admin-date-picker__calendar {
+    position: fixed;
+    z-index: 1000;
+    width: min(20rem, calc(100vw - 2rem));
+    padding: 0.75rem;
+    border: 1px solid #3f3f46;
+    border-radius: 0.75rem;
+    background: #18181b;
+    box-shadow: 0 12px 28px rgb(0 0 0 / 0.4);
+}
+
+.admin-date-picker__calendar[hidden] {
+    display: none;
+}
+
+.admin-date-picker__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.65rem;
+}
+
+.admin-date-picker__month {
+    flex: 1;
+    color: #fff;
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-align: center;
+    text-transform: capitalize;
+}
+
+.admin-date-picker__nav,
+.admin-date-picker__day,
+.admin-date-picker__action {
+    border: 0;
+    border-radius: 0.4rem;
+    background: transparent;
+    color: #e5e7eb;
+    cursor: pointer;
+}
+
+.admin-date-picker__nav {
+    width: 2rem;
+    height: 2rem;
+    font-size: 1.15rem;
+}
+
+.admin-date-picker__nav:hover,
+.admin-date-picker__day:hover:not(:disabled),
+.admin-date-picker__action:hover {
+    background: #27272a;
+}
+
+.admin-date-picker__week,
+.admin-date-picker__days {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 0.2rem;
+    text-align: center;
+}
+
+.admin-date-picker__week {
+    margin-bottom: 0.25rem;
+    color: #9ca3af;
+    font-size: 0.72rem;
+}
+
+.admin-date-picker__day {
+    min-width: 0;
+    aspect-ratio: 1;
+    font-size: 0.8rem;
+}
+
+.admin-date-picker__day[aria-pressed="true"] {
+    background: #ff5722;
+    color: #fff;
+    font-weight: 700;
+}
+
+.admin-date-picker__day:disabled {
+    cursor: not-allowed;
+    color: #52525b;
+}
+
+.admin-date-picker__actions {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid #3f3f46;
+}
+
+.admin-date-picker__action {
+    padding: 0.4rem 0.55rem;
+    font-size: 0.8rem;
+}
+
+.admin-date-picker__time {
+    flex: 0 1 auto;
+    max-width: 8rem;
 }

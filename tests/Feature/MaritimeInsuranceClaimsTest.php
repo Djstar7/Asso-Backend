@@ -221,6 +221,36 @@ class MaritimeInsuranceClaimsTest extends TestCase
             ->assertUnprocessable();
     }
 
+    public function test_booking_history_exposes_localized_status_and_event_labels(): void
+    {
+        $this->fakeKpay();
+        $customer = User::factory()->create();
+        $booking = $this->book($customer, $this->departure(), $this->nature());
+
+        Sanctum::actingAs($customer);
+        $this->getJson("/api/v1/maritime/bookings/{$booking->id}")
+            ->assertJsonPath('data.insurance_history.0.status', 'pending_payment')
+            ->assertJsonPath('data.insurance_history.0.status_label', 'Paiement en cours')
+            ->assertJsonPath('data.insurance_history.0.event_label', 'Assurance souscrite');
+
+        $this->getJson("/api/v1/maritime/bookings/{$booking->id}/payment-status");
+        $booking->insuranceHistory()->create([
+            'event' => 'booking_status',
+            'status' => 'dropped_off',
+        ]);
+        $response = $this->getJson("/api/v1/maritime/bookings/{$booking->id}");
+        $history = collect($response->json('data.insurance_history'));
+
+        $this->assertSame('Assurance active', $history->firstWhere('status', 'active')['status_label']);
+        $this->assertSame('Colis déposé au QG', $history->firstWhere('status', 'dropped_off')['status_label']);
+        $this->assertSame('Statut de l’envoi mis à jour', $history->firstWhere('event', 'booking_status')['event_label']);
+
+        $englishHistory = collect($this->getJson("/api/v1/maritime/bookings/{$booking->id}", ['Accept-Language' => 'en'])
+            ->json('data.insurance_history'));
+        $this->assertSame('Payment in progress', $englishHistory->firstWhere('status', 'pending_payment')['status_label']);
+        $this->assertSame('Parcel dropped off at the hub', $englishHistory->firstWhere('status', 'dropped_off')['status_label']);
+    }
+
     public function test_claim_workflow_requires_admin_and_cap_and_pays_atomically_once(): void
     {
         $this->fakeKpay();

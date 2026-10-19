@@ -41,29 +41,77 @@
         <div class="overflow-x-auto mb-4">
             <table class="w-full text-sm">
                 <thead class="text-gray-400 text-xs uppercase text-left">
-                    <tr><th class="py-1">Nom</th><th>Pays / ville</th><th>Adresse</th><th>Téléphone</th><th>Horaires</th><th>Actif</th><th></th></tr>
+                    <tr><th class="py-1">Nom</th><th>Pays / ville</th><th>Adresse</th><th>Téléphone</th><th>Horaires</th><th>Actif</th><th>Actions</th></tr>
                 </thead>
                 <tbody class="divide-y divide-dark-200">
                     @foreach($hubs as $hub)
                         <tr>
-                            <form id="hub-{{ $hub->id }}" action="{{ route('admin.maritime.hubs.update', $hub) }}" method="POST">@csrf @method('PUT')</form>
-                            <td class="py-1 pr-2"><input form="hub-{{ $hub->id }}" name="name" value="{{ $hub->name }}" required class="w-full {{ $small }}"></td>
-                            <td class="pr-2 whitespace-nowrap">
-                                <select form="hub-{{ $hub->id }}" name="country" class="{{ $small }}">
-                                    @foreach($countries as $code => $name)<option value="{{ $code }}" @selected($hub->country === $code)>{{ $name }}</option>@endforeach
-                                </select>
-                                <input form="hub-{{ $hub->id }}" name="city" value="{{ $hub->city }}" required class="w-28 {{ $small }}">
+                            <td class="py-2 pr-2 text-white">{{ $hub->name }}</td>
+                            <td class="pr-2 whitespace-nowrap">{{ $countries[$hub->country] ?? $hub->country }} / {{ $hub->city }}</td>
+                            <td class="pr-2">{{ $hub->address }}</td>
+                            <td class="pr-2 whitespace-nowrap">{{ $hub->phone ?: '—' }}</td>
+                            <td class="pr-2 whitespace-nowrap">{{ $hub->opening_hours ?: '—' }}</td>
+                            <td class="pr-2">{{ $hub->is_active ? 'Oui' : 'Non' }}</td>
+                            <td class="whitespace-nowrap">
+                                <button type="button" onclick="document.getElementById('hub-edit-{{ $hub->id }}').showModal()" class="px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700">Modifier</button>
+                                @if(in_array($hub->id, $usedHubIds, true))
+                                    <button type="button" disabled title="Ce QG est utilisé par un départ." class="ml-1 px-3 py-1 bg-gray-600 text-gray-300 rounded cursor-not-allowed">Utilisé</button>
+                                @else
+                                    <form action="{{ route('admin.maritime.hubs.destroy', $hub) }}" method="POST" class="inline"
+                                          onsubmit="return confirm('Supprimer définitivement ce QG ? Cette action est irréversible.')">
+                                        @csrf @method('DELETE')
+                                        <button type="submit" class="ml-1 px-3 py-1 bg-red-700 text-white rounded hover:bg-red-800">Supprimer</button>
+                                    </form>
+                                @endif
                             </td>
-                            <td class="pr-2"><input form="hub-{{ $hub->id }}" name="address" value="{{ $hub->address }}" required class="w-full {{ $small }}"></td>
-                            <td class="pr-2"><input form="hub-{{ $hub->id }}" name="phone" value="{{ $hub->phone }}" class="w-32 {{ $small }}"></td>
-                            <td class="pr-2"><input form="hub-{{ $hub->id }}" name="opening_hours" value="{{ $hub->opening_hours }}" class="w-36 {{ $small }}"></td>
-                            <td class="pr-2"><input form="hub-{{ $hub->id }}" type="checkbox" name="is_active" value="1" @checked($hub->is_active)></td>
-                            <td><button form="hub-{{ $hub->id }}" type="submit" class="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">Enregistrer</button></td>
                         </tr>
                     @endforeach
                 </tbody>
             </table>
         </div>
+        @foreach($hubs as $hub)
+            <dialog id="hub-edit-{{ $hub->id }}" class="w-11/12 max-w-2xl rounded-xl border border-dark-200 bg-dark-100 p-0 text-white shadow-2xl backdrop:bg-black/70">
+                <form action="{{ route('admin.maritime.hubs.update', $hub) }}" method="POST" class="p-6">
+                    @csrf @method('PUT')
+                    <div class="mb-5 flex items-start justify-between gap-4">
+                        <div>
+                            <h3 class="text-xl font-semibold">Modifier le QG — {{ $hub->name }}</h3>
+                            <p class="mt-1 text-sm text-gray-400">Mettez à jour les coordonnées et la disponibilité de ce lieu.</p>
+                        </div>
+                        <button type="button" onclick="this.closest('dialog').close()" class="text-2xl leading-none text-gray-400 hover:text-white" aria-label="Fermer">&times;</button>
+                    </div>
+                    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <label class="text-sm text-gray-300 md:col-span-2">Nom
+                            <input name="name" value="{{ $hub->name }}" required class="{{ $input }} mt-1">
+                        </label>
+                        <label class="text-sm text-gray-300">Pays
+                            <select name="country" required class="{{ $input }} mt-1">
+                                @foreach($countries as $code => $name)<option value="{{ $code }}" @selected($hub->country === $code)>{{ $name }}</option>@endforeach
+                            </select>
+                        </label>
+                        <label class="text-sm text-gray-300">Ville
+                            <input name="city" value="{{ $hub->city }}" required class="{{ $input }} mt-1">
+                        </label>
+                        <label class="text-sm text-gray-300 md:col-span-2">Adresse
+                            <input name="address" value="{{ $hub->address }}" required class="{{ $input }} mt-1">
+                        </label>
+                        <label class="text-sm text-gray-300">Téléphone
+                            <input name="phone" value="{{ $hub->phone }}" class="{{ $input }} mt-1">
+                        </label>
+                        <label class="text-sm text-gray-300">Horaires
+                            <input name="opening_hours" value="{{ $hub->opening_hours }}" class="{{ $input }} mt-1">
+                        </label>
+                        <label class="flex items-center gap-2 text-gray-300 md:col-span-2">
+                            <input type="checkbox" name="is_active" value="1" @checked($hub->is_active)> QG actif
+                        </label>
+                    </div>
+                    <div class="mt-6 flex justify-end gap-3">
+                        <button type="button" onclick="this.closest('dialog').close()" class="rounded-lg border border-dark-200 px-4 py-2 text-gray-300 hover:bg-dark-50">Annuler</button>
+                        <button type="submit" class="{{ $btn }}">Enregistrer les modifications</button>
+                    </div>
+                </form>
+            </dialog>
+        @endforeach
         @endif
 
         <form action="{{ route('admin.maritime.hubs.store', $partner) }}" method="POST" class="grid grid-cols-1 md:grid-cols-6 gap-2 items-end border-t border-dark-200 pt-4">
@@ -157,7 +205,7 @@
         <div class="overflow-x-auto">
             <table class="w-full text-sm">
                 <thead class="bg-dark-50 text-left text-xs font-semibold text-white uppercase tracking-wider">
-                    <tr><th class="px-4 py-3">Départ</th><th class="px-4 py-3">Trajet</th><th class="px-4 py-3">Clôture / dépôt</th><th class="px-4 py-3">Kilos libres</th><th class="px-4 py-3">Tarif</th><th class="px-4 py-3">Envois</th><th class="px-4 py-3">Statut et capacité</th></tr>
+                    <tr><th class="px-4 py-3">Départ</th><th class="px-4 py-3">Trajet</th><th class="px-4 py-3">Clôture / dépôt</th><th class="px-4 py-3">Kilos libres</th><th class="px-4 py-3">Tarif</th><th class="px-4 py-3">Envois</th><th class="px-4 py-3">Statut et capacité</th><th class="px-4 py-3">Actions</th></tr>
                 </thead>
                 <tbody class="divide-y divide-dark-200 text-gray-300">
                     @forelse($departures as $d)
@@ -169,23 +217,108 @@
                             <td class="px-4 py-3 whitespace-nowrap">@include('admin.maritime._price', ['d' => $d])</td>
                             <td class="px-4 py-3"><a href="{{ route('admin.maritime.bookings.index', ['departure' => $d->id]) }}" class="text-primary-400 underline">{{ $d->paid_bookings_count }}</a></td>
                             <td class="px-4 py-3">
-                                <form action="{{ route('admin.maritime.departures.update', $d) }}" method="POST" class="flex flex-wrap gap-2 items-center">
-                                    @csrf @method('PUT')
-                                    <select name="status" class="{{ $small }}">
-                                        @foreach(\App\Models\MaritimeDeparture::STATUSES as $value => $label)<option value="{{ $value }}" @selected($d->status === $value)>{{ $label }}</option>@endforeach
-                                    </select>
-                                    <input type="number" step="0.5" min="0" name="capacity_kg" value="{{ (float) $d->capacity_kg }}" class="w-24 {{ $small }}" title="Capacité (kg)">
-                                    <input type="date" name="estimated_arrival_date" value="{{ $d->estimated_arrival_date?->toDateString() }}" class="{{ $small }}" title="Arrivée estimée">
-                                    <button type="submit" class="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">OK</button>
-                                </form>
+                                <span>{{ \App\Models\MaritimeDeparture::STATUSES[$d->status] ?? $d->status }}</span>
+                                <div class="mt-1 text-xs text-gray-400">
+                                    Capacité : {{ (float) $d->capacity_kg }} kg
+                                    @if($d->estimated_arrival_date) · arrivée {{ $d->estimated_arrival_date->format('d/m/Y') }}@endif
+                                </div>
+                            </td>
+                            <td class="px-4 py-3 whitespace-nowrap">
+                                <button type="button" onclick="document.getElementById('departure-edit-{{ $d->id }}').showModal()" class="px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700">Modifier</button>
+                                @if($d->bookings_count > 0)
+                                    <button type="button" disabled title="Ce départ possède des envois." class="ml-1 px-3 py-1 bg-gray-600 text-gray-300 rounded cursor-not-allowed">Utilisé</button>
+                                @else
+                                    <form action="{{ route('admin.maritime.departures.destroy', $d) }}" method="POST" class="inline"
+                                          onsubmit="return confirm('Supprimer définitivement ce départ ? Cette action est irréversible.')">
+                                        @csrf @method('DELETE')
+                                        <button type="submit" class="ml-1 px-3 py-1 bg-red-700 text-white rounded hover:bg-red-800">Supprimer</button>
+                                    </form>
+                                @endif
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="7" class="px-4 py-8 text-center text-gray-400">Aucun départ.</td></tr>
+                        <tr><td colspan="8" class="px-4 py-8 text-center text-gray-400">Aucun départ.</td></tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
+        @foreach($departures as $d)
+            @php($hasBookings = $d->bookings_count > 0)
+            <dialog id="departure-edit-{{ $d->id }}" class="w-11/12 max-w-3xl rounded-xl border border-dark-200 bg-dark-100 p-0 text-white shadow-2xl backdrop:bg-black/70">
+                <form action="{{ route('admin.maritime.departures.update', $d) }}" method="POST"
+                      x-data="{ unit: @js($d->isPricedPerCbm() ? 'cbm' : 'kg') }"
+                      class="p-6">
+                    @csrf @method('PUT')
+                    <div class="mb-5 flex items-start justify-between gap-4">
+                        <div>
+                            <h3 class="text-xl font-semibold">Modifier le départ du {{ $d->departure_date->format('d/m/Y') }}</h3>
+                            <p class="mt-1 text-sm text-gray-400">
+                                @if($hasBookings)
+                                    Des envois sont déjà liés : le trajet, la date et le tarif sont protégés pour préserver leurs réservations.
+                                @else
+                                    Modifiez les informations du départ. Les kilos déjà réservés sont conservés.
+                                @endif
+                            </p>
+                        </div>
+                        <button type="button" onclick="this.closest('dialog').close()" class="text-2xl leading-none text-gray-400 hover:text-white" aria-label="Fermer">&times;</button>
+                    </div>
+                    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <label class="text-sm text-gray-300">QG de départ
+                            <select name="origin_hub_id" required @disabled($hasBookings) class="{{ $input }} mt-1">
+                                @foreach($hubs as $hub)<option value="{{ $hub->id }}" @selected($d->origin_hub_id === $hub->id)>{{ $hub->city }} — {{ $hub->name }}</option>@endforeach
+                            </select>
+                        </label>
+                        <label class="text-sm text-gray-300">QG d'arrivée
+                            <select name="destination_hub_id" required @disabled($hasBookings) class="{{ $input }} mt-1">
+                                @foreach($hubs as $hub)<option value="{{ $hub->id }}" @selected($d->destination_hub_id === $hub->id)>{{ $hub->city }} — {{ $hub->name }}</option>@endforeach
+                            </select>
+                        </label>
+                        <label class="text-sm text-gray-300">Date de départ
+                            <input type="date" name="departure_date" required value="{{ $d->departure_date->toDateString() }}" @disabled($hasBookings) class="{{ $input }} mt-1">
+                        </label>
+                        <label class="text-sm text-gray-300">Arrivée estimée
+                            <input type="date" name="estimated_arrival_date" value="{{ $d->estimated_arrival_date?->toDateString() }}" class="{{ $input }} mt-1">
+                        </label>
+                        <fieldset @disabled($hasBookings) class="text-sm text-gray-300">
+                            <legend>Tarif du transporteur</legend>
+                            <div class="mt-1 flex overflow-hidden rounded-lg border border-dark-200">
+                                <label class="flex-1 cursor-pointer py-2 text-center" :class="unit === 'cbm' ? 'bg-primary-600 text-white' : 'bg-dark-50 text-gray-300'">
+                                    <input type="radio" name="pricing_unit" value="cbm" x-model="unit" class="hidden">Au m³
+                                </label>
+                                <label class="flex-1 cursor-pointer py-2 text-center" :class="unit === 'kg' ? 'bg-primary-600 text-white' : 'bg-dark-50 text-gray-300'">
+                                    <input type="radio" name="pricing_unit" value="kg" x-model="unit" class="hidden">Au kg
+                                </label>
+                            </div>
+                        </fieldset>
+                        <div class="flex items-end gap-2">
+                            <label class="flex-1 text-sm text-gray-300"><span x-text="unit === 'cbm' ? 'Prix pour 1 m³' : 'Prix pour 1 kg'"></span>
+                                <input type="number" step="0.01" min="0.01" name="price"
+                                       value="{{ $d->isPricedPerCbm() ? (float) $d->price_per_cbm : (float) $d->price_per_kg }}"
+                                       required @disabled($hasBookings) class="{{ $input }} mt-1">
+                            </label>
+                            <label class="w-28 text-sm text-gray-300">Devise
+                                <input name="currency" maxlength="3" value="{{ $d->currency }}" required @disabled($hasBookings) class="{{ $input }} mt-1 uppercase">
+                            </label>
+                        </div>
+                        <label class="text-sm text-gray-300">Capacité (kg)
+                            <input type="number" step="0.5" min="1" name="capacity_kg" value="{{ (float) $d->capacity_kg }}" required class="{{ $input }} mt-1">
+                        </label>
+                        <label class="text-sm text-gray-300 md:col-span-2">Notes pour l'expéditeur
+                            <textarea name="notes" rows="2" class="{{ $input }} mt-1">{{ $d->notes }}</textarea>
+                        </label>
+                        <label class="text-sm text-gray-300 md:col-span-2">Statut
+                            <select name="status" required class="{{ $input }} mt-1">
+                                @foreach(\App\Models\MaritimeDeparture::STATUSES as $value => $label)<option value="{{ $value }}" @selected($d->status === $value)>{{ $label }}</option>@endforeach
+                            </select>
+                        </label>
+                    </div>
+                    <div class="mt-6 flex justify-end gap-3">
+                        <button type="button" onclick="this.closest('dialog').close()" class="rounded-lg border border-dark-200 px-4 py-2 text-gray-300 hover:bg-dark-50">Annuler</button>
+                        <button type="submit" class="{{ $btn }}">Enregistrer les modifications</button>
+                    </div>
+                </form>
+            </dialog>
+        @endforeach
         @if($departures->hasPages())<div class="px-6 py-4 border-t border-dark-200">{{ $departures->links() }}</div>@endif
     </div>
 

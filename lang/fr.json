@@ -1467,6 +1467,21 @@
             "completed": "Remis au destinataire",
             "cancelled": "Annulé"
         },
+        "insurance_statuses": {
+            "pending_payment": "Paiement en cours",
+            "active": "Assurance active",
+            "payment_failed": "Échec du paiement",
+            "not_opted_in": "Assurance non souscrite",
+            "refunded": "Assurance remboursée"
+        },
+        "history_events": {
+            "insurance_opted_in": "Assurance souscrite",
+            "insurance_opted_out": "Assurance non souscrite",
+            "payment_completed": "Paiement confirmé",
+            "payment_failed": "Paiement échoué",
+            "booking_cancelled": "Envoi annulé",
+            "booking_status": "Statut de l’envoi mis à jour"
+        },
         "booking_paid_with_wallet": "Envoi payé avec votre Wallet."
     }
 }

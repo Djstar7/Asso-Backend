@@ -1467,6 +1467,21 @@
             "completed": "Handed over to the recipient",
             "cancelled": "Cancelled"
         },
+        "insurance_statuses": {
+            "pending_payment": "Payment in progress",
+            "active": "Insurance active",
+            "payment_failed": "Payment failed",
+            "not_opted_in": "Insurance not purchased",
+            "refunded": "Insurance refunded"
+        },
+        "history_events": {
+            "insurance_opted_in": "Insurance purchased",
+            "insurance_opted_out": "Insurance not purchased",
+            "payment_completed": "Payment confirmed",
+            "payment_failed": "Payment failed",
+            "booking_cancelled": "Shipment cancelled",
+            "booking_status": "Shipment status updated"
+        },
         "booking_paid_with_wallet": "Shipment paid with your Wallet."
     }
 }

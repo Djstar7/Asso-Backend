@@ -123,9 +123,15 @@ class MaritimeController extends Controller
             'departures' => $partner->maritimeDepartures()
                 ->with(['originHub', 'destinationHub'])
                 ->withCount(['bookings as paid_bookings_count' => fn ($q) => $q->where('payment_status', '!=', 'pending')])
+                ->withCount('bookings')
                 ->orderByRaw("case when status in ('open', 'closed') then 0 else 1 end")
                 ->orderByDesc('departure_date')
                 ->paginate(20),
+            'usedHubIds' => $partner->maritimeDepartures()
+                ->get(['origin_hub_id', 'destination_hub_id'])
+                ->flatMap(fn ($departure) => [$departure->origin_hub_id, $departure->destination_hub_id])
+                ->unique()
+                ->all(),
             'countries' => CountryCode::NAMES,
             'settings' => $this->settings(),
             'walletBalance' => $partner->account?->kpayAvailableFor('XAF') ?? 0.0,
@@ -174,9 +180,26 @@ class MaritimeController extends Controller
 
     public function updateHub(Request $request, MaritimeHub $hub)
     {
+        $this->ensureMaritime($hub->company);
         $hub->update($this->validateHub($request) + ['is_active' => $request->boolean('is_active')]);
 
         return back()->with('success', 'QG mis à jour.');
+    }
+
+    public function destroyHub(MaritimeHub $hub)
+    {
+        $this->ensureMaritime($hub->company);
+        $isUsed = MaritimeDeparture::where('origin_hub_id', $hub->id)
+            ->orWhere('destination_hub_id', $hub->id)
+            ->exists();
+
+        if ($isUsed) {
+            return back()->with('error', 'Ce QG est utilisé par un départ et ne peut pas être supprimé.');
+        }
+
+        $hub->delete();
+
+        return back()->with('success', 'QG supprimé.');
     }
 
     private function validateHub(Request $request): array
@@ -243,10 +266,30 @@ class MaritimeController extends Controller
 
     public function updateDeparture(Request $request, MaritimeDeparture $departure)
     {
+        $this->ensureMaritime($departure->company);
+        $hasBookings = $departure->bookings()->exists();
         $data = $request->validate([
             'status' => ['required', Rule::in(array_keys(MaritimeDeparture::STATUSES))],
-            'capacity_kg' => 'required|numeric|min:0',
-            'estimated_arrival_date' => 'nullable|date',
+            'capacity_kg' => 'required|numeric|min:1',
+            'estimated_arrival_date' => [
+                'nullable',
+                'date',
+                $hasBookings
+                    ? 'after:'.$departure->departure_date->toDateString()
+                    : 'after:departure_date',
+            ],
+            'notes' => 'nullable|string|max:2000',
+            ...($hasBookings ? [] : [
+                'origin_hub_id' => ['required', Rule::in($departure->company->maritimeHubs()->pluck('id')->all())],
+                'destination_hub_id' => ['required', Rule::in($departure->company->maritimeHubs()->pluck('id')->all()), 'different:origin_hub_id'],
+                'departure_date' => 'required|date',
+                'pricing_unit' => 'required|in:cbm,kg',
+                'price' => 'required|numeric|min:0.01',
+                'currency' => 'required|string|size:3',
+            ]),
+        ], [
+            'origin_hub_id.in' => 'Choisissez un QG de ce partenaire.',
+            'destination_hub_id.in' => 'Choisissez un QG de ce partenaire.',
         ]);
 
         // La capacité ne descend pas sous les kilos déjà réservés.
@@ -255,14 +298,44 @@ class MaritimeController extends Controller
             return back()->with('error', "Capacité inférieure aux {$booked} kg déjà réservés.");
         }
 
-        $departure->update([
+        $updates = [
             'status' => $data['status'],
-            'estimated_arrival_date' => $data['estimated_arrival_date'] ?? $departure->estimated_arrival_date,
+            'estimated_arrival_date' => $data['estimated_arrival_date'],
             'capacity_kg' => $data['capacity_kg'],
             'remaining_kg' => (float) $data['capacity_kg'] - $booked,
-        ]);
+            'notes' => $data['notes'] ?? null,
+        ];
+
+        if (! $hasBookings) {
+            $perCbm = $data['pricing_unit'] === 'cbm';
+            $updates += [
+                'origin_hub_id' => $data['origin_hub_id'],
+                'destination_hub_id' => $data['destination_hub_id'],
+                'departure_date' => $data['departure_date'],
+                'price_per_cbm' => $perCbm ? $data['price'] : null,
+                'kg_per_cbm' => $perCbm ? MaritimeDeparture::KG_PER_CBM : null,
+                'price_per_kg' => $perCbm
+                    ? round($data['price'] / MaritimeDeparture::KG_PER_CBM, 2)
+                    : $data['price'],
+                'currency' => strtoupper($data['currency']),
+            ];
+        }
+
+        $departure->update($updates);
 
         return back()->with('success', 'Départ mis à jour.');
+    }
+
+    public function destroyDeparture(MaritimeDeparture $departure)
+    {
+        $this->ensureMaritime($departure->company);
+        if ($departure->bookings()->exists()) {
+            return back()->with('error', 'Ce départ possède des envois et ne peut pas être supprimé.');
+        }
+
+        $departure->delete();
+
+        return back()->with('success', 'Départ supprimé.');
     }
 
     // ------------------------------------------------------------------

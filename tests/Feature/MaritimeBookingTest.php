@@ -300,7 +300,11 @@ class MaritimeBookingTest extends TestCase
         $this->assertEquals(450, $departure->partnerFreightFor(500));
         $this->assertEquals(0.99, $departure->publicPricePerKg());
 
-        $this->get(route('admin.maritime.partners.show', $partner))->assertOk()->assertSee('900,00 EUR/m³', false);
+        $this->get(route('admin.maritime.partners.show', $partner))
+            ->assertOk()
+            ->assertSee('900,00 EUR/m³', false)
+            ->assertSee('Modifier le QG')
+            ->assertSee('departure-edit-'.$departure->id);
 
         // Un QG d'un autre partenaire est refusé.
         $other = $this->departure();
@@ -309,6 +313,50 @@ class MaritimeBookingTest extends TestCase
             'departure_date' => today()->addDays(30)->toDateString(),
             'capacity_kg' => 100, 'pricing_unit' => 'kg', 'price' => 3, 'currency' => 'EUR',
         ])->assertSessionHasErrors('origin_hub_id');
+
+        $mumbai = $partner->maritimeHubs()->where('city', 'Mumbai')->firstOrFail();
+        $this->put(route('admin.maritime.hubs.update', $mumbai), [
+            'name' => 'Mumbai Cargo Hub',
+            'country' => 'IN',
+            'city' => 'Mumbai',
+            'address' => '2 rue',
+            'phone' => '+910000000',
+            'opening_hours' => 'Lun-sam 9h-18h',
+            'is_active' => '1',
+        ])->assertSessionHas('success');
+        $this->assertDatabaseHas('maritime_hubs', [
+            'id' => $mumbai->id,
+            'name' => 'Mumbai Cargo Hub',
+            'address' => '2 rue',
+        ]);
+
+        $this->put(route('admin.maritime.departures.update', $departure), [
+            'origin_hub_id' => $mumbai->id,
+            'destination_hub_id' => $douala,
+            'departure_date' => today()->addDays(40)->toDateString(),
+            'estimated_arrival_date' => today()->addDays(45)->toDateString(),
+            'pricing_unit' => 'kg',
+            'price' => 5.5,
+            'currency' => 'usd',
+            'capacity_kg' => 6000,
+            'status' => 'closed',
+            'notes' => 'Colis emballés uniquement.',
+        ])->assertSessionHas('success');
+        $departure->refresh();
+        $this->assertSame($mumbai->id, $departure->origin_hub_id);
+        $this->assertSame('closed', $departure->status);
+        $this->assertSame('USD', $departure->currency);
+        $this->assertSame('Colis emballés uniquement.', $departure->notes);
+        $this->assertEquals(5.5, (float) $departure->price_per_kg);
+        $this->assertNull($departure->price_per_cbm);
+
+        $this->delete(route('admin.maritime.hubs.destroy', $douala))
+            ->assertSessionHas('error');
+        $this->delete(route('admin.maritime.departures.destroy', $departure))
+            ->assertSessionHas('success');
+        $this->assertDatabaseMissing('maritime_departures', ['id' => $departure->id]);
+        $this->delete(route('admin.maritime.hubs.destroy', $mumbai))
+            ->assertSessionHas('success');
     }
 
     public function test_booking_on_cbm_departure_converts_kilos(): void
@@ -324,6 +372,35 @@ class MaritimeBookingTest extends TestCase
             'id' => $res->json('booking_id'), 'freight_subtotal' => 45, 'commission_amount' => 4.5, 'total_price' => 69.5, 'volume_cbm' => 0.05,
         ]);
         $res->assertJsonPath('data.departure.price_per_cbm', 990);
+    }
+
+    public function test_admin_cannot_delete_or_rewrite_route_of_departure_with_bookings(): void
+    {
+        $this->fakeKpay();
+        $departure = $this->departure();
+        Sanctum::actingAs(User::factory()->create());
+        $this->postJson(
+            "/api/v1/maritime/departures/{$departure->id}/book",
+            $this->payload()
+        )->assertStatus(201);
+
+        $this->actingAs(User::factory()->create(['role' => 'admin']));
+        $this->delete(route('admin.maritime.departures.destroy', $departure))
+            ->assertSessionHas('error');
+
+        $this->put(route('admin.maritime.departures.update', $departure), [
+            'status' => 'closed',
+            'capacity_kg' => 600,
+            'estimated_arrival_date' => today()->addDays(25)->toDateString(),
+            'notes' => 'Départ maintenu.',
+        ])->assertSessionHas('success');
+
+        $departure->refresh();
+        $this->assertSame(MaritimeDeparture::STATUS_CLOSED, $departure->status);
+        $this->assertSame('1 quai', $departure->originHub->address);
+        $this->assertEquals(600, (float) $departure->capacity_kg);
+        $this->assertEquals(550, (float) $departure->remaining_kg);
+        $this->assertSame('Départ maintenu.', $departure->notes);
     }
 
     public function test_partner_payout_page_uses_platform_withdrawal_principle(): void

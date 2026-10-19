@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Facades\Lang;
 
 /**
  * Envoi maritime : kilos réservés sur un départ, payés par l'expéditeur.
@@ -227,11 +228,30 @@ class MaritimeBooking extends Model
             ])->values()->all() ?? [],
             'insurance_history' => $this->insuranceHistory->map(fn (MaritimeBookingHistory $history) => [
                 'event' => $history->event,
+                'event_label' => $this->historyLabel('maritime.history_events', $history->event),
                 'status' => $history->status,
+                'status_label' => $this->historyStatusLabel($history->status),
                 'reason' => $history->reason,
                 'created_at' => $history->created_at?->toIso8601String(),
             ])->values()->all(),
         ];
+    }
+
+    private function historyStatusLabel(string $status): string
+    {
+        $insuranceKey = "maritime.insurance_statuses.{$status}";
+        if (Lang::has($insuranceKey)) {
+            return __($insuranceKey);
+        }
+
+        return $this->historyLabel('maritime.statuses', $status);
+    }
+
+    private function historyLabel(string $group, string $value): string
+    {
+        $key = "{$group}.{$value}";
+
+        return Lang::has($key) ? __($key) : ucfirst(str_replace('_', ' ', $value));
     }
 
     public function canReportLoss(?User $viewer): bool
