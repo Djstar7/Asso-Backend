@@ -42,6 +42,8 @@ class GuideController extends Controller
         'acompte' => ['admin.deposit-orders.index', ['deposit-orders', 'deposit-orders_35']],
         'litiges' => ['admin.disputes.index', ['disputes']],
         'partenaires' => ['admin.delivery-partners.index', ['delivery-partners']],
+        'immobilier' => ['admin.real-estate.listings.index', []],
+        'immo-cabinets' => ['admin.real-estate.cabinets.index', []],
         'livreurs' => ['admin.deliverers.index', ['deliverers']],
         'expeditions' => ['admin.shipments.index', ['shipments']],
         'pays' => ['admin.import-countries.index', ['import-countries']],

@@ -30,6 +30,8 @@ class PlatformRevenueService
         'diaspo_commission' => [self::REVENUE, 'Commissions', 'Commission Diaspo', 'Part ASSO des réservations de kilos, acquise à la validation du code.'],
         'maritime_commission' => [self::REVENUE, 'Commissions', 'Commission Maritime', 'Part ASSO du fret maritime, acquise à la remise du colis au destinataire.'],
         'parcel_insurance' => [self::REVENUE, 'Commissions', 'Assurance des colis', 'Suppléments d\'assurance des colis Diaspo (avion et maritime), acquis à la validation du code.'],
+        'immo_rent_commission' => [self::REVENUE, 'Commissions', 'Immobilier — locations', 'Majoration et commission sur la première avance, acquises au paiement, non remboursables.'],
+        'immo_land_commission' => [self::REVENUE, 'Commissions', 'Immobilier — terrains', 'Majoration et commission sur les acomptes de terrains, acquises au paiement.'],
         'deposit_kept' => [self::REVENUE, 'Commissions', 'Acomptes conservés', 'Part d\'acompte revenant à ASSO lors de la clôture d\'une commande avec acompte.'],
         'platform_products' => [self::REVENUE, 'Produits ASSO', 'Ventes des produits ASSO', 'Part vendeur des articles vendus par les boutiques du compte plateforme (la commission est comptée à part).'],
 
@@ -146,6 +148,8 @@ class PlatformRevenueService
             'diaspo_commission' => $this->platformLedger('asso_commission_diaspo', 'diaspo'),
             'maritime_commission' => $this->platformLedger('asso_commission_maritime', 'maritime'),
             'parcel_insurance' => $this->platformLedger('asso_parcel_insurance', 'diaspo'),
+            'immo_rent_commission' => $this->platformLedger('asso_commission_rent', 'real_estate'),
+            'immo_land_commission' => $this->platformLedger('asso_commission_land', 'real_estate'),
             'deposit_kept' => $this->platformLedger('deposit_asso_share', 'order'),
             'platform_products' => $this->platformProducts(),
             'dispute_refunds' => $this->disputeRefunds(),

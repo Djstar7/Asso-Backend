@@ -21,7 +21,16 @@ class ConversationController extends Controller
     {
         $userId = $request->user()->id;
 
-        $conversations = Conversation::with(['user1', 'user2', 'product', 'diaspoOffer', 'latestMessage', 'maritimeBookings:id'])
+        $conversations = Conversation::with([
+            'user1',
+            'user2',
+            'product',
+            'diaspoOffer',
+            'maritimeBookings:id',
+            'realEstateListing.media',
+            'realEstateListing.units',
+            'latestMessage',
+        ])
             ->where(function ($q) use ($userId) {
                 $q->where('user1_id', $userId)->orWhere('user2_id', $userId);
             })
@@ -63,6 +72,7 @@ class ConversationController extends Controller
                         'id' => $booking->id,
                         'reference' => "MARITIME-{$booking->id}",
                     ])->values(),
+                    'real_estate_listing' => $conv->realEstateListing?->toConversationApi(),
                     'last_message' => $conv->latestMessage ? [
                         'message' => $conv->latestMessage->message,
                         'sender_id' => $conv->latestMessage->sender_id,
@@ -90,6 +100,7 @@ class ConversationController extends Controller
             'user_id' => 'required|exists:users,id',
             'product_id' => 'nullable|exists:products,id',
             'diaspo_offer_id' => 'nullable|exists:diaspo_offers,id',
+            'real_estate_listing_id' => 'nullable|exists:real_estate_listings,id',
         ]);
 
         $userId = $request->user()->id;
@@ -114,6 +125,10 @@ class ConversationController extends Controller
             $conversation = $conversation->where('diaspo_offer_id', $request->diaspo_offer_id);
         }
 
+        if ($request->real_estate_listing_id) {
+            $conversation = $conversation->where('real_estate_listing_id', $request->real_estate_listing_id);
+        }
+
         $conversation = $conversation->first();
 
         if (! $conversation) {
@@ -123,6 +138,7 @@ class ConversationController extends Controller
                 'user2_id' => $otherUserId,
                 'product_id' => $request->product_id,
                 'diaspo_offer_id' => $request->diaspo_offer_id,
+                'real_estate_listing_id' => $request->real_estate_listing_id,
                 'last_message_at' => now(),
             ]);
         } else {
@@ -172,7 +188,7 @@ class ConversationController extends Controller
             }
         }
 
-        $conversation->load(['user1', 'user2', 'product', 'diaspoOffer']);
+        $conversation->load(['user1', 'user2', 'product', 'diaspoOffer', 'realEstateListing']);
         $otherUser = $conversation->getOtherUser($userId);
 
         return response()->json([
@@ -196,6 +212,7 @@ class ConversationController extends Controller
                     'arrival_city' => $conversation->diaspoOffer->arrival_city,
                     'arrival_country' => $conversation->diaspoOffer->arrival_country,
                 ] : null,
+                'real_estate_listing' => $conversation->realEstateListing?->toConversationApi(),
             ],
         ]);
     }

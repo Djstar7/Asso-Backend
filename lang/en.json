@@ -849,6 +849,62 @@
         "maritime_indemnity_paid": {
             "title": "Maritime indemnity paid",
             "body": "Your indemnity of :amount XAF for maritime booking #:booking (operation reference: :reference) was credited to your Wallet."
+        },
+        "real_estate_landlord_verified": {
+            "title": "Landlord profile verified",
+            "body": "Your documents are approved: your listings can be published on ASSO."
+        },
+        "real_estate_landlord_rejected": {
+            "title": "Documents to resend",
+            "body": "Your landlord verification was not approved: :reason"
+        },
+        "real_estate_listing_published": {
+            "title": "Listing published",
+            "body": "\":title\" is live on ASSO."
+        },
+        "real_estate_listing_rejected": {
+            "title": "Listing to correct",
+            "body": "\":title\" was not published: :reason"
+        },
+        "real_estate_reservation_paid_owner": {
+            "title": "New booking",
+            "body": "\":title\" has just been booked (:reference). :amount FCFA are held on your Wallet until the visit."
+        },
+        "real_estate_reservation_paid_tenant": {
+            "title": "Booking confirmed",
+            "body": "Your payment for \":title\" was received. Contact details are available: you have :days days to visit and confirm."
+        },
+        "real_estate_reservation_sold_out": {
+            "title": "No place left",
+            "body": "\":title\" was booked in the meantime: your payment is refunded to your Wallet."
+        },
+        "real_estate_funds_released": {
+            "title": "Amount released",
+            "body": "Booking :reference is confirmed: :amount FCFA are available on your Wallet."
+        },
+        "real_estate_dispute_opened_payee": {
+            "title": "Dispute opened",
+            "body": "A problem was reported on booking :reference. The amount stays held: reply on ASSO with your evidence."
+        },
+        "real_estate_dispute_refunded_tenant": {
+            "title": "Dispute decided: refund",
+            "body": "The held amount of booking :reference is refunded to your Wallet."
+        },
+        "real_estate_dispute_refunded_payee": {
+            "title": "Dispute decided",
+            "body": "The held amount of booking :reference was returned to the tenant."
+        },
+        "real_estate_dispute_released_tenant": {
+            "title": "Dispute decided",
+            "body": "ASSO reviewed your dispute on :reference: the amount is paid to the landlord."
+        },
+        "real_estate_dispute_released_payee": {
+            "title": "Amount released",
+            "body": "The dispute on :reference is closed: the amount is available on your Wallet."
+        },
+        "real_estate_alert": {
+            "title": "New properties for you",
+            "body": ":count property(ies) match your criteria :city."
         }
     },
     "orders": {
@@ -1286,7 +1342,16 @@
             "maritime_refund": "Refund — Sea shipment #:booking",
             "maritime_freight": "Sea freight — Shipment #:booking",
             "diaspo_booking_payment": "Payment — Diaspo booking #:booking",
-            "maritime_payment": "Payment — Sea shipment #:booking"
+            "maritime_payment": "Payment — Sea shipment #:booking",
+            "immo_reservation_paid": "Real estate booking :reference",
+            "immo_reservation_refunded": "Real estate booking :reference refunded",
+            "immo_reservation_received": "Booking received :reference",
+            "immo_funds_held": "Booking :reference — amount held until the visit",
+            "immo_funds_released": "Booking :reference — amount released",
+            "asso_commission_rent": "ASSO commission — rental :reference",
+            "asso_commission_land": "ASSO commission — plot :reference",
+            "immo_dispute_refund": "Dispute :reference — refund",
+            "immo_dispute_refunded_payee": "Dispute :reference — amount returned to the tenant"
         }
     },
     "sales_program": {
@@ -1483,5 +1548,100 @@
             "booking_status": "Shipment status updated"
         },
         "booking_paid_with_wallet": "Shipment paid with your Wallet."
+    },
+    "real_estate": {
+        "kinds": {
+            "house": "house",
+            "villa": "villa",
+            "apartment": "apartment",
+            "studio": "studio",
+            "room": "room",
+            "duplex": "duplex",
+            "residence": "residence",
+            "land": "plot",
+            "building_land": "building plot",
+            "farm_land": "farm land",
+            "commercial_land": "commercial plot"
+        },
+        "description": {
+            "house_intro": "This :kind is located in :place.",
+            "composed_of": "It has :parts.",
+            "rooms": "{1} :count room|[2,*] :count rooms",
+            "bedrooms": "{1} :count bedroom|[2,*] :count bedrooms",
+            "bathrooms": "{1} :count bathroom|[2,*] :count bathrooms",
+            "furnished": "The home is furnished.",
+            "unfurnished": "The home is unfurnished.",
+            "land_intro": "Plot located in :place, size: :surface.",
+            "land_titled": "The plot has a land title.",
+            "land_not_titled": "The plot does not have a land title yet.",
+            "land_serviced": "It is serviced: water and electricity nearby.",
+            "roadside": "It is right by the road.",
+            "distance_to_road": "It is about :meters m from the road.",
+            "road_condition_paved": "The access road is paved.",
+            "road_condition_dirt": "The access road is a passable dirt road.",
+            "road_condition_poor": "The access road is difficult in the rainy season.",
+            "landlocked": "The area is hard to reach.",
+            "not_landlocked": "The area is easy to reach.",
+            "water_network": "Running water (mains).",
+            "water_borehole": "Water from a borehole.",
+            "water_well": "Water from a well.",
+            "water_none": "No running water on site.",
+            "electricity_network": "Mains electricity, standard meter.",
+            "electricity_prepaid": "Mains electricity, prepaid meter.",
+            "electricity_solar": "Solar electricity.",
+            "electricity_none": "No electricity on site.",
+            "security_high": "Very safe neighbourhood.",
+            "security_medium": "Quiet neighbourhood.",
+            "security_low": "Busy neighbourhood, take care at night.",
+            "parking": "parking",
+            "fence": "gate or fence",
+            "guard": "caretaker",
+            "extras": "On site: :items.",
+            "min_lease": "Minimum lease: :months months.",
+            "advance": "Advance required: :months months of rent.",
+            "available_from": "Available from :date.",
+            "available_now": "Available now."
+        },
+        "errors": {
+            "support_unavailable": "Customer service is temporarily unavailable. Please try again later.",
+            "unknown_room": "This room does not belong to the listing.",
+            "already_verified": "Your landlord profile is already verified.",
+            "verification_required": "First send your documents to get your landlord profile verified.",
+            "has_active_reservation": "A booking is in progress on this home: it cannot be deleted.",
+            "incomplete": "Some items are missing before the listing can be sent for review.",
+            "image_too_large": "The photo is larger than 10 MB."
+        },
+        "missing": {
+            "photos": "at least one photo",
+            "entrance_photo": "the entrance photo",
+            "room_photos": "one photo for each room",
+            "video": "a video of the home",
+            "price": "the rent",
+            "lots": "at least one plot size"
+        },
+        "rooms": {
+            "entrance": "Entrance",
+            "living": "Living room",
+            "bedroom": "Bedroom",
+            "kitchen": "Kitchen",
+            "bathroom": "Bathroom",
+            "outside": "Outside",
+            "road": "Road access",
+            "other": "Other"
+        },
+        "reservation": {
+            "not_available": "This property can no longer be booked.",
+            "own_listing": "You cannot book your own property.",
+            "unit_required": "Choose the home or plot to book.",
+            "unit_full": "No place left for this home.",
+            "min_lease": "This home is rented for at least :months months.",
+            "cannot_confirm": "This booking can no longer be confirmed."
+        },
+        "dispute": {
+            "not_allowed": "You cannot act on this dispute.",
+            "window_closed": "The period to report a problem has ended.",
+            "unknown_reason": "Choose a reason from the list.",
+            "closed": "This dispute has already been decided."
+        }
     }
 }

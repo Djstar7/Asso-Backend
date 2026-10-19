@@ -158,6 +158,11 @@ class StripeWebhookController extends Controller
                     'payment_intent' => $pi->id ?? null,
                 ]);
             }
+        } elseif ($kind === 'real_estate_reservation') {
+            $reservation = \App\Models\RealEstate\Reservation::find((int) ($pi->metadata->reservation_id ?? 0));
+            if ($reservation) {
+                app(\App\Services\RealEstate\RealEstateReservationService::class)->confirm($reservation);
+            }
         } elseif ($kind === 'package_subscription') {
             $subscriptionId = (int) ($pi->metadata->subscription_id ?? 0);
             $subscription = \App\Models\PackageSubscription::find($subscriptionId);
@@ -246,6 +251,11 @@ class StripeWebhookController extends Controller
             $order = \App\Models\Order::find((int) ($pi->metadata->order_id ?? 0));
             if ($order && $order->balance_payment_reference === ($pi->id ?? null)) {
                 app(\App\Services\DepositOrderService::class)->failBalancePayment($order);
+            }
+        } elseif ($kind === 'real_estate_reservation') {
+            $reservation = \App\Models\RealEstate\Reservation::find((int) ($pi->metadata->reservation_id ?? 0));
+            if ($reservation) {
+                app(\App\Services\RealEstate\RealEstateReservationService::class)->fail($reservation);
             }
         } elseif ($kind === 'package_subscription') {
             $subscriptionId = (int) ($pi->metadata->subscription_id ?? 0);

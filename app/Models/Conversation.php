@@ -17,6 +17,7 @@ class Conversation extends Model
         'user2_id',
         'product_id',
         'diaspo_offer_id',
+        'real_estate_listing_id',
         'last_message_at',
     ];
 
@@ -54,6 +55,12 @@ class Conversation extends Model
     public function diaspoOffer(): BelongsTo
     {
         return $this->belongsTo(DiaspoOffer::class);
+    }
+
+    /** Annonce immobilière au sujet de laquelle on écrit à ASSO. */
+    public function realEstateListing(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\RealEstate\Listing::class, 'real_estate_listing_id')->withTrashed();
     }
 
     /**

@@ -148,6 +148,15 @@ Route::prefix('v1')->group(function () {
     Route::post('/analytics/track', [\App\Http\Controllers\Api\ShopStatisticsController::class, 'track'])
         ->middleware('throttle:120,1');
 
+    // Rubrique Immobilier (lecture publique ; un jeton éventuel lève le masquage).
+    Route::prefix('real-estate')->controller(\App\Http\Controllers\Api\RealEstateController::class)->group(function () {
+        Route::get('/meta', 'meta');
+        Route::get('/listings', 'index');
+        Route::get('/listings/{id}', 'show')->whereNumber('id');
+        Route::get('/listings/{id}/quote', 'quote')->whereNumber('id');
+        Route::get('/cabinets/{id}', 'cabinet')->whereNumber('id');
+    });
+
     // Delivery zone availability check (public)
     Route::post('/delivery/check-availability', [DeliveryController::class, 'checkDeliveryAvailability']);
 
@@ -432,6 +441,46 @@ Route::middleware('auth:sanctum')->group(function () {
         });
 
         // Conversations & Messages
+        // Rubrique Immobilier : favoris, critères, projet, contact ASSO.
+        Route::prefix('real-estate')->controller(\App\Http\Controllers\Api\RealEstateController::class)->group(function () {
+            Route::get('/favorites', 'favorites');
+            Route::post('/listings/{id}/favorite', 'addFavorite')->whereNumber('id');
+            Route::delete('/listings/{id}/favorite', 'removeFavorite')->whereNumber('id');
+            Route::post('/listings/{id}/contact', 'contact')->whereNumber('id');
+            Route::get('/alert', 'alert');
+            Route::put('/alert', 'saveAlert');
+            Route::post('/project-requests', 'storeProjectRequest');
+        });
+
+        // Réservations immobilières : paiement, suivi, contrat et facture.
+        Route::prefix('real-estate')->controller(\App\Http\Controllers\Api\RealEstateReservationController::class)->group(function () {
+            Route::post('/listings/{id}/reservations', 'store')->whereNumber('id');
+            Route::get('/reservations', 'index');
+            Route::get('/reservations/{id}', 'show')->whereNumber('id');
+            Route::get('/reservations/{id}/payment-status', 'paymentStatus')->whereNumber('id');
+            Route::post('/reservations/{id}/confirm', 'confirm')->whereNumber('id');
+            Route::get('/reservations/{id}/documents/{kind}', 'document')->whereNumber('id')->whereIn('kind', ['contract', 'invoice']);
+            Route::get('/landlord/reservations', 'received');
+            Route::get('/dispute-reasons', 'disputeReasons');
+            Route::post('/reservations/{id}/dispute', 'openDispute')->whereNumber('id');
+            Route::post('/reservations/{id}/dispute/evidence', 'addDisputeEvidence')->whereNumber('id');
+        });
+
+        // Espace bailleur : vérification du profil et maisons à louer.
+        Route::prefix('real-estate/landlord')->controller(\App\Http\Controllers\Api\RealEstateLandlordController::class)->group(function () {
+            Route::get('/verification', 'verification');
+            Route::post('/verification', 'submitVerification');
+            Route::post('/price-preview', 'pricePreview');
+            Route::get('/listings', 'listings');
+            Route::post('/listings', 'store');
+            Route::get('/listings/{id}', 'show')->whereNumber('id');
+            Route::put('/listings/{id}', 'update')->whereNumber('id');
+            Route::delete('/listings/{id}', 'destroy')->whereNumber('id');
+            Route::post('/listings/{id}/submit', 'submit')->whereNumber('id');
+            Route::post('/listings/{id}/media', 'uploadMedia')->whereNumber('id');
+            Route::delete('/listings/{id}/media/{mediaId}', 'deleteMedia')->whereNumber('id')->whereNumber('mediaId');
+        });
+
         Route::prefix('conversations')->group(function () {
             Route::get('/', [ConversationController::class, 'index']);
             Route::post('/start', [ConversationController::class, 'startOrGet']);
