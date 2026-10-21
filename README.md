@@ -504,3 +504,73 @@ le blocage, le déblocage, les litiges et les justificatifs. Les réservations
 antérieures conservent leurs montants réellement acceptés et encaissés ; aucune
 réécriture de solde ni facturation rétroactive n’est faite. Un ancien devis
 envoyé par un client récent est rejeté avant paiement si le total a changé.
+
+### SOLEX — réseau territorial national
+
+Le réseau utilise le référentiel hors ligne INC/OCHA décrit dans
+`database/data/README.md` : 10 régions, 58 départements, 360 arrondissements.
+Chaque arrondissement est un cercle de collecte/distribution (centre GPS et
+rayon en kilomètres à vol d'oiseau), sans quartier obligatoire. Les centroïdes
+source et le rayon initial de 10 km sont provisoires et réglables séparément.
+
+```bash
+php artisan migrate --force
+php artisan solex:sync --dry-run
+php artisan solex:sync
+```
+
+`SolexNetworkSeeder` est aussi appelée par `DatabaseSeeder` et par les anciens
+points d'entrée `DataSolexSeeder` et `DataSolexVillesSeeder`. Elle prépare
+58 grilles départementales, 360 cercles, 45 liaisons nationales aller-retour
+et 158 liaisons entre départements d'une même région. Chaque exécution active
+le partenaire, le mode territorial, les 58 départements, les 360 cercles et
+les 203 liaisons, y compris les données déjà présentes. Les centres, rayons
+et tarifs personnalisés sont conservés. `--dry-run` ne modifie rien ;
+`--activate` reste accepté comme alias de compatibilité. Les anciennes
+grilles et les commandes demeurent en place dans leur périmètre historique distinct.
+
+Dans **Partenaires de livraison → SOLEX → Régions et arrondissements**, les
+10 régions et leurs 58 départements sont visibles ensemble. Déplier un
+département affiche ses arrondissements ; son lien de configuration charge
+uniquement sa grille et sa carte. Les anciennes grilles par ville ne sont
+plus affichées pour les partenaires disposant du réseau territorial.
+Les **Liaisons interurbaines** sont filtrables et paginées par 15 ; un seul
+formulaire est chargé à la demande. Les **Agences de retrait** sont paginées
+par 10 et les coordonnées du partenaire sont dans **Partenaire et paiements**.
+Choisir un département, placer les centres sur la carte, régler les rayons et valider les
+zones. Renseigner les tarifs et délais des véhicules ainsi que la zone du
+relais départemental. Valider les liaisons nécessaires. Pour le retrait,
+compléter et activer une agence réelle (adresse et téléphone). Le mode
+territorial est réactivé à chaque seed. Les offres nationales de ce partenaire
+utilisent alors exclusivement ce réseau ; les anciennes zones ne peuvent pas
+contourner un cercle ou une liaison désactivée. Les autres transporteurs et
+les trajets internationaux historiques continuent à fonctionner.
+
+La collecte en boutique (entrepôt ASSO pour l'import) est incluse dans les
+options **retrait en agence** et **livraison à domicile**. Le devis additionne
+les étapes utiles, puis calcule une seule commission ASSO sur ce total et la
+TVA selon les réglages existants. Une livraison locale directe utilise une
+seule étape. Les liaisons non actives, poids non admis et tarifs manquants ne
+produisent pas d'offre. Un panier ayant plusieurs boutiques de collecte doit
+être réparti en commandes par boutique ; les produits importés ont le même
+point de collecte à l'entrepôt ASSO.
+
+En chevauchement, le devis conserve le parcours tarifé le moins cher par
+partenaire et option ; à prix égal, priorité configurée, distance
+au centre puis identifiants stables. La limite du cercle est incluse et le
+contrôle utilise la distance non arrondie. Hors cercle à destination, un
+retrait peut rester disponible si la ville demandée correspond à une agence
+confirmée. Sans coordonnées de collecte couvertes, aucune offre territoriale.
+
+La commande recalcule le devis et fige les étapes, centres, rayons, montants
+et l'agence choisie. Les modifications ultérieures ne changent pas les
+paiements déjà acceptés. Les agences à compléter restent inactives tant que
+leurs coordonnées réelles ne sont pas renseignées.
+
+La validation d'emplacement vendeur (`delivery/check-availability`) utilise
+les mêmes cercles et rayons individuels que la carte acheteur. La couverture
+avec panier distingue `geographically_served` (position dans une zone active)
+de `quote_available` (trajet chiffrable pour ces articles). Si la boutique ou
+l'entrepôt n'a pas de coordonnées de collecte, `quote_reason` vaut
+`origin_not_located` : le client conserve sa position choisie et le serveur
+ne lui annonce plus à tort que son adresse n'est pas couverte.

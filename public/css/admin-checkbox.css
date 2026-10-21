@@ -1,0 +1,111 @@
+/* Shared by admin layouts, including dynamically inserted form rows.
+   Keep sr-only inputs intact: their siblings render switches and choice chips. */
+body {
+    --admin-checkbox-accent: var(--primary, #ff5722);
+    --admin-checkbox-border: #71717a;
+    --admin-checkbox-surface: #18181b;
+    --admin-checkbox-focus: #ffb199;
+}
+
+body.portal-manager {
+    --admin-checkbox-focus: #5eead4;
+}
+
+body input[type="checkbox"]:not(.sr-only) {
+    -webkit-appearance: none;
+    appearance: none;
+    box-sizing: border-box;
+    display: inline-block;
+    width: 1.25rem;
+    height: 1.25rem;
+    min-width: 1.25rem;
+    flex: 0 0 1.25rem;
+    padding: 0;
+    border: 1.5px solid var(--admin-checkbox-border);
+    border-radius: 0.375rem;
+    background-color: var(--admin-checkbox-surface);
+    background-image: none;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: 1rem 1rem;
+    vertical-align: -0.25em;
+    cursor: pointer;
+    accent-color: var(--admin-checkbox-accent);
+    box-shadow: 0 1px 2px rgb(0 0 0 / 12%);
+    transition: border-color 140ms ease, background-color 140ms ease, box-shadow 140ms ease;
+}
+
+body input[type="checkbox"]:not(.sr-only):enabled:hover {
+    border-color: var(--admin-checkbox-accent);
+    box-shadow: 0 0 0 3px rgb(255 115 68 / 12%);
+}
+
+body input[type="checkbox"]:not(.sr-only):is(:checked, :indeterminate) {
+    border-color: var(--admin-checkbox-accent);
+    background-color: var(--admin-checkbox-accent);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='m3.5 8 3 3 6-6' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+body input[type="checkbox"]:not(.sr-only):indeterminate {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 8h8' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+
+body input[type="checkbox"]:not(.sr-only):focus-visible,
+body input[type="checkbox"].sr-only:focus-visible + :is(div, span) {
+    outline: 2px solid var(--admin-checkbox-focus);
+    outline-offset: 3px;
+}
+
+body input[type="checkbox"]:not(.sr-only)[aria-invalid="true"] {
+    border-color: #f87171;
+}
+
+body input[type="checkbox"]:not(.sr-only):disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+    box-shadow: none;
+}
+
+body input[type="checkbox"].sr-only:disabled + :is(div, span) {
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+
+/* Label clicks remain native; do not change their layout or form semantics. */
+body label:has(input[type="checkbox"]:enabled),
+body label[for]:has(+ input[type="checkbox"]:enabled) {
+    cursor: pointer;
+}
+
+body label:has(input[type="checkbox"]:disabled) {
+    cursor: not-allowed;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    body input[type="checkbox"]:not(.sr-only),
+    body input[type="checkbox"].sr-only ~ :is(div, span),
+    body input[type="checkbox"].sr-only ~ :is(div, span)::after {
+        transition: none;
+    }
+}
+
+/* System-rendered marks remain visible in Windows high contrast mode. */
+@media (forced-colors: active) {
+    body input[type="checkbox"]:not(.sr-only) {
+        -webkit-appearance: auto;
+        appearance: auto;
+        background-image: none;
+        box-shadow: none;
+        forced-color-adjust: auto;
+    }
+
+    body input[type="checkbox"]:not(.sr-only):is(:checked, :indeterminate) {
+        background-image: none;
+        border-color: ButtonText;
+    }
+
+    body input[type="checkbox"]:not(.sr-only):focus-visible,
+    body input[type="checkbox"].sr-only:focus-visible + :is(div, span) {
+        outline-color: Highlight;
+    }
+}

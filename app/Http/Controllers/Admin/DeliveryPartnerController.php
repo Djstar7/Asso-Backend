@@ -52,7 +52,7 @@ class DeliveryPartnerController extends Controller
 
         Setting::set('delivery_zone_radius_km', $validated['delivery_zone_radius_km'], 'string', 'delivery', "Rayon de couverture autour du centre d'une zone de livraison (km)");
         Setting::set('delivery_vat_rate', $validated['delivery_vat_rate'], 'string', 'delivery', 'TVA ajoutée aux grilles de livraison hors taxe (%)');
-        Setting::set('delivery_default_weight_kg', $validated['delivery_default_weight_kg'], 'string', 'delivery', "Poids retenu pour un article sans poids renseigné (kg)");
+        Setting::set('delivery_default_weight_kg', $validated['delivery_default_weight_kg'], 'string', 'delivery', 'Poids retenu pour un article sans poids renseigné (kg)');
         if (isset($validated['delivery_days_min'])) {
             // Maximum vide = délai par défaut sans maximum.
             $max = $validated['delivery_days_max'] ?? null;
@@ -74,16 +74,45 @@ class DeliveryPartnerController extends Controller
 
     public function edit(DelivererCompany $partner)
     {
-        $partner->load(['deliveryRoutes' => fn ($q) => $q->orderBy('origin_city')->orderBy('destination_city'), 'cityGrids', 'deliveryZones']);
-
         // Un partenaire maritime se gère dans la rubrique Maritime.
         if ($partner->service_type === DelivererCompany::SERVICE_MARITIME) {
             return redirect()->route('admin.maritime.partners.show', $partner);
         }
 
+        $partner->load(['deliveryRoutes' => fn ($q) => $q->with('translations')->orderBy('origin_city')->orderBy('destination_city'), 'cityGrids.translations']);
+        $hasNetwork = $partner->cityGrids->whereNotNull('department_code')->isNotEmpty();
+        $sections = ($hasNetwork ? ['network' => 'Régions et arrondissements'] : ['cities' => 'Grilles urbaines'])
+            + ['routes' => 'Liaisons interurbaines', 'agencies' => 'Agences de retrait', 'settings' => 'Partenaire et paiements'];
+        $default = $hasNetwork ? 'network' : ($partner->cityGrids->isNotEmpty() ? 'cities' : 'settings');
+        $section = request('section', $default);
+        abort_unless(is_string($section) && array_key_exists($section, $sections), 404);
+        $routesPage = null;
+        $selectedRoute = null;
+        $agencies = null;
+        if ($section === 'routes') {
+            $query = $partner->deliveryRoutes()->orderBy('origin_city')->orderBy('destination_city');
+            if (in_array(request('network_level'), ['interregional', 'intraregional', 'legacy'], true)) {
+                request('network_level') === 'legacy'
+                    ? $query->whereNull('network_key')
+                    : $query->where('network_level', request('network_level'));
+            }
+            $routesPage = $query->paginate(15)->withQueryString();
+            if (request()->filled('edit_route')) {
+                $selectedRoute = $partner->deliveryRoutes()->with('translations')->findOrFail(request('edit_route'));
+            }
+        }
+        if ($section === 'agencies') {
+            $agencies = \App\Models\DeliveryAgency::where('deliverer_company_id', $partner->id)->orderBy('city')->paginate(10)->withQueryString();
+        }
+
         return view('admin.delivery_partners.edit', [
             'partner' => $partner,
-            'walletBalance' => $partner->account?->kpayAvailableFor('XAF') ?? 0.0,
+            'section' => $section,
+            'sections' => $sections,
+            'routesPage' => $routesPage,
+            'selectedRoute' => $selectedRoute,
+            'agencies' => $agencies,
+            'walletBalance' => $section === 'settings' ? ($partner->account?->kpayAvailableFor('XAF') ?? 0.0) : 0.0,
             'countries' => CountryCode::NAMES,
             'vatRate' => DeliveryQuoteService::vatRate(),
         ]);
@@ -111,10 +140,14 @@ class DeliveryPartnerController extends Controller
     public function updateRoute(Request $request, DelivererCompany $partner, DeliveryRoute $route)
     {
         abort_unless($route->deliverer_company_id === $partner->id, 404);
-        $route->update($this->validateRoute($request));
+        $data = $this->validateRoute($request);
+        if ($route->network_key) {
+            $data = array_diff_key($data, array_flip(['origin_country', 'origin_city', 'destination_country', 'destination_city']));
+        }
+        $route->update($data);
         $route->syncTranslations($request->validate(ContentLocale::rules(['lead_time' => 'string|max:60']))['translations'] ?? null);
 
-        return back()->with('success', 'Trajet « ' . $route->label() . ' » mis à jour.');
+        return back()->with('success', 'Trajet « '.$route->label().' » mis à jour.');
     }
 
     public function destroyRoute(DelivererCompany $partner, DeliveryRoute $route)
@@ -140,7 +173,7 @@ class DeliveryPartnerController extends Controller
 
         // Même modèle qu'une ville existante : véhicules, poids max., délais et prix zone à zone
         // (prix repris pour les zones présentes dans les deux villes). Les quartiers restent propres à la ville.
-        $template = !empty($validated['template_grid_id'])
+        $template = ! empty($validated['template_grid_id'])
             ? $partner->cityGrids()->find($validated['template_grid_id'])
             : null;
         $count = (int) $validated['zones_count'];
@@ -179,6 +212,7 @@ class DeliveryPartnerController extends Controller
     {
         abort_unless($grid->deliverer_company_id === $partner->id, 404);
 
+        abort_if($grid->department_code, 404);
         $validated = $request->validate([
             'zones' => 'required|array|min:1',
             'zones.*.quarters' => 'nullable|array',
@@ -214,7 +248,7 @@ class DeliveryPartnerController extends Controller
 
         $vehicles = collect($grid->vehicles)->map(function ($vehicle) use ($validated) {
             $input = $validated['vehicles'][$vehicle['code']] ?? null;
-            if (!$input) {
+            if (! $input) {
                 return $vehicle;
             }
 
@@ -255,7 +289,7 @@ class DeliveryPartnerController extends Controller
         // Lien avec les vendeurs : quartier de chaque boutique de la ville recalculé.
         $linked = 0;
         \App\Models\Shop::whereNotNull('latitude')->each(function (\App\Models\Shop $shop) use ($grid, &$linked) {
-            if (!$grid->coversCity($shop->city ?: \App\Support\LocationFormatter::parse($shop->address)[0])) {
+            if (! $grid->coversCity($shop->city ?: \App\Support\LocationFormatter::parse($shop->address)[0])) {
                 return;
             }
             $before = $shop->quarter;
@@ -289,7 +323,7 @@ class DeliveryPartnerController extends Controller
 
         // Boutiques de la ville : quartier retiré, puis recalculé si une autre grille couvre la ville.
         \App\Models\Shop::whereNotNull('quarter')->each(function (\App\Models\Shop $shop) use ($city) {
-            if (!\App\Support\CountryCode::sameCity($city, $shop->city ?: \App\Support\LocationFormatter::parse($shop->address)[0])) {
+            if (! \App\Support\CountryCode::sameCity($city, $shop->city ?: \App\Support\LocationFormatter::parse($shop->address)[0])) {
                 return;
             }
             $shop->quarter = null;
@@ -370,7 +404,7 @@ class DeliveryPartnerController extends Controller
             'destination_country' => $validated['destination_country'],
             'destination_city' => ($validated['destination_city'] ?? null) ?: null,
             // « Et vice versa » uniquement à l'intérieur du Cameroun.
-            'bidirectional' => !$international && $request->boolean('bidirectional'),
+            'bidirectional' => ! $international && $request->boolean('bidirectional'),
             'lead_time' => $validated['lead_time'] ?? null,
             'pricing_data' => [
                 'ranges' => $ranges,

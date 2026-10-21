@@ -21,6 +21,7 @@ class DeliveryRoute extends Model
     protected $fillable = [
         'deliverer_company_id',
         'origin_country',
+        'network_key', 'network_level', 'origin_territory_code', 'destination_territory_code',
         'origin_city',
         'destination_country',
         'destination_city',
@@ -52,7 +53,7 @@ class DeliveryRoute extends Model
         $direct = $this->endpointMatches($this->origin_country, $this->origin_city, $fromCountry, $fromCity)
             && $this->endpointMatches($this->destination_country, $this->destination_city, $toCountry, $toCity);
 
-        if ($direct || !$this->bidirectional) {
+        if ($direct || ! $this->bidirectional) {
             return $direct;
         }
 
@@ -65,7 +66,7 @@ class DeliveryRoute extends Model
         $origin = $this->origin_city ?: CountryCode::name($this->origin_country);
         $destination = $this->destination_city ?: CountryCode::name($this->destination_country);
 
-        return $origin . ($this->bidirectional ? ' ↔ ' : ' → ') . $destination;
+        return $origin.($this->bidirectional ? ' ↔ ' : ' → ').$destination;
     }
 
     private function endpointMatches(string $routeCountry, ?string $routeCity, ?string $country, ?string $city): bool

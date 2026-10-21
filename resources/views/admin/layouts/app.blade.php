@@ -67,7 +67,9 @@
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 
     <!-- Chart.js -->
+    @unless($__env->hasSection('skip-charts'))
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    @endunless
 
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -160,6 +162,7 @@
         }
     </style>
     <link rel="stylesheet" href="{{ asset('css/admin-searchable-select.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/admin-checkbox.css') }}">
     <noscript><style>#pageLoader, #pageProgress { display: none !important; }</style></noscript>
 
     @stack('styles')

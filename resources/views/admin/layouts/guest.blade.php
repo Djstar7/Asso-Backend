@@ -125,6 +125,8 @@
         }
     </style>
 
+    <link rel="stylesheet" href="{{ asset('css/admin-checkbox.css') }}">
+
     @stack('styles')
 </head>
 <body class="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">

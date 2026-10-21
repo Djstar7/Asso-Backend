@@ -29,17 +29,22 @@ class DelivererCompany extends Model
         'max_weight_kg',
         'tracking_url_template',
         'account_user_id',
+        'territorial_network_enabled',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'territorial_network_enabled' => 'boolean',
         'prices_exclude_vat' => 'boolean',
         'max_weight_kg' => 'float',
     ];
 
     public const SERVICE_LOCAL = 'local';
+
     public const SERVICE_INTERCITY = 'intercity';
+
     public const SERVICE_INTERNATIONAL = 'international';
+
     /** Fret maritime Diaspo : départs entre QG (voir MaritimeDeparture). */
     public const SERVICE_MARITIME = 'maritime';
 
@@ -51,6 +56,7 @@ class DelivererCompany extends Model
     ];
 
     public const MODE_DOOR = 'door_to_door';
+
     public const MODE_AGENCY = 'agency_to_agency';
 
     public const SERVICE_MODES = [
@@ -91,7 +97,7 @@ class DelivererCompany extends Model
         $cities = $this->cityGrids->pluck('city')->filter()->unique()->values();
         if ($cities->isNotEmpty() || $this->deliveryZones->isNotEmpty()) {
             $services[] = [
-                'label' => 'Urbain' . ($cities->isNotEmpty() ? ' (' . $cities->implode(', ') . ')' : ''),
+                'label' => 'Urbain'.($cities->isNotEmpty() ? ' ('.$cities->implode(', ').')' : ''),
                 'mode' => 'À domicile',
             ];
         }
@@ -111,7 +117,7 @@ class DelivererCompany extends Model
 
     public function trackingUrl(?string $number): ?string
     {
-        if (!$number || !$this->tracking_url_template) {
+        if (! $number || ! $this->tracking_url_template) {
             return null;
         }
 

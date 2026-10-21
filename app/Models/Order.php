@@ -16,25 +16,36 @@ class Order extends Model
      * Aucun retour arrière : un statut final (failed, refunded) ne change plus.
      */
     public const PAYMENT_PENDING = 'pending';
+
     public const PAYMENT_PAID = 'paid';
+
     public const PAYMENT_FAILED = 'failed';
+
     public const PAYMENT_REFUNDED = 'refunded';
 
     /** Plan de paiement : unique (classique) ou acompte + solde après vérification ASSO. */
     public const PLAN_FULL = 'full';
+
     public const PLAN_DEPOSIT = 'deposit';
 
     /** Solde d'une commande avec acompte : bloqué tant que la vérification n'est pas validée. */
     public const BALANCE_LOCKED = 'locked';
+
     public const BALANCE_UNLOCKED = 'unlocked';
+
     public const BALANCE_PAID = 'paid';
+
     public const BALANCE_CANCELLED = 'cancelled';
 
     /** Vérification conjointe client + employé ASSO, à la présentation du produit. */
     public const VERIFICATION_PENDING = 'pending';
+
     public const VERIFICATION_TO_CONTACT = 'to_contact';
+
     public const VERIFICATION_CONTACTED = 'contacted';
+
     public const VERIFICATION_VERIFIED = 'verified';
+
     public const VERIFICATION_ISSUE = 'issue';
 
     /**
@@ -42,6 +53,7 @@ class Order extends Model
      * fenêtre de contrôle (client conforme, 48 h sans action, réclamation non fondée).
      */
     public const VENDOR_FUNDS_HELD = 'held';
+
     public const VENDOR_FUNDS_RELEASED = 'released';
 
     /** Fenêtre de contrôle du client après la livraison. */
@@ -120,6 +132,7 @@ class Order extends Model
 
     /** local = livreur ASSO à domicile (code de confirmation) ; carrier = SOLEX, DHL, FedEx… */
     public const DELIVERY_LOCAL = 'local';
+
     public const DELIVERY_CARRIER = 'carrier';
 
     public function isCarrierDelivery(): bool
@@ -129,11 +142,12 @@ class Order extends Model
 
     public function isAgencyPickup(): bool
     {
-        if (!$this->isCarrierDelivery() || $this->hasLastMileDelivery()) {
+        if (! $this->isCarrierDelivery() || $this->hasLastMileDelivery()) {
             return false;
         }
+
         return ($this->delivery_breakdown['delivery_option'] ?? null) === 'agency_pickup'
-            || (!isset($this->delivery_breakdown['delivery_option'])
+            || (! isset($this->delivery_breakdown['delivery_option'])
                 && ($this->delivery_breakdown['service_mode'] ?? $this->deliveryCompany?->service_mode) === DelivererCompany::MODE_AGENCY);
     }
 
@@ -145,7 +159,7 @@ class Order extends Model
     public function canConfirmReception(): bool
     {
         return $this->isCarrierDelivery() && $this->status === 'delivered'
-            && !$this->confirmed_by_client_at && $this->payment_status === self::PAYMENT_PAID
+            && ! $this->confirmed_by_client_at && $this->payment_status === self::PAYMENT_PAID
             && $this->canBeHandedOver();
     }
 
@@ -156,6 +170,7 @@ class Order extends Model
     public function hasLastMileDelivery(): bool
     {
         return $this->isCarrierDelivery()
+            && ($this->delivery_breakdown['delivery_option'] ?? null) !== 'agency_pickup'
             && ($this->delivery_zone_id !== null || $this->delivery_city_grid_id !== null);
     }
 
@@ -173,10 +188,10 @@ class Order extends Model
         parent::boot();
         static::creating(function ($order) {
             if (empty($order->order_number)) {
-                $order->order_number = 'CMD' . str_pad(random_int(1, 999999), 6, '0', STR_PAD_LEFT);
+                $order->order_number = 'CMD'.str_pad(random_int(1, 999999), 6, '0', STR_PAD_LEFT);
             }
             if (empty($order->tracking_number)) {
-                $order->tracking_number = 'TRK' . strtoupper(substr(md5(uniqid()), 0, 10));
+                $order->tracking_number = 'TRK'.strtoupper(substr(md5(uniqid()), 0, 10));
             }
             if (empty($order->confirmation_code)) {
                 $order->confirmation_code = static::generateConfirmationCode();
@@ -239,7 +254,7 @@ class Order extends Model
     /** Remise finale possible ? Une commande avec acompte exige le solde payé. */
     public function canBeHandedOver(): bool
     {
-        return !$this->isDepositOrder() || $this->balance_status === self::BALANCE_PAID;
+        return ! $this->isDepositOrder() || $this->balance_status === self::BALANCE_PAID;
     }
 
     /** Montant attendu au premier paiement : l'acompte, ou le total d'une commande classique. */
@@ -309,16 +324,55 @@ class Order extends Model
         }
     }
 
-    public function user(): BelongsTo { return $this->belongsTo(User::class); }
-    public function deliveryPerson(): BelongsTo { return $this->belongsTo(User::class, 'delivery_person_id'); }
-    public function deliveryCompany(): BelongsTo { return $this->belongsTo(DelivererCompany::class, 'delivery_company_id'); }
-    public function deliveryZone(): BelongsTo { return $this->belongsTo(DeliveryZone::class, 'delivery_zone_id'); }
-    public function deliveryRoute(): BelongsTo { return $this->belongsTo(DeliveryRoute::class, 'delivery_route_id'); }
-    public function verifier(): BelongsTo { return $this->belongsTo(User::class, 'verified_by'); }
-    public function items(): HasMany { return $this->hasMany(OrderItem::class); }
-    public function trackingEvents(): HasMany { return $this->hasMany(OrderTrackingEvent::class)->orderBy('occurred_at')->orderBy('id'); }
-    public function rating(): HasOne { return $this->hasOne(OrderRating::class); }
-    public function disputes(): HasMany { return $this->hasMany(Dispute::class); }
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function deliveryPerson(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'delivery_person_id');
+    }
+
+    public function deliveryCompany(): BelongsTo
+    {
+        return $this->belongsTo(DelivererCompany::class, 'delivery_company_id');
+    }
+
+    public function deliveryZone(): BelongsTo
+    {
+        return $this->belongsTo(DeliveryZone::class, 'delivery_zone_id');
+    }
+
+    public function deliveryRoute(): BelongsTo
+    {
+        return $this->belongsTo(DeliveryRoute::class, 'delivery_route_id');
+    }
+
+    public function verifier(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'verified_by');
+    }
+
+    public function items(): HasMany
+    {
+        return $this->hasMany(OrderItem::class);
+    }
+
+    public function trackingEvents(): HasMany
+    {
+        return $this->hasMany(OrderTrackingEvent::class)->orderBy('occurred_at')->orderBy('id');
+    }
+
+    public function rating(): HasOne
+    {
+        return $this->hasOne(OrderRating::class);
+    }
+
+    public function disputes(): HasMany
+    {
+        return $this->hasMany(Dispute::class);
+    }
 
     /** Livrée, part vendeur encore bloquée et fenêtre de 48 h ouverte : réclamation possible. */
     public function isInControlWindow(): bool
@@ -332,12 +386,12 @@ class Order extends Model
 
     public function getFormattedTotalAttribute(): string
     {
-        return number_format($this->total, 0, ',', ' ') . ' FCFA';
+        return number_format($this->total, 0, ',', ' ').' FCFA';
     }
 
     /** Ce que touche le vendeur : hors commission ASSO, livraison offerte déduite. */
     public function getFormattedVendorNetAttribute(): string
     {
-        return number_format((float) ($this->vendor_net_amount ?? $this->subtotal), 0, ',', ' ') . ' FCFA';
+        return number_format((float) ($this->vendor_net_amount ?? $this->subtotal), 0, ',', ' ').' FCFA';
     }
 }

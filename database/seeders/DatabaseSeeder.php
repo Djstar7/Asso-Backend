@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
@@ -31,6 +30,7 @@ class DatabaseSeeder extends Seeder
             LegalPagesSeeder::class,
             SystemUserSeeder::class,
             SupportUserSeeder::class,
+            SolexNetworkSeeder::class,
         ]);
 
         $this->command->info('');

@@ -23,6 +23,7 @@ class DeliveryCityGrid extends Model
     protected $fillable = [
         'deliverer_company_id',
         'city',
+        'department_code', 'coverage_scope',
         'country',
         'zones',
         'vehicles',
@@ -92,6 +93,11 @@ class DeliveryCityGrid extends Model
      */
     public function nearestQuarter(?float $lat, ?float $lng): ?array
     {
+        if ($this->department_code) {
+            $match = $this->circularMatches($lat, $lng)[0] ?? null;
+
+            return $match ? ['zone' => (int) $match['code'], 'name' => $match['label'], 'distance_km' => $match['distance_km']] : null;
+        }
         if ($lat === null || $lng === null || ($lat == 0 && $lng == 0)) {
             return null;
         }
@@ -103,7 +109,7 @@ class DeliveryCityGrid extends Model
                     continue;
                 }
                 $d = self::distanceKm($lat, $lng, $quarter['lat'], $quarter['lng']);
-                if (!$best || $d < $best['distance_km']) {
+                if (! $best || $d < $best['distance_km']) {
                     $best = ['zone' => (int) $zone['code'], 'name' => $quarter['name'], 'distance_km' => round($d, 2)];
                 }
             }
@@ -112,6 +118,34 @@ class DeliveryCityGrid extends Model
         $radius = \App\Services\DeliveryQuoteService::radiusKm();
 
         return $best && $best['distance_km'] <= $radius ? $best : null;
+    }
+
+    /** La distance non arrondie décide de la couverture, y compris sur la limite. */
+    public function circularMatches(?float $lat, ?float $lng): array
+    {
+        if ($lat === null || $lng === null || ! is_finite($lat) || ! is_finite($lng)
+            || abs($lat) > 90 || abs($lng) > 180) {
+            return [];
+        }
+        $matches = [];
+        foreach ($this->zones ?? [] as $zone) {
+            if (empty($zone['is_active']) || ! isset($zone['center_latitude'], $zone['center_longitude'])
+                || ($zone['radius_km'] ?? 0) <= 0) {
+                continue;
+            }
+            if (! is_numeric($zone['center_latitude']) || ! is_numeric($zone['center_longitude'])
+                || abs((float) $zone['center_latitude']) > 90 || abs((float) $zone['center_longitude']) > 180) {
+                continue;
+            }
+            $distance = self::distanceKm($lat, $lng, (float) $zone['center_latitude'], (float) $zone['center_longitude']);
+            if ($distance <= (float) $zone['radius_km'] + 0.0000001) {
+                $matches[] = $zone + ['distance_km' => $distance];
+            }
+        }
+        usort($matches, fn ($a, $b) => [-(int) ($a['priority'] ?? 0), $a['distance_km'], $a['code']]
+            <=> [-(int) ($b['priority'] ?? 0), $b['distance_km'], $b['code']]);
+
+        return $matches;
     }
 
     public static function distanceKm(float $lat1, float $lon1, float $lat2, float $lon2): float
@@ -126,11 +160,11 @@ class DeliveryCityGrid extends Model
     /** Grille active d'un partenaire actif qui couvre une ville. */
     public static function forCity(?string $city): ?self
     {
-        if (!$city) {
+        if (! $city) {
             return null;
         }
 
-        return self::where('is_active', true)
+        return self::where('is_active', true)->whereNull('department_code')
             ->whereHas('company', fn ($q) => $q->where('is_active', true))
             ->get()
             ->first(fn (self $grid) => $grid->coversCity($city));
@@ -151,16 +185,16 @@ class DeliveryCityGrid extends Model
     public function zoneLabel(int $code, int $maxQuarters = 3): string
     {
         $zone = $this->zone($code);
-        if (!$zone) {
+        if (! $zone) {
             return "Zone {$code}";
         }
         $quarters = array_column(self::quartersOf($zone), 'name');
         if ($maxQuarters <= 0) {
             return $zone['label'];
         }
-        $shown = implode(', ', array_slice($quarters, 0, $maxQuarters)) . (count($quarters) > $maxQuarters ? '…' : '');
+        $shown = implode(', ', array_slice($quarters, 0, $maxQuarters)).(count($quarters) > $maxQuarters ? '…' : '');
 
-        return $zone['label'] . ($shown !== '' ? " ({$shown})" : '');
+        return $zone['label'].($shown !== '' ? " ({$shown})" : '');
     }
 
     /**
@@ -177,7 +211,7 @@ class DeliveryCityGrid extends Model
             return (int) $m[1];
         }
 
-        $haystack = ' ' . preg_replace('/[^a-z0-9]+/', ' ', self::normalize($text)) . ' ';
+        $haystack = ' '.preg_replace('/[^a-z0-9]+/', ' ', self::normalize($text)).' ';
         $best = null;
         $bestLength = 0;
         foreach ($this->zones as $zone) {
@@ -203,7 +237,7 @@ class DeliveryCityGrid extends Model
     public function price(string $vehicle, int $from, int $to): ?float
     {
         $prices = $this->vehicle($vehicle)['prices'] ?? [];
-        $key = min($from, $to) . '-' . max($from, $to);
+        $key = min($from, $to).'-'.max($from, $to);
 
         return isset($prices[$key]) && $prices[$key] !== '' ? (float) $prices[$key] : null;
     }

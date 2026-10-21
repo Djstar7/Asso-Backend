@@ -2,7 +2,7 @@
 <div class="bg-dark-100 rounded-xl border border-dark-200 p-6 mb-6">
     <h2 class="text-lg font-semibold text-white mb-3">Agences de retrait</h2>
     <p class="text-sm text-gray-400 mb-4">Coordonnées communiquées au client lorsque son colis est disponible. L'équipe ASSO renseigne le suivi et les confirmations du partenaire.</p>
-    @foreach(\App\Models\DeliveryAgency::where('deliverer_company_id', $partner->id)->orderBy('city')->get() as $agency)
+    @foreach($agencies as $agency)
         <form method="POST" action="{{ route('admin.delivery-partners.agencies.update', [$partner, $agency]) }}" class="grid grid-cols-1 md:grid-cols-3 gap-3 border-b border-dark-200 pb-4 mb-4">
             @csrf @method('PUT')
             @foreach(['code' => 'Code', 'name' => 'Nom', 'city' => 'Ville', 'address' => 'Adresse', 'phone' => 'Téléphone'] as $field => $label)
@@ -12,6 +12,7 @@
             <button class="px-4 py-2 bg-primary-500 text-white rounded-lg text-sm">Enregistrer l'agence</button>
         </form>
     @endforeach
+    <div class="mb-5">{{ $agencies->links() }}</div>
     <form method="POST" action="{{ route('admin.delivery-partners.agencies.store', $partner) }}" class="grid grid-cols-1 md:grid-cols-3 gap-3">
         @csrf
         @foreach(['code' => 'Code unique (ex. SOLEX-YDE)', 'name' => 'Nom', 'city' => 'Ville', 'address' => 'Adresse', 'phone' => 'Téléphone'] as $field => $label)

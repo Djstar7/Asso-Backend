@@ -375,160 +375,29 @@ class DeliveryController extends Controller
      */
     public function checkDeliveryAvailability(Request $request)
     {
-        $request->validate([
-            'latitude' => 'required|numeric',
-            'longitude' => 'required|numeric',
+        $validated = $request->validate([
+            'latitude' => 'required|numeric|between:-90,90',
+            'longitude' => 'required|numeric|between:-180,180',
         ]);
-
-        $latitude = $request->latitude;
-        $longitude = $request->longitude;
-
-        \Log::info('========================================');
-        \Log::info('🚚 DELIVERY AVAILABILITY CHECK START');
-        \Log::info('========================================');
-        \Log::info('📍 Requested Position:', [
-            'latitude' => $latitude,
-            'longitude' => $longitude,
-        ]);
-
-        // Get all active delivery zones with their companies and users
-        $deliveryZones = \App\Models\DeliveryZone::where('is_active', true)
-            ->with(['delivererCompany.user'])
-            ->get();
-
-        \Log::info('📦 Total Active Delivery Zones Found: ' . $deliveryZones->count());
-
-        if ($deliveryZones->isEmpty()) {
-            \Log::warning('⚠️ No active delivery zones found in database');
-            return response()->json([
-                'success' => false,
-                'available' => false,
-                'message' => __('delivery.no_zone_available'),
-            ]);
-        }
-
-        // Log each zone with detailed info
-        \Log::info('📋 Analyzing Each Delivery Zone:');
-        \Log::info('----------------------------------------');
-
-        // Check if the point is within any delivery zone
-        // Simple radius-based check using center coordinates
-        $nearbyZones = [];
-        $zonesWithSyncedDeliverers = 0;
-        $zonesWithoutSyncedDeliverers = 0;
-
-        foreach ($deliveryZones as $index => $zone) {
-            $zoneNumber = $index + 1;
-            \Log::info("📍 Zone #{$zoneNumber}: {$zone->name}");
-            \Log::info("  ├─ Zone ID: {$zone->id}");
-            \Log::info("  ├─ Company: {$zone->delivererCompany->name}");
-            \Log::info("  ├─ Company ID: {$zone->delivererCompany->id}");
-
-            // Check if company has a synchronized deliverer (user)
-            $hasSyncedDeliverer = $zone->delivererCompany->user_id !== null;
-            \Log::info("  ├─ Has Synced Deliverer: " . ($hasSyncedDeliverer ? 'YES ✅' : 'NO ❌'));
-
-            if ($hasSyncedDeliverer) {
-                $zonesWithSyncedDeliverers++;
-                $delivererUser = $zone->delivererCompany->user;
-                \Log::info("  ├─ Deliverer User ID: {$zone->delivererCompany->user_id}");
-                if ($delivererUser) {
-                    \Log::info("  ├─ Deliverer Name: {$delivererUser->first_name} {$delivererUser->last_name}");
-                    \Log::info("  ├─ Deliverer Phone: {$delivererUser->phone}");
-                    \Log::info("  ├─ Deliverer Role: {$delivererUser->role}");
-                }
-            } else {
-                $zonesWithoutSyncedDeliverers++;
-                \Log::info("  ├─ ⚠️ Company has NO synchronized deliverer yet");
-            }
-
-            if ($zone->center_latitude && $zone->center_longitude) {
-                \Log::info("  ├─ Zone Center: ({$zone->center_latitude}, {$zone->center_longitude})");
-
-                // Calculate distance in kilometers using Haversine formula
-                $distance = $this->calculateDistance(
-                    $latitude,
-                    $longitude,
-                    (float)$zone->center_latitude,
-                    (float)$zone->center_longitude
-                );
-
-                \Log::info("  ├─ Distance from requested position: " . round($distance, 2) . " km");
-
-                // Rayon de couverture réglable dans l'admin (Paramètres → Livraison).
-                $radius = \App\Services\DeliveryQuoteService::radiusKm();
-                $isWithinRadius = $distance <= $radius;
-                \Log::info("  ├─ Within {$radius}km radius: " . ($isWithinRadius ? 'YES ✅' : 'NO ❌'));
-
-                // A zone qualifies for vendor onboarding based on GEOGRAPHIC COVERAGE only
-                // (active zone within radius). Whether a specific deliverer has already
-                // linked their app account (synced) is an operational, order-time concern
-                // handled by CheckDeliveryAcceptanceJob — it must NOT block a vendor from
-                // setting up shop, otherwise a new market with no synced deliverer yet can
-                // never onboard any vendor (chicken-and-egg deadlock).
-                if ($isWithinRadius) {
-                    \Log::info("  └─ ✅ ZONE QUALIFIES (within radius)"
-                        . ($hasSyncedDeliverer ? " — deliverer synced" : " — no synced deliverer yet (order-time concern)"));
-                    $nearbyZones[] = [
-                        'id' => $zone->id,
-                        'name' => $zone->name,
-                        'distance' => round($distance, 2),
-                        'has_synced_deliverer' => $hasSyncedDeliverer,
-                        'company' => [
-                            'id' => $zone->delivererCompany->id,
-                            'name' => $zone->delivererCompany->name,
-                            'user_id' => $zone->delivererCompany->user_id,
-                        ],
-                    ];
-                } else {
-                    \Log::info("  └─ ❌ ZONE EXCLUDED (outside {$radius}km radius)");
-                }
-            } else {
-                \Log::info("  ├─ Zone Center: NOT SET");
-                \Log::info("  └─ ❌ ZONE EXCLUDED (no center coordinates)");
-            }
-
-            \Log::info('');
-        }
-
-        \Log::info('========================================');
-        \Log::info('📊 SUMMARY:');
-        \Log::info("  ├─ Total Zones Analyzed: {$deliveryZones->count()}");
-        \Log::info("  ├─ Zones with Synced Deliverers: {$zonesWithSyncedDeliverers}");
-        \Log::info("  ├─ Zones without Synced Deliverers: {$zonesWithoutSyncedDeliverers}");
-        \Log::info("  └─ Qualifying Zones (within radius): " . count($nearbyZones));
-        \Log::info('========================================');
-
-        if (empty($nearbyZones)) {
-            \Log::warning('❌ RESULT: No qualifying delivery zones found');
-            \Log::warning('Reason: No active delivery zone within radius of this position');
-            \Log::info('========================================');
-
-            return response()->json([
-                'success' => false,
-                'available' => false,
-                'message' => __('delivery.position_not_covered'),
-            ]);
-        }
-
-        // Sort by distance
-        usort($nearbyZones, fn($a, $b) => $a['distance'] <=> $b['distance']);
-
-        \Log::info('✅ RESULT: Delivery Available!');
-        \Log::info('📍 Qualifying Zones (sorted by distance):');
-        foreach ($nearbyZones as $index => $zone) {
-            $rank = $index + 1;
-            \Log::info("  {$rank}. {$zone['name']} - {$zone['distance']} km - Company: {$zone['company']['name']}");
-        }
-        \Log::info('🏆 Nearest Zone: ' . $nearbyZones[0]['name'] . ' (' . $nearbyZones[0]['distance'] . ' km)');
-        \Log::info('========================================');
+        // Même référentiel que la carte : cercles territoriaux, anciennes grilles
+        // et zones locales des autres partenaires. Aucun compte coursier requis.
+        $coverage = app(\App\Services\DeliveryQuoteService::class)->coverage(
+            (float) $validated['latitude'], (float) $validated['longitude']
+        );
+        $nearby = collect($coverage['served_by'])->map(fn ($zone) => [
+            'id' => $zone['zone'] ?? null,
+            'name' => $zone['zone_label'],
+            'distance' => $zone['distance_km'],
+            'type' => $zone['type'],
+            'company' => ['id' => $zone['company_id'], 'name' => $zone['company_name']],
+        ])->sortBy('distance')->values();
 
         return response()->json([
             'success' => true,
-            'available' => true,
-            'message' => __('delivery.zone_available'),
-            'zones' => $nearbyZones,
-            'nearest_zone' => $nearbyZones[0] ?? null,
+            'available' => $coverage['served'],
+            'message' => $coverage['served'] ? __('delivery.zone_available') : __('delivery.position_not_covered'),
+            'zones' => $nearby->all(),
+            'nearest_zone' => $nearby->first(),
         ]);
     }
 
@@ -554,6 +423,8 @@ class DeliveryController extends Controller
         $lat = (float) $validated['latitude'];
         $lng = (float) $validated['longitude'];
         $coverage = $service->coverage($lat, $lng);
+        $coverage['geographically_served'] = $coverage['served'];
+        $coverage['geographic_served_by'] = $coverage['served_by'];
         if (!empty($validated['items'])) {
             $quote = $service->quotes($validated['items'], $lat, $lng, null);
             $home = collect($quote['partners'])->where('delivery_option', 'home_delivery');
@@ -568,6 +439,8 @@ class DeliveryController extends Controller
                 ])->values()->all();
             $coverage['served'] = $home->isNotEmpty();
             $coverage['message'] = $quote['message'];
+            $coverage['quote_available'] = $quote['available'];
+            $coverage['quote_reason'] = $quote['reason'];
         }
 
         return response()->json(['success' => true, 'coverage' => $coverage]);

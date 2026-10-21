@@ -14,27 +14,27 @@
             <label class="block text-xs text-gray-400 mb-1">Pays de départ</label>
             <select name="origin_country" class="{{ $input }}"
                     @change="international = $event.target.value !== $el.form.destination_country.value">
-                @foreach($countries as $code => $name)
+                @foreach(($route?->network_key ? ['CM' => $countries['CM']] : $countries) as $code => $name)
                     <option value="{{ $code }}" @selected(($route?->origin_country ?? 'CM') === $code)>{{ $name }}</option>
                 @endforeach
             </select>
         </div>
         <div>
             <label class="block text-xs text-gray-400 mb-1">Ville de départ</label>
-            <input type="text" name="origin_city" value="{{ $route?->origin_city ?? 'Douala' }}" placeholder="Toutes" class="{{ $input }}">
+            <input type="text" name="origin_city" value="{{ $route?->origin_city ?? 'Douala' }}" @readonly($route?->network_key) placeholder="Toutes" class="{{ $input }}">
         </div>
         <div>
             <label class="block text-xs text-gray-400 mb-1">Pays d'arrivée</label>
             <select name="destination_country" class="{{ $input }}"
                     @change="international = $event.target.value !== $el.form.origin_country.value">
-                @foreach($countries as $code => $name)
+                @foreach(($route?->network_key ? ['CM' => $countries['CM']] : $countries) as $code => $name)
                     <option value="{{ $code }}" @selected(($route?->destination_country ?? 'CM') === $code)>{{ $name }}</option>
                 @endforeach
             </select>
         </div>
         <div>
             <label class="block text-xs text-gray-400 mb-1">Ville d'arrivée</label>
-            <input type="text" name="destination_city" value="{{ $route?->destination_city }}" placeholder="Toutes" class="{{ $input }}">
+            <input type="text" name="destination_city" value="{{ $route?->destination_city }}" @readonly($route?->network_key) placeholder="Toutes" class="{{ $input }}">
         </div>
         <div>
             <label class="block text-xs text-gray-400 mb-1">Délai de route</label>

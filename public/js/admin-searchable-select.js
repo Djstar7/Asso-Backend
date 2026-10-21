@@ -90,6 +90,11 @@
         }
 
         function renderOptions() {
+            // Closed dropdowns need only their selected label, not a copy of every option.
+            if (panel.hidden) {
+                optionsList.replaceChildren();
+                return;
+            }
             const query = normalize(search.value);
             const fragment = document.createDocumentFragment();
             let visibleCount = 0;

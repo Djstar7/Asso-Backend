@@ -2,22 +2,14 @@
 
 namespace App\Services;
 
-use App\Models\Order;
-use App\Models\OrderItem;
-use App\Models\Product;
-use App\Models\ProductVariant;
-use App\Models\ProductPriceTier;
 use App\Models\ImportCountry;
 use App\Models\ImportShippingOption;
+use App\Models\Order;
+use App\Models\Product;
+use App\Models\ProductPriceTier;
+use App\Models\ProductVariant;
 use App\Models\User;
 use App\Models\WalletTransaction;
-use App\Models\DelivererCompany;
-use App\Models\DeliveryZone;
-use App\Models\DeliveryPricelist;
-use App\Services\WalletService;
-use App\Services\DeliveryQuoteService;
-use App\Services\OrderTrackingService;
-use App\Services\FirebaseMessagingService;
 use App\Support\CountryCode;
 use App\Support\DeliveryDelay;
 use App\Support\ImportHub;
@@ -27,6 +19,7 @@ use Illuminate\Support\Facades\Log;
 class OrderService
 {
     protected WalletService $walletService;
+
     protected FirebaseMessagingService $fcmService;
 
     public function __construct(WalletService $walletService, FirebaseMessagingService $fcmService)
@@ -87,7 +80,7 @@ class OrderService
             $notes,
             $paymentMode, $kpayProvider, $kpayPhone
         ) {
-            Log::info("[OrderService] === CREATION COMMANDE ===", [
+            Log::info('[OrderService] === CREATION COMMANDE ===', [
                 'client_id' => $client->id,
                 'delivery_company_id' => $deliveryCompanyId,
                 'delivery_zone_id' => $deliveryZoneId,
@@ -108,21 +101,21 @@ class OrderService
                 $product = Product::lockForUpdate()->findOrFail($item['product_id']);
                 $orderedProducts[] = $product;
 
-                if (!in_array($product->status, ['published', 'active'])) {
+                if (! in_array($product->status, ['published', 'active'])) {
                     throw new \Exception(__('orders.product_unavailable', ['product' => $product->name]));
                 }
 
                 $variant = null;
-                if (!empty($item['variant_id'])) {
+                if (! empty($item['variant_id'])) {
                     // Variante d'un autre produit : message clair pour l'acheteur,
                     // pas l'exception technique du modèle.
                     $variant = ProductVariant::where('product_id', $product->id)
                         ->lockForUpdate()
                         ->find($item['variant_id']);
-                    if (!$variant) {
+                    if (! $variant) {
                         throw new \Exception(__('orders.variant_not_found', ['product' => $product->name]));
                     }
-                    if (!$variant->is_active) {
+                    if (! $variant->is_active) {
                         throw new \Exception(__('orders.variant_unavailable', ['product' => $product->name]));
                     }
                 } elseif ($product->variants()->exists()) {
@@ -185,7 +178,7 @@ class OrderService
                 ];
 
                 // Collecter les vendeurs pour notification
-                if (!in_array($product->user_id, $sellers)) {
+                if (! in_array($product->user_id, $sellers)) {
                     $sellers[] = $product->user_id;
                 }
 
@@ -238,7 +231,7 @@ class OrderService
                 $deliveryFee = 0.0;
             }
 
-            Log::info("[OrderService] Frais de livraison calculés", [
+            Log::info('[OrderService] Frais de livraison calculés', [
                 'mode' => $quote['delivery_mode'],
                 'weight_kg' => $quote['weight_kg'],
                 'breakdown' => $quote['breakdown'],
@@ -260,7 +253,7 @@ class OrderService
             // 3. Mode wallet : verrouiller les fonds du client (escrow depuis le solde).
             //    Modes directs (kpay_direct / paypal_direct) : pas de verrou — le client
             //    paie via KPay (PayIn) ou PayPal (checkout) ci-dessous.
-            if (!$isDirect) {
+            if (! $isDirect) {
                 $this->walletService->lockFunds(
                     $client,
                     $upfront,
@@ -299,7 +292,7 @@ class OrderService
                 'delivery_address_details' => $deliveryAddressDetails,
                 'customer_phone' => $customerPhone,
                 // Au moins un produit local (Cameroun) : menu « Commandes locales » du Dashboard.
-                'has_local_products' => collect($orderedProducts)->contains(fn ($p) => $p->is_local_made && !$p->origin_country),
+                'has_local_products' => collect($orderedProducts)->contains(fn ($p) => $p->is_local_made && ! $p->origin_country),
                 'delivery_latitude' => $deliveryLatitude,
                 'delivery_longitude' => $deliveryLongitude,
                 'delivery_company_id' => $deliveryCompanyId,
@@ -310,11 +303,13 @@ class OrderService
                 'delivery_vehicle' => $quote['vehicle'],
                 'shipping_weight_kg' => $quote['weight_kg'],
                 'delivery_vat_amount' => $quote['breakdown']['vat_amount'],
+                'delivery_agency_id' => $quote['pickup_agency']['id'] ?? null,
+                'pickup_agency_snapshot' => $quote['pickup_agency'] ?? null,
                 'delivery_breakdown' => $this->deliverySnapshot($quote, $orderedProducts),
                 'payment_method' => match (true) {
                     $isKpayDirect => 'kpay_direct',
                     $isStripeDirect => 'stripe_direct',
-                    default => 'wallet_' . $walletProvider,
+                    default => 'wallet_'.$walletProvider,
                 },
                 // Modes directs : en attente du paiement (Mobile Money / carte) ;
                 // wallet : déjà payé (fonds bloqués en escrow).
@@ -359,7 +354,7 @@ class OrderService
             // payée (PayIn Mobile Money / carte en attente) : on ne prévient les vendeurs
             // qu'à la confirmation du paiement (voir confirm*OrderPayment) pour ne pas les
             // solliciter sur une commande qui pourrait ne jamais être réglée.
-            if (!$isDirect) {
+            if (! $isDirect) {
                 foreach ($sellers as $sellerId) {
                     $seller = User::find($sellerId);
                     if ($seller) {
@@ -376,7 +371,7 @@ class OrderService
                                 'order_id' => (string) $order->id,
                                 'order_number' => $order->order_number,
                                 'total' => (string) $total,
-                                'client_name' => $client->first_name . ' ' . $client->last_name,
+                                'client_name' => $client->first_name.' '.$client->last_name,
                             ]
                         );
                     }
@@ -385,7 +380,7 @@ class OrderService
 
             $order->load(['items.product.primaryImage', 'items.product.images', 'deliveryCompany', 'deliveryZone']);
 
-            Log::info("[OrderService] Commande créée avec succès", [
+            Log::info('[OrderService] Commande créée avec succès', [
                 'order_id' => $order->id,
                 'order_number' => $order->order_number,
                 'total' => $total,
@@ -408,7 +403,7 @@ class OrderService
      * chaque ligne doit respecter la quantité minimale (« cota ») du palier choisi.
      * Le paiement réutilise initiateDirectPayment (KPay / PayPal / Stripe / wallet).
      *
-     * @param array $items  [ ['product_id'=>int,'price_tier_id'=>int,'quantity'=>int], ... ]
+     * @param  array  $items  [ ['product_id'=>int,'price_tier_id'=>int,'quantity'=>int], ... ]
      */
     public function createWholesaleOrder(
         User $client,
@@ -454,7 +449,7 @@ class OrderService
             foreach ($items as $index => $item) {
                 $product = Product::lockForUpdate()->findOrFail($item['product_id']);
                 $orderedProducts[] = $product;
-                if (!$product->is_wholesale || $product->status !== 'active') {
+                if (! $product->is_wholesale || $product->status !== 'active') {
                     throw new \Exception(__('orders.wholesale_unavailable', ['product' => $product->name]));
                 }
 
@@ -465,11 +460,11 @@ class OrderService
 
                 // Variante choisie (couleur, taille…) : conservée sur la ligne pour le fournisseur.
                 $variant = null;
-                if (!empty($item['variant_id'])) {
+                if (! empty($item['variant_id'])) {
                     $variant = ProductVariant::where('product_id', $product->id)
                         ->where('is_active', true)
                         ->find($item['variant_id']);
-                    if (!$variant) {
+                    if (! $variant) {
                         throw new \Exception(__('orders.variant_unavailable', ['product' => $product->name]));
                     }
                 }
@@ -479,7 +474,7 @@ class OrderService
                 $tierQuantity = $mixVariants ? $productTotals[$product->id] : $quantity;
                 // Le seuil du premier palier est le minimum de commande.
                 $tier = ProductPriceTier::forQuantity($tiers, $tierQuantity);
-                if (!$tier) {
+                if (! $tier) {
                     throw new \Exception(__('orders.wholesale_minimum_not_reached', [
                         'product' => $product->name,
                         'minimum' => $tiers->min('min_quantity'),
@@ -609,7 +604,7 @@ class OrderService
             $isDirect = in_array($paymentMode, ['kpay_direct', 'stripe_direct']);
 
             // Mode wallet : escrow depuis le solde. Modes directs : encaissement externe.
-            if (!$isDirect) {
+            if (! $isDirect) {
                 $this->walletService->lockFunds(
                     $client, $upfront,
                     $isDepositOrder
@@ -645,6 +640,8 @@ class OrderService
                 'delivery_city_grid_id' => $quote['grid_id'],
                 'delivery_vehicle' => $quote['vehicle'],
                 'delivery_vat_amount' => $quote['breakdown']['vat_amount'],
+                'delivery_agency_id' => $quote['pickup_agency']['id'] ?? null,
+                'pickup_agency_snapshot' => $quote['pickup_agency'] ?? null,
                 'delivery_breakdown' => $this->deliverySnapshot($quote, $orderedProducts) + [
                     'import_leg' => $this->importLeg($shipping, $shippingCost, $countryCode),
                 ],
@@ -660,7 +657,7 @@ class OrderService
                 'payment_method' => match (true) {
                     $paymentMode === 'kpay_direct' => 'kpay_direct',
                     $paymentMode === 'stripe_direct' => 'stripe_direct',
-                    default => 'wallet_' . ($kpayProvider ?? 'kpay'),
+                    default => 'wallet_'.($kpayProvider ?? 'kpay'),
                 },
                 'payment_status' => $isDirect ? 'pending' : 'paid',
                 'payment_plan' => $isDepositOrder ? Order::PLAN_DEPOSIT : Order::PLAN_FULL,
@@ -677,8 +674,8 @@ class OrderService
 
             app(OrderTrackingService::class)->record(
                 $order, 'pending', null,
-                'Commande import — ' . ($shipping->carrier ?: (ImportShippingOption::MODE_LABELS[$shipping->mode] ?? $shipping->mode))
-                    . ' jusqu\'à ' . ImportHub::CITY . ", puis {$quote['company_name']} — {$quote['route_label']}",
+                'Commande import — '.($shipping->carrier ?: (ImportShippingOption::MODE_LABELS[$shipping->mode] ?? $shipping->mode))
+                    .' jusqu\'à '.ImportHub::CITY.", puis {$quote['company_name']} — {$quote['route_label']}",
                 'buyer', $client->id,
             );
 
@@ -695,7 +692,7 @@ class OrderService
 
             // Payée tout de suite via le portefeuille : le vendeur peut préparer.
             // (En paiement direct, il est prévenu à la confirmation du paiement.)
-            if (!$isDirect) {
+            if (! $isDirect) {
                 $order->notifySellersTranslated(
                     'notifications.new_wholesale_order_vendor.title',
                     'notifications.new_wholesale_order_vendor.body',
@@ -731,7 +728,7 @@ class OrderService
 
         DB::transaction(function () use ($order, &$sellers, &$lateRefund) {
             $order = Order::whereKey($order->id)->lockForUpdate()->with('items')->first();
-            if (!$order || in_array($order->payment_status, [Order::PAYMENT_PAID, Order::PAYMENT_REFUNDED], true)) {
+            if (! $order || in_array($order->payment_status, [Order::PAYMENT_PAID, Order::PAYMENT_REFUNDED], true)) {
                 return; // déjà traité
             }
 
@@ -791,6 +788,7 @@ class OrderService
 
         if ($lateRefund) {
             $this->notifyLateRefund($order);
+
             return;
         }
 
@@ -803,7 +801,7 @@ class OrderService
                 ['type' => 'order_paid', 'order_id' => (string) $order->id, 'order_number' => $order->order_number]
             );
         } catch (\Exception $e) {
-            Log::warning('[OrderService] FCM order_paid échec: ' . $e->getMessage());
+            Log::warning('[OrderService] FCM order_paid échec: '.$e->getMessage());
         }
 
         // Prévenir le(s) vendeur(s) : la commande est désormais payée et actionnable.
@@ -812,7 +810,7 @@ class OrderService
         $client = $order->user;
         foreach ($sellers as $sellerId) {
             $seller = User::find($sellerId);
-            if (!$seller) {
+            if (! $seller) {
                 continue;
             }
             try {
@@ -834,11 +832,11 @@ class OrderService
                         'order_id' => (string) $order->id,
                         'order_number' => $order->order_number,
                         'total' => (string) $order->total,
-                        'client_name' => $client ? trim($client->first_name . ' ' . $client->last_name) : '',
+                        'client_name' => $client ? trim($client->first_name.' '.$client->last_name) : '',
                     ]
                 );
             } catch (\Exception $e) {
-                Log::warning('[OrderService] FCM new_order_vendor échec: ' . $e->getMessage());
+                Log::warning('[OrderService] FCM new_order_vendor échec: '.$e->getMessage());
             }
         }
     }
@@ -856,7 +854,7 @@ class OrderService
             $order = Order::whereKey($order->id)->lockForUpdate()->with('items.product')->first();
 
             // Idempotence : ne rien faire si déjà payé (course polling/webhook) ou déjà annulé.
-            if (!$order
+            if (! $order
                 || $order->payment_method !== 'kpay_direct'
                 || $order->payment_status === 'paid'
                 || $order->status === 'cancelled') {
@@ -889,7 +887,7 @@ class OrderService
                 ['type' => 'order_payment_failed', 'order_id' => (string) $order->id, 'order_number' => $order->order_number]
             );
         } catch (\Exception $e) {
-            Log::warning('[OrderService] FCM order_payment_failed échec: ' . $e->getMessage());
+            Log::warning('[OrderService] FCM order_payment_failed échec: '.$e->getMessage());
         }
     }
 
@@ -899,9 +897,9 @@ class OrderService
      * client_secret / payment_intent_id / stripe_publishable_key sont posés sur $order.
      * Lance une exception en cas d'échec → la transaction appelante fait un rollback.
      *
-     * @param string $paymentMode wallet | kpay_direct | stripe_direct
-     * @param bool $balance true = solde d'une commande avec acompte (colonnes balance_*,
-     *                      référence KPay « {order_number}-SOLDE », Stripe asso_kind=order_balance)
+     * @param  string  $paymentMode  wallet | kpay_direct | stripe_direct
+     * @param  bool  $balance  true = solde d'une commande avec acompte (colonnes balance_*,
+     *                         référence KPay « {order_number}-SOLDE », Stripe asso_kind=order_balance)
      */
     public function initiateDirectPayment(
         Order $order,
@@ -942,6 +940,7 @@ class OrderService
 
             $order->update(["{$col}_reference" => $kpayResult['id'] ?? null]);
             Log::info('[OrderService] PayIn KPay initié', ['order_id' => $order->id, 'charged' => $payAmount, 'currency' => $payCurrency]);
+
             return null;
         }
 
@@ -951,7 +950,7 @@ class OrderService
         // via le webhook payment_intent.succeeded (metadata asso_kind=order). Aucune WebView.
         if ($paymentMode === 'stripe_direct') {
             $stripe = app(\App\Services\StripeService::class);
-            if (!$stripe->isConfigured()) {
+            if (! $stripe->isConfigured()) {
                 throw new \Exception(__('payments.card_temporarily_unavailable'));
             }
 
@@ -986,6 +985,7 @@ class OrderService
             $order->stripe_publishable_key = $intent['publishable_key'] ?? null;
 
             Log::info('[OrderService] PaymentIntent Stripe initié', ['order_id' => $order->id, 'payment_intent' => $intent['id']]);
+
             return null;
         }
 
@@ -1004,14 +1004,15 @@ class OrderService
     {
         if ($order->payment_status !== 'pending'
             || $order->payment_method !== 'stripe_direct'
-            || !$order->payment_reference) {
+            || ! $order->payment_reference) {
             return;
         }
 
         try {
             $intent = app(\App\Services\StripeService::class)->retrievePaymentIntent($order->payment_reference);
         } catch (\Throwable $e) {
-            Log::warning('[OrderService] Stripe retrieve PaymentIntent: ' . $e->getMessage());
+            Log::warning('[OrderService] Stripe retrieve PaymentIntent: '.$e->getMessage());
+
             return;
         }
 
@@ -1036,7 +1037,7 @@ class OrderService
 
         DB::transaction(function () use ($order, &$sellers, &$lateRefund) {
             $order = Order::whereKey($order->id)->lockForUpdate()->with('items')->first();
-            if (!$order || in_array($order->payment_status, [Order::PAYMENT_PAID, Order::PAYMENT_REFUNDED], true)) {
+            if (! $order || in_array($order->payment_status, [Order::PAYMENT_PAID, Order::PAYMENT_REFUNDED], true)) {
                 return;
             }
 
@@ -1086,6 +1087,7 @@ class OrderService
 
         if ($lateRefund) {
             $this->notifyLateRefund($order);
+
             return;
         }
 
@@ -1097,13 +1099,13 @@ class OrderService
                 ['type' => 'order_paid', 'order_id' => (string) $order->id, 'order_number' => $order->order_number]
             );
         } catch (\Exception $e) {
-            Log::warning('[OrderService] FCM order_paid (stripe) échec: ' . $e->getMessage());
+            Log::warning('[OrderService] FCM order_paid (stripe) échec: '.$e->getMessage());
         }
 
         $client = $order->user;
         foreach ($sellers as $sellerId) {
             $seller = User::find($sellerId);
-            if (!$seller) {
+            if (! $seller) {
                 continue;
             }
             try {
@@ -1125,11 +1127,11 @@ class OrderService
                         'order_id' => (string) $order->id,
                         'order_number' => $order->order_number,
                         'total' => (string) $order->total,
-                        'client_name' => $client ? trim($client->first_name . ' ' . $client->last_name) : '',
+                        'client_name' => $client ? trim($client->first_name.' '.$client->last_name) : '',
                     ]
                 );
             } catch (\Exception $e) {
-                Log::warning('[OrderService] FCM new_order_vendor (stripe) échec: ' . $e->getMessage());
+                Log::warning('[OrderService] FCM new_order_vendor (stripe) échec: '.$e->getMessage());
             }
         }
     }
@@ -1142,7 +1144,7 @@ class OrderService
         DB::transaction(function () use ($order) {
             $order = Order::whereKey($order->id)->lockForUpdate()->with('items.product')->first();
 
-            if (!$order
+            if (! $order
                 || $order->payment_method !== 'stripe_direct'
                 || $order->payment_status === 'paid'
                 || $order->status === 'cancelled') {
@@ -1174,7 +1176,7 @@ class OrderService
                 ['type' => 'order_payment_failed', 'order_id' => (string) $order->id, 'order_number' => $order->order_number]
             );
         } catch (\Exception $e) {
-            Log::warning('[OrderService] FCM order_payment_failed (stripe) échec: ' . $e->getMessage());
+            Log::warning('[OrderService] FCM order_payment_failed (stripe) échec: '.$e->getMessage());
         }
     }
 
@@ -1198,7 +1200,7 @@ class OrderService
         $confirmed = DB::transaction(function () use ($order, $vendor, $actorType, $actorId) {
             // Verrou + re-contrôle : deux validations simultanées ne créditent pas deux fois.
             $locked = Order::whereKey($order->id)->lockForUpdate()->first();
-            if (!$locked || $locked->status !== 'pending') {
+            if (! $locked || $locked->status !== 'pending') {
                 throw new \Exception(__('orders.already_processed'));
             }
             $locked->update(['status' => 'confirmed', 'confirmed_at' => now()]);
@@ -1208,7 +1210,7 @@ class OrderService
             // du client (48 h après la livraison au plus tard). Idempotent.
             // Commande avec acompte : réglée seulement au paiement du solde, après la
             // livraison et la vérification conjointe ASSO (DepositOrderService).
-            if (!$locked->isDepositOrder()) {
+            if (! $locked->isDepositOrder()) {
                 $this->settleOrder($locked, $vendor);
             }
             app(OrderTrackingService::class)->record($locked, 'confirmed', null, null, $actorType, $actorId);
@@ -1293,7 +1295,7 @@ class OrderService
         $refunded = DB::transaction(function () use ($order, $reason, $actorType, $actorId) {
             // Verrou + re-contrôle : pas de refus après validation.
             $locked = Order::whereKey($order->id)->lockForUpdate()->with('items')->first();
-            if (!$locked || $locked->status !== 'pending') {
+            if (! $locked || $locked->status !== 'pending') {
                 throw new \Exception(__('orders.already_processed'));
             }
             $locked->update(['status' => 'cancelled', 'cancel_reason' => $reason, 'cancelled_at' => now()]);
@@ -1350,7 +1352,7 @@ class OrderService
         }
 
         $client = $order->user;
-        if (!$client) {
+        if (! $client) {
             return 0.0;
         }
 
@@ -1412,7 +1414,7 @@ class OrderService
         $mode = ImportShippingOption::MODE_LABELS[$shipping->mode] ?? $shipping->mode;
 
         return [
-            'label' => "Expédition {$country} → " . ImportHub::CITY . " ({$mode})",
+            'label' => "Expédition {$country} → ".ImportHub::CITY." ({$mode})",
             'mode' => $shipping->mode,
             'carrier' => $shipping->carrier,
             'lead_time_days' => $shipping->lead_time_days,
@@ -1429,6 +1431,8 @@ class OrderService
     private function deliverySnapshot(array $quote, array $products = []): array
     {
         return [
+            'pricing_type' => $quote['pricing_type'] ?? null,
+            'network_level' => $quote['network_level'] ?? null,
             'company_name' => $quote['company_name'],
             'service_type' => $quote['service_type'],
             'service_type_label' => $quote['service_type_label'],
@@ -1455,7 +1459,7 @@ class OrderService
                 ['type' => 'wallet_refund', 'order_id' => (string) $order->id, 'order_number' => $order->order_number]
             );
         } catch (\Exception $e) {
-            Log::warning('[OrderService] FCM wallet_refund échec: ' . $e->getMessage());
+            Log::warning('[OrderService] FCM wallet_refund échec: '.$e->getMessage());
         }
     }
 
@@ -1472,7 +1476,7 @@ class OrderService
         if ($order->settled_at) {
             return; // déjà réglée
         }
-        if ($order->payment_status !== Order::PAYMENT_PAID || !$order->canBeHandedOver()) {
+        if ($order->payment_status !== Order::PAYMENT_PAID || ! $order->canBeHandedOver()) {
             throw new \Exception(__('orders.payment_not_confirmed'));
         }
 
@@ -1580,7 +1584,7 @@ class OrderService
 
         // Commande déjà livrée (ex. acompte : solde payé à la remise) : la fenêtre de
         // contrôle démarre maintenant.
-        if ($order->status === 'delivered' && $order->vendor_funds_status === Order::VENDOR_FUNDS_HELD && !$order->auto_validate_at) {
+        if ($order->status === 'delivered' && $order->vendor_funds_status === Order::VENDOR_FUNDS_HELD && ! $order->auto_validate_at) {
             $this->startControlWindow($order);
         }
 
@@ -1615,7 +1619,7 @@ class OrderService
                     ['type' => 'order_control_window', 'order_id' => (string) $order->id, 'order_number' => $order->order_number]
                 );
             } catch (\Throwable $e) {
-                Log::warning('[OrderService] FCM order_control_window échec: ' . $e->getMessage());
+                Log::warning('[OrderService] FCM order_control_window échec: '.$e->getMessage());
             }
         }
     }
@@ -1624,14 +1628,14 @@ class OrderService
      * Débloque la part vendeur encore bloquée sur la commande (idempotent). Les parts
      * des articles en litige restent bloquées sur leur litige.
      *
-     * @param string $reason conform (client) | auto (48 h sans action)
+     * @param  string  $reason  conform (client) | auto (48 h sans action)
      * @return float montant débloqué
      */
     public function releaseVendorFunds(Order $order, string $reason, ?int $actorId = null): float
     {
         $released = DB::transaction(function () use ($order, $reason, $actorId) {
             $locked = Order::whereKey($order->id)->lockForUpdate()->first();
-            if (!$locked || $locked->vendor_funds_status !== Order::VENDOR_FUNDS_HELD) {
+            if (! $locked || $locked->vendor_funds_status !== Order::VENDOR_FUNDS_HELD) {
                 return null;
             }
 
@@ -1670,7 +1674,7 @@ class OrderService
             return ['amount' => $amount, 'vendor' => $vendor, 'order' => $locked];
         });
 
-        if (!$released) {
+        if (! $released) {
             return 0.0;
         }
 
@@ -1687,7 +1691,7 @@ class OrderService
                     ['type' => 'vendor_funds_released', 'order_id' => (string) $released['order']->id, 'order_number' => $released['order']->order_number]
                 );
             } catch (\Throwable $e) {
-                Log::warning('[OrderService] FCM vendor_funds_released échec: ' . $e->getMessage());
+                Log::warning('[OrderService] FCM vendor_funds_released échec: '.$e->getMessage());
             }
         }
 

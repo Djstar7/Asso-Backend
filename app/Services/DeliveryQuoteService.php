@@ -40,7 +40,9 @@ use App\Support\WeightGrid;
 class DeliveryQuoteService
 {
     public const DEFAULT_RADIUS_KM = 10;
+
     public const DEFAULT_PRODUCT_WEIGHT_KG = 2;
+
     public const DEFAULT_VAT_RATE = 19.25;
 
     public static function radiusKm(): float
@@ -68,7 +70,7 @@ class DeliveryQuoteService
     /**
      * Toutes les offres de livraison pour un panier.
      *
-     * @param array $items [['product_id' => int, 'quantity' => int, 'price_tier_id' => ?int], …]
+     * @param  array  $items  [['product_id' => int, 'quantity' => int, 'price_tier_id' => ?int], …]
      */
     public function quotes(array $items, ?float $lat, ?float $lng, ?string $city, ?string $country = null, ?string $quarter = null, ?string $address = null): array
     {
@@ -93,7 +95,14 @@ class DeliveryQuoteService
             'partners' => [],
         ];
 
+        $territorial = [];
+        foreach (app(TerritorialDeliveryService::class)->quotes($cart, $lat, $lng, $destCity, $destCountry) as $network) {
+            $territorial[] = $this->offer($network['company'], $network['carrier_price_ht'], null,
+                __('delivery.network.range'), $cart['weight_kg'],
+                array_diff_key($network, array_flip(['company', 'carrier_price_ht', 'selection_rank'])));
+        }
         $partners = array_merge(
+            $territorial,
             $this->localQuotes($cart, $lat, $lng, $destCity, $destCountry),
             $this->cityGridQuotes($cart, $destCity, $destCountry, $gridContext),
             $this->carrierQuotes($cart, $destCity, $destCountry, $lat, $lng, $gridContext),
@@ -115,7 +124,7 @@ class DeliveryQuoteService
         $result['partners'] = array_map(fn ($p) => array_diff_key($p, ['sort_group' => 1]), $partners);
         $result['available'] = $result['partners'] !== [];
 
-        if (!$result['available']) {
+        if (! $result['available']) {
             $result['reason'] = 'no_partner';
             $replace = [
                 'destination' => $destCity ?: __('delivery.this_address'),
@@ -125,6 +134,12 @@ class DeliveryQuoteService
             $result['message'] = $originCity
                 ? __('delivery.no_partner_from_origin', $replace)
                 : __('delivery.no_partner', $replace);
+            if (($originCountry === null || $originCountry === 'CM')
+                && ($cart['origin_lat'] === null || $cart['origin_lng'] === null)
+                && DelivererCompany::where('is_active', true)->where('territorial_network_enabled', true)->exists()) {
+                $result['reason'] = 'origin_not_located';
+                $result['message'] = __('delivery.origin_position_missing');
+            }
         }
 
         return $result;
@@ -145,8 +160,8 @@ class DeliveryQuoteService
         $servedCity = null;
 
         // Grilles zone à zone (ex. SOLEX Douala) : quartiers placés, colorés par zone.
-        $grids = DeliveryCityGrid::where('is_active', true)
-            ->whereHas('company', fn ($q) => $q->where('is_active', true))
+        $grids = DeliveryCityGrid::where('is_active', true)->whereNull('department_code')
+            ->whereHas('company', fn ($q) => $q->where('is_active', true)->where('territorial_network_enabled', false))
             ->with('company')
             ->get();
         foreach ($grids as $grid) {
@@ -195,13 +210,33 @@ class DeliveryQuoteService
             }
         }
 
+        foreach (DeliveryCityGrid::whereNotNull('department_code')->where('is_active', true)
+            ->whereHas('company', fn ($q) => $q->where('is_active', true)->where('territorial_network_enabled', true))
+            ->with('company')->get() as $grid) {
+            foreach ($grid->zones as $zone) {
+                if (empty($zone['is_active'])) {
+                    continue;
+                }
+                $zones[] = ['name' => $zone['label'], 'latitude' => $zone['center_latitude'],
+                    'longitude' => $zone['center_longitude'], 'radius_km' => $zone['radius_km'],
+                    'zone' => $zone['code'], 'company_name' => $grid->company->name];
+            }
+            foreach ($grid->circularMatches($lat, $lng) as $zone) {
+                $servedCity ??= $grid->city;
+                $servedBy[] = ['company_id' => $grid->deliverer_company_id, 'company_name' => $grid->company->name,
+                    'type' => 'territorial_network', 'city' => $grid->city, 'zone' => $zone['code'],
+                    'zone_label' => $zone['label'], 'quarter' => null, 'distance_km' => round($zone['distance_km'], 2),
+                    'vehicles' => collect($grid->vehicles)->pluck('label')->all()];
+            }
+        }
+
         // Zones dessinées des livreurs (rayon réglé dans l'admin autour du centre).
-        $companies = DelivererCompany::where('is_active', true)
+        $companies = DelivererCompany::where('is_active', true)->where('territorial_network_enabled', false)
             ->with(['deliveryZones' => fn ($q) => $q->where('is_active', true)])
             ->get();
         foreach ($companies as $company) {
             foreach ($company->deliveryZones as $zone) {
-                if (!$zone->center_latitude || !$zone->center_longitude) {
+                if (! $zone->center_latitude || ! $zone->center_longitude) {
                     continue;
                 }
                 $distance = $this->distanceKm($lat, $lng, (float) $zone->center_latitude, (float) $zone->center_longitude);
@@ -239,7 +274,7 @@ class DeliveryQuoteService
             foreach ($routes as $route) {
                 $isOrigin = CountryCode::sameCity($route->origin_city, $city);
                 $isDestination = CountryCode::sameCity($route->destination_city, $city);
-                if (!$isOrigin && !$isDestination) {
+                if (! $isOrigin && ! $isDestination) {
                     continue;
                 }
                 $other = $isOrigin ? ($route->destination_city ?: CountryCode::name($route->destination_country)) : ($route->origin_city ?: CountryCode::name($route->origin_country));
@@ -316,21 +351,21 @@ class DeliveryQuoteService
                 continue;
             }
             // Grille urbaine zone à zone : véhicule choisi.
-            if ($gridId && !$routeId && $partner['route_id'] === null) {
+            if ($gridId && ! $routeId && $partner['route_id'] === null) {
                 return $partner + ['weight_kg' => $result['weight_kg']];
             }
             // Trajet : « retrait en agence » (sans zone) ou « à domicile » (zone d'arrivée).
             if ($routeId && $partner['route_id'] === $routeId && $partner['zone_id'] === $zoneId) {
                 return $partner + ['weight_kg' => $result['weight_kg']];
             }
-            if (!$routeId && $zoneId && $partner['zone_id'] === $zoneId) {
+            if (! $routeId && $zoneId && $partner['zone_id'] === $zoneId) {
                 return $partner + ['weight_kg' => $result['weight_kg']];
             }
         }
 
         // Ancienne app : seule la zone est envoyée, sans ville → on accepte la zone
         // choisie telle quelle si elle appartient bien au livreur.
-        if (!$routeId && $zoneId && !$gridId) {
+        if (! $routeId && $zoneId && ! $gridId && ! DelivererCompany::whereKey($companyId)->where('territorial_network_enabled', true)->exists()) {
             $cart = $this->cart($items);
             $zone = DeliveryZone::with(['activePricelist', 'delivererCompany'])
                 ->where('id', $zoneId)->where('deliverer_company_id', $companyId)->where('is_active', true)->first();
@@ -360,16 +395,21 @@ class DeliveryQuoteService
         $originLat = null;
         $originLng = null;
         $category = null;
+        $pickupShops = [];
         $products = Product::with('shop')->whereIn('id', collect($items)->pluck('product_id'))->get()->keyBy('id');
         // Gros : la quantité compte des unités du palier (pack, bidon, pièce), chacune son poids.
         $tiers = ProductPriceTier::whereIn('id', collect($items)->pluck('price_tier_id')->filter())->get()->keyBy('id');
 
         foreach ($items as $item) {
             $product = $products->get((int) $item['product_id']);
-            if (!$product) {
+            if (! $product) {
                 continue;
             }
             $quantity = max(1, (int) ($item['quantity'] ?? 1));
+            $pickupShop = ($product->is_wholesale ? ImportHub::shop() : null) ?? $product->shop;
+            if ($pickupShop) {
+                $pickupShops[$pickupShop->id] = true;
+            }
 
             $tier = $tiers->get((int) ($item['price_tier_id'] ?? 0));
             $tierWeight = $tier && $tier->product_id === $product->id && $tier->weight_kg > 0 ? (float) $tier->weight_kg : null;
@@ -398,6 +438,7 @@ class DeliveryQuoteService
         }
 
         return [
+            'pickup_shop_count' => count($pickupShops),
             'weight_kg' => round($weight, 3),
             'missing_weight' => array_values(array_unique($missing)),
             'origin' => $origin,
@@ -419,7 +460,7 @@ class DeliveryQuoteService
         $city = $shop?->city;
         $country = CountryCode::normalize($shop?->country);
 
-        if ((!$city || !$country) && $shop?->address) {
+        if ((! $city || ! $country) && $shop?->address) {
             [$parsedCity, $parsedCountry] = LocationFormatter::parse($shop->address);
             $city = $city ?: $parsedCity;
             $country = $country ?: CountryCode::normalize($parsedCountry);
@@ -459,7 +500,7 @@ class DeliveryQuoteService
         // Adresse sans ville reconnue (ex. « Position GPS (5.4821, 10.4235) ») : ville la plus
         // proche de la position choisie sur la carte.
         $known = $destCity && (CityCoordinates::of($destCity) || DeliveryCityGrid::forCity($destCity));
-        if (!$known && $lat !== null && $lng !== null && ($lat != 0 || $lng != 0)) {
+        if (! $known && $lat !== null && $lng !== null && ($lat != 0 || $lng != 0)) {
             if ($nearest = CityCoordinates::nearest($lat, $lng)) {
                 $destCity = $nearest['name'];
                 $code = $code ?: 'CM';
@@ -478,14 +519,14 @@ class DeliveryQuoteService
         if ($originCountry && $destCountry && $originCountry !== $destCountry) {
             return [];
         }
-        if ($originCity && $destCity && !CountryCode::sameCity($originCity, $destCity)) {
+        if ($originCity && $destCity && ! CountryCode::sameCity($originCity, $destCity)) {
             return [];
         }
 
         $radius = self::radiusKm();
         $quotes = [];
 
-        $companies = DelivererCompany::where('is_active', true)
+        $companies = DelivererCompany::where('is_active', true)->where('territorial_network_enabled', false)
             ->with(['deliveryZones' => fn ($q) => $q->where('is_active', true)->with('activePricelist'), 'user'])
             ->get();
 
@@ -498,7 +539,7 @@ class DeliveryQuoteService
                 // Couverture : la ville de la zone, sinon le rayon réglé dans l'admin.
                 $cityMatches = $destCity && $zone->city && CountryCode::sameCity($destCity, $zone->city);
                 $inRadius = $distance !== null && $distance <= $radius;
-                if (!$cityMatches && !$inRadius) {
+                if (! $cityMatches && ! $inRadius) {
                     continue;
                 }
 
@@ -515,7 +556,7 @@ class DeliveryQuoteService
     private function localQuote(DelivererCompany $company, DeliveryZone $zone, array $cart, ?float $distance): ?array
     {
         $pricelist = $zone->activePricelist;
-        if (!$pricelist) {
+        if (! $pricelist) {
             return null;
         }
         if ($company->max_weight_kg && $cart['weight_kg'] > $company->max_weight_kg) {
@@ -523,7 +564,7 @@ class DeliveryQuoteService
         }
 
         $zonePrice = $this->zonePrice($pricelist, $cart);
-        if (!$zonePrice) {
+        if (! $zonePrice) {
             return null;
         }
 
@@ -554,7 +595,7 @@ class DeliveryQuoteService
                 'sort_group' => 0,
                 'deliverer' => $company->user ? [
                     'id' => $company->user->id,
-                    'name' => trim($company->user->first_name . ' ' . $company->user->last_name),
+                    'name' => trim($company->user->first_name.' '.$company->user->last_name),
                     'phone' => $company->user->phone,
                 ] : null,
             ],
@@ -604,17 +645,17 @@ class DeliveryQuoteService
         $best = null;
         foreach ($company->deliveryZones as $zone) {
             $pricelist = $zone->activePricelist;
-            if (!$zone->is_active || !$pricelist) {
+            if (! $zone->is_active || ! $pricelist) {
                 continue;
             }
             $cityMatches = $destCity && $zone->city && CountryCode::sameCity($destCity, $zone->city);
             $inRadius = $lat && $lng && $zone->center_latitude && $zone->center_longitude
                 && $this->distanceKm($lat, $lng, (float) $zone->center_latitude, (float) $zone->center_longitude) <= self::radiusKm();
-            if (!$cityMatches && !$inRadius) {
+            if (! $cityMatches && ! $inRadius) {
                 continue;
             }
             $price = $this->zonePrice($pricelist, $cart);
-            if ($price && (!$best || $price['price'] < $best['price']['price'])) {
+            if ($price && (! $best || $price['price'] < $best['price']['price'])) {
                 $best = ['zone' => $zone, 'pricelist' => $pricelist, 'price' => $price];
             }
         }
@@ -629,8 +670,8 @@ class DeliveryQuoteService
     private function gridContext(?string $destCity, ?string $quarter, ?string $address, ?float $lat = null, ?float $lng = null): array
     {
         $grids = $destCity
-            ? DeliveryCityGrid::where('is_active', true)
-                ->whereHas('company', fn ($q) => $q->where('is_active', true))
+            ? DeliveryCityGrid::where('is_active', true)->whereNull('department_code')
+                ->whereHas('company', fn ($q) => $q->where('is_active', true)->where('territorial_network_enabled', false))
                 ->with('company')
                 ->get()
                 ->filter(fn (DeliveryCityGrid $g) => $g->coversCity($destCity))
@@ -684,15 +725,16 @@ class DeliveryQuoteService
         foreach ($gridContext['grids'] as $grid) {
             $destZone = $gridContext['zones'][$grid->id] ?? null;
             // Même ville que la boutique uniquement ; zone de départ = quartier de la boutique.
-            if (!$destZone || !$grid->coversCity($originCity)) {
+            if (! $destZone || ! $grid->coversCity($originCity)) {
                 continue;
             }
             // Quartier de la boutique (position sur sa carte), sinon son adresse.
             $originZone = $grid->zoneOfQuarter($cart['origin_quarter'])
                 ?? $grid->nearestQuarter($cart['origin_lat'], $cart['origin_lng'])['zone'] ?? null
                 ?? $grid->zoneFor($cart['origin_address']);
-            if (!$originZone) {
-                \Illuminate\Support\Facades\Log::info('[DeliveryQuote] Quartier de la boutique non reconnu pour la grille ' . $grid->id, ['address' => $cart['origin_address']]);
+            if (! $originZone) {
+                \Illuminate\Support\Facades\Log::info('[DeliveryQuote] Quartier de la boutique non reconnu pour la grille '.$grid->id, ['address' => $cart['origin_address']]);
+
                 continue;
             }
 
@@ -703,7 +745,7 @@ class DeliveryQuoteService
                     company: $grid->company,
                     carrierPrice: $price,
                     grid: null,
-                    rangeLabel: $vehicle['label'] . ' — ' . $grid->zoneLabel($originZone, 0) . ' → ' . $grid->zoneLabel($destZone, 0),
+                    rangeLabel: $vehicle['label'].' — '.$grid->zoneLabel($originZone, 0).' → '.$grid->zoneLabel($destZone, 0),
                     weightKg: $cart['weight_kg'],
                     extra: [
                         'delivery_mode' => 'local',
@@ -729,7 +771,7 @@ class DeliveryQuoteService
                         'destination_zone' => $destZone,
                         // Comparatif des véhicules pour ce trajet.
                         'price_grid' => collect($grid->vehicles)->map(fn ($v) => [
-                            'label' => $v['label'] . (!empty($v['max_weight_kg']) ? ' (' . __('delivery.quote.up_to', ['weight' => $this->formatKg((float) $v['max_weight_kg'])]) . ')' : ''),
+                            'label' => $v['label'].(! empty($v['max_weight_kg']) ? ' ('.__('delivery.quote.up_to', ['weight' => $this->formatKg((float) $v['max_weight_kg'])]).')' : ''),
                             'price' => $grid->price($v['code'], $originZone, $destZone) ?? 0,
                         ])->filter(fn ($r) => $r['price'] > 0)->values()->all(),
                         'sort_group' => 0,
@@ -752,7 +794,7 @@ class DeliveryQuoteService
     {
         foreach ($gridContext['grids'] as $grid) {
             $destZone = $gridContext['zones'][$grid->id] ?? null;
-            if ($grid->deliverer_company_id !== $company->id || !$grid->agency_zone || !$destZone) {
+            if ($grid->deliverer_company_id !== $company->id || ! $grid->agency_zone || ! $destZone) {
                 continue;
             }
             // Véhicule choisi d'après le poids du colis, comme en urbain.
@@ -767,7 +809,7 @@ class DeliveryQuoteService
     private function carrierQuotes(array $cart, ?string $destCity, ?string $destCountry, ?float $lat = null, ?float $lng = null, array $gridContext = ['grids' => [], 'zones' => []]): array
     {
         [$originCity, $originCountry] = $cart['origin'];
-        if (!$originCountry || !$destCountry) {
+        if (! $originCountry || ! $destCountry) {
             return [];
         }
         // Même ville : pas de transport interurbain.
@@ -775,11 +817,11 @@ class DeliveryQuoteService
             return [];
         }
 
-        $routes = DeliveryRoute::where('is_active', true)
+        $routes = DeliveryRoute::where('is_active', true)->whereNull('network_key')
             ->whereHas('company', fn ($q) => $q->where('is_active', true))
             ->with(['company.deliveryZones.activePricelist'])
             ->get()
-            ->filter(fn (DeliveryRoute $r) => $r->serves($originCountry, $originCity, $destCountry, $destCity));
+            ->filter(fn (DeliveryRoute $r) => (! $r->company->territorial_network_enabled || $r->origin_country !== 'CM' || $r->destination_country !== 'CM') && $r->serves($originCountry, $originCity, $destCountry, $destCity));
 
         $quotes = [];
         foreach ($routes as $route) {
@@ -788,7 +830,7 @@ class DeliveryQuoteService
                 continue;
             }
             $grid = WeightGrid::price($route->pricing_data ?? [], $cart['weight_kg']);
-            if (!$grid) {
+            if (! $grid) {
                 continue;
             }
 
@@ -833,7 +875,7 @@ class DeliveryQuoteService
                 continue;
             }
             $lastMile = $this->lastMileZone($company, $cart, $destCity, $lat, $lng);
-            if (!$lastMile) {
+            if (! $lastMile) {
                 // Sinon grille zone à zone du partenaire (agence → quartier de l'acheteur).
                 $gridLeg = $this->lastMileGrid($company, $cart, $gridContext);
                 if ($gridLeg) {
@@ -865,6 +907,7 @@ class DeliveryQuoteService
                         ] + $base,
                     );
                 }
+
                 continue;
             }
             $zone = $lastMile['zone'];
@@ -924,12 +967,12 @@ class DeliveryQuoteService
             'service_mode' => $extra['service_mode'],
             'service_mode_label' => DelivererCompany::serviceModeLabel($extra['service_mode']),
             'delivery_option' => $extra['delivery_option'] ?? 'home_delivery',
-            'delivery_option_label' => __('delivery.options.' . (($extra['delivery_option'] ?? 'home_delivery') === 'agency_pickup' ? 'agency_pickup' : 'home_delivery')),
+            'delivery_option_label' => __('delivery.options.'.(($extra['delivery_option'] ?? 'home_delivery') === 'agency_pickup' ? 'agency_pickup' : 'home_delivery')),
             'conditions' => $company->conditions,
             'max_weight_kg' => $company->max_weight_kg,
             'has_tracking_link' => (bool) $company->tracking_url_template,
             'delivery_price' => $total,
-            'formatted_delivery_price' => number_format($total, 0, ',', ' ') . ' FCFA',
+            'formatted_delivery_price' => number_format($total, 0, ',', ' ').' FCFA',
             // Compatibilité : prix du livreur (TTC) et commission séparés.
             'base_price' => $carrierTotal,
             'asso_commission' => round($assoCommission),
@@ -942,6 +985,9 @@ class DeliveryQuoteService
                 'extra_price' => $grid['extra_price'] ?? 0,
                 // Volets du prix (trajet d'agence à agence + livraison à domicile), HT.
                 'legs' => $extra['legs'] ?? [],
+                'origin_coverage' => $extra['origin_coverage'] ?? null,
+                'destination_coverage' => $extra['destination_coverage'] ?? null,
+                'pickup_agency' => $extra['pickup_agency'] ?? null,
                 'carrier_price_ht' => $carrierPrice,
                 'prices_exclude_vat' => (bool) $company->prices_exclude_vat,
                 'vat_rate' => $vatRate,
@@ -964,6 +1010,6 @@ class DeliveryQuoteService
 
     private function formatKg(float $kg): string
     {
-        return rtrim(rtrim(number_format($kg, 3, ',', ' '), '0'), ',') . ' kg';
+        return rtrim(rtrim(number_format($kg, 3, ',', ' '), '0'), ',').' kg';
     }
 }

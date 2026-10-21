@@ -1,0 +1,4076 @@
+{
+  "source": "OCHA/HDX COD-AB Cameroon, Institut National de Cartographie",
+  "url": "https://data.humdata.org/dataset/cod-ab-cmr",
+  "resource_url": "https://data.humdata.org/dataset/b13f08ef-92ee-4446-9b0a-e219f5c25415/resource/138363cd-875e-474a-9896-9c8edfac766b/download/cmr_admin_boundaries.xlsx",
+  "license": "Creative Commons Attribution for Intergovernmental Organisations (CC BY-IGO)",
+  "retrieved_at": "2026-10-21",
+  "centres": "Centroides du référentiel ; centres de couverture provisoires à ajuster avant activation.",
+  "territories": [
+    {
+      "code": "CM001",
+      "level": 1,
+      "name": "Adamaoua",
+      "name_en": "Adamawa",
+      "parent_code": null,
+      "latitude": 7.0823985,
+      "longitude": 13.21838468,
+      "hub_department_code": "CM001005",
+      "hub_city": "Ngaoundere",
+      "hub_latitude": 7.316667,
+      "hub_longitude": 13.583333
+    },
+    {
+      "code": "CM002",
+      "level": 1,
+      "name": "Centre",
+      "name_en": "Centre",
+      "parent_code": null,
+      "latitude": 4.68404215,
+      "longitude": 11.85242217,
+      "hub_department_code": "CM002007",
+      "hub_city": "Yaounde",
+      "hub_latitude": 3.866667,
+      "hub_longitude": 11.516667
+    },
+    {
+      "code": "CM003",
+      "level": 1,
+      "name": "Est",
+      "name_en": "East",
+      "parent_code": null,
+      "latitude": 3.8924407,
+      "longitude": 13.85996406,
+      "hub_department_code": "CM003004",
+      "hub_city": "Bertoua",
+      "hub_latitude": 4.583333,
+      "hub_longitude": 13.683333
+    },
+    {
+      "code": "CM004",
+      "level": 1,
+      "name": "Extrême-Nord",
+      "name_en": "Far-North",
+      "parent_code": null,
+      "latitude": 11.5086148,
+      "longitude": 14.86728083,
+      "hub_department_code": "CM004001",
+      "hub_city": "Maroua",
+      "hub_latitude": 10.611625,
+      "hub_longitude": 14.316557
+    },
+    {
+      "code": "CM005",
+      "level": 1,
+      "name": "Littoral",
+      "name_en": "Littoral",
+      "parent_code": null,
+      "latitude": 4.2954929,
+      "longitude": 10.22744599,
+      "hub_department_code": "CM005004",
+      "hub_city": "Douala",
+      "hub_latitude": 4.0469,
+      "hub_longitude": 9.7084
+    },
+    {
+      "code": "CM006",
+      "level": 1,
+      "name": "Nord",
+      "name_en": "North",
+      "parent_code": null,
+      "latitude": 8.637079,
+      "longitude": 13.87268815,
+      "hub_department_code": "CM006001",
+      "hub_city": "Garoua",
+      "hub_latitude": 9.3,
+      "hub_longitude": 13.4
+    },
+    {
+      "code": "CM007",
+      "level": 1,
+      "name": "Nord-Ouest",
+      "name_en": "North-West",
+      "parent_code": null,
+      "latitude": 6.4333471,
+      "longitude": 10.46959081,
+      "hub_department_code": "CM007005",
+      "hub_city": "Bamenda",
+      "hub_latitude": 5.952655,
+      "hub_longitude": 10.158245
+    },
+    {
+      "code": "CM009",
+      "level": 1,
+      "name": "Sud",
+      "name_en": "South",
+      "parent_code": null,
+      "latitude": 2.91978705,
+      "longitude": 11.34697308,
+      "hub_department_code": "CM009002",
+      "hub_city": "Ebolowa",
+      "hub_latitude": 2.9,
+      "hub_longitude": 11.15
+    },
+    {
+      "code": "CM010",
+      "level": 1,
+      "name": "Sud-Ouest",
+      "name_en": "South-West",
+      "parent_code": null,
+      "latitude": 5.21987445,
+      "longitude": 9.28585065,
+      "hub_department_code": "CM010001",
+      "hub_city": "Buea",
+      "hub_latitude": 4.1527,
+      "hub_longitude": 9.241
+    },
+    {
+      "code": "CM008",
+      "level": 1,
+      "name": "Ouest",
+      "name_en": "West",
+      "parent_code": null,
+      "latitude": 5.535127,
+      "longitude": 10.58294896,
+      "hub_department_code": "CM008006",
+      "hub_city": "Bafoussam",
+      "hub_latitude": 5.473664,
+      "hub_longitude": 10.417858
+    },
+    {
+      "code": "CM008001",
+      "level": 2,
+      "name": "Bamboutos",
+      "name_en": "Bamboutos",
+      "parent_code": "CM008",
+      "latitude": 5.66777625,
+      "longitude": 10.29261779,
+      "hub_city": "Mbouda",
+      "hub_latitude": 5.625783,
+      "hub_longitude": 10.255174
+    },
+    {
+      "code": "CM006001",
+      "level": 2,
+      "name": "Bénoué",
+      "name_en": "Bénoué",
+      "parent_code": "CM006",
+      "latitude": 9.17786905,
+      "longitude": 13.43845572,
+      "hub_city": "Garoua",
+      "hub_latitude": 9.3,
+      "hub_longitude": 13.4
+    },
+    {
+      "code": "CM003001",
+      "level": 2,
+      "name": "Boumba-et-Ngoko",
+      "name_en": "Boumba-et-Ngoko",
+      "parent_code": "CM003",
+      "latitude": 2.83662345,
+      "longitude": 15.19960175,
+      "hub_city": "Youkadouma",
+      "hub_latitude": 3.516667,
+      "hub_longitude": 15.05
+    },
+    {
+      "code": "CM007001",
+      "level": 2,
+      "name": "Boyo",
+      "name_en": "Boyo",
+      "parent_code": "CM007",
+      "latitude": 6.4075757,
+      "longitude": 10.42324422,
+      "hub_city": "Fundong",
+      "hub_latitude": 6.25,
+      "hub_longitude": 10.266667
+    },
+    {
+      "code": "CM007002",
+      "level": 2,
+      "name": "Bui",
+      "name_en": "Bui",
+      "parent_code": "CM007",
+      "latitude": 6.2280285,
+      "longitude": 10.71530526,
+      "hub_city": "Kumbo",
+      "hub_latitude": 6.2,
+      "hub_longitude": 10.666667
+    },
+    {
+      "code": "CM004001",
+      "level": 2,
+      "name": "Diamaré",
+      "name_en": "Diamaré",
+      "parent_code": "CM004",
+      "latitude": 10.6628659,
+      "longitude": 14.41618255,
+      "hub_city": "Maroua",
+      "hub_latitude": 10.611625,
+      "hub_longitude": 14.316557
+    },
+    {
+      "code": "CM009001",
+      "level": 2,
+      "name": "Dja-et-Lobo",
+      "name_en": "Dja-et-Lobo",
+      "parent_code": "CM009",
+      "latitude": 2.92450435,
+      "longitude": 12.24198134,
+      "hub_city": "Sangmelima",
+      "hub_latitude": 2.933333,
+      "hub_longitude": 11.983333
+    },
+    {
+      "code": "CM001001",
+      "level": 2,
+      "name": "Djérem",
+      "name_en": "Djérem",
+      "parent_code": "CM001",
+      "latitude": 6.529002,
+      "longitude": 12.73964784,
+      "hub_city": "Tibati",
+      "hub_latitude": 6.466667,
+      "hub_longitude": 12.633333
+    },
+    {
+      "code": "CM007003",
+      "level": 2,
+      "name": "Donga-Mantung",
+      "name_en": "Donga-Mantung",
+      "parent_code": "CM007",
+      "latitude": 6.6848457,
+      "longitude": 10.77208374,
+      "hub_city": "Nkambe",
+      "hub_latitude": 6.633333,
+      "hub_longitude": 10.666667
+    },
+    {
+      "code": "CM010001",
+      "level": 2,
+      "name": "Fako",
+      "name_en": "Fako",
+      "parent_code": "CM010",
+      "latitude": 4.18414025,
+      "longitude": 9.26107027,
+      "hub_city": "Buea",
+      "hub_latitude": 4.1527,
+      "hub_longitude": 9.241
+    },
+    {
+      "code": "CM006002",
+      "level": 2,
+      "name": "Faro",
+      "name_en": "Faro",
+      "parent_code": "CM006",
+      "latitude": 8.4221655,
+      "longitude": 12.85069183,
+      "hub_city": "Poli",
+      "hub_latitude": 8.483333,
+      "hub_longitude": 13.25
+    },
+    {
+      "code": "CM001002",
+      "level": 2,
+      "name": "Faro-et-Déo",
+      "name_en": "Faro-et-Déo",
+      "parent_code": "CM001",
+      "latitude": 7.533038,
+      "longitude": 12.59791778,
+      "hub_city": "Tingere",
+      "hub_latitude": 7.366667,
+      "hub_longitude": 12.65
+    },
+    {
+      "code": "CM008002",
+      "level": 2,
+      "name": "Haut-Nkam",
+      "name_en": "Haut-Nkam",
+      "parent_code": "CM008",
+      "latitude": 5.1467333,
+      "longitude": 10.17625942,
+      "hub_city": "Bafang",
+      "hub_latitude": 5.15625,
+      "hub_longitude": 10.178825
+    },
+    {
+      "code": "CM003002",
+      "level": 2,
+      "name": "Haut-Nyong",
+      "name_en": "Haut-Nyong",
+      "parent_code": "CM003",
+      "latitude": 3.3664422,
+      "longitude": 13.53770663,
+      "hub_city": "Abong Mbang",
+      "hub_latitude": 3.983333,
+      "hub_longitude": 13.183333
+    },
+    {
+      "code": "CM002001",
+      "level": 2,
+      "name": "Haute-Sanaga",
+      "name_en": "Haute-Sanaga",
+      "parent_code": "CM002",
+      "latitude": 4.6551773,
+      "longitude": 12.58100014,
+      "hub_city": "Nanga Eboko",
+      "hub_latitude": 4.683333,
+      "hub_longitude": 12.366667
+    },
+    {
+      "code": "CM008003",
+      "level": 2,
+      "name": "Hauts-Plateaux",
+      "name_en": "Hauts-Plateaux",
+      "parent_code": "CM008",
+      "latitude": 5.30151815,
+      "longitude": 10.3423658,
+      "hub_city": "Baham",
+      "hub_latitude": 5.32742,
+      "hub_longitude": 10.367529
+    },
+    {
+      "code": "CM003003",
+      "level": 2,
+      "name": "Kadey",
+      "name_en": "Kadey",
+      "parent_code": "CM003",
+      "latitude": 4.4780073,
+      "longitude": 14.41580762,
+      "hub_city": "Batouri",
+      "hub_latitude": 4.433333,
+      "hub_longitude": 14.366667
+    },
+    {
+      "code": "CM008004",
+      "level": 2,
+      "name": "Koung-Khi",
+      "name_en": "Koung-Khi",
+      "parent_code": "CM008",
+      "latitude": 5.3312112,
+      "longitude": 10.49245746,
+      "hub_city": "Bandjoun",
+      "hub_latitude": 5.378775,
+      "hub_longitude": 10.418162
+    },
+    {
+      "code": "CM010002",
+      "level": 2,
+      "name": "Kupe-Manenguba",
+      "name_en": "Kupe-Manenguba",
+      "parent_code": "CM010",
+      "latitude": 5.04794005,
+      "longitude": 9.64048157,
+      "hub_city": "Bangem",
+      "hub_latitude": 5.0856,
+      "hub_longitude": 9.7696
+    },
+    {
+      "code": "CM010003",
+      "level": 2,
+      "name": "Lebialem",
+      "name_en": "Lebialem",
+      "parent_code": "CM010",
+      "latitude": 5.5590514,
+      "longitude": 9.91308538,
+      "hub_city": "Menji",
+      "hub_latitude": 5.44615475,
+      "hub_longitude": 9.86266231
+    },
+    {
+      "code": "CM002002",
+      "level": 2,
+      "name": "Lekié",
+      "name_en": "Lekié",
+      "parent_code": "CM002",
+      "latitude": 4.14875535,
+      "longitude": 11.36445642,
+      "hub_city": "Monatélé",
+      "hub_latitude": 4.25964095,
+      "hub_longitude": 11.26063868
+    },
+    {
+      "code": "CM004002",
+      "level": 2,
+      "name": "Logone-et-Chari",
+      "name_en": "Logone-et-Chari",
+      "parent_code": "CM004",
+      "latitude": 12.040739,
+      "longitude": 14.8397491,
+      "hub_city": "Kousseri",
+      "hub_latitude": 12.076892,
+      "hub_longitude": 15.030627
+    },
+    {
+      "code": "CM003004",
+      "level": 2,
+      "name": "Lom-et-Djérem",
+      "name_en": "Lom-et-Djérem",
+      "parent_code": "CM003",
+      "latitude": 5.2344782,
+      "longitude": 13.66998096,
+      "hub_city": "Bertoua",
+      "hub_latitude": 4.583333,
+      "hub_longitude": 13.683333
+    },
+    {
+      "code": "CM010004",
+      "level": 2,
+      "name": "Manyu",
+      "name_en": "Manyu",
+      "parent_code": "CM010",
+      "latitude": 5.90819985,
+      "longitude": 9.26218097,
+      "hub_city": "Mamfe",
+      "hub_latitude": 5.455853,
+      "hub_longitude": 9.502326
+    },
+    {
+      "code": "CM001003",
+      "level": 2,
+      "name": "Mayo-Banyo",
+      "name_en": "Mayo-Banyo",
+      "parent_code": "CM001",
+      "latitude": 6.6140354,
+      "longitude": 11.7831909,
+      "hub_city": "Banyo",
+      "hub_latitude": 6.75,
+      "hub_longitude": 11.816667
+    },
+    {
+      "code": "CM004003",
+      "level": 2,
+      "name": "Mayo-Danay",
+      "name_en": "Mayo-Danay",
+      "parent_code": "CM004",
+      "latitude": 10.51102745,
+      "longitude": 15.04080151,
+      "hub_city": "Yagoua",
+      "hub_latitude": 10.341068,
+      "hub_longitude": 15.232877
+    },
+    {
+      "code": "CM004004",
+      "level": 2,
+      "name": "Mayo-Kani",
+      "name_en": "Mayo-Kani",
+      "parent_code": "CM004",
+      "latitude": 10.2906541,
+      "longitude": 14.45928814,
+      "hub_city": "Kaele",
+      "hub_latitude": 10.106719,
+      "hub_longitude": 14.44651
+    },
+    {
+      "code": "CM006003",
+      "level": 2,
+      "name": "Mayo-Louti",
+      "name_en": "Mayo-Louti",
+      "parent_code": "CM006",
+      "latitude": 9.9128349,
+      "longitude": 13.88146935,
+      "hub_city": "Guider",
+      "hub_latitude": 9.934167,
+      "hub_longitude": 13.948611
+    },
+    {
+      "code": "CM006004",
+      "level": 2,
+      "name": "Mayo-Rey",
+      "name_en": "Mayo-Rey",
+      "parent_code": "CM006",
+      "latitude": 8.19524305,
+      "longitude": 14.34118462,
+      "hub_city": "Tchollire",
+      "hub_latitude": 8.4022,
+      "hub_longitude": 14.1698
+    },
+    {
+      "code": "CM004005",
+      "level": 2,
+      "name": "Mayo-Sava",
+      "name_en": "Mayo-Sava",
+      "parent_code": "CM004",
+      "latitude": 11.1046144,
+      "longitude": 14.2145446,
+      "hub_city": "Mora",
+      "hub_latitude": 11.046111,
+      "hub_longitude": 14.140111
+    },
+    {
+      "code": "CM004006",
+      "level": 2,
+      "name": "Mayo-Tsanaga",
+      "name_en": "Mayo-Tsanaga",
+      "parent_code": "CM004",
+      "latitude": 10.60690555,
+      "longitude": 13.8033896,
+      "hub_city": "Mokolo",
+      "hub_latitude": 10.739782,
+      "hub_longitude": 13.801885
+    },
+    {
+      "code": "CM002003",
+      "level": 2,
+      "name": "Mbam-et-Inoubou",
+      "name_en": "Mbam-et-Inoubou",
+      "parent_code": "CM002",
+      "latitude": 4.72446865,
+      "longitude": 10.94186614,
+      "hub_city": "Bafia",
+      "hub_latitude": 4.75,
+      "hub_longitude": 11.233333
+    },
+    {
+      "code": "CM002004",
+      "level": 2,
+      "name": "Mbam-et-Kim",
+      "name_en": "Mbam-et-Kim",
+      "parent_code": "CM002",
+      "latitude": 5.3047064,
+      "longitude": 11.95902713,
+      "hub_city": "Ntui",
+      "hub_latitude": 4.52461165,
+      "hub_longitude": 11.66147313
+    },
+    {
+      "code": "CM001004",
+      "level": 2,
+      "name": "Mbéré",
+      "name_en": "Mbéré",
+      "parent_code": "CM001",
+      "latitude": 6.61205855,
+      "longitude": 14.38161275,
+      "hub_city": "Meiganga",
+      "hub_latitude": 6.516667,
+      "hub_longitude": 14.3
+    },
+    {
+      "code": "CM002005",
+      "level": 2,
+      "name": "Mefou-et-Afamba",
+      "name_en": "Mefou-et-Afamba",
+      "parent_code": "CM002",
+      "latitude": 3.9341277,
+      "longitude": 11.79117478,
+      "hub_city": "Mfou",
+      "hub_latitude": 3.966667,
+      "hub_longitude": 11.933333
+    },
+    {
+      "code": "CM002006",
+      "level": 2,
+      "name": "Mefou-et-Akono",
+      "name_en": "Mefou-et-Akono",
+      "parent_code": "CM002",
+      "latitude": 3.6121228,
+      "longitude": 11.3672552,
+      "hub_city": "Ngoumou",
+      "hub_latitude": 3.583333,
+      "hub_longitude": 11.3
+    },
+    {
+      "code": "CM010005",
+      "level": 2,
+      "name": "Meme",
+      "name_en": "Meme",
+      "parent_code": "CM010",
+      "latitude": 4.66164195,
+      "longitude": 9.39355573,
+      "hub_city": "Kumba",
+      "hub_latitude": 4.6363,
+      "hub_longitude": 9.4469
+    },
+    {
+      "code": "CM007004",
+      "level": 2,
+      "name": "Menchum",
+      "name_en": "Menchum",
+      "parent_code": "CM007",
+      "latitude": 6.623452,
+      "longitude": 10.04332938,
+      "hub_city": "Wum",
+      "hub_latitude": 6.383333,
+      "hub_longitude": 10.066667
+    },
+    {
+      "code": "CM008005",
+      "level": 2,
+      "name": "Menoua",
+      "name_en": "Menoua",
+      "parent_code": "CM008",
+      "latitude": 5.40654645,
+      "longitude": 10.11435948,
+      "hub_city": "Dschang",
+      "hub_latitude": 5.445588,
+      "hub_longitude": 10.054997
+    },
+    {
+      "code": "CM007005",
+      "level": 2,
+      "name": "Mezam",
+      "name_en": "Mezam",
+      "parent_code": "CM007",
+      "latitude": 6.0046739,
+      "longitude": 10.2138972,
+      "hub_city": "Bamenda",
+      "hub_latitude": 5.952655,
+      "hub_longitude": 10.158245
+    },
+    {
+      "code": "CM002007",
+      "level": 2,
+      "name": "Mfoundi",
+      "name_en": "Mfoundi",
+      "parent_code": "CM002",
+      "latitude": 3.8419655,
+      "longitude": 11.50835806,
+      "hub_city": "Yaounde",
+      "hub_latitude": 3.866667,
+      "hub_longitude": 11.516667
+    },
+    {
+      "code": "CM008006",
+      "level": 2,
+      "name": "Mifi",
+      "name_en": "Mifi",
+      "parent_code": "CM008",
+      "latitude": 5.5120599,
+      "longitude": 10.45391246,
+      "hub_city": "Bafoussam",
+      "hub_latitude": 5.473664,
+      "hub_longitude": 10.417858
+    },
+    {
+      "code": "CM007006",
+      "level": 2,
+      "name": "Momo",
+      "name_en": "Momo",
+      "parent_code": "CM007",
+      "latitude": 5.999764,
+      "longitude": 9.83313383,
+      "hub_city": "Mbengwi",
+      "hub_latitude": 6.016667,
+      "hub_longitude": 10.0
+    },
+    {
+      "code": "CM005001",
+      "level": 2,
+      "name": "Moungo",
+      "name_en": "Moungo",
+      "parent_code": "CM005",
+      "latitude": 4.7001467,
+      "longitude": 9.7735621,
+      "hub_city": "Nkongsamba",
+      "hub_latitude": 4.9547,
+      "hub_longitude": 9.9404
+    },
+    {
+      "code": "CM009002",
+      "level": 2,
+      "name": "Mvila",
+      "name_en": "Mvila",
+      "parent_code": "CM009",
+      "latitude": 2.73197,
+      "longitude": 11.43676284,
+      "hub_city": "Ebolowa",
+      "hub_latitude": 2.9,
+      "hub_longitude": 11.15
+    },
+    {
+      "code": "CM008007",
+      "level": 2,
+      "name": "Ndé",
+      "name_en": "Ndé",
+      "parent_code": "CM008",
+      "latitude": 5.0401585,
+      "longitude": 10.59799185,
+      "hub_city": "Bangangte",
+      "hub_latitude": 5.140911,
+      "hub_longitude": 10.51975
+    },
+    {
+      "code": "CM010006",
+      "level": 2,
+      "name": "Ndian",
+      "name_en": "Ndian",
+      "parent_code": "CM010",
+      "latitude": 4.84495235,
+      "longitude": 8.9480539,
+      "hub_city": "Mundemba",
+      "hub_latitude": 5.05173575,
+      "hub_longitude": 8.84541181
+    },
+    {
+      "code": "CM007007",
+      "level": 2,
+      "name": "Ngo-Ketunjia",
+      "name_en": "Ngo-Ketunjia",
+      "parent_code": "CM007",
+      "latitude": 5.965602,
+      "longitude": 10.5183601,
+      "hub_city": "Ndop",
+      "hub_latitude": 5.99071,
+      "hub_longitude": 10.439851
+    },
+    {
+      "code": "CM005002",
+      "level": 2,
+      "name": "Nkam",
+      "name_en": "Nkam",
+      "parent_code": "CM005",
+      "latitude": 4.5868635,
+      "longitude": 10.08483542,
+      "hub_city": "Yabassi",
+      "hub_latitude": 4.456972,
+      "hub_longitude": 9.968217
+    },
+    {
+      "code": "CM008008",
+      "level": 2,
+      "name": "Noun",
+      "name_en": "Noun",
+      "parent_code": "CM008",
+      "latitude": 5.5941803,
+      "longitude": 10.85687236,
+      "hub_city": "Foumban",
+      "hub_latitude": 5.729096,
+      "hub_longitude": 10.900111
+    },
+    {
+      "code": "CM002008",
+      "level": 2,
+      "name": "Nyong-et-Kellé",
+      "name_en": "Nyong-et-Kellé",
+      "parent_code": "CM002",
+      "latitude": 3.77252025,
+      "longitude": 10.92476122,
+      "hub_city": "Eseka",
+      "hub_latitude": 3.65,
+      "hub_longitude": 10.766667
+    },
+    {
+      "code": "CM002009",
+      "level": 2,
+      "name": "Nyong-et-Mfoumou",
+      "name_en": "Nyong-et-Mfoumou",
+      "parent_code": "CM002",
+      "latitude": 3.83909755,
+      "longitude": 12.26539062,
+      "hub_city": "Akonolinga",
+      "hub_latitude": 3.766667,
+      "hub_longitude": 12.25
+    },
+    {
+      "code": "CM002010",
+      "level": 2,
+      "name": "Nyong-et-So'o",
+      "name_en": "Nyong-et-So'o",
+      "parent_code": "CM002",
+      "latitude": 3.46661005,
+      "longitude": 11.67222631,
+      "hub_city": "Mbalmayo",
+      "hub_latitude": 3.516667,
+      "hub_longitude": 11.5
+    },
+    {
+      "code": "CM009003",
+      "level": 2,
+      "name": "Océan",
+      "name_en": "Océan",
+      "parent_code": "CM009",
+      "latitude": 2.87523595,
+      "longitude": 10.28444441,
+      "hub_city": "Kribi",
+      "hub_latitude": 2.933333,
+      "hub_longitude": 9.9
+    },
+    {
+      "code": "CM005003",
+      "level": 2,
+      "name": "Sanaga-Maritime",
+      "name_en": "Sanaga-Maritime",
+      "parent_code": "CM005",
+      "latitude": 3.9347068,
+      "longitude": 10.18244176,
+      "hub_city": "Edea",
+      "hub_latitude": 3.8,
+      "hub_longitude": 10.133333
+    },
+    {
+      "code": "CM009004",
+      "level": 2,
+      "name": "Vallée-du-Ntem",
+      "name_en": "Vallée-du-Ntem",
+      "parent_code": "CM009",
+      "latitude": 2.4824815,
+      "longitude": 10.97029868,
+      "hub_city": "Ambam",
+      "hub_latitude": 2.383333,
+      "hub_longitude": 11.283333
+    },
+    {
+      "code": "CM001005",
+      "level": 2,
+      "name": "Vina",
+      "name_en": "Vina",
+      "parent_code": "CM001",
+      "latitude": 7.2460284,
+      "longitude": 13.64575251,
+      "hub_city": "Ngaoundere",
+      "hub_latitude": 7.316667,
+      "hub_longitude": 13.583333
+    },
+    {
+      "code": "CM005004",
+      "level": 2,
+      "name": "Wouri",
+      "name_en": "Wouri",
+      "parent_code": "CM005",
+      "latitude": 4.0537386,
+      "longitude": 9.66443658,
+      "hub_city": "Douala",
+      "hub_latitude": 4.0469,
+      "hub_longitude": 9.7084
+    },
+    {
+      "code": "CM003002001",
+      "level": 3,
+      "name": "Abong-Mbang",
+      "name_en": "Abong-Mbang",
+      "parent_code": "CM003002",
+      "latitude": 3.85544975,
+      "longitude": 13.27063996
+    },
+    {
+      "code": "CM002005001",
+      "level": 3,
+      "name": "Afanloum",
+      "name_en": "Afanloum",
+      "parent_code": "CM002005",
+      "latitude": 4.1268931,
+      "longitude": 12.04737403
+    },
+    {
+      "code": "CM007003001",
+      "level": 3,
+      "name": "Ako",
+      "name_en": "Ako",
+      "parent_code": "CM007003",
+      "latitude": 6.8891728,
+      "longitude": 10.69364537
+    },
+    {
+      "code": "CM002010001",
+      "level": 3,
+      "name": "Akoeman",
+      "name_en": "Akoeman",
+      "parent_code": "CM002010",
+      "latitude": 3.2609114,
+      "longitude": 11.57808666
+    },
+    {
+      "code": "CM009003001",
+      "level": 3,
+      "name": "Akom 2",
+      "name_en": "Akom 2",
+      "parent_code": "CM009003",
+      "latitude": 2.82875075,
+      "longitude": 10.46889641
+    },
+    {
+      "code": "CM002006001",
+      "level": 3,
+      "name": "Akono",
+      "name_en": "Akono",
+      "parent_code": "CM002006",
+      "latitude": 3.48523185,
+      "longitude": 11.28974057
+    },
+    {
+      "code": "CM002009001",
+      "level": 3,
+      "name": "Akonolinga",
+      "name_en": "Akonolinga",
+      "parent_code": "CM002009",
+      "latitude": 3.9148324,
+      "longitude": 12.26805907
+    },
+    {
+      "code": "CM010004001",
+      "level": 3,
+      "name": "Akwaya",
+      "name_en": "Akwaya",
+      "parent_code": "CM010004",
+      "latitude": 6.16318185,
+      "longitude": 9.48994219
+    },
+    {
+      "code": "CM010003001",
+      "level": 3,
+      "name": "Alou",
+      "name_en": "Alou",
+      "parent_code": "CM010003",
+      "latitude": 5.55477815,
+      "longitude": 9.91394906
+    },
+    {
+      "code": "CM009004001",
+      "level": 3,
+      "name": "Ambam",
+      "name_en": "Ambam",
+      "parent_code": "CM009004",
+      "latitude": 2.5162094,
+      "longitude": 11.21205437
+    },
+    {
+      "code": "CM002005002",
+      "level": 3,
+      "name": "Assamba",
+      "name_en": "Assamba",
+      "parent_code": "CM002005",
+      "latitude": 3.9916527,
+      "longitude": 12.01697009
+    },
+    {
+      "code": "CM002005003",
+      "level": 3,
+      "name": "Awae",
+      "name_en": "Awae",
+      "parent_code": "CM002005",
+      "latitude": 3.8879993,
+      "longitude": 11.90142942
+    },
+    {
+      "code": "CM002009002",
+      "level": 3,
+      "name": "Ayos",
+      "name_en": "Ayos",
+      "parent_code": "CM002009",
+      "latitude": 4.109242,
+      "longitude": 12.48978869
+    },
+    {
+      "code": "CM008001001",
+      "level": 3,
+      "name": "Babadjou",
+      "name_en": "Babadjou",
+      "parent_code": "CM008001",
+      "latitude": 5.69180915,
+      "longitude": 10.14940468
+    },
+    {
+      "code": "CM007007001",
+      "level": 3,
+      "name": "Babessi",
+      "name_en": "Babessi",
+      "parent_code": "CM007007",
+      "latitude": 6.01940985,
+      "longitude": 10.55680368
+    },
+    {
+      "code": "CM008002001",
+      "level": 3,
+      "name": "Bafang",
+      "name_en": "Bafang",
+      "parent_code": "CM008002",
+      "latitude": 5.11393635,
+      "longitude": 10.18302072
+    },
+    {
+      "code": "CM002003001",
+      "level": 3,
+      "name": "Bafia",
+      "name_en": "Bafia",
+      "parent_code": "CM002003",
+      "latitude": 4.7379726,
+      "longitude": 11.23099806
+    },
+    {
+      "code": "CM008006001",
+      "level": 3,
+      "name": "Bafoussam 1er",
+      "name_en": "Bafoussam 1er",
+      "parent_code": "CM008006",
+      "latitude": 5.49702955,
+      "longitude": 10.51879154
+    },
+    {
+      "code": "CM008006002",
+      "level": 3,
+      "name": "Bafoussam 2e",
+      "name_en": "Bafoussam 2e",
+      "parent_code": "CM008006",
+      "latitude": 5.54436995,
+      "longitude": 10.44695574
+    },
+    {
+      "code": "CM008006003",
+      "level": 3,
+      "name": "Bafoussam 3e",
+      "name_en": "Bafoussam 3e",
+      "parent_code": "CM008006",
+      "latitude": 5.48825155,
+      "longitude": 10.36560355
+    },
+    {
+      "code": "CM007005001",
+      "level": 3,
+      "name": "Bafut",
+      "name_en": "Bafut",
+      "parent_code": "CM007005",
+      "latitude": 6.16530815,
+      "longitude": 10.03282145
+    },
+    {
+      "code": "CM008003001",
+      "level": 3,
+      "name": "Baham",
+      "name_en": "Baham",
+      "parent_code": "CM008003",
+      "latitude": 5.30695745,
+      "longitude": 10.38421595
+    },
+    {
+      "code": "CM008002002",
+      "level": 3,
+      "name": "Bakou",
+      "name_en": "Bakou",
+      "parent_code": "CM008002",
+      "latitude": 5.0030033,
+      "longitude": 10.13167792
+    },
+    {
+      "code": "CM007005002",
+      "level": 3,
+      "name": "Bali",
+      "name_en": "Bali",
+      "parent_code": "CM007005",
+      "latitude": 5.87421115,
+      "longitude": 10.02966449
+    },
+    {
+      "code": "CM007007002",
+      "level": 3,
+      "name": "Balikumbat",
+      "name_en": "Balikumbat",
+      "parent_code": "CM007007",
+      "latitude": 5.8791463,
+      "longitude": 10.38614325
+    },
+    {
+      "code": "CM007005003",
+      "level": 3,
+      "name": "Bamenda 1st",
+      "name_en": "Bamenda 1st",
+      "parent_code": "CM007005",
+      "latitude": 5.91275585,
+      "longitude": 10.20149682
+    },
+    {
+      "code": "CM007005004",
+      "level": 3,
+      "name": "Bamenda 2nd",
+      "name_en": "Bamenda 2nd",
+      "parent_code": "CM007005",
+      "latitude": 5.968532,
+      "longitude": 10.1021997
+    },
+    {
+      "code": "CM007005005",
+      "level": 3,
+      "name": "Bamenda 3rd",
+      "name_en": "Bamenda 3rd",
+      "parent_code": "CM007005",
+      "latitude": 5.99014835,
+      "longitude": 10.18461089
+    },
+    {
+      "code": "CM008003002",
+      "level": 3,
+      "name": "Bamendjou",
+      "name_en": "Bamendjou",
+      "parent_code": "CM008003",
+      "latitude": 5.380116,
+      "longitude": 10.30833103
+    },
+    {
+      "code": "CM010006001",
+      "level": 3,
+      "name": "Bamusso",
+      "name_en": "Bamusso",
+      "parent_code": "CM010006",
+      "latitude": 4.46111315,
+      "longitude": 8.9971822
+    },
+    {
+      "code": "CM008002003",
+      "level": 3,
+      "name": "Bana",
+      "name_en": "Bana",
+      "parent_code": "CM008002",
+      "latitude": 5.12134485,
+      "longitude": 10.30740129
+    },
+    {
+      "code": "CM008002004",
+      "level": 3,
+      "name": "Bandja",
+      "name_en": "Bandja",
+      "parent_code": "CM008002",
+      "latitude": 5.27064425,
+      "longitude": 10.18068506
+    },
+    {
+      "code": "CM008007001",
+      "level": 3,
+      "name": "Bangangte",
+      "name_en": "Bangangte",
+      "parent_code": "CM008007",
+      "latitude": 5.10690785,
+      "longitude": 10.64332474
+    },
+    {
+      "code": "CM010002001",
+      "level": 3,
+      "name": "Bangem",
+      "name_en": "Bangem",
+      "parent_code": "CM010002",
+      "latitude": 5.0664247,
+      "longitude": 9.73881829
+    },
+    {
+      "code": "CM008003003",
+      "level": 3,
+      "name": "Bangou",
+      "name_en": "Bangou",
+      "parent_code": "CM008003",
+      "latitude": 5.2262502,
+      "longitude": 10.36907736
+    },
+    {
+      "code": "CM008008001",
+      "level": 3,
+      "name": "Bangourain",
+      "name_en": "Bangourain",
+      "parent_code": "CM008008",
+      "latitude": 5.9016781,
+      "longitude": 10.69676086
+    },
+    {
+      "code": "CM008002005",
+      "level": 3,
+      "name": "Banka",
+      "name_en": "Banka",
+      "parent_code": "CM008002",
+      "latitude": 5.1972788,
+      "longitude": 10.20162509
+    },
+    {
+      "code": "CM001003001",
+      "level": 3,
+      "name": "Bankim",
+      "name_en": "Bankim",
+      "parent_code": "CM001003",
+      "latitude": 6.25716015,
+      "longitude": 11.49609591
+    },
+    {
+      "code": "CM008002006",
+      "level": 3,
+      "name": "Banwa",
+      "name_en": "Banwa",
+      "parent_code": "CM008002",
+      "latitude": 5.08500925,
+      "longitude": 10.06249932
+    },
+    {
+      "code": "CM001003002",
+      "level": 3,
+      "name": "Banyo",
+      "name_en": "Banyo",
+      "parent_code": "CM001003",
+      "latitude": 6.723075,
+      "longitude": 11.79874005
+    },
+    {
+      "code": "CM005001001",
+      "level": 3,
+      "name": "Bare-Bakem",
+      "name_en": "Bare-Bakem",
+      "parent_code": "CM005001",
+      "latitude": 4.98270465,
+      "longitude": 10.01667538
+    },
+    {
+      "code": "CM006001001",
+      "level": 3,
+      "name": "Bascheo",
+      "name_en": "Bascheo",
+      "parent_code": "CM006001",
+      "latitude": 9.7639155,
+      "longitude": 13.35706792
+    },
+    {
+      "code": "CM008007002",
+      "level": 3,
+      "name": "Bassamba",
+      "name_en": "Bassamba",
+      "parent_code": "CM008007",
+      "latitude": 5.0505204,
+      "longitude": 10.56918731
+    },
+    {
+      "code": "CM008001002",
+      "level": 3,
+      "name": "Batcham",
+      "name_en": "Batcham",
+      "parent_code": "CM008001",
+      "latitude": 5.58000075,
+      "longitude": 10.18979339
+    },
+    {
+      "code": "CM002002001",
+      "level": 3,
+      "name": "Batchenga",
+      "name_en": "Batchenga",
+      "parent_code": "CM002002",
+      "latitude": 4.28565555,
+      "longitude": 11.64698152
+    },
+    {
+      "code": "CM007006001",
+      "level": 3,
+      "name": "Batibo",
+      "name_en": "Batibo",
+      "parent_code": "CM007006",
+      "latitude": 5.82451285,
+      "longitude": 9.88687825
+    },
+    {
+      "code": "CM008003004",
+      "level": 3,
+      "name": "Batie",
+      "name_en": "Batie",
+      "parent_code": "CM008003",
+      "latitude": 5.2908488,
+      "longitude": 10.28180905
+    },
+    {
+      "code": "CM003003001",
+      "level": 3,
+      "name": "Batouri",
+      "name_en": "Batouri",
+      "parent_code": "CM003003",
+      "latitude": 4.4902887,
+      "longitude": 14.40889403
+    },
+    {
+      "code": "CM008004001",
+      "level": 3,
+      "name": "Bayangam",
+      "name_en": "Bayangam",
+      "parent_code": "CM008004",
+      "latitude": 5.26372575,
+      "longitude": 10.45689588
+    },
+    {
+      "code": "CM008007003",
+      "level": 3,
+      "name": "Bazou",
+      "name_en": "Bazou",
+      "parent_code": "CM008007",
+      "latitude": 5.02904975,
+      "longitude": 10.44075538
+    },
+    {
+      "code": "CM003002002",
+      "level": 3,
+      "name": "Bebend",
+      "name_en": "Bebend",
+      "parent_code": "CM003002",
+      "latitude": 3.91523705,
+      "longitude": 12.76870503
+    },
+    {
+      "code": "CM006002001",
+      "level": 3,
+      "name": "Beka",
+      "name_en": "Beka",
+      "parent_code": "CM006002",
+      "latitude": 8.715478,
+      "longitude": 12.78738325
+    },
+    {
+      "code": "CM003004001",
+      "level": 3,
+      "name": "Belabo",
+      "name_en": "Belabo",
+      "parent_code": "CM003004",
+      "latitude": 5.0333943,
+      "longitude": 13.39485535
+    },
+    {
+      "code": "CM001005001",
+      "level": 3,
+      "name": "Belel",
+      "name_en": "Belel",
+      "parent_code": "CM001005",
+      "latitude": 7.10821055,
+      "longitude": 14.39011367
+    },
+    {
+      "code": "CM007001001",
+      "level": 3,
+      "name": "Belo",
+      "name_en": "Belo",
+      "parent_code": "CM007001",
+      "latitude": 6.21897695,
+      "longitude": 10.40405258
+    },
+    {
+      "code": "CM009001001",
+      "level": 3,
+      "name": "Bengbis",
+      "name_en": "Bengbis",
+      "parent_code": "CM009001",
+      "latitude": 3.32242405,
+      "longitude": 12.41441452
+    },
+    {
+      "code": "CM003004002",
+      "level": 3,
+      "name": "Bertoua 1er",
+      "name_en": "Bertoua 1er",
+      "parent_code": "CM003004",
+      "latitude": 4.52805865,
+      "longitude": 13.63078169
+    },
+    {
+      "code": "CM003004003",
+      "level": 3,
+      "name": "Bertoua 2e",
+      "name_en": "Bertoua 2e",
+      "parent_code": "CM003004",
+      "latitude": 4.55330115,
+      "longitude": 13.69090182
+    },
+    {
+      "code": "CM003004004",
+      "level": 3,
+      "name": "Betare-Oya",
+      "name_en": "Betare-Oya",
+      "parent_code": "CM003004",
+      "latitude": 5.5378116,
+      "longitude": 13.68205494
+    },
+    {
+      "code": "CM006001002",
+      "level": 3,
+      "name": "Bibemi",
+      "name_en": "Bibemi",
+      "parent_code": "CM006001",
+      "latitude": 9.3026532,
+      "longitude": 13.95291648
+    },
+    {
+      "code": "CM002001001",
+      "level": 3,
+      "name": "Bibey",
+      "name_en": "Bibey",
+      "parent_code": "CM002001",
+      "latitude": 5.0929254,
+      "longitude": 12.88735902
+    },
+    {
+      "code": "CM002006002",
+      "level": 3,
+      "name": "Bikok",
+      "name_en": "Bikok",
+      "parent_code": "CM002006",
+      "latitude": 3.54905505,
+      "longitude": 11.4123799
+    },
+    {
+      "code": "CM009003002",
+      "level": 3,
+      "name": "Bipindi",
+      "name_en": "Bipindi",
+      "parent_code": "CM009003",
+      "latitude": 3.1944884,
+      "longitude": 10.41569763
+    },
+    {
+      "code": "CM009002001",
+      "level": 3,
+      "name": "Biwong-Bane",
+      "name_en": "Biwong-Bane",
+      "parent_code": "CM009002",
+      "latitude": 3.09415795,
+      "longitude": 11.09724541
+    },
+    {
+      "code": "CM009002002",
+      "level": 3,
+      "name": "Biwong-Bulu",
+      "name_en": "Biwong-Bulu",
+      "parent_code": "CM009002",
+      "latitude": 2.7900891,
+      "longitude": 11.51596918
+    },
+    {
+      "code": "CM002008001",
+      "level": 3,
+      "name": "Biyouha",
+      "name_en": "Biyouha",
+      "parent_code": "CM002008",
+      "latitude": 3.80550615,
+      "longitude": 10.72279333
+    },
+    {
+      "code": "CM004002001",
+      "level": 3,
+      "name": "Blangoua",
+      "name_en": "Blangoua",
+      "parent_code": "CM004002",
+      "latitude": 12.7740706,
+      "longitude": 14.54553258
+    },
+    {
+      "code": "CM004001001",
+      "level": 3,
+      "name": "Bogo",
+      "name_en": "Bogo",
+      "parent_code": "CM004001",
+      "latitude": 10.8110516,
+      "longitude": 14.68243098
+    },
+    {
+      "code": "CM002003002",
+      "level": 3,
+      "name": "Bokito",
+      "name_en": "Bokito",
+      "parent_code": "CM002003",
+      "latitude": 4.4832279,
+      "longitude": 11.10678064
+    },
+    {
+      "code": "CM003003002",
+      "level": 3,
+      "name": "Bombe",
+      "name_en": "Bombe",
+      "parent_code": "CM003003",
+      "latitude": 4.28592405,
+      "longitude": 14.94174264
+    },
+    {
+      "code": "CM002008002",
+      "level": 3,
+      "name": "Bondjock",
+      "name_en": "Bondjock",
+      "parent_code": "CM002008",
+      "latitude": 3.65720785,
+      "longitude": 11.12177054
+    },
+    {
+      "code": "CM002008003",
+      "level": 3,
+      "name": "Bot-Makak",
+      "name_en": "Bot-Makak",
+      "parent_code": "CM002008",
+      "latitude": 4.0400615,
+      "longitude": 10.93454989
+    },
+    {
+      "code": "CM004006001",
+      "level": 3,
+      "name": "Bourrha",
+      "name_en": "Bourrha",
+      "parent_code": "CM004006",
+      "latitude": 10.2495598,
+      "longitude": 13.52628622
+    },
+    {
+      "code": "CM010001001",
+      "level": 3,
+      "name": "Buea",
+      "name_en": "Buea",
+      "parent_code": "CM010001",
+      "latitude": 4.18201355,
+      "longitude": 9.28168195
+    },
+    {
+      "code": "CM007001002",
+      "level": 3,
+      "name": "Bum",
+      "name_en": "Bum",
+      "parent_code": "CM007001",
+      "latitude": 6.5326339,
+      "longitude": 10.44014019
+    },
+    {
+      "code": "CM009003003",
+      "level": 3,
+      "name": "Campo",
+      "name_en": "Campo",
+      "parent_code": "CM009003",
+      "latitude": 2.424537,
+      "longitude": 10.09970713
+    },
+    {
+      "code": "CM004002002",
+      "level": 3,
+      "name": "Darak",
+      "name_en": "Darak",
+      "parent_code": "CM004002",
+      "latitude": 12.77121295,
+      "longitude": 14.42996596
+    },
+    {
+      "code": "CM004001002",
+      "level": 3,
+      "name": "Dargala",
+      "name_en": "Dargala",
+      "parent_code": "CM004001",
+      "latitude": 10.54619355,
+      "longitude": 14.57233975
+    },
+    {
+      "code": "CM004003001",
+      "level": 3,
+      "name": "Datcheka",
+      "name_en": "Datcheka",
+      "parent_code": "CM004003",
+      "latitude": 10.0027193,
+      "longitude": 15.04916631
+    },
+    {
+      "code": "CM006001003",
+      "level": 3,
+      "name": "Dembo",
+      "name_en": "Dembo",
+      "parent_code": "CM006001",
+      "latitude": 9.7884455,
+      "longitude": 13.53860407
+    },
+    {
+      "code": "CM006001004",
+      "level": 3,
+      "name": "Demsa",
+      "name_en": "Demsa",
+      "parent_code": "CM006001",
+      "latitude": 9.48556065,
+      "longitude": 13.22070187
+    },
+    {
+      "code": "CM002003003",
+      "level": 3,
+      "name": "Deuk",
+      "name_en": "Deuk",
+      "parent_code": "CM002003",
+      "latitude": 5.0039507,
+      "longitude": 11.14277479
+    },
+    {
+      "code": "CM003004005",
+      "level": 3,
+      "name": "Diang",
+      "name_en": "Diang",
+      "parent_code": "CM003004",
+      "latitude": 4.61488665,
+      "longitude": 13.37007343
+    },
+    {
+      "code": "CM005003001",
+      "level": 3,
+      "name": "Dibamba",
+      "name_en": "Dibamba",
+      "parent_code": "CM005003",
+      "latitude": 4.0211152,
+      "longitude": 10.05527041
+    },
+    {
+      "code": "CM002008004",
+      "level": 3,
+      "name": "Dibang",
+      "name_en": "Dibang",
+      "parent_code": "CM002008",
+      "latitude": 3.949293,
+      "longitude": 10.73019353
+    },
+    {
+      "code": "CM005001002",
+      "level": 3,
+      "name": "Dibombari",
+      "name_en": "Dibombari",
+      "parent_code": "CM005001",
+      "latitude": 4.1769363,
+      "longitude": 9.63923835
+    },
+    {
+      "code": "CM010006002",
+      "level": 3,
+      "name": "Dikome Balue",
+      "name_en": "Dikome Balue",
+      "parent_code": "CM010006",
+      "latitude": 4.8073158,
+      "longitude": 9.16886358
+    },
+    {
+      "code": "CM003002003",
+      "level": 3,
+      "name": "Dimako",
+      "name_en": "Dimako",
+      "parent_code": "CM003002",
+      "latitude": 4.33702385,
+      "longitude": 13.60962122
+    },
+    {
+      "code": "CM001004001",
+      "level": 3,
+      "name": "Dir",
+      "name_en": "Dir",
+      "parent_code": "CM001004",
+      "latitude": 6.4057963,
+      "longitude": 13.67091033
+    },
+    {
+      "code": "CM005003002",
+      "level": 3,
+      "name": "Dizangue",
+      "name_en": "Dizangue",
+      "parent_code": "CM005003",
+      "latitude": 3.8175248,
+      "longitude": 9.88454035
+    },
+    {
+      "code": "CM003002004",
+      "level": 3,
+      "name": "Dja",
+      "name_en": "Dja",
+      "parent_code": "CM003002",
+      "latitude": 3.57324355,
+      "longitude": 13.86688731
+    },
+    {
+      "code": "CM008004002",
+      "level": 3,
+      "name": "Djebem",
+      "name_en": "Djebem",
+      "parent_code": "CM008004",
+      "latitude": 5.3184732,
+      "longitude": 10.50337407
+    },
+    {
+      "code": "CM001004002",
+      "level": 3,
+      "name": "Djohong",
+      "name_en": "Djohong",
+      "parent_code": "CM001004",
+      "latitude": 6.9309101,
+      "longitude": 14.87228711
+    },
+    {
+      "code": "CM009001002",
+      "level": 3,
+      "name": "Djoum",
+      "name_en": "Djoum",
+      "parent_code": "CM009001",
+      "latitude": 2.63624255,
+      "longitude": 12.81437104
+    },
+    {
+      "code": "CM005004001",
+      "level": 3,
+      "name": "Douala 1er",
+      "name_en": "Douala 1er",
+      "parent_code": "CM005004",
+      "latitude": 4.0507816,
+      "longitude": 9.70009655
+    },
+    {
+      "code": "CM005004002",
+      "level": 3,
+      "name": "Douala 2e",
+      "name_en": "Douala 2e",
+      "parent_code": "CM005004",
+      "latitude": 4.01555505,
+      "longitude": 9.71351243
+    },
+    {
+      "code": "CM005004003",
+      "level": 3,
+      "name": "Douala 3e",
+      "name_en": "Douala 3e",
+      "parent_code": "CM005004",
+      "latitude": 4.0284247,
+      "longitude": 9.78192391
+    },
+    {
+      "code": "CM005004004",
+      "level": 3,
+      "name": "Douala 4e",
+      "name_en": "Douala 4e",
+      "parent_code": "CM005004",
+      "latitude": 4.07896825,
+      "longitude": 9.64666409
+    },
+    {
+      "code": "CM005004005",
+      "level": 3,
+      "name": "Douala 5e",
+      "name_en": "Douala 5e",
+      "parent_code": "CM005004",
+      "latitude": 4.1339391,
+      "longitude": 9.8026915
+    },
+    {
+      "code": "CM005004006",
+      "level": 3,
+      "name": "Douala 6e",
+      "name_en": "Douala 6e",
+      "parent_code": "CM005004",
+      "latitude": 3.97680225,
+      "longitude": 9.69914618
+    },
+    {
+      "code": "CM003002005",
+      "level": 3,
+      "name": "Doumaintang",
+      "name_en": "Doumaintang",
+      "parent_code": "CM003002",
+      "latitude": 4.1970957,
+      "longitude": 13.17443749
+    },
+    {
+      "code": "CM003002006",
+      "level": 3,
+      "name": "Doume",
+      "name_en": "Doume",
+      "parent_code": "CM003002",
+      "latitude": 4.2979115,
+      "longitude": 13.38889388
+    },
+    {
+      "code": "CM008005001",
+      "level": 3,
+      "name": "Dschang",
+      "name_en": "Dschang",
+      "parent_code": "CM008005",
+      "latitude": 5.41483775,
+      "longitude": 10.02464262
+    },
+    {
+      "code": "CM002010002",
+      "level": 3,
+      "name": "Dzeng",
+      "name_en": "Dzeng",
+      "parent_code": "CM002010",
+      "latitude": 3.67505085,
+      "longitude": 11.85942823
+    },
+    {
+      "code": "CM002002002",
+      "level": 3,
+      "name": "Ebebda",
+      "name_en": "Ebebda",
+      "parent_code": "CM002002",
+      "latitude": 4.405742,
+      "longitude": 11.35076088
+    },
+    {
+      "code": "CM009002003",
+      "level": 3,
+      "name": "Ebolowa 1er",
+      "name_en": "Ebolowa 1er",
+      "parent_code": "CM009002",
+      "latitude": 2.9241657,
+      "longitude": 10.92339477
+    },
+    {
+      "code": "CM009002004",
+      "level": 3,
+      "name": "Ebolowa 2e",
+      "name_en": "Ebolowa 2e",
+      "parent_code": "CM009002",
+      "latitude": 2.7006863,
+      "longitude": 11.27905845
+    },
+    {
+      "code": "CM005003003",
+      "level": 3,
+      "name": "Edea 1er",
+      "name_en": "Edea 1er",
+      "parent_code": "CM005003",
+      "latitude": 3.5600429,
+      "longitude": 10.03966403
+    },
+    {
+      "code": "CM005003004",
+      "level": 3,
+      "name": "Edea 2e",
+      "name_en": "Edea 2e",
+      "parent_code": "CM005003",
+      "latitude": 3.99682815,
+      "longitude": 10.3220482
+    },
+    {
+      "code": "CM002005004",
+      "level": 3,
+      "name": "Edzendouan",
+      "name_en": "Edzendouan",
+      "parent_code": "CM002005",
+      "latitude": 4.1965038,
+      "longitude": 11.72611053
+    },
+    {
+      "code": "CM009002005",
+      "level": 3,
+      "name": "Efoulan",
+      "name_en": "Efoulan",
+      "parent_code": "CM009002",
+      "latitude": 3.0751414,
+      "longitude": 10.77990852
+    },
+    {
+      "code": "CM010006003",
+      "level": 3,
+      "name": "Ekondo Titi",
+      "name_en": "Ekondo Titi",
+      "parent_code": "CM010006",
+      "latitude": 4.6934254,
+      "longitude": 8.93272005
+    },
+    {
+      "code": "CM002002003",
+      "level": 3,
+      "name": "Elig-Mfomo",
+      "name_en": "Elig-Mfomo",
+      "parent_code": "CM002002",
+      "latitude": 4.1689956,
+      "longitude": 11.33870078
+    },
+    {
+      "code": "CM002009003",
+      "level": 3,
+      "name": "Endom",
+      "name_en": "Endom",
+      "parent_code": "CM002009",
+      "latitude": 3.44376,
+      "longitude": 12.10577017
+    },
+    {
+      "code": "CM002008005",
+      "level": 3,
+      "name": "Eseka",
+      "name_en": "Eseka",
+      "parent_code": "CM002008",
+      "latitude": 3.64908495,
+      "longitude": 10.82168783
+    },
+    {
+      "code": "CM002005005",
+      "level": 3,
+      "name": "Esse",
+      "name_en": "Esse",
+      "parent_code": "CM002005",
+      "latitude": 4.1232256,
+      "longitude": 11.86134528
+    },
+    {
+      "code": "CM002002004",
+      "level": 3,
+      "name": "Evodoula",
+      "name_en": "Evodoula",
+      "parent_code": "CM002002",
+      "latitude": 4.1271475,
+      "longitude": 11.23184219
+    },
+    {
+      "code": "CM010004002",
+      "level": 3,
+      "name": "Eyumodjock",
+      "name_en": "Eyumodjock",
+      "parent_code": "CM010004",
+      "latitude": 5.60582135,
+      "longitude": 8.99961165
+    },
+    {
+      "code": "CM006003001",
+      "level": 3,
+      "name": "Figuil",
+      "name_en": "Figuil",
+      "parent_code": "CM006003",
+      "latitude": 9.89839125,
+      "longitude": 14.07226931
+    },
+    {
+      "code": "CM005001003",
+      "level": 3,
+      "name": "Fiko",
+      "name_en": "Fiko",
+      "parent_code": "CM005001",
+      "latitude": 4.33730935,
+      "longitude": 9.66476865
+    },
+    {
+      "code": "CM008005002",
+      "level": 3,
+      "name": "Fokoue",
+      "name_en": "Fokoue",
+      "parent_code": "CM008005",
+      "latitude": 5.32106975,
+      "longitude": 10.10734629
+    },
+    {
+      "code": "CM008005003",
+      "level": 3,
+      "name": "Fongo-Tongo",
+      "name_en": "Fongo-Tongo",
+      "parent_code": "CM008005",
+      "latitude": 5.5533342,
+      "longitude": 10.00874966
+    },
+    {
+      "code": "CM010003002",
+      "level": 3,
+      "name": "Fontem",
+      "name_en": "Fontem",
+      "parent_code": "CM010003",
+      "latitude": 5.44615475,
+      "longitude": 9.86266231
+    },
+    {
+      "code": "CM004002003",
+      "level": 3,
+      "name": "Fotokol",
+      "name_en": "Fotokol",
+      "parent_code": "CM004002",
+      "latitude": 12.47267095,
+      "longitude": 14.28083253
+    },
+    {
+      "code": "CM008008002",
+      "level": 3,
+      "name": "Foumban",
+      "name_en": "Foumban",
+      "parent_code": "CM008008",
+      "latitude": 5.71842195,
+      "longitude": 10.90752606
+    },
+    {
+      "code": "CM008008003",
+      "level": 3,
+      "name": "Foumbot",
+      "name_en": "Foumbot",
+      "parent_code": "CM008008",
+      "latitude": 5.42160745,
+      "longitude": 10.62301676
+    },
+    {
+      "code": "CM007001003",
+      "level": 3,
+      "name": "Fundong",
+      "name_en": "Fundong",
+      "parent_code": "CM007001",
+      "latitude": 6.3418965,
+      "longitude": 10.39928398
+    },
+    {
+      "code": "CM007004001",
+      "level": 3,
+      "name": "Fungom",
+      "name_en": "Fungom",
+      "parent_code": "CM007004",
+      "latitude": 6.5806499,
+      "longitude": 10.07410091
+    },
+    {
+      "code": "CM007004002",
+      "level": 3,
+      "name": "Furu-Awa",
+      "name_en": "Furu-Awa",
+      "parent_code": "CM007004",
+      "latitude": 6.8263122,
+      "longitude": 10.18545613
+    },
+    {
+      "code": "CM008001003",
+      "level": 3,
+      "name": "Galim",
+      "name_en": "Galim",
+      "parent_code": "CM008001",
+      "latitude": 5.7262887,
+      "longitude": 10.43226778
+    },
+    {
+      "code": "CM001002001",
+      "level": 3,
+      "name": "Galim-Tignere",
+      "name_en": "Galim-Tignere",
+      "parent_code": "CM001002",
+      "latitude": 7.13054985,
+      "longitude": 12.30798686
+    },
+    {
+      "code": "CM003001001",
+      "level": 3,
+      "name": "Gari Gombo",
+      "name_en": "Gari Gombo",
+      "parent_code": "CM003001",
+      "latitude": 3.74916955,
+      "longitude": 14.95164548
+    },
+    {
+      "code": "CM003004006",
+      "level": 3,
+      "name": "Garoua-Boulai",
+      "name_en": "Garoua-Boulai",
+      "parent_code": "CM003004",
+      "latitude": 5.7292308,
+      "longitude": 14.43846134
+    },
+    {
+      "code": "CM006001005",
+      "level": 3,
+      "name": "Garoua 1er",
+      "name_en": "Garoua 1er",
+      "parent_code": "CM006001",
+      "latitude": 9.33733105,
+      "longitude": 13.36364944
+    },
+    {
+      "code": "CM006001006",
+      "level": 3,
+      "name": "Garoua 2e",
+      "name_en": "Garoua 2e",
+      "parent_code": "CM006001",
+      "latitude": 9.34757075,
+      "longitude": 13.42920752
+    },
+    {
+      "code": "CM006001007",
+      "level": 3,
+      "name": "Garoua 3e",
+      "name_en": "Garoua 3e",
+      "parent_code": "CM006001",
+      "latitude": 9.2715399,
+      "longitude": 13.47297899
+    },
+    {
+      "code": "CM004001003",
+      "level": 3,
+      "name": "Gazawa",
+      "name_en": "Gazawa",
+      "parent_code": "CM004001",
+      "latitude": 10.54686015,
+      "longitude": 14.12486156
+    },
+    {
+      "code": "CM004003002",
+      "level": 3,
+      "name": "Gobo",
+      "name_en": "Gobo",
+      "parent_code": "CM004003",
+      "latitude": 10.06791515,
+      "longitude": 15.4676429
+    },
+    {
+      "code": "CM004002004",
+      "level": 3,
+      "name": "Goulfey",
+      "name_en": "Goulfey",
+      "parent_code": "CM004002",
+      "latitude": 12.4132608,
+      "longitude": 14.71295091
+    },
+    {
+      "code": "CM004003003",
+      "level": 3,
+      "name": "Guere",
+      "name_en": "Guere",
+      "parent_code": "CM004003",
+      "latitude": 10.11644045,
+      "longitude": 15.32227967
+    },
+    {
+      "code": "CM006003002",
+      "level": 3,
+      "name": "Guider",
+      "name_en": "Guider",
+      "parent_code": "CM006003",
+      "latitude": 9.90685955,
+      "longitude": 13.88536798
+    },
+    {
+      "code": "CM004004001",
+      "level": 3,
+      "name": "Guidiguis",
+      "name_en": "Guidiguis",
+      "parent_code": "CM004004",
+      "latitude": 10.08093405,
+      "longitude": 14.67006448
+    },
+    {
+      "code": "CM004002005",
+      "level": 3,
+      "name": "Hile-Alifa",
+      "name_en": "Hile-Alifa",
+      "parent_code": "CM004002",
+      "latitude": 12.6829826,
+      "longitude": 14.35321515
+    },
+    {
+      "code": "CM004006002",
+      "level": 3,
+      "name": "Hina",
+      "name_en": "Hina",
+      "parent_code": "CM004006",
+      "latitude": 10.33040485,
+      "longitude": 13.81111007
+    },
+    {
+      "code": "CM010006004",
+      "level": 3,
+      "name": "Idabato",
+      "name_en": "Idabato",
+      "parent_code": "CM010006",
+      "latitude": 4.5373409,
+      "longitude": 8.53712056
+    },
+    {
+      "code": "CM010006005",
+      "level": 3,
+      "name": "Isangele",
+      "name_en": "Isangele",
+      "parent_code": "CM010006",
+      "latitude": 4.79483235,
+      "longitude": 8.65932588
+    },
+    {
+      "code": "CM007002001",
+      "level": 3,
+      "name": "Jakiri",
+      "name_en": "Jakiri",
+      "parent_code": "CM007002",
+      "latitude": 6.0898316,
+      "longitude": 10.64850259
+    },
+    {
+      "code": "CM004004002",
+      "level": 3,
+      "name": "Kaele",
+      "name_en": "Kaele",
+      "parent_code": "CM004004",
+      "latitude": 10.20145275,
+      "longitude": 14.40785034
+    },
+    {
+      "code": "CM004003004",
+      "level": 3,
+      "name": "Kai-Kai",
+      "name_en": "Kai-Kai",
+      "parent_code": "CM004003",
+      "latitude": 10.62663775,
+      "longitude": 14.98507312
+    },
+    {
+      "code": "CM004003005",
+      "level": 3,
+      "name": "Kalfou",
+      "name_en": "Kalfou",
+      "parent_code": "CM004003",
+      "latitude": 10.2541796,
+      "longitude": 15.02425685
+    },
+    {
+      "code": "CM004003006",
+      "level": 3,
+      "name": "Kar-Hay",
+      "name_en": "Kar-Hay",
+      "parent_code": "CM004003",
+      "latitude": 10.086369,
+      "longitude": 14.97270906
+    },
+    {
+      "code": "CM008002007",
+      "level": 3,
+      "name": "Kekem",
+      "name_en": "Kekem",
+      "parent_code": "CM008002",
+      "latitude": 5.1783546,
+      "longitude": 10.0739726
+    },
+    {
+      "code": "CM003003003",
+      "level": 3,
+      "name": "Kette",
+      "name_en": "Kette",
+      "parent_code": "CM003003",
+      "latitude": 4.76601175,
+      "longitude": 14.48345323
+    },
+    {
+      "code": "CM002003004",
+      "level": 3,
+      "name": "Kiiki",
+      "name_en": "Kiiki",
+      "parent_code": "CM002003",
+      "latitude": 4.6755304,
+      "longitude": 11.15336159
+    },
+    {
+      "code": "CM004005001",
+      "level": 3,
+      "name": "Kolofata",
+      "name_en": "Kolofata",
+      "parent_code": "CM004005",
+      "latitude": 11.14063325,
+      "longitude": 14.00278704
+    },
+    {
+      "code": "CM010006006",
+      "level": 3,
+      "name": "Kombo Abedimo",
+      "name_en": "Kombo Abedimo",
+      "parent_code": "CM010006",
+      "latitude": 4.5988221,
+      "longitude": 8.5858185
+    },
+    {
+      "code": "CM010006007",
+      "level": 3,
+      "name": "Kombo Itindi",
+      "name_en": "Kombo Itindi",
+      "parent_code": "CM010006",
+      "latitude": 4.65294895,
+      "longitude": 8.74998846
+    },
+    {
+      "code": "CM002003005",
+      "level": 3,
+      "name": "Kon Yambetta",
+      "name_en": "Kon Yambetta",
+      "parent_code": "CM002003",
+      "latitude": 4.81107155,
+      "longitude": 11.080464
+    },
+    {
+      "code": "CM001002002",
+      "level": 3,
+      "name": "Kontcha",
+      "name_en": "Kontcha",
+      "parent_code": "CM001002",
+      "latitude": 8.06284375,
+      "longitude": 12.26941236
+    },
+    {
+      "code": "CM010005001",
+      "level": 3,
+      "name": "Konye",
+      "name_en": "Konye",
+      "parent_code": "CM010005",
+      "latitude": 4.871148,
+      "longitude": 9.38013774
+    },
+    {
+      "code": "CM008008004",
+      "level": 3,
+      "name": "Kouoptamo",
+      "name_en": "Kouoptamo",
+      "parent_code": "CM008008",
+      "latitude": 5.68147185,
+      "longitude": 10.54401838
+    },
+    {
+      "code": "CM004002006",
+      "level": 3,
+      "name": "Kousseri",
+      "name_en": "Kousseri",
+      "parent_code": "CM004002",
+      "latitude": 12.06116175,
+      "longitude": 14.99477336
+    },
+    {
+      "code": "CM008008005",
+      "level": 3,
+      "name": "Koutaba",
+      "name_en": "Koutaba",
+      "parent_code": "CM008008",
+      "latitude": 5.65098565,
+      "longitude": 10.71828821
+    },
+    {
+      "code": "CM004006003",
+      "level": 3,
+      "name": "Koza",
+      "name_en": "Koza",
+      "parent_code": "CM004006",
+      "latitude": 10.92329395,
+      "longitude": 13.88165908
+    },
+    {
+      "code": "CM009003004",
+      "level": 3,
+      "name": "Kribi 1er",
+      "name_en": "Kribi 1er",
+      "parent_code": "CM009003",
+      "latitude": 2.80093685,
+      "longitude": 9.90667966
+    },
+    {
+      "code": "CM009003005",
+      "level": 3,
+      "name": "Kribi 2e",
+      "name_en": "Kribi 2e",
+      "parent_code": "CM009003",
+      "latitude": 3.0140776,
+      "longitude": 9.97601132
+    },
+    {
+      "code": "CM010005002",
+      "level": 3,
+      "name": "Kumba 1st",
+      "name_en": "Kumba 1st",
+      "parent_code": "CM010005",
+      "latitude": 4.5462841,
+      "longitude": 9.31959294
+    },
+    {
+      "code": "CM010005003",
+      "level": 3,
+      "name": "Kumba 2nd",
+      "name_en": "Kumba 2nd",
+      "parent_code": "CM010005",
+      "latitude": 4.73173085,
+      "longitude": 9.45879385
+    },
+    {
+      "code": "CM010005004",
+      "level": 3,
+      "name": "Kumba 3rd",
+      "name_en": "Kumba 3rd",
+      "parent_code": "CM010005",
+      "latitude": 4.53915715,
+      "longitude": 9.45967749
+    },
+    {
+      "code": "CM007002002",
+      "level": 3,
+      "name": "Kumbo",
+      "name_en": "Kumbo",
+      "parent_code": "CM007002",
+      "latitude": 6.2069133,
+      "longitude": 10.70454536
+    },
+    {
+      "code": "CM009004002",
+      "level": 3,
+      "name": "Kye-Ossi",
+      "name_en": "Kye-Ossi",
+      "parent_code": "CM009004",
+      "latitude": 2.2393983,
+      "longitude": 11.27457332
+    },
+    {
+      "code": "CM006001008",
+      "level": 3,
+      "name": "Lagdo",
+      "name_en": "Lagdo",
+      "parent_code": "CM006001",
+      "latitude": 8.7579554,
+      "longitude": 13.52047283
+    },
+    {
+      "code": "CM002001002",
+      "level": 3,
+      "name": "Lembe Yezoum",
+      "name_en": "Lembe Yezoum",
+      "parent_code": "CM002001",
+      "latitude": 4.211376,
+      "longitude": 12.24945281
+    },
+    {
+      "code": "CM010001002",
+      "level": 3,
+      "name": "Limbe 1st",
+      "name_en": "Limbe 1st",
+      "parent_code": "CM010001",
+      "latitude": 4.0440239,
+      "longitude": 9.24841535
+    },
+    {
+      "code": "CM010001003",
+      "level": 3,
+      "name": "Limbe 2nd",
+      "name_en": "Limbe 2nd",
+      "parent_code": "CM010001",
+      "latitude": 4.0351051,
+      "longitude": 9.14414017
+    },
+    {
+      "code": "CM010001004",
+      "level": 3,
+      "name": "Limbe 3rd",
+      "name_en": "Limbe 3rd",
+      "parent_code": "CM010001",
+      "latitude": 3.95823395,
+      "longitude": 9.34497821
+    },
+    {
+      "code": "CM002002005",
+      "level": 3,
+      "name": "Lobo",
+      "name_en": "Lobo",
+      "parent_code": "CM002002",
+      "latitude": 3.90235555,
+      "longitude": 11.24980299
+    },
+    {
+      "code": "CM004002007",
+      "level": 3,
+      "name": "Logone-Birni",
+      "name_en": "Logone-Birni",
+      "parent_code": "CM004002",
+      "latitude": 11.8034235,
+      "longitude": 14.85921808
+    },
+    {
+      "code": "CM009003006",
+      "level": 3,
+      "name": "Lokoundje",
+      "name_en": "Lokoundje",
+      "parent_code": "CM009003",
+      "latitude": 3.1154162,
+      "longitude": 10.12168284
+    },
+    {
+      "code": "CM009003007",
+      "level": 3,
+      "name": "Lolodorf",
+      "name_en": "Lolodorf",
+      "parent_code": "CM009003",
+      "latitude": 3.27332935,
+      "longitude": 10.7125746
+    },
+    {
+      "code": "CM003002007",
+      "level": 3,
+      "name": "Lomie",
+      "name_en": "Lomie",
+      "parent_code": "CM003002",
+      "latitude": 3.1039037,
+      "longitude": 13.36945362
+    },
+    {
+      "code": "CM005001004",
+      "level": 3,
+      "name": "Loum",
+      "name_en": "Loum",
+      "parent_code": "CM005001",
+      "latitude": 4.69642595,
+      "longitude": 9.77047692
+    },
+    {
+      "code": "CM009004003",
+      "level": 3,
+      "name": "Maan",
+      "name_en": "Maan",
+      "parent_code": "CM009004",
+      "latitude": 2.48349745,
+      "longitude": 10.67632571
+    },
+    {
+      "code": "CM006004001",
+      "level": 3,
+      "name": "Madingring",
+      "name_en": "Madingring",
+      "parent_code": "CM006004",
+      "latitude": 8.2267662,
+      "longitude": 14.99439701
+    },
+    {
+      "code": "CM004003007",
+      "level": 3,
+      "name": "Maga",
+      "name_en": "Maga",
+      "parent_code": "CM004003",
+      "latitude": 10.9096588,
+      "longitude": 14.94156409
+    },
+    {
+      "code": "CM008008006",
+      "level": 3,
+      "name": "Magba",
+      "name_en": "Magba",
+      "parent_code": "CM008008",
+      "latitude": 6.0658439,
+      "longitude": 11.14475217
+    },
+    {
+      "code": "CM002008006",
+      "level": 3,
+      "name": "Makak",
+      "name_en": "Makak",
+      "parent_code": "CM002008",
+      "latitude": 3.57324215,
+      "longitude": 11.09457069
+    },
+    {
+      "code": "CM004002008",
+      "level": 3,
+      "name": "Makary",
+      "name_en": "Makary",
+      "parent_code": "CM004002",
+      "latitude": 12.44269845,
+      "longitude": 14.42212858
+    },
+    {
+      "code": "CM002003006",
+      "level": 3,
+      "name": "Makenene",
+      "name_en": "Makenene",
+      "parent_code": "CM002003",
+      "latitude": 4.86628845,
+      "longitude": 10.58621464
+    },
+    {
+      "code": "CM008008007",
+      "level": 3,
+      "name": "Malantouen",
+      "name_en": "Malantouen",
+      "parent_code": "CM008008",
+      "latitude": 5.65329185,
+      "longitude": 11.10863617
+    },
+    {
+      "code": "CM010004003",
+      "level": 3,
+      "name": "Mamfe",
+      "name_en": "Mamfe",
+      "parent_code": "CM010004",
+      "latitude": 5.64806885,
+      "longitude": 9.34095419
+    },
+    {
+      "code": "CM003004007",
+      "level": 3,
+      "name": "Mandjou",
+      "name_en": "Mandjou",
+      "parent_code": "CM003004",
+      "latitude": 4.8273132,
+      "longitude": 13.79656287
+    },
+    {
+      "code": "CM005001005",
+      "level": 3,
+      "name": "Manjo",
+      "name_en": "Manjo",
+      "parent_code": "CM005001",
+      "latitude": 4.87213215,
+      "longitude": 9.80901517
+    },
+    {
+      "code": "CM004001004",
+      "level": 3,
+      "name": "Maroua 1er",
+      "name_en": "Maroua 1er",
+      "parent_code": "CM004001",
+      "latitude": 10.54034205,
+      "longitude": 14.28848517
+    },
+    {
+      "code": "CM004001005",
+      "level": 3,
+      "name": "Maroua 2e",
+      "name_en": "Maroua 2e",
+      "parent_code": "CM004001",
+      "latitude": 10.64135125,
+      "longitude": 14.31752079
+    },
+    {
+      "code": "CM004001006",
+      "level": 3,
+      "name": "Maroua 3e",
+      "name_en": "Maroua 3e",
+      "parent_code": "CM004001",
+      "latitude": 10.7961727,
+      "longitude": 14.36059466
+    },
+    {
+      "code": "CM001005002",
+      "level": 3,
+      "name": "Martap",
+      "name_en": "Martap",
+      "parent_code": "CM001005",
+      "latitude": 7.22342545,
+      "longitude": 13.1742671
+    },
+    {
+      "code": "CM008008008",
+      "level": 3,
+      "name": "Massangam",
+      "name_en": "Massangam",
+      "parent_code": "CM008008",
+      "latitude": 5.2561812,
+      "longitude": 10.87406461
+    },
+    {
+      "code": "CM005003005",
+      "level": 3,
+      "name": "Massock-Songloulou",
+      "name_en": "Massock-Songloulou",
+      "parent_code": "CM005003",
+      "latitude": 4.13610685,
+      "longitude": 10.63106981
+    },
+    {
+      "code": "CM002008007",
+      "level": 3,
+      "name": "Matomb",
+      "name_en": "Matomb",
+      "parent_code": "CM002008",
+      "latitude": 3.8337239,
+      "longitude": 11.04960833
+    },
+    {
+      "code": "CM001002003",
+      "level": 3,
+      "name": "Mayo-Baleo",
+      "name_en": "Mayo-Baleo",
+      "parent_code": "CM001002",
+      "latitude": 7.67907705,
+      "longitude": 12.33164948
+    },
+    {
+      "code": "CM001003003",
+      "level": 3,
+      "name": "Mayo-Darle",
+      "name_en": "Mayo-Darle",
+      "parent_code": "CM001003",
+      "latitude": 6.4764443,
+      "longitude": 11.65224665
+    },
+    {
+      "code": "CM006001009",
+      "level": 3,
+      "name": "Mayo-Hourna",
+      "name_en": "Mayo-Hourna",
+      "parent_code": "CM006001",
+      "latitude": 9.34474005,
+      "longitude": 13.12891494
+    },
+    {
+      "code": "CM004006004",
+      "level": 3,
+      "name": "Mayo-Moskota",
+      "name_en": "Mayo-Moskota",
+      "parent_code": "CM004006",
+      "latitude": 11.040819,
+      "longitude": 13.87719042
+    },
+    {
+      "code": "CM006003003",
+      "level": 3,
+      "name": "Mayo-Oulo",
+      "name_en": "Mayo-Oulo",
+      "parent_code": "CM006003",
+      "latitude": 10.0059855,
+      "longitude": 13.48317795
+    },
+    {
+      "code": "CM002010003",
+      "level": 3,
+      "name": "Mbalmayo",
+      "name_en": "Mbalmayo",
+      "parent_code": "CM002010",
+      "latitude": 3.48643875,
+      "longitude": 11.55774258
+    },
+    {
+      "code": "CM002001003",
+      "level": 3,
+      "name": "Mbandjock",
+      "name_en": "Mbandjock",
+      "parent_code": "CM002001",
+      "latitude": 4.45099465,
+      "longitude": 11.85886041
+    },
+    {
+      "code": "CM003003004",
+      "level": 3,
+      "name": "Mbang",
+      "name_en": "Mbang",
+      "parent_code": "CM003003",
+      "latitude": 3.98892255,
+      "longitude": 14.12657689
+    },
+    {
+      "code": "CM005001006",
+      "level": 3,
+      "name": "Mbanga",
+      "name_en": "Mbanga",
+      "parent_code": "CM005001",
+      "latitude": 4.39088215,
+      "longitude": 9.55882077
+    },
+    {
+      "code": "CM002004001",
+      "level": 3,
+      "name": "Mbangassina",
+      "name_en": "Mbangassina",
+      "parent_code": "CM002004",
+      "latitude": 4.5642873,
+      "longitude": 11.46080548
+    },
+    {
+      "code": "CM002006003",
+      "level": 3,
+      "name": "Mbankomo",
+      "name_en": "Mbankomo",
+      "parent_code": "CM002006",
+      "latitude": 3.75684385,
+      "longitude": 11.33301034
+    },
+    {
+      "code": "CM001005003",
+      "level": 3,
+      "name": "Mbe",
+      "name_en": "Mbe",
+      "parent_code": "CM001005",
+      "latitude": 7.7717923,
+      "longitude": 13.54079267
+    },
+    {
+      "code": "CM007006002",
+      "level": 3,
+      "name": "Mbengwi",
+      "name_en": "Mbengwi",
+      "parent_code": "CM007006",
+      "latitude": 6.0692958,
+      "longitude": 9.96150897
+    },
+    {
+      "code": "CM003002008",
+      "level": 3,
+      "name": "Mboanz",
+      "name_en": "Mboanz",
+      "parent_code": "CM003002",
+      "latitude": 4.09251335,
+      "longitude": 12.94868477
+    },
+    {
+      "code": "CM003002009",
+      "level": 3,
+      "name": "Mboma",
+      "name_en": "Mboma",
+      "parent_code": "CM003002",
+      "latitude": 4.195416,
+      "longitude": 12.91923278
+    },
+    {
+      "code": "CM010005005",
+      "level": 3,
+      "name": "Mbonge",
+      "name_en": "Mbonge",
+      "parent_code": "CM010005",
+      "latitude": 4.4436917,
+      "longitude": 9.18348603
+    },
+    {
+      "code": "CM003003005",
+      "level": 3,
+      "name": "Mbotoro",
+      "name_en": "Mbotoro",
+      "parent_code": "CM003003",
+      "latitude": 5.1174651,
+      "longitude": 14.59466638
+    },
+    {
+      "code": "CM008001004",
+      "level": 3,
+      "name": "Mbouda",
+      "name_en": "Mbouda",
+      "parent_code": "CM008001",
+      "latitude": 5.6337244,
+      "longitude": 10.31602802
+    },
+    {
+      "code": "CM007002003",
+      "level": 3,
+      "name": "Mbven",
+      "name_en": "Mbven",
+      "parent_code": "CM007002",
+      "latitude": 6.1377392,
+      "longitude": 10.88525608
+    },
+    {
+      "code": "CM001004003",
+      "level": 3,
+      "name": "Meiganga",
+      "name_en": "Meiganga",
+      "parent_code": "CM001004",
+      "latitude": 6.4369445,
+      "longitude": 14.42126756
+    },
+    {
+      "code": "CM005001007",
+      "level": 3,
+      "name": "Melong",
+      "name_en": "Melong",
+      "parent_code": "CM005001",
+      "latitude": 5.16735225,
+      "longitude": 9.88839754
+    },
+    {
+      "code": "CM007004003",
+      "level": 3,
+      "name": "Menchum-Valley",
+      "name_en": "Menchum-Valley",
+      "parent_code": "CM007004",
+      "latitude": 6.40737345,
+      "longitude": 9.88820186
+    },
+    {
+      "code": "CM002009004",
+      "level": 3,
+      "name": "Mengang",
+      "name_en": "Mengang",
+      "parent_code": "CM002009",
+      "latitude": 3.84222315,
+      "longitude": 12.11593313
+    },
+    {
+      "code": "CM009002006",
+      "level": 3,
+      "name": "Mengong",
+      "name_en": "Mengong",
+      "parent_code": "CM009002",
+      "latitude": 2.9393278,
+      "longitude": 11.43013974
+    },
+    {
+      "code": "CM002010004",
+      "level": 3,
+      "name": "Mengueme",
+      "name_en": "Mengueme",
+      "parent_code": "CM002010",
+      "latitude": 3.27178385,
+      "longitude": 11.3766678
+    },
+    {
+      "code": "CM004001007",
+      "level": 3,
+      "name": "Meri",
+      "name_en": "Meri",
+      "parent_code": "CM004001",
+      "latitude": 10.75891045,
+      "longitude": 14.19378838
+    },
+    {
+      "code": "CM003002010",
+      "level": 3,
+      "name": "Messamena",
+      "name_en": "Messamena",
+      "parent_code": "CM003002",
+      "latitude": 3.60592375,
+      "longitude": 12.93450027
+    },
+    {
+      "code": "CM003002011",
+      "level": 3,
+      "name": "Messok",
+      "name_en": "Messok",
+      "parent_code": "CM003002",
+      "latitude": 3.0955259,
+      "longitude": 14.18606755
+    },
+    {
+      "code": "CM002008008",
+      "level": 3,
+      "name": "Messondo",
+      "name_en": "Messondo",
+      "parent_code": "CM002008",
+      "latitude": 3.5782794,
+      "longitude": 10.50920947
+    },
+    {
+      "code": "CM009001003",
+      "level": 3,
+      "name": "Meyomessala",
+      "name_en": "Meyomessala",
+      "parent_code": "CM009001",
+      "latitude": 3.09086205,
+      "longitude": 12.23763092
+    },
+    {
+      "code": "CM009001004",
+      "level": 3,
+      "name": "Meyomessi",
+      "name_en": "Meyomessi",
+      "parent_code": "CM009001",
+      "latitude": 2.72515725,
+      "longitude": 12.26902418
+    },
+    {
+      "code": "CM002005006",
+      "level": 3,
+      "name": "Mfou",
+      "name_en": "Mfou",
+      "parent_code": "CM002005",
+      "latitude": 3.6892092,
+      "longitude": 11.60795061
+    },
+    {
+      "code": "CM004004003",
+      "level": 3,
+      "name": "Mindif",
+      "name_en": "Mindif",
+      "parent_code": "CM004004",
+      "latitude": 10.3980447,
+      "longitude": 14.45228215
+    },
+    {
+      "code": "CM002001004",
+      "level": 3,
+      "name": "Minta",
+      "name_en": "Minta",
+      "parent_code": "CM002001",
+      "latitude": 4.6409773,
+      "longitude": 12.96651396
+    },
+    {
+      "code": "CM009001005",
+      "level": 3,
+      "name": "Mintom",
+      "name_en": "Mintom",
+      "parent_code": "CM009001",
+      "latitude": 2.53791775,
+      "longitude": 13.39785446
+    },
+    {
+      "code": "CM007003002",
+      "level": 3,
+      "name": "Misaje",
+      "name_en": "Misaje",
+      "parent_code": "CM007003",
+      "latitude": 6.6941306,
+      "longitude": 10.55405952
+    },
+    {
+      "code": "CM004006005",
+      "level": 3,
+      "name": "Mogode",
+      "name_en": "Mogode",
+      "parent_code": "CM004006",
+      "latitude": 10.5453966,
+      "longitude": 13.66807809
+    },
+    {
+      "code": "CM004006006",
+      "level": 3,
+      "name": "Mokolo",
+      "name_en": "Mokolo",
+      "parent_code": "CM004006",
+      "latitude": 10.6662264,
+      "longitude": 13.83658628
+    },
+    {
+      "code": "CM003001002",
+      "level": 3,
+      "name": "Moloundou",
+      "name_en": "Moloundou",
+      "parent_code": "CM003001",
+      "latitude": 2.0774927,
+      "longitude": 15.47700706
+    },
+    {
+      "code": "CM005001008",
+      "level": 3,
+      "name": "Mombo",
+      "name_en": "Mombo",
+      "parent_code": "CM005001",
+      "latitude": 4.56849915,
+      "longitude": 9.5856658
+    },
+    {
+      "code": "CM002002006",
+      "level": 3,
+      "name": "Monatele",
+      "name_en": "Monatele",
+      "parent_code": "CM002002",
+      "latitude": 4.25964095,
+      "longitude": 11.26063868
+    },
+    {
+      "code": "CM004005002",
+      "level": 3,
+      "name": "Mora",
+      "name_en": "Mora",
+      "parent_code": "CM004005",
+      "latitude": 11.15824435,
+      "longitude": 14.30793323
+    },
+    {
+      "code": "CM005003006",
+      "level": 3,
+      "name": "Mouanko",
+      "name_en": "Mouanko",
+      "parent_code": "CM005003",
+      "latitude": 3.5842395,
+      "longitude": 9.85115061
+    },
+    {
+      "code": "CM004004004",
+      "level": 3,
+      "name": "Moulvoudaye",
+      "name_en": "Moulvoudaye",
+      "parent_code": "CM004004",
+      "latitude": 10.4145346,
+      "longitude": 14.82680531
+    },
+    {
+      "code": "CM004004005",
+      "level": 3,
+      "name": "Moutourwa",
+      "name_en": "Moutourwa",
+      "parent_code": "CM004004",
+      "latitude": 10.24375625,
+      "longitude": 14.14552606
+    },
+    {
+      "code": "CM010006008",
+      "level": 3,
+      "name": "Mundemba",
+      "name_en": "Mundemba",
+      "parent_code": "CM010006",
+      "latitude": 5.05173575,
+      "longitude": 8.84541181
+    },
+    {
+      "code": "CM010001005",
+      "level": 3,
+      "name": "Muyuka",
+      "name_en": "Muyuka",
+      "parent_code": "CM010001",
+      "latitude": 4.3217852,
+      "longitude": 9.33315284
+    },
+    {
+      "code": "CM009002007",
+      "level": 3,
+      "name": "Mvangane",
+      "name_en": "Mvangane",
+      "parent_code": "CM009002",
+      "latitude": 2.5354558,
+      "longitude": 11.96230591
+    },
+    {
+      "code": "CM009003008",
+      "level": 3,
+      "name": "Mvengue",
+      "name_en": "Mvengue",
+      "parent_code": "CM009003",
+      "latitude": 3.2762976,
+      "longitude": 10.97716951
+    },
+    {
+      "code": "CM002001005",
+      "level": 3,
+      "name": "Nanga-Eboko",
+      "name_en": "Nanga-Eboko",
+      "parent_code": "CM002001",
+      "latitude": 4.78601625,
+      "longitude": 12.3780731
+    },
+    {
+      "code": "CM003003006",
+      "level": 3,
+      "name": "Ndelele",
+      "name_en": "Ndelele",
+      "parent_code": "CM003003",
+      "latitude": 4.0079108,
+      "longitude": 14.80976655
+    },
+    {
+      "code": "CM003003007",
+      "level": 3,
+      "name": "Ndem Nam",
+      "name_en": "Ndem Nam",
+      "parent_code": "CM003003",
+      "latitude": 4.13601915,
+      "longitude": 13.69472492
+    },
+    {
+      "code": "CM002003007",
+      "level": 3,
+      "name": "Ndikinimeki",
+      "name_en": "Ndikinimeki",
+      "parent_code": "CM002003",
+      "latitude": 4.6747474,
+      "longitude": 10.65120859
+    },
+    {
+      "code": "CM005003007",
+      "level": 3,
+      "name": "Ndom",
+      "name_en": "Ndom",
+      "parent_code": "CM005003",
+      "latitude": 4.4283361,
+      "longitude": 10.84136685
+    },
+    {
+      "code": "CM007007003",
+      "level": 3,
+      "name": "Ndop",
+      "name_en": "Ndop",
+      "parent_code": "CM007007",
+      "latitude": 5.9098968,
+      "longitude": 10.52454028
+    },
+    {
+      "code": "CM004001008",
+      "level": 3,
+      "name": "Ndoukoula",
+      "name_en": "Ndoukoula",
+      "parent_code": "CM004001",
+      "latitude": 10.3277519,
+      "longitude": 14.00544275
+    },
+    {
+      "code": "CM007003003",
+      "level": 3,
+      "name": "Ndu",
+      "name_en": "Ndu",
+      "parent_code": "CM007003",
+      "latitude": 6.4248304,
+      "longitude": 10.79805675
+    },
+    {
+      "code": "CM005003008",
+      "level": 3,
+      "name": "Ngambe",
+      "name_en": "Ngambe",
+      "parent_code": "CM005003",
+      "latitude": 4.35340115,
+      "longitude": 10.6002295
+    },
+    {
+      "code": "CM002004002",
+      "level": 3,
+      "name": "Ngambe-Tikar",
+      "name_en": "Ngambe-Tikar",
+      "parent_code": "CM002004",
+      "latitude": 5.65329185,
+      "longitude": 11.70479054
+    },
+    {
+      "code": "CM001005004",
+      "level": 3,
+      "name": "Nganha",
+      "name_en": "Nganha",
+      "parent_code": "CM001005",
+      "latitude": 7.46162795,
+      "longitude": 13.91639363
+    },
+    {
+      "code": "CM001004004",
+      "level": 3,
+      "name": "Ngaoui",
+      "name_en": "Ngaoui",
+      "parent_code": "CM001004",
+      "latitude": 6.78086175,
+      "longitude": 14.96221053
+    },
+    {
+      "code": "CM001001001",
+      "level": 3,
+      "name": "Ngaoundal",
+      "name_en": "Ngaoundal",
+      "parent_code": "CM001001",
+      "latitude": 6.4402647,
+      "longitude": 13.14020847
+    },
+    {
+      "code": "CM001005005",
+      "level": 3,
+      "name": "Ngaoundere 1er",
+      "name_en": "Ngaoundere 1er",
+      "parent_code": "CM001005",
+      "latitude": 7.27541225,
+      "longitude": 13.54650433
+    },
+    {
+      "code": "CM001005006",
+      "level": 3,
+      "name": "Ngaoundere 2e",
+      "name_en": "Ngaoundere 2e",
+      "parent_code": "CM001005",
+      "latitude": 7.34755905,
+      "longitude": 13.62749161
+    },
+    {
+      "code": "CM001005007",
+      "level": 3,
+      "name": "Ngaoundere 3e",
+      "name_en": "Ngaoundere 3e",
+      "parent_code": "CM001005",
+      "latitude": 7.49888025,
+      "longitude": 13.56453751
+    },
+    {
+      "code": "CM007006003",
+      "level": 3,
+      "name": "Ngie",
+      "name_en": "Ngie",
+      "parent_code": "CM007006",
+      "latitude": 5.98240045,
+      "longitude": 9.79402898
+    },
+    {
+      "code": "CM002008009",
+      "level": 3,
+      "name": "Ngog-Mapubi",
+      "name_en": "Ngog-Mapubi",
+      "parent_code": "CM002008",
+      "latitude": 3.8998695,
+      "longitude": 10.90438962
+    },
+    {
+      "code": "CM002010005",
+      "level": 3,
+      "name": "Ngomedzap",
+      "name_en": "Ngomedzap",
+      "parent_code": "CM002010",
+      "latitude": 3.28539765,
+      "longitude": 11.2057319
+    },
+    {
+      "code": "CM002004003",
+      "level": 3,
+      "name": "Ngoro",
+      "name_en": "Ngoro",
+      "parent_code": "CM002004",
+      "latitude": 4.98758455,
+      "longitude": 11.43468362
+    },
+    {
+      "code": "CM009002008",
+      "level": 3,
+      "name": "Ngoulemakong",
+      "name_en": "Ngoulemakong",
+      "parent_code": "CM009002",
+      "latitude": 3.08373425,
+      "longitude": 11.46337026
+    },
+    {
+      "code": "CM002006004",
+      "level": 3,
+      "name": "Ngoumou",
+      "name_en": "Ngoumou",
+      "parent_code": "CM002006",
+      "latitude": 3.63943875,
+      "longitude": 11.30368717
+    },
+    {
+      "code": "CM003004008",
+      "level": 3,
+      "name": "Ngoura",
+      "name_en": "Ngoura",
+      "parent_code": "CM003004",
+      "latitude": 4.88273375,
+      "longitude": 14.07653363
+    },
+    {
+      "code": "CM003002012",
+      "level": 3,
+      "name": "Ngoyla",
+      "name_en": "Ngoyla",
+      "parent_code": "CM003002",
+      "latitude": 2.61388315,
+      "longitude": 14.12333572
+    },
+    {
+      "code": "CM003002013",
+      "level": 3,
+      "name": "Nguelemendouka",
+      "name_en": "Nguelemendouka",
+      "parent_code": "CM003002",
+      "latitude": 4.34670345,
+      "longitude": 12.87335044
+    },
+    {
+      "code": "CM002008010",
+      "level": 3,
+      "name": "Nguibassal",
+      "name_en": "Nguibassal",
+      "parent_code": "CM002008",
+      "latitude": 4.09869615,
+      "longitude": 11.07234283
+    },
+    {
+      "code": "CM010002002",
+      "level": 3,
+      "name": "Nguti",
+      "name_en": "Nguti",
+      "parent_code": "CM010002",
+      "latitude": 5.2523248,
+      "longitude": 9.47594769
+    },
+    {
+      "code": "CM005003009",
+      "level": 3,
+      "name": "Ngwei",
+      "name_en": "Ngwei",
+      "parent_code": "CM005003",
+      "latitude": 3.79662475,
+      "longitude": 10.30897114
+    },
+    {
+      "code": "CM009003009",
+      "level": 3,
+      "name": "Niete",
+      "name_en": "Niete",
+      "parent_code": "CM009003",
+      "latitude": 2.7491636,
+      "longitude": 10.12949462
+    },
+    {
+      "code": "CM002003008",
+      "level": 3,
+      "name": "Nitoukou",
+      "name_en": "Nitoukou",
+      "parent_code": "CM002003",
+      "latitude": 4.6502441,
+      "longitude": 10.90343942
+    },
+    {
+      "code": "CM007006004",
+      "level": 3,
+      "name": "Njikwa",
+      "name_en": "Njikwa",
+      "parent_code": "CM007006",
+      "latitude": 6.14628845,
+      "longitude": 9.84052164
+    },
+    {
+      "code": "CM008008009",
+      "level": 3,
+      "name": "Njimom",
+      "name_en": "Njimom",
+      "parent_code": "CM008008",
+      "latitude": 5.89594165,
+      "longitude": 10.92567536
+    },
+    {
+      "code": "CM007001004",
+      "level": 3,
+      "name": "Njinikom",
+      "name_en": "Njinikom",
+      "parent_code": "CM007001",
+      "latitude": 6.2160944,
+      "longitude": 10.22700632
+    },
+    {
+      "code": "CM005001009",
+      "level": 3,
+      "name": "Njombe-Penja",
+      "name_en": "Njombe-Penja",
+      "parent_code": "CM005001",
+      "latitude": 4.57590215,
+      "longitude": 9.69524422
+    },
+    {
+      "code": "CM007003004",
+      "level": 3,
+      "name": "Nkambe",
+      "name_en": "Nkambe",
+      "parent_code": "CM007003",
+      "latitude": 6.5531248,
+      "longitude": 10.74551872
+    },
+    {
+      "code": "CM002005007",
+      "level": 3,
+      "name": "Nkolafamba",
+      "name_en": "Nkolafamba",
+      "parent_code": "CM002005",
+      "latitude": 3.807863,
+      "longitude": 11.73687505
+    },
+    {
+      "code": "CM002010006",
+      "level": 3,
+      "name": "Nkolmetet",
+      "name_en": "Nkolmetet",
+      "parent_code": "CM002010",
+      "latitude": 3.4252052,
+      "longitude": 11.76292594
+    },
+    {
+      "code": "CM005002001",
+      "level": 3,
+      "name": "Nkondjock",
+      "name_en": "Nkondjock",
+      "parent_code": "CM005002",
+      "latitude": 4.7856911,
+      "longitude": 10.20837544
+    },
+    {
+      "code": "CM008005004",
+      "level": 3,
+      "name": "Nkong-Ni",
+      "name_en": "Nkong-Ni",
+      "parent_code": "CM008005",
+      "latitude": 5.51149925,
+      "longitude": 10.12644194
+    },
+    {
+      "code": "CM005001010",
+      "level": 3,
+      "name": "Nkongsamba 1er",
+      "name_en": "Nkongsamba 1er",
+      "parent_code": "CM005001",
+      "latitude": 4.90150245,
+      "longitude": 10.05524224
+    },
+    {
+      "code": "CM005001011",
+      "level": 3,
+      "name": "Nkongsamba 2e",
+      "name_en": "Nkongsamba 2e",
+      "parent_code": "CM005001",
+      "latitude": 4.9864166,
+      "longitude": 9.92429906
+    },
+    {
+      "code": "CM005001012",
+      "level": 3,
+      "name": "Nkongsamba 3e",
+      "name_en": "Nkongsamba 3e",
+      "parent_code": "CM005001",
+      "latitude": 4.973514,
+      "longitude": 9.90222741
+    },
+    {
+      "code": "CM002001006",
+      "level": 3,
+      "name": "Nkoteng",
+      "name_en": "Nkoteng",
+      "parent_code": "CM002001",
+      "latitude": 4.4929906,
+      "longitude": 12.14100412
+    },
+    {
+      "code": "CM007002004",
+      "level": 3,
+      "name": "Nkum",
+      "name_en": "Nkum",
+      "parent_code": "CM007002",
+      "latitude": 6.32377165,
+      "longitude": 10.77263305
+    },
+    {
+      "code": "CM005001013",
+      "level": 3,
+      "name": "Nlonako",
+      "name_en": "Nlonako",
+      "parent_code": "CM005001",
+      "latitude": 4.8532134,
+      "longitude": 9.93099546
+    },
+    {
+      "code": "CM007002005",
+      "level": 3,
+      "name": "Noni",
+      "name_en": "Noni",
+      "parent_code": "CM007002",
+      "latitude": 6.36935655,
+      "longitude": 10.59834435
+    },
+    {
+      "code": "CM005002002",
+      "level": 3,
+      "name": "Nord-Makombe",
+      "name_en": "Nord-Makombe",
+      "parent_code": "CM005002",
+      "latitude": 4.9423524,
+      "longitude": 10.36118349
+    },
+    {
+      "code": "CM002001007",
+      "level": 3,
+      "name": "Nsem",
+      "name_en": "Nsem",
+      "parent_code": "CM002001",
+      "latitude": 4.9028002,
+      "longitude": 12.91944499
+    },
+    {
+      "code": "CM002004004",
+      "level": 3,
+      "name": "Ntui",
+      "name_en": "Ntui",
+      "parent_code": "CM002004",
+      "latitude": 4.52461165,
+      "longitude": 11.66147313
+    },
+    {
+      "code": "CM007003005",
+      "level": 3,
+      "name": "Nwa",
+      "name_en": "Nwa",
+      "parent_code": "CM007003",
+      "latitude": 6.528503,
+      "longitude": 10.99296885
+    },
+    {
+      "code": "CM002009005",
+      "level": 3,
+      "name": "Nyakokombo",
+      "name_en": "Nyakokombo",
+      "parent_code": "CM002009",
+      "latitude": 4.04747225,
+      "longitude": 12.71682236
+    },
+    {
+      "code": "CM001005008",
+      "level": 3,
+      "name": "Nyambaka",
+      "name_en": "Nyambaka",
+      "parent_code": "CM001005",
+      "latitude": 6.9111198,
+      "longitude": 13.79595119
+    },
+    {
+      "code": "CM005003010",
+      "level": 3,
+      "name": "Nyanon",
+      "name_en": "Nyanon",
+      "parent_code": "CM005003",
+      "latitude": 4.2142263,
+      "longitude": 10.94124343
+    },
+    {
+      "code": "CM002002007",
+      "level": 3,
+      "name": "Obala",
+      "name_en": "Obala",
+      "parent_code": "CM002002",
+      "latitude": 4.1165926,
+      "longitude": 11.49374641
+    },
+    {
+      "code": "CM002002008",
+      "level": 3,
+      "name": "Okola",
+      "name_en": "Okola",
+      "parent_code": "CM002002",
+      "latitude": 3.9951545,
+      "longitude": 11.40357552
+    },
+    {
+      "code": "CM007002006",
+      "level": 3,
+      "name": "Oku",
+      "name_en": "Oku",
+      "parent_code": "CM007002",
+      "latitude": 6.2027708,
+      "longitude": 10.53252071
+    },
+    {
+      "code": "CM009004004",
+      "level": 3,
+      "name": "Olamze",
+      "name_en": "Olamze",
+      "parent_code": "CM009004",
+      "latitude": 2.23275255,
+      "longitude": 11.05404889
+    },
+    {
+      "code": "CM002003009",
+      "level": 3,
+      "name": "Ombessa",
+      "name_en": "Ombessa",
+      "parent_code": "CM002003",
+      "latitude": 4.62702805,
+      "longitude": 11.31888443
+    },
+    {
+      "code": "CM009001006",
+      "level": 3,
+      "name": "Oveng",
+      "name_en": "Oveng",
+      "parent_code": "CM009001",
+      "latitude": 2.47093935,
+      "longitude": 12.334417
+    },
+    {
+      "code": "CM008005005",
+      "level": 3,
+      "name": "Penka-Michel",
+      "name_en": "Penka-Michel",
+      "parent_code": "CM008005",
+      "latitude": 5.4464425,
+      "longitude": 10.25216821
+    },
+    {
+      "code": "CM004001009",
+      "level": 3,
+      "name": "Pette",
+      "name_en": "Pette",
+      "parent_code": "CM004001",
+      "latitude": 10.94414625,
+      "longitude": 14.55003121
+    },
+    {
+      "code": "CM006001010",
+      "level": 3,
+      "name": "Pitoa",
+      "name_en": "Pitoa",
+      "parent_code": "CM006001",
+      "latitude": 9.4743365,
+      "longitude": 13.61950506
+    },
+    {
+      "code": "CM006002002",
+      "level": 3,
+      "name": "Poli",
+      "name_en": "Poli",
+      "parent_code": "CM006002",
+      "latitude": 8.19476105,
+      "longitude": 12.81348115
+    },
+    {
+      "code": "CM004004006",
+      "level": 3,
+      "name": "Porhi",
+      "name_en": "Porhi",
+      "parent_code": "CM004004",
+      "latitude": 10.18753925,
+      "longitude": 14.81996196
+    },
+    {
+      "code": "CM005003011",
+      "level": 3,
+      "name": "Pouma",
+      "name_en": "Pouma",
+      "parent_code": "CM005003",
+      "latitude": 3.91182905,
+      "longitude": 10.55334042
+    },
+    {
+      "code": "CM008004003",
+      "level": 3,
+      "name": "Poumougne",
+      "name_en": "Poumougne",
+      "parent_code": "CM008004",
+      "latitude": 5.3897071,
+      "longitude": 10.43357917
+    },
+    {
+      "code": "CM006004002",
+      "level": 3,
+      "name": "Rey-Bouba",
+      "name_en": "Rey-Bouba",
+      "parent_code": "CM006004",
+      "latitude": 8.8444576,
+      "longitude": 14.30020599
+    },
+    {
+      "code": "CM002002009",
+      "level": 3,
+      "name": "Saa",
+      "name_en": "Saa",
+      "parent_code": "CM002002",
+      "latitude": 4.3582358,
+      "longitude": 11.50980537
+    },
+    {
+      "code": "CM003001003",
+      "level": 3,
+      "name": "Salapoumbe",
+      "name_en": "Salapoumbe",
+      "parent_code": "CM003001",
+      "latitude": 2.68276525,
+      "longitude": 15.33708855
+    },
+    {
+      "code": "CM009001007",
+      "level": 3,
+      "name": "Sangmelima",
+      "name_en": "Sangmelima",
+      "parent_code": "CM009001",
+      "latitude": 2.9149227,
+      "longitude": 11.90314208
+    },
+    {
+      "code": "CM007005006",
+      "level": 3,
+      "name": "Santa",
+      "name_en": "Santa",
+      "parent_code": "CM007005",
+      "latitude": 5.80019675,
+      "longitude": 10.14322325
+    },
+    {
+      "code": "CM008005006",
+      "level": 3,
+      "name": "Santchou",
+      "name_en": "Santchou",
+      "parent_code": "CM008005",
+      "latitude": 5.301923,
+      "longitude": 9.94866695
+    },
+    {
+      "code": "CM002005008",
+      "level": 3,
+      "name": "Soa",
+      "name_en": "Soa",
+      "parent_code": "CM002005",
+      "latitude": 4.0046194,
+      "longitude": 11.57903844
+    },
+    {
+      "code": "CM003002014",
+      "level": 3,
+      "name": "Somalomo",
+      "name_en": "Somalomo",
+      "parent_code": "CM003002",
+      "latitude": 3.3067974,
+      "longitude": 12.96790451
+    },
+    {
+      "code": "CM004006007",
+      "level": 3,
+      "name": "Soulede-Roua",
+      "name_en": "Soulede-Roua",
+      "parent_code": "CM004006",
+      "latitude": 10.7568617,
+      "longitude": 13.97796844
+    },
+    {
+      "code": "CM004004007",
+      "level": 3,
+      "name": "Taibong",
+      "name_en": "Taibong",
+      "parent_code": "CM004004",
+      "latitude": 10.02582465,
+      "longitude": 14.77486489
+    },
+    {
+      "code": "CM004003008",
+      "level": 3,
+      "name": "Tchatibali",
+      "name_en": "Tchatibali",
+      "parent_code": "CM004003",
+      "latitude": 9.9879081,
+      "longitude": 14.89670158
+    },
+    {
+      "code": "CM006001011",
+      "level": 3,
+      "name": "Tcheboa",
+      "name_en": "Tcheboa",
+      "parent_code": "CM006001",
+      "latitude": 8.93151505,
+      "longitude": 13.27726091
+    },
+    {
+      "code": "CM006004003",
+      "level": 3,
+      "name": "Tchollire",
+      "name_en": "Tchollire",
+      "parent_code": "CM006004",
+      "latitude": 7.86706865,
+      "longitude": 14.14386641
+    },
+    {
+      "code": "CM001001002",
+      "level": 3,
+      "name": "Tibati",
+      "name_en": "Tibati",
+      "parent_code": "CM001001",
+      "latitude": 6.52949565,
+      "longitude": 12.64323993
+    },
+    {
+      "code": "CM001002004",
+      "level": 3,
+      "name": "Tignere",
+      "name_en": "Tignere",
+      "parent_code": "CM001002",
+      "latitude": 7.36069955,
+      "longitude": 12.63453366
+    },
+    {
+      "code": "CM010001006",
+      "level": 3,
+      "name": "Tiko",
+      "name_en": "Tiko",
+      "parent_code": "CM010001",
+      "latitude": 4.0856118,
+      "longitude": 9.38933615
+    },
+    {
+      "code": "CM010006009",
+      "level": 3,
+      "name": "Toko",
+      "name_en": "Toko",
+      "parent_code": "CM010006",
+      "latitude": 5.18070135,
+      "longitude": 9.10928562
+    },
+    {
+      "code": "CM004005003",
+      "level": 3,
+      "name": "Tokombere",
+      "name_en": "Tokombere",
+      "parent_code": "CM004005",
+      "latitude": 10.8710365,
+      "longitude": 14.12824048
+    },
+    {
+      "code": "CM010002003",
+      "level": 3,
+      "name": "Tombel",
+      "name_en": "Tombel",
+      "parent_code": "CM010002",
+      "latitude": 4.844254,
+      "longitude": 9.60763458
+    },
+    {
+      "code": "CM008007004",
+      "level": 3,
+      "name": "Tonga",
+      "name_en": "Tonga",
+      "parent_code": "CM008007",
+      "latitude": 4.9404321,
+      "longitude": 10.55321512
+    },
+    {
+      "code": "CM006004004",
+      "level": 3,
+      "name": "Touboro",
+      "name_en": "Touboro",
+      "parent_code": "CM006004",
+      "latitude": 7.64161625,
+      "longitude": 15.05074784
+    },
+    {
+      "code": "CM006001012",
+      "level": 3,
+      "name": "Touroua",
+      "name_en": "Touroua",
+      "parent_code": "CM006001",
+      "latitude": 9.02682065,
+      "longitude": 13.01391903
+    },
+    {
+      "code": "CM007005007",
+      "level": 3,
+      "name": "Tubah",
+      "name_en": "Tubah",
+      "parent_code": "CM007005",
+      "latitude": 6.0384487,
+      "longitude": 10.29078759
+    },
+    {
+      "code": "CM010004004",
+      "level": 3,
+      "name": "Upper Bayang",
+      "name_en": "Upper Bayang",
+      "parent_code": "CM010004",
+      "latitude": 5.60332765,
+      "longitude": 9.72218255
+    },
+    {
+      "code": "CM004003009",
+      "level": 3,
+      "name": "Vele",
+      "name_en": "Vele",
+      "parent_code": "CM004003",
+      "latitude": 10.43324,
+      "longitude": 15.10735252
+    },
+    {
+      "code": "CM010003003",
+      "level": 3,
+      "name": "Wabane",
+      "name_en": "Wabane",
+      "parent_code": "CM010003",
+      "latitude": 5.6707328,
+      "longitude": 10.00210779
+    },
+    {
+      "code": "CM004002009",
+      "level": 3,
+      "name": "Waza",
+      "name_en": "Waza",
+      "parent_code": "CM004002",
+      "latitude": 11.41574,
+      "longitude": 14.70651013
+    },
+    {
+      "code": "CM010001007",
+      "level": 3,
+      "name": "West-Coast",
+      "name_en": "West-Coast",
+      "parent_code": "CM010001",
+      "latitude": 4.1818664,
+      "longitude": 9.07745367
+    },
+    {
+      "code": "CM007006005",
+      "level": 3,
+      "name": "Widikum",
+      "name_en": "Widikum",
+      "parent_code": "CM007006",
+      "latitude": 5.946265,
+      "longitude": 9.69044609
+    },
+    {
+      "code": "CM004003010",
+      "level": 3,
+      "name": "Wina",
+      "name_en": "Wina",
+      "parent_code": "CM004003",
+      "latitude": 10.05076695,
+      "longitude": 15.10811617
+    },
+    {
+      "code": "CM007004004",
+      "level": 3,
+      "name": "Wum",
+      "name_en": "Wum",
+      "parent_code": "CM007004",
+      "latitude": 6.3566067,
+      "longitude": 10.08556666
+    },
+    {
+      "code": "CM005002003",
+      "level": 3,
+      "name": "Yabassi",
+      "name_en": "Yabassi",
+      "parent_code": "CM005002",
+      "latitude": 4.40226885,
+      "longitude": 10.02884664
+    },
+    {
+      "code": "CM004003011",
+      "level": 3,
+      "name": "Yagoua",
+      "name_en": "Yagoua",
+      "parent_code": "CM004003",
+      "latitude": 10.2107926,
+      "longitude": 15.22121169
+    },
+    {
+      "code": "CM002007001",
+      "level": 3,
+      "name": "Yaounde 1er",
+      "name_en": "Yaounde 1er",
+      "parent_code": "CM002007",
+      "latitude": 3.9149771,
+      "longitude": 11.51950024
+    },
+    {
+      "code": "CM002007002",
+      "level": 3,
+      "name": "Yaounde 2e",
+      "name_en": "Yaounde 2e",
+      "parent_code": "CM002007",
+      "latitude": 3.9069775,
+      "longitude": 11.48492435
+    },
+    {
+      "code": "CM002007003",
+      "level": 3,
+      "name": "Yaounde 3e",
+      "name_en": "Yaounde 3e",
+      "parent_code": "CM002007",
+      "latitude": 3.79129205,
+      "longitude": 11.4827254
+    },
+    {
+      "code": "CM002007004",
+      "level": 3,
+      "name": "Yaounde 4e",
+      "name_en": "Yaounde 4e",
+      "parent_code": "CM002007",
+      "latitude": 3.8145876,
+      "longitude": 11.52915223
+    },
+    {
+      "code": "CM002007005",
+      "level": 3,
+      "name": "Yaounde 5e",
+      "name_en": "Yaounde 5e",
+      "parent_code": "CM002007",
+      "latitude": 3.89517805,
+      "longitude": 11.55248137
+    },
+    {
+      "code": "CM002007006",
+      "level": 3,
+      "name": "Yaounde 6e",
+      "name_en": "Yaounde 6e",
+      "parent_code": "CM002007",
+      "latitude": 3.8332717,
+      "longitude": 11.47131141
+    },
+    {
+      "code": "CM002007007",
+      "level": 3,
+      "name": "Yaounde 7e",
+      "name_en": "Yaounde 7e",
+      "parent_code": "CM002007",
+      "latitude": 3.87478925,
+      "longitude": 11.44708309
+    },
+    {
+      "code": "CM005002004",
+      "level": 3,
+      "name": "Yingui",
+      "name_en": "Yingui",
+      "parent_code": "CM005002",
+      "latitude": 4.43943025,
+      "longitude": 10.45581341
+    },
+    {
+      "code": "CM003001004",
+      "level": 3,
+      "name": "Yokadouma",
+      "name_en": "Yokadouma",
+      "parent_code": "CM003001",
+      "latitude": 3.1393655,
+      "longitude": 15.16222962
+    },
+    {
+      "code": "CM002004005",
+      "level": 3,
+      "name": "Yoko",
+      "name_en": "Yoko",
+      "parent_code": "CM002004",
+      "latitude": 5.44489975,
+      "longitude": 12.3324106
+    },
+    {
+      "code": "CM004002010",
+      "level": 3,
+      "name": "Zina",
+      "name_en": "Zina",
+      "parent_code": "CM004002",
+      "latitude": 11.23015365,
+      "longitude": 14.96512006
+    },
+    {
+      "code": "CM009001008",
+      "level": 3,
+      "name": "Zoetele",
+      "name_en": "Zoetele",
+      "parent_code": "CM009001",
+      "latitude": 3.27052715,
+      "longitude": 11.87050722
+    }
+  ]
+}

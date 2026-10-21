@@ -1099,6 +1099,7 @@
         "not_found_short": "Boutique introuvable"
     },
     "delivery": {
+        "network": {"collection": "Collecte dans la boutique du vendeur", "distribution": "Livraison depuis l’agence à domicile", "collection_delivery": "Collecte en boutique et livraison locale", "range": "Collecte et acheminement SOLEX", "agency_mode": "Collecte en boutique et retrait en agence", "home_mode": "Collecte en boutique et livraison à domicile", "interregional": "Interurbain national", "intraregional": "Urbain · desserte régionale", "local": "Local", "description": "Collecte SOLEX en boutique et acheminement dans les périmètres ouverts à la livraison.", "conditions": "SOLEX récupère le colis dans la boutique du vendeur, ou à l’entrepôt ASSO pour un import. Le destinataire choisit le retrait dans l’agence indiquée ou la livraison au point couvert. Le prix inclut les étapes utiles et une seule commission ASSO ; les délais affichés sont estimatifs."},
         "deliverer_not_found": "Livreur non trouvé",
         "order_or_company_required": "Veuillez fournir order_id ou company_id",
         "company_not_found": "Entreprise de livraison non trouvée",
@@ -1122,6 +1123,7 @@
         "this_address": "cette adresse",
         "no_partner": "Aucun partenaire de livraison ne dessert :destination pour :weight.",
         "no_partner_from_origin": "Aucun partenaire de livraison ne dessert :destination depuis :origin pour :weight.",
+        "origin_position_missing": "Le point de collecte de cet article n'est pas encore localisé. La boutique ou l'entrepôt doit renseigner sa position pour calculer le trajet.",
         "max_active_runs": "Vous transportez déjà :count commandes. Livrez-en une pour pouvoir en accepter une autre.",
         "already_taken": "Cette livraison a déjà été prise par un autre livreur.",
         "accepted_run_started": "Livraison acceptée — course démarrée",

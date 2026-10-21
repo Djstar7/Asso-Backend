@@ -19,7 +19,7 @@ class DeliveryPresenter
         $isCarrier = $order->isCarrierDelivery();
 
         $trackingUrl = $company?->trackingUrl($order->carrier_tracking_number);
-        if (!$trackingUrl && $order->is_wholesale && $order->carrier_tracking_number && $order->shipping_option_id) {
+        if (! $trackingUrl && $order->is_wholesale && $order->carrier_tracking_number && $order->shipping_option_id) {
             $template = \App\Models\ImportShippingOption::whereKey($order->shipping_option_id)->value('tracking_url_template');
             $trackingUrl = $template ? str_replace('{number}', rawurlencode($order->carrier_tracking_number), $template) : null;
         }
@@ -37,7 +37,7 @@ class DeliveryPresenter
             'route_label' => $snapshot['route_label'] ?? null,
             'vehicle' => $order->delivery_vehicle,
             'vehicle_label' => $snapshot['vehicle_label'] ?? null,
-            'delivery_option' => $snapshot['delivery_option'] ?? ($isCarrier && !$order->hasLastMileDelivery() ? 'agency_pickup' : 'home_delivery'),
+            'delivery_option' => $snapshot['delivery_option'] ?? ($isCarrier && ! $order->hasLastMileDelivery() ? 'agency_pickup' : 'home_delivery'),
             'delivery_option_label' => in_array($snapshot['delivery_option'] ?? null, ['home_delivery', 'agency_pickup'], true)
                 ? __("delivery.options.{$snapshot['delivery_option']}")
                 : ($snapshot['delivery_option_label'] ?? null),
@@ -54,7 +54,7 @@ class DeliveryPresenter
             'breakdown' => $snapshot !== [] ? array_intersect_key($snapshot, array_flip([
                 'weight_kg', 'range_label', 'range_price', 'extra_kg', 'extra_per_kg', 'extra_price', 'legs',
                 'carrier_price_ht', 'prices_exclude_vat', 'vat_rate', 'vat_amount', 'carrier_price',
-                'asso_commission', 'total',
+                'asso_commission', 'total', 'origin_coverage', 'destination_coverage',
             ])) : null,
             // Import en gros : trajet Chine / Dubaï / Turquie → Douala, avant SOLEX.
             'import_leg' => $snapshot['import_leg'] ?? null,
@@ -80,15 +80,17 @@ class DeliveryPresenter
      */
     public static function pickupFor(Order $order): array
     {
-        $fromHub = $order->leavesFromImportHub();
+        $network = ($order->delivery_breakdown['pricing_type'] ?? null) === 'territorial_network';
+        $atArrival = in_array($order->tracking_status, ['arrived', 'ready_for_pickup', 'out_for_delivery', 'delivered'], true);
+        $fromHub = $order->leavesFromImportHub() || ($network && $order->is_wholesale && ! $atArrival);
         $shop = ($fromHub ? ImportHub::shop() : null) ?? $order->items->first()?->product?->shop;
-        $isAgency = $order->hasLastMileDelivery() && !$fromHub;
+        $isAgency = $order->hasLastMileDelivery() && ! $fromHub && (! $network || $atArrival);
         $company = $order->relationLoaded('deliveryCompany') ? $order->deliveryCompany : $order->deliveryCompany;
 
         if ($isAgency) {
             return [
                 'kind' => 'agency',
-                'name' => trim('Agence ' . ($company?->name ?? '')),
+                'name' => trim('Agence '.($company?->name ?? '')),
                 'phone' => $company?->phone,
                 'address' => null,
                 'city' => null,

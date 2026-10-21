@@ -591,6 +591,7 @@
             }
         }
     </style>
+    <link rel="stylesheet" href="{{ asset('css/admin-checkbox.css') }}">
 </head>
 <body class="{{ $isManager ? 'portal-manager' : 'portal-admin' }}">
     <div class="login-container">

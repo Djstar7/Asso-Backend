@@ -1099,6 +1099,7 @@
         "not_found_short": "Shop not found"
     },
     "delivery": {
+        "network": {"collection": "Collection from the seller’s shop", "distribution": "Delivery from the agency to your address", "collection_delivery": "Shop collection and local delivery", "range": "SOLEX collection and transport", "agency_mode": "Shop collection and agency pickup", "home_mode": "Shop collection and home delivery", "interregional": "National intercity", "intraregional": "Urban · regional delivery", "local": "Local", "description": "SOLEX shop collection and transport within active delivery coverage areas.", "conditions": "SOLEX collects from the seller’s shop, or the ASSO warehouse for imports. The recipient chooses pickup at the stated agency or delivery to the covered address. The price includes the required legs and one ASSO commission; displayed delivery times are estimates."},
         "deliverer_not_found": "Delivery person not found",
         "order_or_company_required": "Please provide order_id or company_id",
         "company_not_found": "Delivery company not found",
@@ -1122,6 +1123,7 @@
         "this_address": "this address",
         "no_partner": "No delivery partner serves :destination for :weight.",
         "no_partner_from_origin": "No delivery partner serves :destination from :origin for :weight.",
+        "origin_position_missing": "The pickup point for this item has not been located yet. The shop or warehouse must set its location before the route can be priced.",
         "max_active_runs": "You are already carrying :count orders. Deliver one before accepting another.",
         "already_taken": "This delivery has already been taken by another driver.",
         "accepted_run_started": "Delivery accepted — run started",
