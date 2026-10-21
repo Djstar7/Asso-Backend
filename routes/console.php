@@ -12,6 +12,9 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
+// Actions du back-office : permissions et périmètre recalculés à chaque passage.
+Schedule::command('admin:notify-actions')->everyFiveMinutes()->withoutOverlapping(15);
+
 /**
  * =====================================================
  * WALLET ASYNC TRANSACTION PROCESSING SCHEDULER

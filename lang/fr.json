@@ -1517,6 +1517,31 @@
         }
     },
     "mail": {
+        "admin_actions": {
+            "subject": "Des actions attendent votre équipe",
+            "reminder_subject": "Rappel : des dossiers restent à traiter",
+            "greeting": "Bonjour :name,",
+            "intro": "Voici les dossiers en attente dans les sections qui vous sont confiées. Ouvrez un dossier pour consulter son état actuel et intervenir.",
+            "more": ":count autre(s) dossier(s) à retrouver dans cette section du back-office.",
+            "access_notice": "Ces liens nécessitent une connexion. Ils ne donnent aucun droit supplémentaire : vos permissions et votre périmètre sont vérifiés à chaque ouverture. Un rappel est envoyé si des dossiers restent en attente.",
+            "sections": {
+                "estate_listings": "Annonces immobilières à vérifier",
+                "landlords": "Bailleurs à vérifier",
+                "estate_disputes": "Litiges immobiliers",
+                "shops": "Boutiques et vendeurs à vérifier",
+                "shop_locations": "Déplacements de boutiques à valider",
+                "deposit": "Commandes avec acompte",
+                "wholesale": "Commandes en gros",
+                "asso": "Commandes des boutiques ASSO",
+                "local": "Commandes locales",
+                "disputes": "Réclamations et litiges",
+                "dispute_shipments": "Courses de litige à payer",
+                "support": "Tickets de support",
+                "diaspo": "Identités DIASPO à vérifier",
+                "maritime": "Envois avion et maritime à suivre",
+                "messages": "Messages support à lire"
+            }
+        },
         "otp": {
             "subject": "Code de Vérification - ASSO",
             "tagline": "Marketplace - Ton marché dans ta poche",
@@ -1660,6 +1685,7 @@
         },
         "reservation": {
             "not_available": "Ce bien n'est plus disponible à la réservation.",
+            "quote_changed": "Le montant a changé. Veuillez actualiser le récapitulatif avant de payer.",
             "own_listing": "Vous ne pouvez pas réserver votre propre bien.",
             "unit_required": "Choisissez le logement ou le lot à réserver.",
             "unit_full": "Plus aucune place disponible pour ce logement.",

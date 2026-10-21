@@ -1517,6 +1517,31 @@
         }
     },
     "mail": {
+        "admin_actions": {
+            "subject": "Your team has pending actions",
+            "reminder_subject": "Reminder: pending cases need attention",
+            "greeting": "Hello :name,",
+            "intro": "These cases are pending in the sections assigned to you. Open a case to see its current status and take action.",
+            "more": ":count more case(s) are available in this back-office section.",
+            "access_notice": "Sign-in is required. These links do not grant additional permissions: your access and scope are checked whenever you open a case. You will receive a reminder if cases remain pending.",
+            "sections": {
+                "estate_listings": "Property listings awaiting review",
+                "landlords": "Landlords awaiting review",
+                "estate_disputes": "Property disputes",
+                "shops": "Shops and sellers awaiting review",
+                "shop_locations": "Shop relocations awaiting review",
+                "deposit": "Deposit orders",
+                "wholesale": "Wholesale orders",
+                "asso": "ASSO shop orders",
+                "local": "Local orders",
+                "disputes": "Claims and disputes",
+                "dispute_shipments": "Dispute shipments awaiting payment",
+                "support": "Support tickets",
+                "diaspo": "DIASPO identity checks",
+                "maritime": "Air and sea freight to follow up",
+                "messages": "Unread support messages"
+            }
+        },
         "otp": {
             "subject": "Verification code - ASSO",
             "tagline": "Marketplace - Your market in your pocket",
@@ -1660,6 +1685,7 @@
         },
         "reservation": {
             "not_available": "This property can no longer be booked.",
+            "quote_changed": "The amount has changed. Please refresh the summary before paying.",
             "own_listing": "You cannot book your own property.",
             "unit_required": "Choose the home or plot to book.",
             "unit_full": "No place left for this home.",

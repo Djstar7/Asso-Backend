@@ -10,8 +10,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * Cabinet partenaire (foncier, juridique) : créé par ASSO, il porte les
- * terrains à vendre. Son nom est toujours public ; ses coordonnées ne le sont
- * qu'après le versement d'un acompte sur l'un de ses terrains.
+ * terrains à vendre. Son nom est public ; le contact client est communiqué
+ * dans la réservation payée, sans débloquer la fiche générale du cabinet.
  */
 class Cabinet extends Model
 {
@@ -48,18 +48,10 @@ class Cabinet extends Model
         return $this->hasMany(Listing::class, 'cabinet_id');
     }
 
-    /** Le visiteur a-t-il versé un acompte sur un terrain de ce cabinet ? */
+    /** Seul le gestionnaire voit ses coordonnées sur la fiche générale. */
     public function isUnlockedFor(?User $user): bool
     {
-        if (! $user) {
-            return false;
-        }
-
-        return Reservation::query()
-            ->where('tenant_id', $user->id)
-            ->whereIn('status', Reservation::PAID_STATUSES)
-            ->whereHas('listing', fn ($q) => $q->where('cabinet_id', $this->id))
-            ->exists();
+        return $user !== null && $this->user_id !== null && $user->id === $this->user_id;
     }
 
     public function toApi(?User $viewer = null, bool $withDetails = false): array

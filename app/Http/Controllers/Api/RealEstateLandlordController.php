@@ -208,18 +208,18 @@ class RealEstateLandlordController extends Controller
             'net_price' => ['required', 'integer', 'min:0'],
             'advance_months' => ['nullable', 'integer', 'min:1', 'max:36'],
         ]);
-        $displayed = $this->pricing->displayed($data['net_price'], Listing::TYPE_RENT);
-        $months = $data['advance_months'] ?? 1;
-        $commission = (int) round($data['net_price'] * $months * $this->pricing->partnerCommissionRate() / 100);
-        $assoAmount = ($displayed - $data['net_price']) * $months;
+        $quote = $this->pricing->quote(new Listing([
+            'type' => Listing::TYPE_RENT, 'net_price' => $data['net_price'],
+            'advance_months' => $data['advance_months'] ?? 1,
+        ]));
 
         return response()->json(['success' => true, 'data' => [
-            'displayed_price' => $displayed,
-            'owner_receives_monthly' => $data['net_price'],
-            'owner_receives_advance' => $data['net_price'] * $months,
-            'asso_amount' => $assoAmount,
-            'partner_commission_amount' => $commission,
-            'tenant_pays_advance' => $displayed * $months + $commission,
+            'displayed_price' => $quote['unit_price'],
+            'owner_receives_monthly' => $quote['unit_price'],
+            'owner_receives_advance' => $quote['owner_amount'],
+            'asso_amount' => $quote['platform_amount'],
+            'partner_commission_amount' => $quote['commission'],
+            'tenant_pays_advance' => $quote['total'],
             'visit_window_days' => (int) RealEstatePricingService::setting('immo_visit_window_days'),
         ]]);
     }

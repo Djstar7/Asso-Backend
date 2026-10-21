@@ -91,10 +91,10 @@
                     <dl class="text-sm space-y-1">
                         <div class="flex justify-between"><dt class="text-gray-400">Prix affiché</dt><dd class="text-white">{{ number_format($quote['unit_price'], 0, ',', ' ') }} FCFA</dd></div>
                         <div class="flex justify-between"><dt class="text-gray-400">{{ $isLand ? 'Acompte' : 'Avance ('.$quote['advance_months'].' mois)' }}</dt><dd class="text-white">{{ number_format($quote['base_amount'], 0, ',', ' ') }}</dd></div>
-                        <div class="flex justify-between"><dt class="text-gray-400">Commission cabinet (5 % par défaut)</dt><dd class="text-white">{{ number_format($quote['commission'], 0, ',', ' ') }}</dd></div>
+                        <div class="flex justify-between"><dt class="text-gray-400">Commission cabinet (en supplément)</dt><dd class="text-white">{{ number_format($quote['commission'], 0, ',', ' ') }}</dd></div>
                         <div class="flex justify-between border-t border-dark-200 pt-1"><dt class="text-gray-300">Total payé</dt><dd class="text-white font-semibold">{{ number_format($quote['total'], 0, ',', ' ') }}</dd></div>
-                        <div class="flex justify-between"><dt class="text-gray-400">{{ $listing->isManagedByCabinet() ? 'Cabinet (net bloqué)' : 'Bailleur (net bloqué)' }}</dt><dd class="text-white">{{ number_format($quote['owner_amount'], 0, ',', ' ') }}</dd></div>
-                        <div class="flex justify-between"><dt class="text-gray-400">Part ASSO</dt><dd class="text-primary-300 font-semibold">{{ number_format($quote['platform_amount'], 0, ',', ' ') }}</dd></div>
+                        <div class="flex justify-between"><dt class="text-gray-400">{{ $listing->isManagedByCabinet() ? 'Cabinet (avance intégrale bloquée)' : 'Bailleur (avance intégrale bloquée)' }}</dt><dd class="text-white">{{ number_format($quote['owner_amount'], 0, ',', ' ') }}</dd></div>
+                        <div class="flex justify-between"><dt class="text-gray-400">Part ASSO (en supplément)</dt><dd class="text-primary-300 font-semibold">{{ number_format($quote['platform_amount'], 0, ',', ' ') }}</dd></div>
                     </dl>
                 </div>
             @endisset
@@ -213,8 +213,8 @@
             <div class="{{ $card }}">
                 <h2 class="text-lg font-semibold text-white mb-4"><i class="fas fa-money-bill mr-2 text-primary-400"></i>Conditions et prix</h2>
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div><label class="{{ $label }}">Loyer net mensuel (FCFA)</label><input name="net_price" type="number" min="0" value="{{ $val('net_price') }}" class="{{ $in }}"></div>
-                    <div><label class="{{ $label }}">Ancien loyer net (barré)</label><input name="old_net_price" type="number" min="0" value="{{ $val('old_net_price') }}" class="{{ $in }}"></div>
+                    <div><label class="{{ $label }}">Loyer mensuel de référence (FCFA)</label><input name="net_price" type="number" min="0" value="{{ $val('net_price') }}" class="{{ $in }}"></div>
+                    <div><label class="{{ $label }}">Ancien loyer de référence (barré)</label><input name="old_net_price" type="number" min="0" value="{{ $val('old_net_price') }}" class="{{ $in }}"></div>
                     <div><label class="{{ $label }}">Durée minimale (mois)</label><input name="min_lease_months" type="number" min="1" value="{{ $val('min_lease_months') }}" class="{{ $in }}"></div>
                     <div><label class="{{ $label }}">Mois d'avance</label><input name="advance_months" type="number" min="1" value="{{ $val('advance_months') }}" class="{{ $in }}"></div>
                     <div><label class="{{ $label }}">Disponible à partir du</label><input name="available_from" type="date" value="{{ optional($listing->available_from)->toDateString() }}" class="{{ $in }}"></div>
@@ -233,7 +233,7 @@
             <div class="overflow-x-auto">
                 <table class="min-w-full text-sm">
                     <thead><tr class="text-gray-400 text-left">
-                        <th class="py-2 pr-2">Libellé</th><th class="py-2 pr-2">Surface min</th><th class="py-2 pr-2">Surface max</th><th class="py-2 pr-2">Prix net</th>
+                        <th class="py-2 pr-2">Libellé</th><th class="py-2 pr-2">Surface min</th><th class="py-2 pr-2">Surface max</th><th class="py-2 pr-2">Prix de référence</th>
                         @unless($isLand)<th class="py-2 pr-2">Pers.</th><th class="py-2 pr-2">Cuisine</th><th class="py-2 pr-2">Meublé</th>@else<th class="py-2 pr-2">Viabilisé</th>@endunless
                         <th class="py-2 pr-2">Total</th><th class="py-2 pr-2">Dispo.</th><th></th>
                     </tr></thead>

@@ -10,9 +10,9 @@ use App\Models\Setting;
 /**
  * Seul endroit où se calculent les prix de la rubrique Immobilier.
  *
- * - Le montant affiché inclut la part ASSO (10 % par défaut).
- * - La commission partenaire (5 % par défaut) est calculée sur le montant net.
- * - Le cabinet reçoit la commission et, s'il gère l'annonce, le montant net.
+ * - Le bailleur reçoit toute l'avance calculée sur le prix affiché.
+ * - Les frais ASSO et partenaire s'ajoutent à cette avance, sans retenue.
+ * - Les taux restent calculés sur le prix de référence (net_price).
  */
 class RealEstatePricingService
 {
@@ -54,7 +54,7 @@ class RealEstatePricingService
         return Cabinet::defaultPartner();
     }
 
-    /** Prix affiché avec la part ASSO, arrondi au franc. */
+    /** Prix public servant au calcul de l’avance intégralement versée, arrondi au franc. */
     public function displayed(int $net, string $type): int
     {
         if ($net <= 0) {
@@ -78,29 +78,29 @@ class RealEstatePricingService
 
         if ($listing->type === Listing::TYPE_LAND) {
             $percent = (float) ($listing->deposit_percent ?: self::setting('immo_land_default_deposit_percent'));
-            $owner = (int) round($net * $percent / 100);
-            $base = $owner + (int) round($owner * $this->markupRate($listing->type) / 100);
-            $commission = (int) round($owner * $this->partnerCommissionRate() / 100);
+            $reference = (int) round($net * $percent / 100);
+            $owner = (int) round($unitPrice * $percent / 100);
             $months = null;
         } else {
             $months = max(1, (int) ($advanceMonths ?: $listing->advance_months ?: 1));
             $percent = null;
-            $owner = $net * $months;
-            $base = $owner + (int) round($owner * $this->markupRate($listing->type) / 100);
-            $commission = (int) round($owner * $this->partnerCommissionRate() / 100);
+            $reference = $net * $months;
+            $owner = $unitPrice * $months;
         }
 
-        $total = $base + $commission;
+        $platform = (int) round($reference * $this->markupRate($listing->type) / 100);
+        $commission = (int) round($reference * $this->partnerCommissionRate() / 100);
+        $total = $owner + $platform + $commission;
 
         return [
             'unit_price' => $unitPrice,
             'advance_months' => $months,
             'deposit_percent' => $percent,
-            'base_amount' => $base,
+            'base_amount' => $owner,
             'commission' => $commission,
             'total' => $total,
             'owner_amount' => $owner,
-            'platform_amount' => $base - $owner,
+            'platform_amount' => $platform,
         ];
     }
 }

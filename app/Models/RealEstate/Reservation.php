@@ -18,6 +18,19 @@ class Reservation extends Model
     /** Statuts dans lesquels le paiement a été encaissé. */
     public const PAID_STATUSES = ['paid', 'confirmed', 'disputed', 'released'];
 
+    /** Les justificatifs restent accessibles après un remboursement. */
+    public function canAccessDocuments(): bool
+    {
+        return in_array($this->status, [...self::PAID_STATUSES, 'refunded'], true);
+    }
+
+    /** Distingue les frais ajoutés des anciennes réservations à frais inclus. */
+    public function hasAdditionalPlatformFee(): bool
+    {
+        return (int) $this->owner_amount === (int) $this->base_amount
+            && (int) $this->total_amount === (int) $this->base_amount + (int) $this->platform_amount + (int) $this->commission_amount;
+    }
+
     protected $fillable = [
         'reference', 'listing_id', 'unit_id', 'tenant_id', 'payee_id', 'partner_cabinet_id', 'partner_payee_id',
         'partner_commission_amount', 'partner_cabinet_name', 'net_payee_kind', 'kind', 'move_in_date',

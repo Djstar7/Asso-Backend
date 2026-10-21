@@ -50,7 +50,7 @@
             </div>
             <table class="min-w-full text-sm">
                 <thead><tr class="text-gray-400 text-left">
-                    <th class="py-2 pr-2">Localité / quartier</th><th class="py-2 pr-2">Surfaces (m²)</th><th class="py-2 pr-2">Prix net (FCFA)</th><th class="py-2 pr-2">Prix</th><th class="py-2">Titré</th>
+                    <th class="py-2 pr-2">Localité / quartier</th><th class="py-2 pr-2">Surfaces (m²)</th><th class="py-2 pr-2">Prix de référence (FCFA)</th><th class="py-2 pr-2">Prix</th><th class="py-2">Titré</th>
                 </tr></thead>
                 <tbody>
                 <template x-for="(row, i) in rows" :key="i">
@@ -100,7 +100,7 @@
                 <tr>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-white uppercase">Annonce</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-white uppercase">Bailleur / cabinet</th>
-                    <th class="px-4 py-3 text-left text-xs font-semibold text-white uppercase">Prix net → affiché</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-white uppercase">Prix de référence → affiché</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-white uppercase">Statut</th>
                     <th class="px-4 py-3 text-right text-xs font-semibold text-white uppercase">Actions</th>
                 </tr>

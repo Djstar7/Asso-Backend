@@ -28,9 +28,13 @@ class RealEstateDisputeTest extends TestCase
     use RefreshDatabase;
 
     private User $platform;
+
     private User $owner;
+
     private User $tenant;
+
     private User $partner;
+
     private Listing $listing;
 
     protected function setUp(): void
@@ -121,7 +125,7 @@ class RealEstateDisputeTest extends TestCase
     public function test_refund_returns_held_share_but_keeps_platform_and_partner_fees(): void
     {
         $r = $this->book();
-        $this->assertSame([85000.0, 85000.0], $this->balance($this->tenant));
+        $this->assertSame([75000.0, 75000.0], $this->balance($this->tenant));
 
         $this->open($r)->assertCreated()->assertJsonPath('data.status', 'disputed')
             ->assertJsonPath('data.dispute.attachments.0.author', 'tenant');
@@ -155,7 +159,7 @@ class RealEstateDisputeTest extends TestCase
         $this->actingAs($admin)->post('/admin/real-estate/disputes/'.Dispute::first()->id.'/decide', ['decision' => 'release'])->assertRedirect();
 
         $this->assertSame('released', $r->fresh()->status);
-        $this->assertSame([100000.0, 100000.0], $this->balance($this->owner));
+        $this->assertSame([110000.0, 110000.0], $this->balance($this->owner));
     }
 
     public function test_dispute_cannot_be_opened_after_the_window(): void

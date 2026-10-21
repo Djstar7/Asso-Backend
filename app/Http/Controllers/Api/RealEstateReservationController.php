@@ -36,6 +36,7 @@ class RealEstateReservationController extends Controller
             'school_or_employer' => ['nullable', 'string', 'max:150'],
             'message' => ['nullable', 'string', 'max:2000'],
             'contract_accepted' => ['accepted'],
+            'expected_total' => ['nullable', 'integer', 'min:0'],
             'payment_mode' => ['required', Rule::in(['wallet', 'kpay_direct', 'stripe_direct'])],
             'provider' => ['required_if:payment_mode,kpay_direct', 'nullable', 'string'],
             'phone_number' => ['required_if:payment_mode,kpay_direct', 'nullable', 'string'],
@@ -54,9 +55,15 @@ class RealEstateReservationController extends Controller
         }
 
         $mode = $data['payment_mode'];
+        $quoteTotal = app(\App\Services\RealEstate\RealEstatePricingService::class)
+            ->quote($listing, $unit, $data['advance_months'] ?? null)['total'];
+        if (isset($data['expected_total']) && (int) $data['expected_total'] !== $quoteTotal) {
+            return response()->json([
+                'success' => false, 'code' => 'quote_changed',
+                'message' => __('real_estate.reservation.quote_changed'),
+            ], 422);
+        }
         if ($mode === 'wallet') {
-            $quoteTotal = app(\App\Services\RealEstate\RealEstatePricingService::class)
-                ->quote($listing, $unit, $data['advance_months'] ?? null)['total'];
             $canPay = app(WalletService::class)->canPayWithWallet($tenant, (float) $quoteTotal, 'kpay');
             if (! $canPay['can_pay']) {
                 return response()->json([
@@ -151,15 +158,21 @@ class RealEstateReservationController extends Controller
     public function document(Request $request, int $id, string $kind)
     {
         $r = $this->find($request, $id, true);
+        abort_unless($r->canAccessDocuments(), 404);
         $path = $kind === 'invoice' ? $r->invoice_path : $r->contract_path;
-        if (! $path || ! Storage::disk(RealEstateReservationService::DOCS_DISK)->exists($path)) {
+        $expectedFilename = $kind === 'invoice'
+            ? RealEstateReservationService::INVOICE_FILENAME : RealEstateReservationService::CONTRACT_FILENAME;
+        $outdatedDocument = $path && basename($path) !== $expectedFilename;
+        if (! $path || $outdatedDocument || ! Storage::disk(RealEstateReservationService::DOCS_DISK)->exists($path)) {
             $this->service->generateDocuments($r);
             $r->refresh();
             $path = $kind === 'invoice' ? $r->invoice_path : $r->contract_path;
         }
         abort_unless($path && Storage::disk(RealEstateReservationService::DOCS_DISK)->exists($path), 404);
 
-        return Storage::disk(RealEstateReservationService::DOCS_DISK)->download($path, "{$r->reference}-{$kind}.pdf");
+        return Storage::disk(RealEstateReservationService::DOCS_DISK)->download(
+            $path, "{$r->reference}-{$kind}.pdf", ['Cache-Control' => 'private, no-store']
+        );
     }
 
     // ---------------------------------------------------------------- litiges
@@ -240,7 +253,8 @@ class RealEstateReservationController extends Controller
             'paid_at' => $r->paid_at?->toIso8601String(),
             'visit_deadline_at' => $r->visit_deadline_at?->toIso8601String(),
             'released_at' => $r->released_at?->toIso8601String(),
-            'has_documents' => (bool) $r->contract_path,
+            // Le téléchargement régénère les PDF manquants à la demande.
+            'has_documents' => $r->canAccessDocuments(),
             'dispute' => $r->dispute?->load('attachments')->toApi(),
             'is_payee' => $isPayee,
             // Le bailleur (ou le cabinet) voit qui a payé et le dossier du demandeur.

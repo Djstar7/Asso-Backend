@@ -39,6 +39,11 @@ class RealEstateReservationService
 {
     public const DOCS_DISK = 'local';
 
+    /** Nouvelle présentation : les anciennes factures sont régénérées à la demande. */
+    public const INVOICE_FILENAME = 'facture-v3.pdf';
+
+    public const CONTRACT_FILENAME = 'contrat-v3.pdf';
+
     public function __construct(private RealEstatePricingService $pricing) {}
 
     /**
@@ -380,9 +385,11 @@ class RealEstateReservationService
         ];
 
         try {
-            Storage::disk(self::DOCS_DISK)->put("$dir/contrat.pdf", Pdf::loadView('pdf.real_estate_contract', $data)->output());
-            Storage::disk(self::DOCS_DISK)->put("$dir/facture.pdf", Pdf::loadView('pdf.real_estate_invoice', $data)->output());
-            $reservation->update(['contract_path' => "$dir/contrat.pdf", 'invoice_path' => "$dir/facture.pdf"]);
+            $contractPath = $dir.'/'.self::CONTRACT_FILENAME;
+            Storage::disk(self::DOCS_DISK)->put($contractPath, Pdf::loadView('pdf.real_estate_contract', $data)->output());
+            $invoicePath = $dir.'/'.self::INVOICE_FILENAME;
+            Storage::disk(self::DOCS_DISK)->put($invoicePath, Pdf::loadView('pdf.real_estate_invoice', $data)->output());
+            $reservation->update(['contract_path' => $contractPath, 'invoice_path' => $invoicePath]);
         } catch (\Throwable $e) {
             Log::error('[IMMO] Documents non générés', ['reservation' => $reservation->id, 'error' => $e->getMessage()]);
         }

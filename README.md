@@ -445,3 +445,62 @@ Côté Flutter :
 ```bash
 flutter test test/diaspo_air_partner_navigation_test.dart test/partner_freight_visibility_test.dart test/maritime_search_test.dart test/maritime_insurance_test.dart
 ```
+
+### Emails des actions en attente pour l'administration
+
+`admin:notify-actions` prépare un récapitulatif par membre du back-office. Les
+permissions de section et le périmètre boutiques ASSO sont vérifiés pour chaque
+destinataire ; les comptes techniques et les clients/vendeurs ne reçoivent pas
+ces emails. Les liens conduisent aux dossiers, derrière la connexion et les
+contrôles d'accès habituels, sans donner de permission supplémentaire.
+
+Le récapitulatif couvre les annonces immobilières en revue, les bailleurs à
+vérifier, les litiges immobiliers, les boutiques/vendeurs et déplacements de
+boutiques à vérifier, les commandes payées encore à traiter (ASSO, gros, local,
+acompte), les litiges et leurs courses à payer par ASSO, les tickets/messages de
+support, les identités DIASPO et les envois avion/maritime encore en cours.
+Un vendeur est signalé par sa boutique en attente de vérification : il n'existe
+pas de circuit d'approbation distinct pour un simple compte vendeur.
+Les paiements non aboutis et les commandes livrées/annulées ne sont pas des tâches
+de cette liste. Les notifications immédiates déjà présentes restent actives.
+
+Au déploiement :
+
+```bash
+php artisan migrate --force
+php artisan admin:notify-actions --dry-run
+```
+
+Configurer un vrai transport dans `MAIL_MAILER` et les paramètres SMTP associés,
+ainsi qu'un `APP_URL` public correct pour les liens. Les transports `log` et
+`array` sont refusés par la commande d'envoi : écrire dans un journal ne signifie
+pas que le destinataire a reçu un email. La commande de diagnostic ci-dessus ne
+transmet aucun email.
+
+L'ordonnanceur Laravel doit fonctionner en production (cron existant :
+`* * * * * cd /chemin/Asso-Backend && php artisan schedule:run >> /dev/null 2>&1`).
+Il vérifie les tâches toutes les cinq minutes. Un changement de dossier/étape
+entraîne un nouveau récapitulatif au prochain passage. Sans changement, une
+relance est envoyée après `ADMIN_ACTION_REMINDER_HOURS` (24 heures par défaut).
+Les tâches résolues sortent du récapitulatif. L'état du dernier envoi est conservé
+en base ; les échecs SMTP sont journalisés et réessayés au prochain passage,
+sans bloquer l'opération métier du client. Un verrou empêche les passages
+concurrents. `ADMIN_ACTION_EMAILS_ENABLED=false` désactive ces récapitulatifs.
+Aucun worker de queue supplémentaire n'est requis pour cette commande.
+
+
+### Répartition des paiements immobiliers
+
+Le prix affiché multiplié par le nombre de mois d’avance revient entièrement
+au bailleur (ou au cabinet bénéficiaire). La part ASSO et la commission du
+cabinet sont ajoutées à cette avance, jamais déduites. Les taux de ces frais
+restent appliqués au prix de référence enregistré (`net_price`). Par exemple,
+45 000 FCFA de référence, un loyer affiché de 49 500 FCFA et trois mois donnent
+148 500 FCFA au bailleur, 13 500 FCFA à ASSO, 6 750 FCFA au cabinet, soit
+168 750 FCFA débités au locataire. Les acomptes terrain suivent la même règle.
+
+Les montants sont figés lors de la réservation et utilisés pour le paiement,
+le blocage, le déblocage, les litiges et les justificatifs. Les réservations
+antérieures conservent leurs montants réellement acceptés et encaissés ; aucune
+réécriture de solde ni facturation rétroactive n’est faite. Un ancien devis
+envoyé par un client récent est rejeté avant paiement si le total a changé.
