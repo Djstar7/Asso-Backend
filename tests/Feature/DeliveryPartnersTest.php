@@ -220,21 +220,28 @@ class DeliveryPartnersTest extends TestCase
             ->assertJsonPath('order.delivery.carrier_tracking_number', 'SLX-001');
 
         $this->actingAs($seller, 'sanctum')
-            ->postJson("/api/v1/vendor/orders/{$orderId}/tracking", ['step' => 'ready_for_pickup', 'location' => 'Agence Mvan'])
-            ->assertOk();
-
+            ->postJson("/api/v1/vendor/orders/{$orderId}/tracking", ['step' => 'ready_for_pickup'])
+            ->assertUnprocessable();
+        $admin = User::factory()->create(['role' => 'admin']);
+        $agency = \App\Models\DeliveryAgency::create([
+            'deliverer_company_id' => $route->deliverer_company_id, 'code' => 'SLX-MVAN',
+            'name' => 'Agence Mvan', 'city' => 'Yaoundé', 'address' => 'Gare Mvan', 'phone' => '237670000001', 'is_active' => true,
+        ]);
+        $this->actingAs($admin, 'web')->post(route('admin.shipments.agency', $order), ['delivery_agency_id' => $agency->id])->assertSessionHasNoErrors();
+        foreach (['arrived', 'ready_for_pickup'] as $step) {
+            $this->post(route('admin.shipments.step', $order), ['step' => $step,
+                'confirmation_contact' => 'Solex', 'confirmation_reference' => 'SLX-001', 'confirmation_channel' => 'phone'])->assertSessionHasNoErrors();
+        }
         $detail = $this->actingAs($client, 'sanctum')->getJson("/api/v1/orders/{$orderId}")->assertOk();
-        $this->assertTrue($detail->json('order.delivery.can_confirm_reception'));
+        $this->assertFalse($detail->json('order.delivery.can_confirm_reception'));
         $this->assertNull($detail->json('order.confirmation_code'));
-        $this->assertSame(
-            ['pending', 'confirmed', 'handed_to_carrier', 'ready_for_pickup'],
-            array_column($detail->json('order.delivery.timeline'), 'step')
-        );
-
+        $this->assertSame('Agence Mvan', $detail->json('order.delivery.pickup_agency.name'));
+        $this->actingAs($client, 'sanctum')->postJson("/api/v1/orders/{$orderId}/confirm-reception")->assertUnprocessable();
+        $this->actingAs($admin, 'web')->post(route('admin.shipments.step', $order), ['step' => 'collected_at_agency',
+            'confirmation_contact' => 'Solex', 'confirmation_reference' => 'RETRAIT-001', 'confirmation_channel' => 'document'])->assertSessionHasNoErrors();
         $this->actingAs($client, 'sanctum')->postJson("/api/v1/orders/{$orderId}/confirm-reception")
-            ->assertOk()
-            ->assertJsonPath('order.status', 'delivered')
-            ->assertJsonPath('order.delivery.tracking_status', 'delivered');
+            ->assertOk()->assertJsonPath('order.status', 'delivered')
+            ->assertJsonPath('order.delivery.tracking_status', 'reception_confirmed');
     }
 
     public function test_international_route_must_arrive_in_cameroon(): void
@@ -284,7 +291,7 @@ class DeliveryPartnersTest extends TestCase
         $this->assertDatabaseHas('deliverer_sync_codes', ['company_id' => $route->deliverer_company_id, 'is_used' => false]);
     }
 
-    public function test_solex_intercity_home_delivery_adds_destination_zone_and_courier_closes_with_code(): void
+    public function test_solex_intercity_home_delivery_adds_destination_zone_and_asso_records_handover_with_code(): void
     {
         $route = $this->solex(); // Douala ↔ Yaoundé, d'agence à agence
         $zone = DeliveryZone::create([
@@ -340,24 +347,22 @@ class DeliveryPartnersTest extends TestCase
         $this->actingAs($seller, 'sanctum')->postJson("/api/v1/vendor/orders/{$orderId}/validate")->assertOk();
         $this->actingAs($seller, 'sanctum')->postJson("/api/v1/vendor/orders/{$orderId}/hand-to-carrier", ['carrier_tracking_number' => 'SLX-9'])->assertOk();
 
-        // Pas encore arrivé à l'agence de Yaoundé : rien pour le coursier.
+        // Le partenaire n'intervient jamais dans l'app : ASSO enregistre ses confirmations.
         $this->actingAs($courier, 'sanctum')->getJson('/api/v1/delivery/pending')->assertJsonCount(0, 'requests');
-        $this->actingAs($seller, 'sanctum')->postJson("/api/v1/vendor/orders/{$orderId}/tracking", ['step' => 'arrived', 'location' => 'Agence Mvan'])->assertOk();
-        $this->actingAs($courier, 'sanctum')->getJson('/api/v1/delivery/pending')->assertJsonCount(1, 'requests');
-
-        // L'acheteur ne confirme pas lui-même : il donne son code au coursier.
+        $admin = User::factory()->create(['role' => 'admin']);
+        foreach (['arrived', 'out_for_delivery', 'delivered'] as $step) {
+            $this->actingAs($admin, 'web')->post(route('admin.shipments.step', $orderId), ['step' => $step,
+                'confirmation_contact' => 'Solex', 'confirmation_reference' => 'SLX-9', 'confirmation_channel' => 'phone'])->assertSessionHasNoErrors();
+        }
+        $this->actingAs($courier, 'sanctum')->getJson('/api/v1/delivery/pending')->assertJsonCount(0, 'requests');
+        $this->postJson("/api/v1/delivery/{$orderId}/accept")->assertStatus(422);
         $buyerView = $this->actingAs($client, 'sanctum')->getJson("/api/v1/orders/{$orderId}")->json('order');
-        $this->assertFalse($buyerView['delivery']['can_confirm_reception']);
-        $this->assertNotEmpty($buyerView['confirmation_code']);
-
-        $this->actingAs($courier, 'sanctum')->postJson("/api/v1/delivery/{$orderId}/accept")->assertOk();
-        $this->actingAs($courier, 'sanctum')
-            ->postJson("/api/v1/delivery/{$orderId}/complete", ['confirmation_code' => $buyerView['confirmation_code']])
-            ->assertOk();
-
+        $this->assertTrue($buyerView['delivery']['can_confirm_reception']);
+        $this->assertEmpty($buyerView['confirmation_code'] ?? null);
+        $this->postJson("/api/v1/orders/{$orderId}/confirm-reception")->assertOk();
         $this->assertSame('delivered', Order::find($orderId)->status);
         $this->assertSame(
-            ['pending', 'confirmed', 'handed_to_carrier', 'arrived', 'out_for_delivery', 'delivered'],
+            ['pending', 'confirmed', 'handed_to_carrier', 'arrived', 'out_for_delivery', 'delivered', 'reception_confirmed'],
             Order::find($orderId)->trackingEvents->pluck('step')->all()
         );
     }

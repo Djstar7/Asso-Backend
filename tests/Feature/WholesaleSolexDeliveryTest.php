@@ -118,7 +118,7 @@ class WholesaleSolexDeliveryTest extends TestCase
         $this->assertEquals(1789, $moto['delivery_price']);
     }
 
-    public function test_douala_buyer_pays_import_and_solex_then_a_solex_courier_delivers_from_the_hub(): void
+    public function test_douala_buyer_pays_import_and_solex_then_asso_tracks_the_partner_from_the_hub(): void
     {
         $orderId = $this->order([
             'delivery_company_id' => $this->grid->deliverer_company_id,
@@ -137,7 +137,7 @@ class WholesaleSolexDeliveryTest extends TestCase
         // SOLEX est payé de sa course seulement, pas du trajet depuis la Chine.
         $this->assertEquals(1789, (float) $order->base_delivery_price);
         $this->assertSame($this->grid->deliverer_company_id, $order->delivery_company_id);
-        $this->assertSame('arrived_hub', $order->lastMileStep());
+        $this->assertTrue($order->hasLastMileDelivery());
 
         $buyerView = $this->actingAs($this->buyer, 'sanctum')->getJson("/api/v1/orders/{$orderId}")->json('order');
         $this->assertSame('Expédition Chine → Douala (Bateau)', $buyerView['delivery']['import_leg']['label']);
@@ -159,27 +159,24 @@ class WholesaleSolexDeliveryTest extends TestCase
         $order->items()->update(['seller_id' => $this->hub->user_id]);
         $asso = $this->hub->user;
         $this->actingAs($asso, 'sanctum')->postJson("/api/v1/vendor/orders/{$orderId}/validate")->assertOk();
-        $this->actingAs($asso, 'sanctum')->postJson("/api/v1/vendor/orders/{$orderId}/hand-to-carrier", ['carrier_tracking_number' => 'MSK-1'])->assertOk();
-        $this->actingAs($asso, 'sanctum')->postJson("/api/v1/vendor/orders/{$orderId}/tracking", ['step' => 'customs'])->assertOk();
+        $transactionsBeforeHandover = \App\Models\WalletTransaction::count();
+        $admin = User::factory()->create(['role' => 'admin']);
+        foreach (['handed_to_carrier', 'in_transit', 'customs', 'arrived_hub'] as $step) {
+            $this->actingAs($admin, 'web')->post(route('admin.shipments.step', $order), ['step' => $step, 'carrier_tracking_number' => 'MSK-1'])->assertSessionHasNoErrors();
+        }
         $this->actingAs($courier, 'sanctum')->getJson('/api/v1/delivery/pending')->assertJsonCount(0, 'requests');
-
-        $this->actingAs($asso, 'sanctum')->postJson("/api/v1/vendor/orders/{$orderId}/tracking", ['step' => 'arrived_hub'])->assertOk();
-        $request = $this->actingAs($courier, 'sanctum')->getJson('/api/v1/delivery/pending')
-            ->assertJsonCount(1, 'requests')->json('requests.0');
-        // Le coursier retire le colis à l'entrepôt ASSO, pas dans une agence SOLEX.
-        $this->assertSame('shop', $request['pickup']['kind']);
-        $this->assertSame(ImportHub::NAME, $request['pickup']['name']);
-
-        // L'acheteur ne confirme pas lui-même : il donne son code au coursier.
         $buyerView = $this->actingAs($this->buyer, 'sanctum')->getJson("/api/v1/orders/{$orderId}")->json('order');
         $this->assertFalse($buyerView['delivery']['can_confirm_reception']);
         $this->assertSame("Arrivé à l'entrepôt ASSO de Douala", $buyerView['delivery']['tracking_status_label']);
-
-        $this->actingAs($courier, 'sanctum')->postJson("/api/v1/delivery/{$orderId}/accept")->assertOk();
-        $this->actingAs($courier, 'sanctum')
-            ->postJson("/api/v1/delivery/{$orderId}/complete", ['confirmation_code' => $buyerView['confirmation_code']])
-            ->assertOk();
+        foreach (['pickup_requested', 'pickup_accepted', 'collected_by_carrier', 'out_for_delivery', 'delivered'] as $step) {
+            $this->actingAs($admin, 'web')->post(route('admin.shipments.step', $order), ['step' => $step,
+                'confirmation_contact' => 'Solex', 'confirmation_reference' => 'SLX-1', 'confirmation_channel' => 'phone'])->assertSessionHasNoErrors();
+        }
+        $this->actingAs($courier, 'sanctum')->getJson('/api/v1/delivery/pending')->assertJsonCount(0, 'requests');
+        $this->postJson("/api/v1/delivery/{$orderId}/accept")->assertStatus(422);
         $this->assertSame('delivered', $order->fresh()->status);
+        $this->assertDatabaseCount('wallet_transactions', $transactionsBeforeHandover);
+        $this->actingAs($this->buyer, 'sanctum')->postJson("/api/v1/orders/{$orderId}/confirm-reception")->assertOk();
     }
 
     public function test_shipping_option_priced_in_another_currency_is_converted_to_xaf(): void
@@ -240,7 +237,7 @@ class WholesaleSolexDeliveryTest extends TestCase
         $this->assertEquals(15000 + $offer['delivery_price'], (float) $order->delivery_fee);
         $this->assertSame($route->id, $order->delivery_route_id);
         // Retrait en agence SOLEX de Yaoundé : l'acheteur confirme lui-même la réception.
-        $this->assertNull($order->lastMileStep());
+        $this->assertTrue($order->isAgencyPickup());
     }
 
     public function test_tier_weight_counts_for_each_ordered_unit(): void

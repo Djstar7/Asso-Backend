@@ -396,35 +396,23 @@ class OrderController extends Controller
     }
 
     /**
-     * L'acheteur confirme avoir reçu son colis (transporteur : retrait en agence ou
-     * livraison DHL/FedEx). Les livraisons urbaines se clôturent par le code à 6 chiffres.
+     * L'acheteur confirme la remise transporteur déjà enregistrée par ASSO,
+     * à domicile ou en agence, sans redémarrer la fenêtre de contrôle.
      *
      * POST /api/v1/orders/{id}/confirm-reception
      */
     public function confirmReception(Request $request, $id)
     {
-        $order = Order::where('user_id', $request->user()->id)
-            ->where('delivery_mode', Order::DELIVERY_CARRIER)
-            ->whereNull('delivery_zone_id') // à domicile : clôture par le code du coursier
-            ->whereNull('delivery_city_grid_id')
-            ->where('status', 'shipped')
-            ->findOrFail($id);
-
-        // Commande avec acompte : retrait confirmé seulement une fois le solde payé.
-        if (!$order->canBeHandedOver()) {
-            return response()->json(['success' => false, 'message' => __('orders.balance_due_before_handover')], 422);
-        }
-
-        DB::transaction(function () use ($order, $request) {
-            $order->update([
-                'status' => 'delivered',
-                'delivered_at' => now(),
-                'confirmed_by_client_at' => now(),
-                'confirmation_code' => null,
-            ]);
+        $order = DB::transaction(function () use ($request, $id) {
+            $order = Order::where('user_id', $request->user()->id)->lockForUpdate()->findOrFail($id);
+            if (!$order->canConfirmReception()) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['order' => __('shipment.reception_unavailable')]);
+            }
+            $order->update(['confirmed_by_client_at' => now()]);
             app(\App\Services\OrderTrackingService::class)->record(
-                $order, 'delivered', null, "Réception confirmée par l'acheteur", 'buyer', $request->user()->id,
+                $order, 'reception_confirmed', null, null, 'buyer', $request->user()->id,
             );
+            return $order;
         });
 
         $this->notifySellersLocalized(
@@ -672,7 +660,7 @@ class OrderController extends Controller
         // Code de confirmation : livraison urbaine en cours uniquement (le transporteur
         // ne le demande pas, l'acheteur confirme lui-même la réception).
         // Commande avec acompte : le code n'est remis qu'une fois le solde payé.
-        if ($order->status === 'shipped' && (!$order->isCarrierDelivery() || $order->hasLastMileDelivery())
+        if ($order->status === 'shipped' && !$order->isCarrierDelivery()
             && $order->canBeHandedOver()) {
             $data['confirmation_code'] = $order->confirmation_code;
         }

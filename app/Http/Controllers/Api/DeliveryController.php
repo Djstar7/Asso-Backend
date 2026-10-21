@@ -41,6 +41,7 @@ class DeliveryController extends Controller
         // Commandes assignées directement à ce livreur
         $directOrders = Order::with(['items.product.primaryImage', 'items.product.shop', 'user', 'deliveryCompany'])
             ->where('delivery_person_id', $user->id)
+            ->where('delivery_mode', Order::DELIVERY_LOCAL)
             ->whereIn('status', ['preparing', 'confirmed'])
             ->orderBy('created_at', 'desc')
             ->get();
@@ -55,11 +56,8 @@ class DeliveryController extends Controller
             $companyOrders = Order::with(['items.product.primaryImage', 'items.product.shop', 'user', 'deliveryCompany'])
                 ->whereIn('delivery_company_id', $companyIds)
                 ->whereNull('delivery_person_id')
-                ->where(fn ($q) => $q
-                    ->where(fn ($l) => $l->where('delivery_mode', Order::DELIVERY_LOCAL)->where('status', 'confirmed'))
-                    // Transporteur : dernier kilomètre une fois le colis arrivé à l'agence
-                    // (ou à l'entrepôt ASSO de Douala pour un import livré dans Douala).
-                    ->orWhere(fn ($c) => $c->readyForLastMile()))
+                ->where('delivery_mode', Order::DELIVERY_LOCAL)
+                ->where('status', 'confirmed')
                 ->orderBy('created_at', 'desc')
                 ->get();
         }
@@ -96,9 +94,8 @@ class DeliveryController extends Controller
                                  ->whereNull('delivery_person_id');
                           });
                     })
-                    ->where(fn ($q) => $q
-                        ->where(fn ($l) => $l->where('delivery_mode', Order::DELIVERY_LOCAL)->whereIn('status', ['confirmed', 'preparing']))
-                        ->orWhere(fn ($c) => $c->readyForLastMile()))
+                    ->where('delivery_mode', Order::DELIVERY_LOCAL)
+                    ->whereIn('status', ['confirmed', 'preparing'])
                     ->findOrFail($id);
 
                 // Plafond de courses simultanées : le coursier ne transporte pas
@@ -214,6 +211,7 @@ class DeliveryController extends Controller
 
         $order = Order::with(['items.seller', 'user'])
             ->where('delivery_person_id', $user->id)
+            ->where('delivery_mode', Order::DELIVERY_LOCAL)
             ->where('status', 'shipped')
             ->findOrFail($id);
 
@@ -359,6 +357,7 @@ class DeliveryController extends Controller
 
         $orders = Order::with(['items.product.primaryImage', 'user', 'deliveryCompany'])
             ->where('delivery_person_id', $user->id)
+            ->where('delivery_mode', Order::DELIVERY_LOCAL)
             ->where('status', 'shipped')
             ->orderBy('shipped_at', 'desc')
             ->get();

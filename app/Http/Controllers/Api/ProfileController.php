@@ -520,6 +520,7 @@ class ProfileController extends Controller
 
         // 1. Commandes assignées directement à ce livreur
         $directOrders = \App\Models\Order::where('delivery_person_id', $user->id)
+            ->where('delivery_mode', \App\Models\Order::DELIVERY_LOCAL)
             ->with(['items.product.primaryImage', 'user', 'deliveryCompany'])
             ->orderBy('created_at', 'desc')
             ->get();
@@ -554,6 +555,7 @@ class ProfileController extends Controller
         $companyOrders = collect();
         if ($companyIds->isNotEmpty()) {
             $companyOrders = \App\Models\Order::whereIn('delivery_company_id', $companyIds)
+                ->where('delivery_mode', \App\Models\Order::DELIVERY_LOCAL)
                 ->whereNull('delivery_person_id')
                 ->where('status', 'confirmed')
                 ->with(['items.product.primaryImage', 'user', 'deliveryCompany'])
