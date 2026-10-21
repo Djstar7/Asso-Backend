@@ -568,12 +568,12 @@
                     <a href="{{ route('admin.maritime.index') }}"
                        class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.maritime.index', 'admin.maritime.partners.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <i class="fas fa-ship w-5 mr-3"></i>
-                        Maritime : partenaires
+                        Transport : partenaires
                     </a>
                     <a href="{{ route('admin.maritime.bookings.index') }}"
                        class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.maritime.bookings.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <i class="fas fa-boxes w-5 mr-3"></i>
-                        Maritime : envois
+                        Transport : envois
                     </a>
                     @endadminCan
 

@@ -135,6 +135,7 @@ class MaritimeController extends Controller
             'countries' => CountryCode::NAMES,
             'settings' => $this->settings(),
             'walletBalance' => $partner->account?->kpayAvailableFor('XAF') ?? 0.0,
+            'freightRates' => \App\Models\PartnerFreightRate::where('deliverer_company_id', $partner->id)->orderBy('transport_mode')->orderBy('cargo_category')->get(),
         ]);
     }
 
@@ -226,6 +227,7 @@ class MaritimeController extends Controller
     public function storeDeparture(Request $request, DelivererCompany $partner)
     {
         $this->ensureMaritime($partner);
+        $profile = $this->prepareFreightRate($request, $partner);
         $hubIds = $partner->maritimeHubs()->pluck('id')->all();
 
         $data = $request->validate([
@@ -238,13 +240,14 @@ class MaritimeController extends Controller
             'price' => 'required|numeric|min:0.01',
             'currency' => 'required|string|size:3',
             'notes' => 'nullable|string|max:2000',
+            'occurrences' => 'nullable|integer|min:1|max:26',
         ], [
             'origin_hub_id.in' => 'Choisissez un QG de ce partenaire.',
             'destination_hub_id.in' => 'Choisissez un QG de ce partenaire.',
         ]);
 
         $perCbm = $data['pricing_unit'] === 'cbm';
-        MaritimeDeparture::create([
+        $attributes = [
             'deliverer_company_id' => $partner->id,
             'origin_hub_id' => $data['origin_hub_id'],
             'destination_hub_id' => $data['destination_hub_id'],
@@ -259,71 +262,125 @@ class MaritimeController extends Controller
             'currency' => strtoupper($data['currency']),
             'status' => MaritimeDeparture::STATUS_OPEN,
             'notes' => $data['notes'] ?? null,
-        ]);
+            'partner_freight_rate_id' => $profile?->id,
+            'freight_rate_snapshot' => $profile?->snapshot(),
+        ];
+
+        $origin = $partner->maritimeHubs()->find($data['origin_hub_id']);
+        $destination = $partner->maritimeHubs()->find($data['destination_hub_id']);
+        $frequency = $origin->country === 'CN' ? null : ($profile?->frequency_days ?? ($origin->country === 'FR' && mb_strtolower(trim($origin->city)) === 'paris' && $destination->country === 'CM' ? 14 : null));
+        $count = (int) ($data['occurrences'] ?? 1);
+        if ($count > 1 && ! $frequency) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['occurrences' => 'Cette route fonctionne par occasion. Créez chaque départ avec sa date réelle.']);
+        }
+        $attributes['freight_rate_snapshot'] = array_merge($attributes['freight_rate_snapshot'] ?? [], ['frequency_days' => $frequency]);
+        \Illuminate\Support\Facades\DB::transaction(function () use ($attributes, $count, $frequency) {
+            for ($i = 0; $i < $count; $i++) {
+                $shift = $i * ($frequency ?? 0);
+                MaritimeDeparture::create(array_merge($attributes, [
+                    'departure_date' => \Carbon\Carbon::parse($attributes['departure_date'])->addDays($shift),
+                    'estimated_arrival_date' => $attributes['estimated_arrival_date'] ? \Carbon\Carbon::parse($attributes['estimated_arrival_date'])->addDays($shift) : null,
+                ]));
+            }
+        });
 
         return back()->with('success', 'Départ créé et ouvert aux réservations.');
     }
 
     public function updateDeparture(Request $request, MaritimeDeparture $departure)
     {
-        $this->ensureMaritime($departure->company);
-        $hasBookings = $departure->bookings()->exists();
-        $data = $request->validate([
-            'status' => ['required', Rule::in(array_keys(MaritimeDeparture::STATUSES))],
-            'capacity_kg' => 'required|numeric|min:1',
-            'estimated_arrival_date' => [
-                'nullable',
-                'date',
-                $hasBookings
-                    ? 'after:'.$departure->departure_date->toDateString()
-                    : 'after:departure_date',
-            ],
-            'notes' => 'nullable|string|max:2000',
-            ...($hasBookings ? [] : [
-                'origin_hub_id' => ['required', Rule::in($departure->company->maritimeHubs()->pluck('id')->all())],
-                'destination_hub_id' => ['required', Rule::in($departure->company->maritimeHubs()->pluck('id')->all()), 'different:origin_hub_id'],
-                'departure_date' => 'required|date',
-                'pricing_unit' => 'required|in:cbm,kg',
-                'price' => 'required|numeric|min:0.01',
-                'currency' => 'required|string|size:3',
-            ]),
-        ], [
-            'origin_hub_id.in' => 'Choisissez un QG de ce partenaire.',
-            'destination_hub_id.in' => 'Choisissez un QG de ce partenaire.',
-        ]);
+        return \Illuminate\Support\Facades\DB::transaction(function () use ($request, $departure) {
+            $departure = MaritimeDeparture::whereKey($departure->id)->lockForUpdate()->firstOrFail();
+            $this->ensureMaritime($departure->company);
+            $hasBookings = $departure->bookings()->exists();
+            $profile = ! $hasBookings ? $this->prepareFreightRate($request, $departure->company) : null;
+            $data = $request->validate([
+                'status' => ['required', Rule::in(array_keys(MaritimeDeparture::STATUSES))],
+                'capacity_kg' => 'required|numeric|min:1',
+                'estimated_arrival_date' => [
+                    'nullable',
+                    'date',
+                    $hasBookings
+                        ? 'after:'.$departure->departure_date->toDateString()
+                        : 'after:departure_date',
+                ],
+                'notes' => 'nullable|string|max:2000',
+                ...($hasBookings ? [] : [
+                    'origin_hub_id' => ['required', Rule::in($departure->company->maritimeHubs()->pluck('id')->all())],
+                    'destination_hub_id' => ['required', Rule::in($departure->company->maritimeHubs()->pluck('id')->all()), 'different:origin_hub_id'],
+                    'departure_date' => 'required|date',
+                    'pricing_unit' => 'required|in:cbm,kg',
+                    'price' => 'required|numeric|min:0.01',
+                    'currency' => 'required|string|size:3',
+                ]),
+            ], [
+                'origin_hub_id.in' => 'Choisissez un QG de ce partenaire.',
+                'destination_hub_id.in' => 'Choisissez un QG de ce partenaire.',
+            ]);
 
-        // La capacité ne descend pas sous les kilos déjà réservés.
-        $booked = (float) $departure->capacity_kg - (float) $departure->remaining_kg;
-        if ((float) $data['capacity_kg'] < $booked) {
-            return back()->with('error', "Capacité inférieure aux {$booked} kg déjà réservés.");
-        }
+            // La capacité ne descend pas sous les kilos déjà réservés.
+            $booked = (float) $departure->capacity_kg - (float) $departure->remaining_kg;
+            if ((float) $data['capacity_kg'] < $booked) {
+                return back()->with('error', "Capacité inférieure aux {$booked} kg déjà réservés.");
+            }
 
-        $updates = [
-            'status' => $data['status'],
-            'estimated_arrival_date' => $data['estimated_arrival_date'],
-            'capacity_kg' => $data['capacity_kg'],
-            'remaining_kg' => (float) $data['capacity_kg'] - $booked,
-            'notes' => $data['notes'] ?? null,
-        ];
-
-        if (! $hasBookings) {
-            $perCbm = $data['pricing_unit'] === 'cbm';
-            $updates += [
-                'origin_hub_id' => $data['origin_hub_id'],
-                'destination_hub_id' => $data['destination_hub_id'],
-                'departure_date' => $data['departure_date'],
-                'price_per_cbm' => $perCbm ? $data['price'] : null,
-                'kg_per_cbm' => $perCbm ? MaritimeDeparture::KG_PER_CBM : null,
-                'price_per_kg' => $perCbm
-                    ? round($data['price'] / MaritimeDeparture::KG_PER_CBM, 2)
-                    : $data['price'],
-                'currency' => strtoupper($data['currency']),
+            $updates = [
+                'status' => $data['status'],
+                'estimated_arrival_date' => $data['estimated_arrival_date'],
+                'capacity_kg' => $data['capacity_kg'],
+                'remaining_kg' => (float) $data['capacity_kg'] - $booked,
+                'notes' => $data['notes'] ?? null,
             ];
+
+            if (! $hasBookings) {
+                $perCbm = $data['pricing_unit'] === 'cbm';
+                $updates += [
+                    'origin_hub_id' => $data['origin_hub_id'],
+                    'destination_hub_id' => $data['destination_hub_id'],
+                    'departure_date' => $data['departure_date'],
+                    'price_per_cbm' => $perCbm ? $data['price'] : null,
+                    'kg_per_cbm' => $perCbm ? MaritimeDeparture::KG_PER_CBM : null,
+                    'price_per_kg' => $perCbm
+                        ? round($data['price'] / MaritimeDeparture::KG_PER_CBM, 2)
+                        : $data['price'],
+                    'currency' => strtoupper($data['currency']),
+                    'partner_freight_rate_id' => $profile?->id,
+                    'freight_rate_snapshot' => $profile?->snapshot() ?? $departure->freight_rate_snapshot,
+                ];
+            }
+
+            $departure->update($updates);
+
+            return back()->with('success', 'Départ mis à jour.');
+        });
+    }
+
+    private function prepareFreightRate(Request $request, DelivererCompany $partner): ?\App\Models\PartnerFreightRate
+    {
+        if (! $request->filled('partner_freight_rate_id')) {
+            return null;
+        }
+        $request->validate(['partner_freight_rate_id' => 'required|integer', 'departure_date' => 'required|date']);
+        $rate = \App\Models\PartnerFreightRate::where('deliverer_company_id', $partner->id)
+            ->where('is_active', true)->find($request->input('partner_freight_rate_id'));
+        if (! $rate) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['partner_freight_rate_id' => 'Choisissez un tarif actif de ce partenaire.']);
+        }
+        $origin = $partner->maritimeHubs()->where('is_active', true)->find($request->input('origin_hub_id'));
+        $destination = $partner->maritimeHubs()->where('is_active', true)->find($request->input('destination_hub_id'));
+        if ($origin?->country !== $rate->origin_country || $destination?->country !== $rate->destination_country) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['partner_freight_rate_id' => 'Les pays des QG doivent correspondre à la route du tarif.']);
+        }
+        $request->merge([
+            'pricing_unit' => $rate->rate_unit,
+            'price' => $rate->rate_amount,
+            'currency' => $rate->currency,
+        ]);
+        if (! $request->filled('estimated_arrival_date')) {
+            $request->merge(['estimated_arrival_date' => \Carbon\Carbon::parse($request->input('departure_date'))->addDays($rate->transit_days_max)->toDateString()]);
         }
 
-        $departure->update($updates);
-
-        return back()->with('success', 'Départ mis à jour.');
+        return $rate;
     }
 
     public function destroyDeparture(MaritimeDeparture $departure)

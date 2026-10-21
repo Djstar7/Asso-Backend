@@ -1,4 +1,21 @@
 {
+  "transport": {"destination_country_mismatch": "Le pays du destinataire doit correspondre au pays du QG d’arrivée."},
+  "landlord_upload": {
+    "id_document_type": "Choisissez une CNI ou un passeport.",
+    "id_front": "Ajoutez le recto de votre pièce d’identité (image de 8 Mo maximum).",
+    "id_back": "Ajoutez le verso de votre CNI (image de 8 Mo maximum).",
+    "ownership_proof_type": "Choisissez un type de preuve de propriété.",
+    "ownership_proof": "Ajoutez votre preuve de propriété (JPG, PNG, WebP ou PDF, 10 Mo maximum).",
+    "video": "Ajoutez une vidéo MP4, MOV, 3GP ou WebM de 100 Mo maximum.",
+    "id_size": "Cette photo dépasse 8 Mo. Choisissez une image plus légère.",
+    "proof_size": "Ce document dépasse 10 Mo. Choisissez un fichier plus léger.",
+    "video_size": "Cette vidéo dépasse 100 Mo. Réduisez sa taille ou enregistrez une vidéo plus courte.",
+    "read_failed": "Impossible de lire ce fichier. Sélectionnez-le à nouveau.",
+    "store_failed": "Impossible d’enregistrer ce fichier sur le serveur. Réessayez.",
+    "server": "Le serveur n’a pas pu enregistrer vos pièces. Vos fichiers sont conservés dans ce formulaire ; réessayez dans quelques instants.",
+    "network": "L’envoi n’a pas abouti. Vérifiez votre connexion puis réessayez.",
+    "too_large": "Le serveur refuse la taille totale des fichiers. Réduisez la taille de la vidéo et des photos puis réessayez."
+  },
     "auth": {
         "failed": "Ces identifiants ne correspondent pas à nos enregistrements.",
         "password": "Le mot de passe fourni est incorrect.",
@@ -264,6 +281,8 @@
         "identity_required_to_create_offer": "Votre identité doit être vérifiée pour créer une offre.",
         "offer_created": "Offre créée",
         "offer_updated": "Offre mise à jour",
+        "arrival_after_departure": "La date d'arrivée doit être postérieure à la date de départ.",
+        "capacity_below_committed": "La capacité totale ne peut pas être inférieure aux :kg kg déjà engagés dans les réservations.",
         "offer_delete_has_bookings": "Impossible de supprimer : des réservations sont en cours.",
         "offer_deleted": "Offre supprimée",
         "cannot_book_own_offer": "Vous ne pouvez pas réserver votre propre offre.",
@@ -327,8 +346,10 @@
             "validation": {
                 "country_required": "Indiquez le pays de votre banque.",
                 "country_size": "Le pays s’écrit avec 2 lettres (ex. FR, BE, DE).",
+                "country_iban_mismatch": "Le pays indiqué ne correspond pas au pays de l’IBAN.",
                 "iban_required": "Saisissez votre IBAN.",
                 "iban_format": "L’IBAN doit commencer par 2 lettres et 2 chiffres, suivis de 11 à 30 lettres ou chiffres (ex. FR76 3000…).",
+                "iban_checksum": "La clé de contrôle de cet IBAN est invalide. Vérifiez les caractères saisis.",
                 "holder_required": "Indiquez le nom du titulaire du compte, tel qu’il figure sur votre RIB.",
                 "holder_max": "Le nom du titulaire est trop long (255 caractères au plus).",
                 "birth_date_required": "Choisissez votre date de naissance.",

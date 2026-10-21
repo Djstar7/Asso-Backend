@@ -28,17 +28,18 @@ class OrderController extends Controller
         $query = Order::with(['items.product.primaryImage', 'items.product.images', 'items.seller', 'deliveryPerson', 'deliveryCompany', 'rating', 'trackingEvents', 'disputes'])
             ->where('user_id', $request->user()->id);
 
-        // Masquer les commandes payées par un rail DIRECT (KPay/PayPal/carte) dont le
+        // Masquer les commandes locales payées par un rail DIRECT (KPay/PayPal/carte) dont le
         // paiement n'a PAS encore abouti : elles ne doivent apparaître qu'une fois payées.
-        // (Les commandes wallet sont 'paid' d'emblée ; les directes le deviennent au succès.)
+        // Les imports restent visibles à l'étape « Paiement en attente », comme dans l'admin.
         $query->where(function ($q) {
             $q->where('payment_status', '!=', 'pending')
-              ->orWhereNotIn('payment_method', ['kpay_direct', 'paypal_direct', 'stripe_direct']);
+              ->orWhereNotIn('payment_method', ['kpay_direct', 'paypal_direct', 'stripe_direct'])
+              ->orWhere('is_wholesale', true);
         });
 
         // Filter by status
         if ($request->has('status') && $request->status) {
-            $query->where('status', $request->status);
+            \App\Support\CustomerOrderProgress::apply($query, $request->status);
         }
 
         $orders = $query->orderBy('created_at', 'desc')
@@ -572,6 +573,10 @@ class OrderController extends Controller
             'id' => $order->id,
             'order_number' => $order->order_number,
             'status' => $order->status,
+            'is_wholesale' => (bool) $order->is_wholesale,
+            'wholesale_stage' => $order->is_wholesale ? \App\Support\WholesaleOrderStage::of($order) : null,
+            'has_local_products' => (bool) $order->has_local_products,
+            'progress' => \App\Support\CustomerOrderProgress::forOrder($order),
             'subtotal' => (float) $order->subtotal,
             'delivery_fee' => (float) $order->delivery_fee,
             // Import en gros : part du trajet jusqu'à Douala dans les frais de livraison.
@@ -593,9 +598,10 @@ class OrderController extends Controller
                 'variant_id' => $item->product_variant_id,
                 'variant_attributes' => $item->variant_attributes,
                 'product_name' => $item->product->name ?? 'Produit supprimé',
-                'product_image' => $item->product?->primaryImage
-                    ? media_url($item->product->primaryImage->image_path)
-                    : null,
+                'product_image' => media_url(
+                    $item->product?->primaryImage?->image_path
+                    ?: $item->product?->images->first(fn ($image) => filled($image->image_path))?->image_path
+                ),
                 'quantity' => $item->quantity,
                 'unit_price' => (float) $item->unit_price,
                 'total_price' => (float) $item->total_price,

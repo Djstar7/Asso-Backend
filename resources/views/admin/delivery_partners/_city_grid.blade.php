@@ -17,6 +17,8 @@
             @foreach($grid->zones as $zone)
                 @php $quarters = \App\Models\DeliveryCityGrid::quartersOf($zone); @endphp
                 <div class="p-3 bg-dark-50 rounded-lg border border-dark-300" data-zone="{{ $zone['code'] }}">
+                    {{-- Transmettre la zone même sans quartier ou après retrait du dernier quartier. --}}
+                    <input type="hidden" name="zones[{{ $zone['code'] }}][code]" value="{{ $zone['code'] }}">
                     <div class="flex items-center justify-between mb-2">
                         <span class="text-white text-sm font-medium">
                             <span class="inline-block w-3 h-3 rounded-full mr-1 align-middle zone-color" data-zone-color="{{ $zone['code'] }}"></span>

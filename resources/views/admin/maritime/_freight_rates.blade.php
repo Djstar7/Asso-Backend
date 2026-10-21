@@ -1,0 +1,56 @@
+<div class="bg-dark-100 rounded-xl border border-dark-200 p-6 mb-6">
+    <h2 class="text-lg font-semibold text-white mb-2">Tarifs internationaux du partenaire</h2>
+    <p class="text-sm text-gray-400 mb-4">Renseignez une ligne par route, mode et catégorie. L'échéance est celle annoncée par le partenaire ; l'encaissement et le reversement dans ASSO suivent le circuit habituel. Les tarifs sont repris à la création d'un départ, sans modifier les envois déjà réservés.</p>
+    @foreach($freightRates->concat([null]) as $rate)
+        <details class="mb-4 border border-dark-200 rounded-lg p-3" @if(!$rate) open @endif>
+            <summary class="cursor-pointer text-white font-medium">
+                @if($rate)
+                    {{ $rate->origin_country }} → {{ $rate->destination_country }} · {{ $rate->transport_mode === 'sea' ? 'Maritime' : 'Aérien' }} · {{ $rate->cargo_category === 'sensitive' ? 'Colis sensible' : 'Colis général' }} : {{ number_format($rate->rate_amount, 0, ',', ' ') }} {{ $rate->currency }}/{{ $rate->rate_unit === 'cbm' ? 'CBM' : 'kg' }} · {{ $rate->transit_days_min }}–{{ $rate->transit_days_max }} jours
+                @else
+                    Ajouter un tarif
+                @endif
+            </summary>
+            <form method="POST" action="{{ $rate ? route('admin.maritime.freight-rates.update', [$partner, $rate]) : route('admin.maritime.freight-rates.store', $partner) }}" class="grid grid-cols-1 md:grid-cols-4 gap-3 mt-4">
+                @csrf
+                @if($rate) @method('PUT') @endif
+                @foreach(['origin_country' => 'Pays de départ', 'destination_country' => "Pays d’arrivée"] as $field => $label)
+                    <label class="text-sm text-gray-300">{{ $label }}
+                        <select name="{{ $field }}" required class="{{ $input }}" @disabled($rate)>
+                            @foreach($countries as $code => $name)<option value="{{ $code }}" @selected(($rate?->$field ?? old($field, $field === 'origin_country' ? 'CN' : 'CM')) === $code)>{{ $name }}</option>@endforeach
+                        </select>
+                        @error($field)<span class="text-red-400">{{ $message }}</span>@enderror
+                    </label>
+                @endforeach
+                @foreach(['transport_mode' => ['Mode', ['sea' => 'Maritime', 'air' => 'Aérien']], 'cargo_category' => ['Catégorie du colis', ['general' => 'Général', 'sensitive' => 'Sensible']], 'rate_unit' => ['Unité de facturation', ['cbm' => 'CBM (m³)', 'kg' => 'Kilogramme']], 'currency' => ['Devise', ['XAF' => 'FCFA (XAF)', 'EUR' => 'EUR', 'USD' => 'USD', 'CNY' => 'CNY', 'CAD' => 'CAD', 'GBP' => 'GBP']], 'freight_payment_timing' => ['Échéance du fret partenaire', ['departure' => 'Au départ', 'arrival' => "À l’arrivée à l’entrepôt"]]] as $field => [$label, $choices])
+                    <label class="text-sm text-gray-300">{{ $label }}
+                        <select name="{{ $field }}" required class="{{ $input }}" @disabled($rate && in_array($field, ['transport_mode', 'cargo_category']))>
+                            @foreach($choices as $value => $name)<option value="{{ $value }}" @selected(($rate?->$field ?? old($field, array_key_first($choices))) === $value)>{{ $name }}</option>@endforeach
+                        </select>
+                        @error($field)<span class="text-red-400">{{ $message }}</span>@enderror
+                    </label>
+                @endforeach
+                @foreach(['rate_amount' => 'Coût partenaire par unité', 'transit_days_min' => 'Délai minimum (jours)', 'transit_days_max' => 'Délai maximum (jours)'] as $field => $label)
+                    <label class="text-sm text-gray-300">{{ $label }}
+                        <input type="number" name="{{ $field }}" min="{{ $field === 'rate_amount' ? '0.01' : '1' }}" step="{{ $field === 'rate_amount' ? '0.01' : '1' }}" value="{{ $rate?->$field ?? old($field) }}" required class="{{ $input }}">
+                        @error($field)<span class="text-red-400">{{ $message }}</span>@enderror
+                    </label>
+                @endforeach
+                <label class="text-sm text-gray-300">Prix client par unité (facultatif)
+                    <input type="number" step="0.01" min="0.01" name="public_rate_amount" value="{{ $rate?->public_rate_amount ?? old('public_rate_amount') }}" class="{{ $input }}">
+                    <span class="text-xs text-gray-400">Laisser vide pour appliquer la commission habituelle. Sinon, la marge ASSO est la différence entre prix client et coût partenaire.</span>
+                    @error('public_rate_amount')<span class="text-red-400">{{ $message }}</span>@enderror
+                </label>
+                <label class="text-sm text-gray-300">Fréquence (jours, facultative)
+                    <input type="number" min="1" max="365" name="frequency_days" value="{{ $rate?->frequency_days ?? old('frequency_days') }}" placeholder="Vide = par occasion" class="{{ $input }}">
+                    <span class="text-xs text-gray-400">Paris → Cameroun : 14 jours. Chine → Cameroun : par occasion.</span>
+                    @error('frequency_days')<span class="text-red-400">{{ $message }}</span>@enderror
+                </label>
+                <label class="text-sm text-gray-300 md:col-span-4">Conditions / précisions
+                    <textarea name="notes" maxlength="3000" class="{{ $input }}">{{ $rate?->notes ?? old('notes') }}</textarea>
+                </label>
+                @if($rate)<label class="text-gray-300"><input type="checkbox" name="is_active" value="1" @checked($rate->is_active)> Tarif actif</label>@endif
+                <button class="{{ $btn }}" type="submit">Enregistrer le tarif</button>
+            </form>
+        </details>
+    @endforeach
+</div>

@@ -32,7 +32,19 @@ class MaritimeController extends Controller
         $q = MaritimeDeparture::with(['company', 'originHub', 'destinationHub'])
             ->upcoming()
             ->whereHas('company', fn ($c) => $c->where('is_active', true))
+            ->whereHas('originHub', fn ($h) => $h->where('is_active', true)->when(app()->isProduction(), fn ($q) => $q->where('is_demo', false)))
+            ->whereHas('destinationHub', fn ($h) => $h->where('is_active', true)->when(app()->isProduction(), fn ($q) => $q->where('is_demo', false)))
+            ->when(app()->isProduction(), fn ($q) => $q->where('is_demo', false))
             ->orderBy('departure_date');
+
+        if ($mode = $request->query('transport_mode')) {
+            $request->validate(['transport_mode' => 'in:sea,air']);
+            if ($mode === 'sea') {
+                $q->where(fn ($m) => $m->whereNull('freight_rate_snapshot->transport_mode')->orWhere('freight_rate_snapshot->transport_mode', 'sea'));
+            } else {
+                $q->where('freight_rate_snapshot->transport_mode', 'air');
+            }
+        }
 
         if ($country = $request->query('origin_country')) {
             $q->whereHas('originHub', fn ($h) => $h->where('country', strtoupper($country)));
@@ -46,7 +58,7 @@ class MaritimeController extends Controller
         return response()->json([
             'success' => true,
             'data' => [
-                'data' => collect($page->items())->map->toApi()->values(),
+                'data' => collect($page->items())->map(fn ($departure) => $departure->toApi($request->user()?->id))->values(),
                 'current_page' => $page->currentPage(),
                 'last_page' => $page->lastPage(),
                 'total' => $page->total(),
@@ -59,11 +71,15 @@ class MaritimeController extends Controller
     }
 
     /** GET /v1/maritime/departures/{id} */
-    public function showDeparture($id)
+    public function showDeparture(Request $request, $id)
     {
-        $departure = MaritimeDeparture::with(['company', 'originHub', 'destinationHub'])->findOrFail($id);
+        $departure = MaritimeDeparture::with(['company', 'originHub', 'destinationHub'])
+            ->when(app()->isProduction(), fn ($q) => $q->where('is_demo', false)
+                ->whereHas('originHub', fn ($h) => $h->where('is_demo', false))
+                ->whereHas('destinationHub', fn ($h) => $h->where('is_demo', false)))
+            ->findOrFail($id);
 
-        return response()->json(['success' => true, 'data' => $departure->toApi()]);
+        return response()->json(['success' => true, 'data' => $departure->toApi($request->user()?->id)]);
     }
 
     /** POST /v1/maritime/departures/{id}/book */

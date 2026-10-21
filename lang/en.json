@@ -1,4 +1,21 @@
 {
+  "transport": {"destination_country_mismatch": "The recipient country must match the destination hub country."},
+  "landlord_upload": {
+    "id_document_type": "Choose an ID card or passport.",
+    "id_front": "Add the front of your identity document (image up to 8 MB).",
+    "id_back": "Add the back of your ID card (image up to 8 MB).",
+    "ownership_proof_type": "Choose a proof of ownership type.",
+    "ownership_proof": "Add proof of ownership (JPG, PNG, WebP or PDF, up to 10 MB).",
+    "video": "Add an MP4, MOV, 3GP or WebM video up to 100 MB.",
+    "id_size": "This photo exceeds 8 MB. Choose a smaller image.",
+    "proof_size": "This document exceeds 10 MB. Choose a smaller file.",
+    "video_size": "This video exceeds 100 MB. Reduce its size or record a shorter video.",
+    "read_failed": "This file could not be read. Select it again.",
+    "store_failed": "The server could not store this file. Please try again.",
+    "server": "The server could not save your documents. Your files remain in this form; please try again shortly.",
+    "network": "The upload did not complete. Check your connection and try again.",
+    "too_large": "The server rejected the combined file size. Reduce the video and photo sizes and try again."
+  },
     "auth": {
         "failed": "These credentials do not match our records.",
         "password": "The provided password is incorrect.",
@@ -264,6 +281,8 @@
         "identity_required_to_create_offer": "Your identity must be verified to create an offer.",
         "offer_created": "Offer created",
         "offer_updated": "Offer updated",
+        "arrival_after_departure": "Arrival must be after departure.",
+        "capacity_below_committed": "Total capacity cannot be less than the :kg kg already committed to bookings.",
         "offer_delete_has_bookings": "Cannot delete: bookings are in progress.",
         "offer_deleted": "Offer deleted",
         "cannot_book_own_offer": "You cannot book your own offer.",
@@ -327,8 +346,10 @@
             "validation": {
                 "country_required": "Enter your bank's country.",
                 "country_size": "The country is written with 2 letters (e.g. FR, BE, DE).",
+                "country_iban_mismatch": "The selected country does not match the IBAN country.",
                 "iban_required": "Enter your IBAN.",
                 "iban_format": "The IBAN must start with 2 letters and 2 digits, followed by 11 to 30 letters or digits (e.g. FR76 3000…).",
+                "iban_checksum": "This IBAN has an invalid check digit. Check the characters you entered.",
                 "holder_required": "Enter the account holder's name, as shown on your bank details.",
                 "holder_max": "The account holder's name is too long (255 characters max).",
                 "birth_date_required": "Choose your date of birth.",

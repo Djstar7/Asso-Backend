@@ -546,6 +546,7 @@ class ProfileController extends Controller
         // Get all company IDs for this user
         $companyIds = \App\Models\DelivererCodeSync::where('user_id', $user->id)
             ->where('is_active', true)
+            ->where('is_online', true)
             ->where('is_banned', false)
             ->pluck('company_id');
 
@@ -652,6 +653,7 @@ class ProfileController extends Controller
         return response()->json([
             'success' => true,
             'company' => $companyData,
+            'is_online' => (bool) ($activeSync?->is_online ?? false),
             // Le livreur décide d'accepter depuis cet écran : il lui faut les
             // mêmes informations que dans /delivery/pending (lieu d'enlèvement,
             // contenu du colis, délai annoncé), pas seulement l'adresse d'arrivée.

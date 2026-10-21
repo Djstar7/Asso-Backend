@@ -18,6 +18,8 @@ use Stripe\StripeClient;
  */
 class StripeService
 {
+    private const VENDOR_PAYOUT_CURRENCIES = ['eur', 'gbp', 'usd'];
+
     private ?string $secretKey;
     private ?string $publishableKey;
     private ?string $webhookSecret;
@@ -209,23 +211,12 @@ class StripeService
     }
 
     /**
-     * Crée un compte Stripe Connect « Custom-equivalent » pour un vendeur, avec
-     * son IBAN comme compte externe (payout).
+     * Crée un compte Connect bénéficiaire avec Accounts v2, puis attache son IBAN
+     * via l'endpoint v1 d'external accounts, interopérable avec les comptes v2.
      *
-     * On n'utilise PAS le `type: 'custom'` (déprécié pour les nouvelles
-     * intégrations) mais les `controller` properties recommandées, qui décrivent
-     * exactement le même comportement : pas de dashboard Stripe côté vendeur, la
-     * plateforme (ASSO) collecte les informations (KYC) et porte la responsabilité.
-     * Réf. https://docs.stripe.com/connect/migrate-to-controller-properties
-     *
-     * Les données bancaires brutes (IBAN) sont autorisées côté serveur pour ces
-     * comptes contrôlés par la plateforme (hors France/PSD2 où un token est requis).
-     *
-     * ⚠️ Le KYC est OBLIGATOIRE : sans `individual.dob`, `individual.address`,
-     * `individual.phone` et `business_profile{mcc,url}`, Stripe crée bien le compte
-     * mais le laisse en `requirements.past_due` avec `capabilities.transfers=inactive`
-     * — TOUT virement échoue alors (« destination account needs the transfers
-     * capability »). Ces champs sont donc collectés à l'onboarding et envoyés ici.
+     * Le KYC reste envoyé à Stripe. La plateforme porte les responsabilités de
+     * frais et pertes, sans dashboard vendeur. La capacité recipient stripe_balance
+     * est demandée pour permettre les Transfers vers le compte connecté.
      *
      * Le versement est forcé en **manuel** (`settings.payouts.schedule.interval`) :
      * ainsi c'est TOUJOURS nous qui créons le Payout, donc nous connaissons son id et
@@ -240,62 +231,122 @@ class StripeService
     public function createCustomAccountWithBank(array $data): array
     {
         $country = strtoupper($data['country']);
-        $currency = strtolower($data['currency'] ?? $this->defaultCurrencyForCountry($country));
+        $currency = $data['currency'] ?? $this->payoutCurrencyForCountry($country);
+        if (!is_string($currency) || $currency === '') {
+            throw new \DomainException('A supported payout currency is unavailable for this country.');
+        }
+        $currency = strtolower($currency);
         $holder = $data['account_holder_name'];
 
-        $params = [
-            // Controller properties = équivalent moderne d'un compte "Custom".
-            'controller' => [
-                'stripe_dashboard' => ['type' => 'none'],
-                'requirement_collection' => 'application',
-                'losses' => ['payments' => 'application'],
-                'fees' => ['payer' => 'application'],
+        $dob = new \DateTimeImmutable((string) $data['birth_date']);
+        $individual = array_filter([
+            'given_name' => $data['first_name'] ?? null,
+            'surname' => $data['last_name'] ?? null,
+            'phone' => $data['phone'] ?? null,
+            'date_of_birth' => [
+                'day' => (int) $dob->format('j'),
+                'month' => (int) $dob->format('n'),
+                'year' => (int) $dob->format('Y'),
             ],
-            'country' => $country,
-            'email' => $data['email'] ?? null,
-            'business_type' => 'individual',
-            // Stripe exige `card_payments` conjointement à `transfers` dans plusieurs
-            // pays (FR et zone EU notamment) : demander `transfers` seul y échoue.
-            'capabilities' => [
-                'card_payments' => ['requested' => true],
-                'transfers' => ['requested' => true],
-            ],
-            'individual' => $this->individualParams($data, $country),
-            'business_profile' => $this->businessProfileParams(),
-            // Versement manuel : nous seuls créons les Payouts (voir docblock).
-            'settings' => [
-                'payouts' => ['schedule' => ['interval' => 'manual']],
-            ],
-            'external_account' => [
-                'object' => 'bank_account',
-                'country' => $country,
-                'currency' => $currency,
-                'account_holder_name' => $holder,
-                'account_holder_type' => 'individual',
-                'account_number' => $data['iban'],
-            ],
-            'metadata' => array_filter([
-                'asso_user_id' => (string) ($data['user_id'] ?? ''),
+            'address' => array_filter([
+                'line1' => $data['address_line1'] ?? null,
+                'line2' => $data['address_line2'] ?? null,
+                'city' => $data['address_city'] ?? null,
+                'postal_code' => $data['address_postal_code'] ?? null,
+                'state' => $data['address_state'] ?? null,
+                'country' => strtolower($country),
             ]),
+        ]);
+
+        $identity = [
+            'country' => strtolower($country),
+            'entity_type' => 'individual',
+            'individual' => $individual,
         ];
 
-        // requirement_collection=application → la plateforme atteste l'acceptation
-        // du contrat de service Stripe par le vendeur (date + IP de la requête).
         if (!empty($data['tos_ip'])) {
-            $params['tos_acceptance'] = array_filter([
-                'date' => $data['tos_date'] ?? time(),
-                'ip' => $data['tos_ip'],
-            ]);
+            $identity['attestations'] = [
+                'terms_of_service' => [
+                    'account' => [
+                        'date' => date(DATE_ATOM, (int) ($data['tos_date'] ?? time())),
+                        'ip' => $data['tos_ip'],
+                    ],
+                ],
+            ];
         }
 
-        $account = $this->withoutStripeNotices(fn () => $this->client()->accounts->create($params));
+        $account = $this->withoutStripeNotices(fn () => $this->client()->v2->core->accounts->create([
+            'contact_email' => $data['email'] ?? null,
+            'display_name' => $holder,
+            'identity' => $identity,
+            'configuration' => [
+                'recipient' => [
+                    'capabilities' => [
+                        'stripe_balance' => [
+                            'payouts' => ['requested' => true],
+                            'stripe_transfers' => ['requested' => true],
+                        ],
+                    ],
+                ],
+            ],
+            'defaults' => [
+                'currency' => $currency,
+                'responsibilities' => [
+                    'fees_collector' => 'application',
+                    'losses_collector' => 'application',
+                ],
+            ],
+            'dashboard' => 'none',
+            'metadata' => array_filter([
+                'asso_user_id' => (string) ($data['user_id'] ?? ''),
+                'asso_connect_api_version' => 'v2',
+            ]),
+            'include' => ['configuration.recipient', 'identity', 'defaults'],
+        ]));
 
-        $external = $account->external_accounts->data[0] ?? null;
+        $accountId = $account->id;
+
+        // V2 account creation does not accept external bank details in its payload.
+        // Keep using the interoperable v1 endpoint for the bank account and manual
+        // payout schedule used by the existing withdrawal/reconciliation flow.
+        try {
+            $this->withoutStripeNotices(fn () => $this->client()->accounts->update($accountId, [
+                'settings' => ['payouts' => ['schedule' => ['interval' => 'manual']]],
+            ]));
+
+            $bank = $this->withoutStripeNotices(fn () => $this->client()->accounts->createExternalAccount($accountId, [
+                'external_account' => [
+                    'object' => 'bank_account',
+                    'country' => $country,
+                    'currency' => $currency,
+                    'account_holder_name' => $holder,
+                    'account_holder_type' => 'individual',
+                    'account_number' => $data['iban'],
+                ],
+                'default_for_currency' => true,
+            ]));
+        } catch (\Throwable $e) {
+            try {
+                $this->withoutStripeNotices(
+                    fn () => $this->client()->v2->core->accounts->close($accountId)
+                );
+            } catch (\Throwable $cleanupError) {
+                Log::error('[StripeService] Fermeture du compte Connect incomplet échouée', [
+                    'account_id' => $accountId,
+                    'exception' => $cleanupError::class,
+                    'stripe_code' => $cleanupError instanceof \Stripe\Exception\ApiErrorException
+                        ? $cleanupError->getStripeCode()
+                        : null,
+                ]);
+            }
+
+            throw $e;
+        }
 
         return [
-            'id' => $account->id,
-            'external_last4' => $external->last4 ?? substr(preg_replace('/\s+/', '', $data['iban']), -4),
-            'bank_country' => $external->country ?? $country,
+            'id' => $accountId,
+            'external_last4' => $bank->last4 ?? substr(preg_replace('/\s+/', '', $data['iban']), -4),
+            'bank_country' => $bank->country ?? $country,
             'account_holder_name' => $holder,
         ];
     }
@@ -308,7 +359,11 @@ class StripeService
     public function replaceExternalAccount(string $accountId, array $data): array
     {
         $country = strtoupper($data['country']);
-        $currency = strtolower($data['currency'] ?? $this->defaultCurrencyForCountry($country));
+        $currency = $data['currency'] ?? $this->payoutCurrencyForCountry($country);
+        if (!is_string($currency) || $currency === '') {
+            throw new \DomainException('A supported payout currency is unavailable for this country.');
+        }
+        $currency = strtolower($currency);
 
         $bank = $this->withoutStripeNotices(fn () => $this->client()->accounts->createExternalAccount($accountId, [
             'external_account' => [
@@ -326,6 +381,43 @@ class StripeService
             'external_last4' => $bank->last4 ?? substr(preg_replace('/\s+/', '', $data['iban']), -4),
             'bank_country' => $bank->country ?? $country,
         ];
+    }
+
+    /**
+     * Resolve a Stripe-supported bank currency that this application can pay out.
+     *
+     * Country Specs are Stripe's source of truth for bank-account currencies. The
+     * intersection with currencies accepted by payoutToVendor prevents creating an
+     * IBAN that the current withdrawal pipeline cannot pay.
+     */
+    public function payoutCurrencyForCountry(string $country): ?string
+    {
+        $country = strtoupper($country);
+        $spec = $this->withoutStripeNotices(
+            fn () => $this->client()->countrySpecs->retrieve($country)
+        );
+        $supportedCurrencies = $spec->supported_bank_account_currencies ?? [];
+        $supportedCurrencies = $supportedCurrencies instanceof \Stripe\StripeObject
+            ? $supportedCurrencies->toArray()
+            : (array) $supportedCurrencies;
+        $eligibleCurrencies = [];
+        foreach ($supportedCurrencies as $currency => $countries) {
+            $currency = strtolower((string) $currency);
+            if (in_array($currency, self::VENDOR_PAYOUT_CURRENCIES, true)
+                && in_array($country, array_map('strtoupper', (array) $countries), true)) {
+                $eligibleCurrencies[] = $currency;
+            }
+        }
+
+        if ($eligibleCurrencies === []) {
+            return null;
+        }
+
+        $defaultCurrency = strtolower((string) ($spec->default_currency ?? ''));
+
+        return in_array($defaultCurrency, $eligibleCurrencies, true)
+            ? $defaultCurrency
+            : $eligibleCurrencies[0];
     }
 
     /**
@@ -391,21 +483,56 @@ class StripeService
             ]);
         }
 
-        $transfers = (string) ($account->capabilities->transfers ?? 'unknown');
-        $due = array_values(array_unique(array_merge(
-            (array) ($account->requirements->currently_due ?? []),
-            (array) ($account->requirements->past_due ?? []),
-        )));
+        $isV2 = ($account->metadata->asso_connect_api_version ?? null) === 'v2';
+        if ($isV2) {
+            try {
+                $v2Account = $this->withoutStripeNotices(
+                    fn () => $this->client()->v2->core->accounts->retrieve($accountId, [
+                        'include' => ['configuration.recipient', 'identity', 'defaults'],
+                    ])
+                );
+            } catch (\Throwable $e) {
+                Log::warning('[StripeService] Lecture Accounts v2 échouée', [
+                    'account_id' => $accountId,
+                    'exception' => $e::class,
+                    'stripe_code' => $e instanceof \Stripe\Exception\ApiErrorException
+                        ? $e->getStripeCode()
+                        : null,
+                ]);
+
+                return array_merge($unknown, [
+                    'exists' => true,
+                    'error' => 'Connected account status is temporarily unavailable.',
+                ]);
+            }
+            $recipient = $v2Account->configuration->recipient ?? null;
+            $capabilities = $recipient->capabilities->stripe_balance ?? null;
+            $transfers = (string) ($capabilities->stripe_transfers->status ?? 'unknown');
+            $payoutsEnabled = (string) ($capabilities->payouts->status ?? 'unknown') === 'active';
+            $due = array_values(array_unique(array_merge(
+                (array) ($v2Account->requirements->currently_due ?? []),
+                (array) ($v2Account->requirements->past_due ?? []),
+            )));
+            $disabledReason = $v2Account->requirements->disabled_reason ?? null;
+        } else {
+            $transfers = (string) ($account->capabilities->transfers ?? 'unknown');
+            $payoutsEnabled = (bool) ($account->payouts_enabled ?? false);
+            $due = array_values(array_unique(array_merge(
+                (array) ($account->requirements->currently_due ?? []),
+                (array) ($account->requirements->past_due ?? []),
+            )));
+            $disabledReason = $account->requirements->disabled_reason ?? null;
+        }
 
         return [
             'exists' => true,
             'transfers' => $transfers,
-            'payouts_enabled' => (bool) ($account->payouts_enabled ?? false),
+            'payouts_enabled' => $payoutsEnabled,
             'charges_enabled' => (bool) ($account->charges_enabled ?? false),
             'requirements_due' => $due,
-            'disabled_reason' => $account->requirements->disabled_reason ?? null,
+            'disabled_reason' => $disabledReason,
             // `ready` = Stripe accepterait un Transfer + un Payout vers l'IBAN.
-            'ready' => $transfers === 'active' && (bool) ($account->payouts_enabled ?? false),
+            'ready' => $transfers === 'active' && $payoutsEnabled,
             'error' => null,
             'missing' => false,
         ];
@@ -1017,7 +1144,7 @@ class StripeService
                 ];
             } catch (\Throwable $e) {
                 Log::warning('[StripeService] Date de naissance illisible', [
-                    'birth_date' => $data['birth_date'],
+                    'user_id' => $data['user_id'] ?? null,
                 ]);
             }
         }
@@ -1175,15 +1302,4 @@ class StripeService
         return ['id' => $endpoint->id, 'secret' => $endpoint->secret ?? null, 'created' => true];
     }
 
-    /** Devise de payout par défaut selon le pays du compte bancaire. */
-    private function defaultCurrencyForCountry(string $country): string
-    {
-        $eur = ['FR', 'DE', 'ES', 'IT', 'BE', 'NL', 'PT', 'IE', 'FI', 'AT', 'LU', 'GR'];
-        return match (true) {
-            in_array($country, $eur, true) => 'eur',
-            $country === 'GB' => 'gbp',
-            $country === 'US' => 'usd',
-            default => 'eur',
-        };
-    }
 }

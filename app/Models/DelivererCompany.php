@@ -47,7 +47,7 @@ class DelivererCompany extends Model
         self::SERVICE_LOCAL => 'Urbain (même ville)',
         self::SERVICE_INTERCITY => 'Interurbain (Cameroun)',
         self::SERVICE_INTERNATIONAL => 'Livraison internationale',
-        self::SERVICE_MARITIME => 'Fret maritime (Diaspo)',
+        self::SERVICE_MARITIME => 'Fret aérien et maritime (Diaspo)',
     ];
 
     public const MODE_DOOR = 'door_to_door';

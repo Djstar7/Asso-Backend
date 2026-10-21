@@ -326,3 +326,122 @@ une agence puis une nouvelle confirmation d'arrivée et de disponibilité.
 
 Au déploiement, exécuter `php artisan migrate` pour les migrations
 `2026_10_21_180000_add_agency_pickup` et `2026_10_21_190000_add_shipment_confirmations`.
+
+## Transport international — configuration de la rubrique
+
+La rubrique admin **Transport : partenaires** (`/admin/maritime`) gère les offres
+**aériennes et maritimes**. Les anciennes URL et noms de tables sont conservés
+pour les réservations existantes. Dans le mobile, les offres des partenaires
+aériens sont dans **Avion → Partenaires**, celles par bateau dans **Maritime**.
+
+### Initialisation en production
+
+Le serveur de production doit utiliser `APP_ENV=production`, `APP_DEBUG=false`
+et son URL HTTPS réelle dans `APP_URL`. Le filtrage des données de démonstration
+s'appuie sur cet environnement. Conserver les identifiants de paiement et de base
+de données déjà configurés sur ce serveur ; les fixtures locales n'en fournissent pas.
+
+Depuis le répertoire `Asso-Backend` de la version livrée, appliquer les trois
+migrations de cette rubrique, dans cet ordre (les tables maritimes historiques
+du projet doivent déjà exister) :
+
+```bash
+php artisan migrate --path=database/migrations/2026_10_21_180000_create_partner_freight_rates.php --force
+php artisan migrate --path=database/migrations/2026_10_21_180100_add_freight_rate_snapshots_to_maritime_departures.php --force
+php artisan migrate --path=database/migrations/2026_10_21_190000_mark_transport_demo_data.php --force
+php artisan transport:configure
+```
+
+Cette commande crée seulement les éléments manquants : **SinoCam Transit & Fret**
+(inactif lors de sa création) et ses trois tarifs Chine → Cameroun. Elle ne crée
+ni adresse fictive, ni départ, ni compte utilisateur, ni crédit de portefeuille.
+Une relance conserve les prix, conditions et activations modifiés dans l'admin.
+Ne pas exécuter le seeder global pour initialiser uniquement cette rubrique.
+
+| Offre | Coût partenaire (FCFA) | Prix client (FCFA) | Délai |
+|---|---:|---:|---|
+| Maritime général | 330 000/CBM | 450 000/CBM | 45–55 jours |
+| Maritime sensible | 390 000/CBM | 500 000/CBM | 45–55 jours |
+| Aérien général | 12 000/kg | 20 000/kg | 10–14 jours |
+
+Avant d'activer le partenaire en production, compléter dans sa fiche :
+
+1. Les QG réels : ville, adresse précise, téléphone, horaires et activation.
+2. Les tarifs des autres routes réellement desservies. Aucun prix Paris → Cameroun
+   n'est inventé ou recopié depuis les tarifs chinois.
+3. Les dates de départ et capacités réellement confirmées par le partenaire.
+   Pour Paris → Cameroun, le champ « Nombre de départs à créer » permet une série
+   espacée de 14 jours, à partir de la première date renseignée. Les prochains
+   départs ne sont pas inventés automatiquement par une tâche planifiée.
+   Chine → Cameroun reste par occasion : saisir chaque date réelle.
+4. Le compte de règlement du partenaire et les réglages existants de paiement,
+   commission, assurance et dates limites de réservation/dépôt.
+
+Un prix client fixe inclut la marge ASSO (prix client moins coût partenaire) ;
+il ne reçoit pas une deuxième commission en pourcentage. Sans prix client fixe,
+la commission habituelle s'applique. La conversion existante **1 CBM = 1 000 kg**
+est conservée. Les tarifs d'un départ sont figés à sa création ; un départ déjà
+réservé ne peut pas changer de route ou de prix.
+
+L'échéance « fret partenaire à l'arrivée » est une condition fournisseur
+renseignée pour les routes Chine → Cameroun. Elle ne crée pas un paiement différé
+acheteur : l'encaissement à la réservation et le reversement après remise suivent
+le circuit ASSO existant, conformément au choix de conserver ce mécanisme.
+Pour l'Europe/Amérique/Canada, renseigner les routes et conditions de règlement
+au départ en Chine avec leurs prix réels.
+
+Le nom, le logo et les contacts du partenaire ne sont pas exposés dans le catalogue
+client. Les adresses, noms de QG, horaires et coordonnées précises ne sont renvoyés
+qu'au client disposant d'une réservation payée et non annulée sur le départ.
+Les conditions internes et coûts fournisseur ne sont pas affichés au client.
+
+Les services de paiement, webhooks, workers et le cron Laravel existants restent
+en place. En particulier, `php artisan schedule:run` doit continuer à être appelé
+chaque minute ; `maritime:refund-missed-dropoffs` est déjà planifié pour fermer les
+réservations et traiter les colis non déposés. Les migrations seules n'installent
+pas ces services. Après déploiement du code, reconstruire les caches de la version
+avec `php artisan optimize` et redémarrer les workers existants.
+
+Pour le mobile de production, utiliser le domaine HTTPS de l'API de production,
+jamais le `localhost:8001` de développement. Le domaine par défaut du projet est
+`https://asso-dashboard.sbs/api` ; on peut le fournir explicitement au build :
+
+```bash
+cd ../Asso-Mobile
+flutter build appbundle --release --dart-define=API_BASE_URL=https://asso-dashboard.sbs/api
+```
+
+### Essais locaux : QG et départs de démonstration
+
+Après les mêmes migrations, dans l'environnement `local` :
+
+```bash
+php artisan transport:configure --demo
+```
+
+Cette commande ajoute trois QG **[TEST]** (Guangzhou, Paris, Douala), avec adresses
+explicitement fictives, puis trois départs Chine → Cameroun (aérien général,
+maritime général et sensible). Les dates sont futures et les capacités sont de
+100 kg pour l'aérien et 1 000 kg pour le maritime. Le partenaire est activé en local
+pour tester le catalogue et les réservations. Aucun montant n'est crédité et
+aucune réservation n'est automatiquement payée.
+
+Les QG et départs sont marqués `is_demo`. Une relance ne recrée pas les QG ni les
+départs futurs existants et ne remet pas leur capacité restante à zéro. Le QG
+Paris est disponible pour les essais, sans création d'un tarif Paris fictif.
+L'option `--demo` et le seeder de démonstration sont interdits hors `local/testing`.
+En production, même si une base locale était copiée par erreur, ces QG et départs
+sont exclus du catalogue public et ne sont pas réservables. Ne pas remplacer leurs
+adresses fictives par des adresses réelles pour publier : créer des QG réels.
+
+### Vérification de cette rubrique
+
+```bash
+php artisan test tests/Feature/TransportConfigurationTest.php tests/Feature/PartnerFreightRatesTest.php tests/Feature/MaritimeBookingTest.php tests/Feature/MaritimeInsuranceClaimsTest.php
+```
+
+Côté Flutter :
+
+```bash
+flutter test test/diaspo_air_partner_navigation_test.dart test/partner_freight_visibility_test.dart test/maritime_search_test.dart test/maritime_insurance_test.dart
+```

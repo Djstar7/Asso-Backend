@@ -358,6 +358,7 @@ class VendorOrderController extends Controller
         // Récupérer les livreurs synchronisés et actifs de cette company
         $syncs = DelivererCodeSync::where('company_id', $companyId)
             ->active()
+            ->where('is_online', true)
             ->with('user')
             ->get();
 

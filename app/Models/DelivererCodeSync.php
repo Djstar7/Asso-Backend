@@ -12,6 +12,7 @@ class DelivererCodeSync extends Model
         'user_id',
         'company_id',
         'is_active',
+        'is_online',
         'is_banned',
         'synced_at',
         'unsynced_at',
@@ -22,6 +23,7 @@ class DelivererCodeSync extends Model
 
     protected $casts = [
         'is_active' => 'boolean',
+        'is_online' => 'boolean',
         'is_banned' => 'boolean',
         'synced_at' => 'datetime',
         'unsynced_at' => 'datetime',

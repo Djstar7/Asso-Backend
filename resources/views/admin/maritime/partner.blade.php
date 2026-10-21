@@ -14,7 +14,7 @@
         <a href="{{ route('admin.maritime.index') }}" class="text-gray-400 hover:text-primary-500"><i class="fas fa-arrow-left"></i></a>
         <div>
             <h1 class="text-2xl font-bold text-white"><i class="fas fa-anchor mr-2 text-primary-400"></i>{{ $partner->name }}</h1>
-            <p class="text-gray-400">Partenaire maritime : ses QG, ses départs et ses paiements.</p>
+            <p class="text-gray-400">Partenaire de transport international : offres aériennes et maritimes, QG, départs et paiements.</p>
         </div>
     </div>
 
@@ -31,6 +31,8 @@
             <a href="{{ route('admin.partner-payouts.show', $partner) }}" class="{{ $btn }}"><i class="fas fa-paper-plane mr-1"></i>Payer (Mobile Money / IBAN)</a>
         @endif
     </div>
+
+    @include('admin.maritime._freight_rates')
 
     <!-- QG -->
     <div class="bg-dark-100 rounded-xl shadow-lg border border-dark-200 p-6 mb-6">
@@ -136,9 +138,26 @@
         @else
             <p class="text-sm text-gray-400 mb-4">L'expéditeur saisit toujours des kilos. Au m³, ses kilos sont convertis en m³ (1 m³ = 1 000 kg) puis multipliés par le tarif, avant que le prix lui soit affiché.</p>
             <form action="{{ route('admin.maritime.departures.store', $partner) }}" method="POST"
-                  x-data="{ unit: @js(old('pricing_unit', 'cbm')), price: @js(old('price', '')), kg: {{ \App\Models\MaritimeDeparture::KG_PER_CBM }} }"
+                  x-data="{ rateId: @js(old('partner_freight_rate_id', '')), unit: @js(old('pricing_unit', 'cbm')), price: @js(old('price', '')), kg: {{ \App\Models\MaritimeDeparture::KG_PER_CBM }} }"
                   class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                 @csrf
+                <div>
+                    <label class="block text-sm text-gray-300 mb-1">Nombre de départs à créer</label>
+                    <input type="number" name="occurrences" min="1" max="26" value="{{ old('occurrences', 1) }}" class="{{ $input }}">
+                    <p class="text-xs text-gray-400">Paris → Cameroun : espacés de 14 jours. Chine : un départ daté par occasion.</p>
+                    @error('occurrences')<p class="text-red-400">{{ $message }}</p>@enderror
+                </div>
+                <div class="md:col-span-4">
+                    <label class="block text-sm text-gray-300 mb-1">Tarif enregistré (facultatif)</label>
+                    <select name="partner_freight_rate_id" x-model="rateId" class="{{ $input }}">
+                        <option value="">Saisie manuelle</option>
+                        @foreach($freightRates->where('is_active', true) as $rate)
+                            <option value="{{ $rate->id }}" @selected(old('partner_freight_rate_id') == $rate->id)>{{ $rate->origin_country }} → {{ $rate->destination_country }} · {{ $rate->transport_mode === 'sea' ? 'Maritime' : 'Aérien' }} · {{ $rate->cargo_category === 'sensitive' ? 'Sensible' : 'Général' }} · {{ number_format($rate->rate_amount, 0, ',', ' ') }} {{ $rate->currency }}/{{ $rate->rate_unit }} · {{ $rate->transit_days_min }}–{{ $rate->transit_days_max }} jours</option>
+                        @endforeach
+                    </select>
+                    <p class="text-xs text-gray-400 mt-1">Le tarif sélectionné remplace le prix, l'unité et la devise saisis ci-dessous. Sans date d'arrivée, le délai maximum du tarif est utilisé.</p>
+                    @error('partner_freight_rate_id')<p class="text-red-400">{{ $message }}</p>@enderror
+                </div>
                 <div>
                     <label class="block text-sm text-gray-300 mb-1">QG de départ</label>
                     <select name="origin_hub_id" required class="{{ $input }}">
@@ -174,7 +193,7 @@
                 <div class="flex gap-2">
                     <div class="flex-1">
                         <label class="block text-sm text-gray-300 mb-1" x-text="unit === 'cbm' ? 'Prix pour 1 m³' : 'Prix pour 1 kg'"></label>
-                        <input type="number" step="0.01" min="0.01" name="price" x-model="price" required class="{{ $input }}">
+                        <input type="number" step="0.01" min="0.01" name="price" x-model="price" :required="!rateId" class="{{ $input }}">
                     </div>
                     <div class="w-24">
                         <label class="block text-sm text-gray-300 mb-1">Devise</label>
@@ -249,6 +268,9 @@
                       x-data="{ unit: @js($d->isPricedPerCbm() ? 'cbm' : 'kg') }"
                       class="p-6">
                     @csrf @method('PUT')
+                        @if($d->partner_freight_rate_id && !$hasBookings)
+                            <input type="hidden" name="partner_freight_rate_id" value="{{ $d->partner_freight_rate_id }}">
+                        @endif
                     <div class="mb-5 flex items-start justify-between gap-4">
                         <div>
                             <h3 class="text-xl font-semibold">Modifier le départ du {{ $d->departure_date->format('d/m/Y') }}</h3>

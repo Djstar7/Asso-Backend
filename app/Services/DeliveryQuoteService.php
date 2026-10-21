@@ -443,6 +443,19 @@ class DeliveryQuoteService
             $code = $code ?: CountryCode::normalize($parsedCountry);
         }
 
+        if ($lat !== null && $lng !== null) {
+            $locatedGrid = DeliveryCityGrid::where('is_active', true)
+                ->whereHas('company', fn ($q) => $q->where('is_active', true))
+                ->get()
+                ->map(fn ($grid) => ['grid' => $grid, 'nearest' => $grid->nearestQuarter($lat, $lng)])
+                ->filter(fn ($entry) => $entry['nearest'] !== null)
+                ->sortBy('nearest.distance_km')
+                ->first();
+            if ($locatedGrid) {
+                return [$locatedGrid['grid']->city, CountryCode::normalize($locatedGrid['grid']->country) ?: 'CM'];
+            }
+        }
+
         // Adresse sans ville reconnue (ex. « Position GPS (5.4821, 10.4235) ») : ville la plus
         // proche de la position choisie sur la carte.
         $known = $destCity && (CityCoordinates::of($destCity) || DeliveryCityGrid::forCity($destCity));

@@ -174,9 +174,9 @@ class MaritimeBooking extends Model
     {
         return [
             'id' => $this->id,
-            'transport_mode' => 'sea',
+            'transport_mode' => $this->departure?->freight_rate_snapshot['transport_mode'] ?? 'sea',
             'maritime_departure_id' => $this->maritime_departure_id,
-            'departure' => $this->relationLoaded('departure') && $this->departure ? $this->departure->toApi() : null,
+            'departure' => $this->relationLoaded('departure') && $this->departure ? $this->departure->toApi($viewer?->id) : null,
             'kg_booked' => (float) $this->kg_booked,
             'volume_cbm' => $this->volume_cbm !== null ? (float) $this->volume_cbm : null,
             'parcels_count' => $this->parcels_count,

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Services\StripeService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
 
 /**
  * Onboarding Stripe Connect côté VENDEUR.
@@ -88,17 +89,39 @@ class StripeConnectController extends Controller
             ], 503);
         }
 
-        $validated = $request->validate([
-            'country' => 'required|string|size:2',
+        $countryInput = $request->input('country');
+        if (is_string($countryInput)) {
+            $request->merge(['country' => strtoupper(trim($countryInput))]);
+        }
+        $ibanInput = $request->input('iban');
+        if (is_string($ibanInput)) {
+            $request->merge(['iban' => strtoupper(preg_replace('/\s+/', '', $ibanInput))]);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'country' => ['bail', 'required', 'string', 'regex:/^[A-Z]{2}$/'],
             // IBAN : 2 lettres pays + 2 chiffres clé + 11 à 30 caractères alphanum.
-            'iban' => 'required|string|regex:/^[A-Za-z]{2}[0-9]{2}[A-Za-z0-9]{11,30}$/',
+            'iban' => ['bail', 'required', 'string', 'regex:/^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$/'],
             'account_holder_name' => 'required|string|max:255',
             'first_name' => 'nullable|string|max:255',
             'last_name' => 'nullable|string|max:255',
             // KYC EXIGÉ PAR STRIPE : sans ces informations le compte reste bloqué en
             // `requirements.past_due` et AUCUN virement ne peut aboutir.
             'birth_date' => 'required|date|before:-18 years',
-            'phone' => 'required|string|max:30',
+            'phone' => [
+                'bail',
+                'required',
+                'string',
+                'max:30',
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    if (!is_string($value)
+                        || !preg_match('/^\+[1-9][0-9\s().-]*$/', $value)
+                        || strlen(preg_replace('/\D/', '', $value)) < 8
+                        || strlen(preg_replace('/\D/', '', $value)) > 15) {
+                        $fail(__('payments.stripe_connect.validation.phone_invalid'));
+                    }
+                },
+            ],
             'address_line1' => 'required|string|max:255',
             'address_line2' => 'nullable|string|max:255',
             'address_city' => 'required|string|max:120',
@@ -106,6 +129,34 @@ class StripeConnectController extends Controller
             'address_state' => 'nullable|string|max:120',
         ], $this->validationMessages());
 
+        $validator->after(function ($validator): void {
+            $iban = $validator->getData()['iban'] ?? null;
+            $country = $validator->getData()['country'] ?? null;
+
+            if (!is_string($iban)
+                || !preg_match('/^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$/', $iban)
+                || $validator->errors()->has('iban')) {
+                return;
+            }
+
+            if (!$this->hasValidIbanChecksum($iban)) {
+                $validator->errors()->add(
+                    'iban',
+                    __('payments.stripe_connect.validation.iban_checksum'),
+                );
+            }
+
+            if (is_string($country)
+                && preg_match('/^[A-Z]{2}$/', $country)
+                && substr($iban, 0, 2) !== $country) {
+                $validator->errors()->add(
+                    'country',
+                    __('payments.stripe_connect.validation.country_iban_mismatch'),
+                );
+            }
+        });
+
+        $validated = $validator->validate();
         $user = $request->user();
 
         // Compte Connect créé en mode test puis passage aux clés live : il n'existe pas
@@ -132,7 +183,7 @@ class StripeConnectController extends Controller
             ], 422);
         }
 
-        $iban = strtoupper(preg_replace('/\s+/', '', $validated['iban']));
+        $iban = $validated['iban'];
         $country = strtoupper($validated['country']);
         $holder = $validated['account_holder_name'];
 
@@ -143,7 +194,7 @@ class StripeConnectController extends Controller
             'last_name' => $validated['last_name'] ?? $user->last_name,
             'email' => $user->email,
             'birth_date' => $validated['birth_date'],
-            'phone' => $validated['phone'],
+            'phone' => '+' . preg_replace('/\D/', '', $validated['phone']),
             'address_line1' => $validated['address_line1'],
             'address_line2' => $validated['address_line2'] ?? null,
             'address_city' => $validated['address_city'],
@@ -152,10 +203,24 @@ class StripeConnectController extends Controller
         ];
 
         try {
+            $currency = $this->stripe->payoutCurrencyForCountry($country);
+            if ($currency === null) {
+                $message = __('payments.stripe_connect.error_country_unsupported');
+
+                return response()->json([
+                    'success' => false,
+                    'message' => $message,
+                    'errors' => [
+                        'country' => [$this->fieldErrorMessage('country', $message)],
+                    ],
+                ], 422);
+            }
+
             if (empty($user->stripe_account_id)) {
                 // Premier envoi : créer le compte Connect + attacher l'IBAN.
                 $result = $this->stripe->createCustomAccountWithBank($kyc + [
                     'iban' => $iban,
+                    'currency' => $currency,
                     'account_holder_name' => $holder,
                     'user_id' => $user->id,
                     'tos_ip' => $request->ip(),
@@ -165,12 +230,13 @@ class StripeConnectController extends Controller
             } else {
                 // Renvoi (compte rejeté ou en attente) : remplacer l'IBAN ET
                 // rafraîchir le KYC (il est souvent la cause du rejet).
+                $this->stripe->updateAccountKyc($user->stripe_account_id, $kyc);
                 $result = $this->stripe->replaceExternalAccount($user->stripe_account_id, [
                     'country' => $country,
                     'iban' => $iban,
+                    'currency' => $currency,
                     'account_holder_name' => $holder,
                 ]);
-                $this->stripe->updateAccountKyc($user->stripe_account_id, $kyc);
                 $accountId = $user->stripe_account_id;
             }
 
@@ -193,23 +259,40 @@ class StripeConnectController extends Controller
             // Erreur de configuration de la plateforme (clé test en prod, profil
             // Connect live non rempli…) : aucun vendeur ne peut passer, à corriger
             // côté tableau de bord Stripe.
-            Log::log(StripeService::isPlatformConfigError($e) ? 'critical' : 'error',
+            $platformError = StripeService::isPlatformConfigError($e);
+            Log::log($platformError ? 'critical' : 'error',
                 '[StripeConnectController] Échec soumission Stripe Connect', [
                     'user_id' => $user->id,
                     'mode' => $this->stripe->mode(),
-                    'error' => $e->getMessage(),
+                    'exception' => $e::class,
+                    'stripe_code' => $e instanceof \Stripe\Exception\ApiErrorException
+                        ? $e->getStripeCode()
+                        : null,
+                    'stripe_param' => $e instanceof \Stripe\Exception\InvalidRequestException
+                        ? $e->getStripeParam()
+                        : null,
                 ]);
 
             // Refus rattaché à un champ (IBAN, date de naissance, adresse…) : le
             // message s'affiche sous ce champ dans l'app, comme une erreur de saisie.
             $message = $this->friendlyErrorMessage($e);
             $field = $this->fieldForStripeError($e);
+            $statusCode = $e instanceof \Stripe\Exception\InvalidRequestException && !$platformError
+                ? 422
+                : (($e instanceof \Stripe\Exception\ApiErrorException
+                    || $e instanceof \Stripe\Exception\ApiConnectionException
+                    || $e instanceof \RuntimeException
+                    || $platformError)
+                    ? 503
+                    : 500);
 
             return response()->json(array_filter([
                 'success' => false,
                 'message' => $message,
-                'errors' => $field ? [$field => [$this->fieldErrorMessage($field, $message)]] : null,
-            ]), 422);
+                'errors' => $field && $statusCode === 422
+                    ? [$field => [$this->fieldErrorMessage($field, $message)]]
+                    : null,
+            ]), $statusCode);
         }
     }
 
@@ -274,7 +357,7 @@ class StripeConnectController extends Controller
 
         return [
             'country.required' => $m('country_required'),
-            'country.size' => $m('country_size'),
+            'country.regex' => $m('country_size'),
             'iban.required' => $m('iban_required'),
             'iban.regex' => $m('iban_format'),
             'account_holder_name.required' => $m('holder_required'),
@@ -314,7 +397,10 @@ class StripeConnectController extends Controller
             str_contains($param, '[city]') => 'address_city',
             str_contains($param, 'line1') || str_contains($param, '[address]') => 'address_line1',
             str_contains($param, 'name') => 'account_holder_name',
-            str_contains($param, 'country') || str_contains($raw, 'not currently supported') => 'country',
+            str_contains($param, 'country') || str_contains($param, 'currency')
+                || str_contains($raw, 'not currently supported')
+                || str_contains($raw, 'country_spec')
+                || str_contains($raw, 'no such country') => 'country',
             default => null,
         };
     }
@@ -357,7 +443,11 @@ class StripeConnectController extends Controller
             // Stripe formule le pays non supporté sans le mot « country »
             // (ex. « CM is not currently supported by Stripe. ») : sans ce test, le
             // vendeur recevait un message générique parlant d'informations invalides.
-            if (str_contains($raw, 'country') || str_contains($raw, 'not currently supported')) {
+            if (str_contains($raw, 'country')
+                || str_contains($raw, 'currency')
+                || str_contains($raw, 'not currently supported')
+                || str_contains($raw, 'country_spec')
+                || str_contains($raw, 'no such country')) {
                 return __('payments.stripe_connect.error_country_unsupported');
             }
             return __('payments.stripe_connect.error_invalid_details');
@@ -390,5 +480,23 @@ class StripeConnectController extends Controller
             'account_holder_name' => $user->stripe_account_holder_name,
             'has_account' => !empty($user->stripe_account_id),
         ];
+    }
+
+    private function hasValidIbanChecksum(string $iban): bool
+    {
+        $rearranged = substr($iban, 4) . substr($iban, 0, 4);
+        $remainder = 0;
+
+        foreach (str_split($rearranged) as $character) {
+            $digits = ctype_alpha($character)
+                ? (string) (ord($character) - 55)
+                : $character;
+
+            foreach (str_split($digits) as $digit) {
+                $remainder = ($remainder * 10 + (int) $digit) % 97;
+            }
+        }
+
+        return $remainder === 1;
     }
 }

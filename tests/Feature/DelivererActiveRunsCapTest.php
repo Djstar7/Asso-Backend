@@ -106,6 +106,20 @@ class DelivererActiveRunsCapTest extends TestCase
         return $order;
     }
 
+    public function test_manual_offline_hides_new_requests_until_courier_goes_online(): void
+    {
+        $order = $this->confirmedOrder();
+        Sanctum::actingAs($this->deliverer);
+        $this->getJson('/api/v1/delivery/pending')->assertJsonCount(1, 'requests');
+        $this->putJson('/api/v1/delivery/availability', ['is_online' => false])->assertOk();
+        $this->getJson('/api/v1/delivery/pending')->assertJsonCount(0, 'requests');
+        $this->getJson('/api/v1/delivery/dashboard')->assertJsonCount(0, 'deliveries');
+        $this->postJson("/api/v1/delivery/{$order->id}/accept")->assertUnprocessable();
+        $this->putJson('/api/v1/delivery/availability', ['is_online' => true])->assertOk();
+        $this->getJson('/api/v1/delivery/pending')->assertJsonCount(1, 'requests');
+        $this->postJson("/api/v1/delivery/{$order->id}/accept")->assertOk();
+    }
+
     public function test_deliverer_can_carry_several_runs_up_to_the_cap(): void
     {
         $cap = DeliveryController::MAX_ACTIVE_RUNS;

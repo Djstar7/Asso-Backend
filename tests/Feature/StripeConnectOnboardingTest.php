@@ -21,6 +21,12 @@ class StripeConnectOnboardingTest extends TestCase
     private function mockStripe(callable $expectations): void
     {
         $this->mock(StripeService::class, function ($mock) use ($expectations) {
+            $mock->shouldReceive('payoutCurrencyForCountry')
+                ->byDefault()
+                ->andReturn('eur');
+            $mock->shouldReceive('mode')
+                ->byDefault()
+                ->andReturn('test');
             $expectations($mock);
         });
     }
@@ -55,7 +61,8 @@ class StripeConnectOnboardingTest extends TestCase
                         && $data['phone'] === '+33612345678'
                         && $data['address_line1'] === '12 rue de la Paix'
                         && $data['address_city'] === 'Paris'
-                        && $data['address_postal_code'] === '75002';
+                        && $data['address_postal_code'] === '75002'
+                        && $data['currency'] === 'eur';
                 })
                 ->andReturn([
                     'id' => 'acct_test_123',
@@ -94,6 +101,107 @@ class StripeConnectOnboardingTest extends TestCase
             ->assertJsonValidationErrors('iban')
             // Message clair, propre au champ (pas le message générique de Laravel).
             ->assertJsonPath('errors.iban.0', __('payments.stripe_connect.validation.iban_format'));
+    }
+
+    public function test_submit_rejects_iban_with_invalid_checksum(): void
+    {
+        $this->mockStripe(function ($mock) {
+            $mock->shouldReceive('isConfigured')->andReturn(true);
+            $mock->shouldReceive('payoutCurrencyForCountry')->never();
+            $mock->shouldReceive('createCustomAccountWithBank')->never();
+        });
+
+        $this->actingAs(User::factory()->create(), 'sanctum')
+            ->postJson('/api/v1/stripe/connect/submit', $this->payload([
+                'iban' => 'FR0020041010050500013M02606',
+            ]))
+            ->assertStatus(422)
+            ->assertJsonPath('errors.iban.0', __('payments.stripe_connect.validation.iban_checksum'));
+    }
+
+    public function test_submit_rejects_country_that_does_not_match_iban(): void
+    {
+        $this->mockStripe(function ($mock) {
+            $mock->shouldReceive('isConfigured')->andReturn(true);
+            $mock->shouldReceive('payoutCurrencyForCountry')->never();
+            $mock->shouldReceive('createCustomAccountWithBank')->never();
+        });
+
+        $this->actingAs(User::factory()->create(), 'sanctum')
+            ->postJson('/api/v1/stripe/connect/submit', $this->payload(['country' => 'GB']))
+            ->assertStatus(422)
+            ->assertJsonPath(
+                'errors.country.0',
+                __('payments.stripe_connect.validation.country_iban_mismatch'),
+            );
+    }
+
+    public function test_submit_rejects_invalid_phone_format(): void
+    {
+        $this->mockStripe(function ($mock) {
+            $mock->shouldReceive('isConfigured')->andReturn(true);
+            $mock->shouldReceive('payoutCurrencyForCountry')->never();
+            $mock->shouldReceive('createCustomAccountWithBank')->never();
+        });
+
+        $this->actingAs(User::factory()->create(), 'sanctum')
+            ->postJson('/api/v1/stripe/connect/submit', $this->payload(['phone' => '0612345678']))
+            ->assertStatus(422)
+            ->assertJsonPath('errors.phone.0', __('payments.stripe_connect.validation.phone_invalid'));
+    }
+
+    public function test_submit_rejects_country_without_supported_payout_currency(): void
+    {
+        $this->mockStripe(function ($mock) {
+            $mock->shouldReceive('isConfigured')->andReturn(true);
+            $mock->shouldReceive('payoutCurrencyForCountry')->once()->with('FR')->andReturn(null);
+            $mock->shouldReceive('createCustomAccountWithBank')->never();
+        });
+
+        $this->actingAs(User::factory()->create(), 'sanctum')
+            ->postJson('/api/v1/stripe/connect/submit', $this->payload())
+            ->assertStatus(422)
+            ->assertJsonPath('errors.country.0', __('payments.stripe_connect.field_errors.country'));
+    }
+
+    public function test_stripe_connection_failure_returns_safe_service_error(): void
+    {
+        $this->mockStripe(function ($mock) {
+            $mock->shouldReceive('isConfigured')->andReturn(true);
+            $mock->shouldReceive('payoutCurrencyForCountry')
+                ->once()
+                ->with('FR')
+                ->andThrow(new \Stripe\Exception\ApiConnectionException('private network detail'));
+        });
+
+        $this->actingAs(User::factory()->create(), 'sanctum')
+            ->postJson('/api/v1/stripe/connect/submit', $this->payload())
+            ->assertStatus(503)
+            ->assertJsonPath('message', __('payments.stripe_connect.error_connection'))
+            ->assertDontSee('private network detail');
+    }
+
+    public function test_submit_normalizes_iban_and_phone_before_sending_them_to_stripe(): void
+    {
+        $this->mockStripe(function ($mock) {
+            $mock->shouldReceive('isConfigured')->andReturn(true);
+            $mock->shouldReceive('createCustomAccountWithBank')
+                ->once()
+                ->withArgs(fn (array $data) => $data['iban'] === 'FR1420041010050500013M02606'
+                    && $data['phone'] === '+33612345678')
+                ->andReturn([
+                    'id' => 'acct_normalized',
+                    'external_last4' => '2606',
+                    'bank_country' => 'FR',
+                ]);
+        });
+
+        $this->actingAs(User::factory()->create(), 'sanctum')
+            ->postJson('/api/v1/stripe/connect/submit', $this->payload([
+                'iban' => 'fr14 2004 1010 0505 0001 3m02 606',
+                'phone' => '+33 (6) 12-34-56-78',
+            ]))
+            ->assertOk();
     }
 
     /** Un refus de Stripe sur un paramètre précis s'affiche sous le champ concerné. */
@@ -364,7 +472,7 @@ class StripeConnectOnboardingTest extends TestCase
 
         $this->actingAs($user, 'sanctum')
             ->postJson('/api/v1/stripe/connect/submit', $this->payload())
-            ->assertStatus(422)
+            ->assertStatus(503)
             ->assertJsonPath('message', __('payments.stripe_connect.error_unavailable'));
     }
 

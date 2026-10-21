@@ -10,6 +10,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Vérification des bailleurs : envoi des pièces, validation ou refus par
@@ -24,18 +25,39 @@ class LandlordVerificationService
     public function submit(User $user, string $idType, string $proofType, array $files): LandlordVerification
     {
         $dir = "landlord_verifications/{$user->id}";
-        $store = fn (?UploadedFile $file) => $file?->store($dir, self::DISK);
+        $stored = [];
+        $store = function (string $field) use ($files, $dir, &$stored) {
+            $file = $files[$field] ?? null;
+            if ($file === null) {
+                return null;
+            }
+            try {
+                $path = $file->store($dir, self::DISK);
+            } catch (\Throwable $e) {
+                Log::error('[IMMO] Échec du stockage d’une pièce', ['field' => $field, 'error' => $e->getMessage()]);
+                $path = false;
+            }
+            if (! $path) {
+                foreach ($stored as $saved) {
+                    Storage::disk(self::DISK)->delete($saved);
+                }
+                throw ValidationException::withMessages([$field => __('landlord_upload.store_failed')]);
+            }
+            $stored[] = $path;
+
+            return $path;
+        };
 
         $previous = LandlordVerification::where('user_id', $user->id)->first();
 
-        $verification = DB::transaction(function () use ($user, $idType, $proofType, $files, $store) {
+        $verification = DB::transaction(function () use ($user, $idType, $proofType, $store) {
             $verification = LandlordVerification::updateOrCreate(['user_id' => $user->id], [
                 'id_document_type' => $idType,
-                'id_front_path' => $store($files['id_front']),
-                'id_back_path' => $store($files['id_back'] ?? null),
+                'id_front_path' => $store('id_front'),
+                'id_back_path' => $store('id_back'),
                 'ownership_proof_type' => $proofType,
-                'ownership_proof_path' => $store($files['ownership_proof']),
-                'video_path' => $store($files['video']),
+                'ownership_proof_path' => $store('ownership_proof'),
+                'video_path' => $store('video'),
                 'status' => 'pending',
                 'rejection_reason' => null,
                 'reviewed_by' => null,

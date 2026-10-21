@@ -13,6 +13,19 @@ use Illuminate\Support\Facades\DB;
 
 class DelivererSyncController extends Controller
 {
+    public function updateAvailability(Request $request)
+    {
+        $validated = $request->validate(['is_online' => 'required|boolean']);
+        $syncs = DelivererCodeSync::active()->where('user_id', $request->user()->id);
+        if (!(clone $syncs)->exists()) {
+            return response()->json(['success' => false, 'message' => __('delivery.sync.company_not_found')], 403);
+        }
+
+        $syncs->update(['is_online' => $validated['is_online']]);
+
+        return response()->json(['success' => true, 'is_online' => (bool) $validated['is_online']]);
+    }
+
     /**
      * Verify and sync deliverer profile using sync code
      * User must be authenticated (via Sanctum)
@@ -115,6 +128,7 @@ class DelivererSyncController extends Controller
                 'user_id' => $user->id,
                 'company_id' => $company->id,
                 'is_active' => true,
+                'is_online' => true,
                 'is_banned' => false,
                 'synced_at' => now(),
             ]);

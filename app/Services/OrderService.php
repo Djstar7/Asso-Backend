@@ -1249,6 +1249,7 @@ class OrderService
         if ($order->delivery_company_id) {
             $activeSyncs = \App\Models\DelivererCodeSync::where('company_id', $order->delivery_company_id)
                 ->active()
+                ->where('is_online', true)
                 ->with('user')
                 ->get();
 

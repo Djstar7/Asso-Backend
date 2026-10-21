@@ -49,6 +49,7 @@ class DeliveryController extends Controller
         // Commandes de sa delivery company (confirmed, pas encore de delivery_person)
         $companyIds = \App\Models\DelivererCodeSync::where('user_id', $user->id)
             ->active()
+            ->where('is_online', true)
             ->pluck('company_id');
 
         $companyOrders = collect();
@@ -81,6 +82,7 @@ class DeliveryController extends Controller
 
         $companyIds = \App\Models\DelivererCodeSync::where('user_id', $user->id)
             ->active()
+            ->where('is_online', true)
             ->pluck('company_id');
 
         try {
@@ -541,13 +543,34 @@ class DeliveryController extends Controller
         $validated = $request->validate([
             'latitude' => 'required|numeric|between:-90,90',
             'longitude' => 'required|numeric|between:-180,180',
+            'items' => 'sometimes|array|min:1',
+            'items.*.product_id' => 'required|integer|exists:products,id',
+            'items.*.quantity' => 'required|integer|min:1',
+            'items.*.price_tier_id' => 'nullable|integer',
+            'items.*.variant_id' => 'nullable|integer',
         ]);
 
-        return response()->json([
-            'success' => true,
-            'coverage' => app(\App\Services\DeliveryQuoteService::class)
-                ->coverage((float) $validated['latitude'], (float) $validated['longitude']),
-        ]);
+        $service = app(\App\Services\DeliveryQuoteService::class);
+        $lat = (float) $validated['latitude'];
+        $lng = (float) $validated['longitude'];
+        $coverage = $service->coverage($lat, $lng);
+        if (!empty($validated['items'])) {
+            $quote = $service->quotes($validated['items'], $lat, $lng, null);
+            $home = collect($quote['partners'])->where('delivery_option', 'home_delivery');
+            $coverage['served_by'] = $home->map(fn ($p) => [
+                'company_id' => $p['company_id'], 'company_name' => $p['company_name'],
+                'zone_label' => $p['zone_name'], 'vehicles' => array_filter([$p['vehicle_label']]),
+            ])->values()->all();
+            $coverage['agencies'] = collect($quote['partners'])->where('delivery_option', 'agency_pickup')
+                ->map(fn ($p) => [
+                    'company_id' => $p['company_id'], 'company_name' => $p['company_name'],
+                    'city' => $quote['destination']['city'], 'destinations' => [],
+                ])->values()->all();
+            $coverage['served'] = $home->isNotEmpty();
+            $coverage['message'] = $quote['message'];
+        }
+
+        return response()->json(['success' => true, 'coverage' => $coverage]);
     }
 
     /**

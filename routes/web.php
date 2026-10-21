@@ -502,6 +502,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::post('/partners', 'storePartner')->name('partners.store');
             Route::get('/partners/{partner}', 'showPartner')->name('partners.show');
             Route::put('/partners/{partner}', 'updatePartner')->name('partners.update');
+            Route::post('/partners/{partner}/freight-rates', [\App\Http\Controllers\Admin\PartnerFreightRateController::class, 'store'])->name('freight-rates.store');
+            Route::put('/partners/{partner}/freight-rates/{rate}', [\App\Http\Controllers\Admin\PartnerFreightRateController::class, 'update'])->name('freight-rates.update');
             Route::post('/partners/{partner}/hubs', 'storeHub')->name('hubs.store');
             Route::put('/hubs/{hub}', 'updateHub')->name('hubs.update');
             Route::delete('/hubs/{hub}', 'destroyHub')->name('hubs.destroy');

@@ -20,10 +20,12 @@ class MaritimeHub extends Model
         'latitude',
         'longitude',
         'is_active',
+        'is_demo',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'is_demo' => 'boolean',
         'latitude' => 'float',
         'longitude' => 'float',
     ];
@@ -33,19 +35,19 @@ class MaritimeHub extends Model
         return $this->belongsTo(DelivererCompany::class, 'deliverer_company_id');
     }
 
-    public function toApi(): array
+    public function toApi(bool $includeMeeting = false): array
     {
         return [
             'id' => $this->id,
-            'name' => $this->name,
+            'name' => $includeMeeting ? $this->name : null,
             'country' => $this->country,
             'country_name' => CountryCode::NAMES[$this->country] ?? $this->country,
             'city' => $this->city,
-            'address' => $this->address,
-            'phone' => $this->phone,
-            'opening_hours' => $this->opening_hours,
-            'latitude' => $this->latitude,
-            'longitude' => $this->longitude,
+            'address' => $includeMeeting ? $this->address : null,
+            'phone' => $includeMeeting ? $this->phone : null,
+            'opening_hours' => $includeMeeting ? $this->opening_hours : null,
+            'latitude' => $includeMeeting ? $this->latitude : null,
+            'longitude' => $includeMeeting ? $this->longitude : null,
         ];
     }
 }

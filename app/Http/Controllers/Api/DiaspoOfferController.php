@@ -8,10 +8,12 @@ use App\Models\DiaspoOffer;
 use App\Models\Document;
 use App\Services\DiaspoVerificationService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class DiaspoOfferController extends Controller
 {
@@ -157,50 +159,70 @@ class DiaspoOfferController extends Controller
      */
     public function update(Request $request, $id)
     {
-        $offer = DiaspoOffer::findOrFail($id);
+        return DB::transaction(function () use ($request, $id) {
+            // Même verrou que la réservation : ne pas perdre de kilos engagés
+            // lorsqu'une réservation et une modification arrivent simultanément.
+            $offer = DiaspoOffer::lockForUpdate()->findOrFail($id);
 
-        // Vérifier que c'est bien l'utilisateur qui a créé l'offre
-        if ($offer->user_id !== auth()->id()) {
+            // Vérifier que c'est bien l'utilisateur qui a créé l'offre
+            if ($offer->user_id !== auth()->id()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => __('common.unauthorized'),
+                ], 403);
+            }
+
+            // Ne peut pas modifier si l'offre est complétée
+            if ($offer->status === 'completed') {
+                return response()->json([
+                    'success' => false,
+                    'message' => __('diaspo.offer_completed_cannot_update'),
+                ], 400);
+            }
+
+            $validated = $request->validate([
+                'departure_country' => 'sometimes|string|max:255',
+                'departure_city' => 'sometimes|string|max:255',
+                'departure_datetime' => 'sometimes|date|after:now',
+                'arrival_country' => 'sometimes|string|max:255',
+                'arrival_city' => 'sometimes|string|max:255',
+                'arrival_datetime' => 'sometimes|date',
+                'price_per_kg' => 'sometimes|numeric|min:0',
+                'available_kg' => 'sometimes|numeric|min:0.1',
+            ]);
+
+            $departure = Carbon::parse($validated['departure_datetime'] ?? $offer->departure_datetime);
+            $arrival = Carbon::parse($validated['arrival_datetime'] ?? $offer->arrival_datetime);
+            if (! $arrival->greaterThan($departure)) {
+                throw ValidationException::withMessages([
+                    'arrival_datetime' => __('diaspo.arrival_after_departure'),
+                ]);
+            }
+
+            if (array_key_exists('available_kg', $validated)) {
+                // Les réservations conservent leurs kilos et leur prix d'origine.
+                $committedKg = max(0, round((float) $offer->available_kg - (float) $offer->remaining_kg, 2));
+                if ((float) $validated['available_kg'] < $committedKg) {
+                    throw ValidationException::withMessages([
+                        'available_kg' => __('diaspo.capacity_below_committed', ['kg' => $committedKg]),
+                    ]);
+                }
+                $validated['remaining_kg'] = round((float) $validated['available_kg'] - $committedKg, 2);
+            }
+
+            // Une offre expirée peut être reprogrammée sans modifier sa vérification.
+            if ($offer->status === 'expired' && $departure->isFuture()) {
+                $validated['status'] = 'approved';
+            }
+
+            $offer->update($validated);
+
             return response()->json([
-                'success' => false,
-                'message' => __('common.unauthorized'),
-            ], 403);
-        }
-
-        // Ne peut pas modifier si l'offre est complétée
-        if ($offer->status === 'completed') {
-            return response()->json([
-                'success' => false,
-                'message' => __('diaspo.offer_completed_cannot_update'),
-            ], 400);
-        }
-
-        // Ne peut pas modifier si des réservations actives existent
-        if ($offer->bookings()->whereIn('status', ['paid', 'completed'])->exists()) {
-            return response()->json([
-                'success' => false,
-                'message' => __('diaspo.offer_update_has_bookings'),
-            ], 400);
-        }
-
-        $validated = $request->validate([
-            'departure_country' => 'sometimes|string|max:255',
-            'departure_city' => 'sometimes|string|max:255',
-            'departure_datetime' => 'sometimes|date|after:now',
-            'arrival_country' => 'sometimes|string|max:255',
-            'arrival_city' => 'sometimes|string|max:255',
-            'arrival_datetime' => 'sometimes|date',
-            'price_per_kg' => 'sometimes|numeric|min:0',
-            'available_kg' => 'sometimes|numeric|min:0.1',
-        ]);
-
-        $offer->update($validated);
-
-        return response()->json([
-            'success' => true,
-            'message' => __('diaspo.offer_updated'),
-            'data' => $offer,
-        ]);
+                'success' => true,
+                'message' => __('diaspo.offer_updated'),
+                'data' => $offer,
+            ]);
+        });
     }
 
     /**

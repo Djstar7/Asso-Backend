@@ -23,8 +23,7 @@ class RealEstateLandlordController extends Controller
         private LandlordVerificationService $verifications,
         private ListingEditor $editor,
         private RealEstatePricingService $pricing,
-    ) {
-    }
+    ) {}
 
     public function verification(Request $request)
     {
@@ -45,11 +44,19 @@ class RealEstateLandlordController extends Controller
         $data = $request->validate([
             'id_document_type' => ['required', Rule::in(['cni', 'passport'])],
             'id_front' => ['required', 'image', 'max:8192'],
-            'id_back' => ['nullable', 'image', 'max:8192'],
+            'id_back' => ['required_if:id_document_type,cni', 'nullable', 'image', 'max:8192'],
             'ownership_proof_type' => ['required', Rule::in(LandlordVerification::PROOF_TYPES)],
             'ownership_proof' => ['required', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:10240'],
             'video' => ['required', 'file', 'mimetypes:video/mp4,video/quicktime,video/3gpp,video/webm', 'max:102400'],
-        ]);
+        ], collect(['id_document_type', 'id_front', 'id_back', 'ownership_proof_type', 'ownership_proof', 'video'])
+            ->flatMap(fn ($field) => collect(['required', 'required_if', 'image', 'file', 'mimes', 'mimetypes', 'in', 'uploaded'])
+                ->mapWithKeys(fn ($rule) => ["{$field}.{$rule}" => __("landlord_upload.{$field}")]))
+            ->all() + [
+                'id_front.max' => __('landlord_upload.id_size'),
+                'id_back.max' => __('landlord_upload.id_size'),
+                'ownership_proof.max' => __('landlord_upload.proof_size'),
+                'video.max' => __('landlord_upload.video_size'),
+            ]);
         $user = $request->user();
         if ($user->landlord_verification_status === 'verified') {
             return response()->json(['success' => false, 'message' => __('real_estate.errors.already_verified')], 422);

@@ -9,8 +9,8 @@
 <div class="p-6">
     <div class="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
-            <h1 class="text-2xl font-bold text-white">Diaspo Maritime</h1>
-            <p class="text-gray-400">Fret par bateau des partenaires maritimes, entre leurs QG. Séparé de la livraison locale : pas de coursiers ni de grilles de ville.</p>
+            <h1 class="text-2xl font-bold text-white">Transport international</h1>
+            <p class="text-gray-400">Offres de fret aérien et maritime des partenaires, entre leurs QG. Les coûts du partenaire, les prix client et les délais sont configurables par route.</p>
         </div>
         <a href="{{ route('admin.maritime.bookings.index') }}" class="{{ $btn }}">
             <i class="fas fa-boxes mr-2"></i>Envois
@@ -23,7 +23,7 @@
     <!-- Comment ça marche -->
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         @foreach([
-            ['fa-anchor', '1. Partenaire', 'Créez le transporteur maritime ci-dessous.'],
+            ['fa-anchor', '1. Partenaire', 'Créez le partenaire de transport ci-dessous, puis ajoutez ses tarifs aériens et/ou maritimes.'],
             ['fa-warehouse', '2. QG', 'Ajoutez ses QG de dépôt et de retrait (ex. Paris, Douala).'],
             ['fa-ship', '3. Départs', 'Ouvrez ses départs : date, capacité, tarif au m³ ou au kg.'],
             ['fa-wallet', '4. Paiement', 'Le fret arrive sur son Wallet à chaque remise ; versez-le comme le retrait ASSO.'],
@@ -35,9 +35,9 @@
         @endforeach
     </div>
 
-    <!-- Partenaires maritimes -->
+    <!-- Partenaires de transport international -->
     <div class="bg-dark-100 rounded-xl shadow-lg border border-dark-200 p-6 mb-6">
-        <h2 class="text-lg font-semibold text-white mb-4"><i class="fas fa-anchor mr-2 text-primary-400"></i>Partenaires maritimes</h2>
+        <h2 class="text-lg font-semibold text-white mb-4"><i class="fas fa-anchor mr-2 text-primary-400"></i>Partenaires de transport international</h2>
 
         <div class="overflow-x-auto mb-6">
             <table class="w-full text-sm">
@@ -59,7 +59,7 @@
                             <td class="text-right"><a href="{{ route('admin.maritime.partners.show', $partner) }}" class="text-primary-400 hover:text-primary-300">Ouvrir <i class="fas fa-chevron-right ml-1"></i></a></td>
                         </tr>
                     @empty
-                        <tr><td colspan="7" class="py-6 text-center text-gray-500">Aucun partenaire maritime pour l'instant.</td></tr>
+                        <tr><td colspan="7" class="py-6 text-center text-gray-500">Aucun partenaire de transport international pour l'instant.</td></tr>
                     @endforelse
                 </tbody>
             </table>

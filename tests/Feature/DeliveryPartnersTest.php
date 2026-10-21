@@ -508,6 +508,32 @@ class DeliveryPartnersTest extends TestCase
         $this->getJson('/api/v1/delivery/coverage')->assertStatus(422);
     }
 
+    public function test_map_cart_coverage_matches_quotes_instead_of_general_coverage(): void
+    {
+        $this->solexDouala();
+        $product = $this->product('2');
+        // La boutique n'a ni quartier ni coordonnées : aucun prix zone à zone calculable.
+        $this->getJson('/api/v1/delivery/coverage?latitude=4.0829&longitude=9.7561')
+            ->assertJsonPath('coverage.served', true);
+        $params = ['latitude' => 4.0829, 'longitude' => 9.7561,
+            'items' => [['product_id' => $product->id, 'quantity' => 1]]];
+        $this->getJson('/api/v1/delivery/coverage?' . http_build_query($params))
+            ->assertOk()->assertJsonPath('coverage.served', false)
+            ->assertJsonCount(0, 'coverage.served_by');
+
+        $product->shop->update(['latitude' => 4.0642, 'longitude' => 9.7198]);
+        $this->getJson('/api/v1/delivery/coverage?' . http_build_query($params))
+            ->assertOk()->assertJsonPath('coverage.served', true)
+            ->assertJsonPath('coverage.served_by.0.company_name', 'SOLEX');
+        $this->getJson('/api/v1/delivery/partners?' . http_build_query([
+            'product_id' => $product->id, 'quantity' => 1,
+            'latitude' => 4.0829, 'longitude' => 9.7561,
+            // Une ancienne ville reconnue ne doit pas supplanter le point choisi.
+            'city' => 'Yaoundé',
+        ]))->assertOk()->assertJsonPath('quote.destination.city', 'Douala')
+            ->assertJsonPath('partners.0.company_name', 'SOLEX');
+    }
+
     public function test_gps_only_address_uses_nearest_city_for_intercity_routes(): void
     {
         $this->solex(); // Douala ↔ Yaoundé

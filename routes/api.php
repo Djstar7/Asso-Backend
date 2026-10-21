@@ -347,6 +347,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // Delivery process
         Route::post('/delivery/apply', [ProfileController::class, 'applyDelivery']);
         Route::get('/delivery/dashboard', [ProfileController::class, 'deliveryDashboard']);
+        Route::put('/delivery/availability', [DelivererSyncController::class, 'updateAvailability']);
 
         // Vendor order management
         Route::prefix('vendor/orders')->group(function () {

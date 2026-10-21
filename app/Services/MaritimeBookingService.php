@@ -40,13 +40,17 @@ class MaritimeBookingService
     public function book(User $sender, int $departureId, array $data): array
     {
         return DB::transaction(function () use ($sender, $departureId, $data) {
-            $departure = MaritimeDeparture::with(['originHub', 'company'])->lockForUpdate()->findOrFail($departureId);
+            $departure = MaritimeDeparture::with(['originHub', 'destinationHub', 'company'])->lockForUpdate()->findOrFail($departureId);
 
             if (! $departure->isBookable()) {
                 throw new MaritimeBookingException(__('maritime.trip_impossible'));
             }
             if ((float) $departure->remaining_kg < (float) $data['kg_booked']) {
                 throw new MaritimeBookingException(__('maritime.not_enough_kg', ['kg' => (float) $departure->remaining_kg]));
+            }
+
+            if (strtoupper($data['recipient_country']) !== $departure->destinationHub->country) {
+                throw new MaritimeBookingException(__('transport.destination_country_mismatch'), 'recipient_country');
             }
 
             $currency = strtoupper($departure->currency);
