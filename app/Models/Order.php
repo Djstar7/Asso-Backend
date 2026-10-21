@@ -63,6 +63,7 @@ class Order extends Model
         'delivery_person_id', 'delivery_company_id', 'delivery_zone_id',
         'delivery_mode', 'delivery_route_id', 'delivery_city_grid_id', 'delivery_vehicle', 'shipping_weight_kg', 'delivery_vat_amount', 'delivery_breakdown',
         'carrier_tracking_number', 'tracking_status',
+        'delivery_agency_id', 'pickup_agency_snapshot', 'agency_collected_at', 'agency_collected_by',
         'payment_method', 'payment_reference', 'payment_currency', 'payment_amount', 'payment_status',
         'payment_plan', 'deposit_amount', 'balance_amount', 'balance_status',
         'balance_payment_method', 'balance_payment_reference', 'balance_payment_currency', 'balance_payment_amount',
@@ -101,6 +102,8 @@ class Order extends Model
         'shipping_weight_kg' => 'float',
         'delivery_vat_amount' => 'decimal:2',
         'delivery_breakdown' => 'array',
+        'pickup_agency_snapshot' => 'array',
+        'agency_collected_at' => 'datetime',
         'deposit_amount' => 'decimal:2',
         'balance_amount' => 'decimal:2',
         'balance_payment_amount' => 'decimal:2',
@@ -124,9 +127,31 @@ class Order extends Model
         return $this->delivery_mode === self::DELIVERY_CARRIER;
     }
 
+    public function isAgencyPickup(): bool
+    {
+        if (!$this->isCarrierDelivery() || $this->hasLastMileDelivery()) {
+            return false;
+        }
+        return ($this->delivery_breakdown['delivery_option'] ?? null) === 'agency_pickup'
+            || (!isset($this->delivery_breakdown['delivery_option'])
+                && ($this->delivery_breakdown['service_mode'] ?? $this->deliveryCompany?->service_mode) === DelivererCompany::MODE_AGENCY);
+    }
+
+    public function deliveryAgency(): BelongsTo
+    {
+        return $this->belongsTo(DeliveryAgency::class);
+    }
+
+    public function canConfirmReception(): bool
+    {
+        return $this->isCarrierDelivery() && $this->status === 'delivered'
+            && !$this->confirmed_by_client_at && $this->payment_status === self::PAYMENT_PAID
+            && $this->canBeHandedOver();
+    }
+
     /**
      * Transporteur + livraison à domicile depuis l'agence d'arrivée (ex. SOLEX) : le
-     * dernier kilomètre suit le flux urbain (coursier du partenaire, code à 6 chiffres).
+     * devis comprend un dernier kilomètre. Son suivi reste renseigné par ASSO.
      */
     public function hasLastMileDelivery(): bool
     {
@@ -141,30 +166,6 @@ class Order extends Model
     public function leavesFromImportHub(): bool
     {
         return $this->is_wholesale && $this->delivery_route_id === null;
-    }
-
-    /** Étape qui met le colis à disposition des coursiers du partenaire. */
-    public function lastMileStep(): ?string
-    {
-        if (!$this->hasLastMileDelivery()) {
-            return null;
-        }
-
-        return $this->leavesFromImportHub() ? 'arrived_hub' : 'arrived';
-    }
-
-    /**
-     * Commandes transporteur dont le dernier kilomètre peut partir : colis arrivé à
-     * l'agence de la ville d'arrivée, ou import arrivé à l'entrepôt ASSO de Douala.
-     */
-    public function scopeReadyForLastMile($query)
-    {
-        return $query->where('delivery_mode', self::DELIVERY_CARRIER)
-            ->where(fn ($z) => $z->whereNotNull('delivery_zone_id')->orWhereNotNull('delivery_city_grid_id'))
-            ->where('status', 'shipped')
-            ->where(fn ($t) => $t->whereIn('tracking_status', ['arrived', 'ready_for_pickup'])
-                ->orWhere(fn ($h) => $h->where('is_wholesale', true)->whereNull('delivery_route_id')
-                    ->where('tracking_status', 'arrived_hub')));
     }
 
     protected static function boot()

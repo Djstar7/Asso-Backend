@@ -14,6 +14,7 @@ class OrderTrackingEvent extends Model
         'label',
         'location',
         'note',
+        'confirmation_contact', 'confirmation_reference', 'confirmation_channel',
         'actor_type',
         'actor_id',
         'occurred_at',
