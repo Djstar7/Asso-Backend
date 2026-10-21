@@ -519,6 +519,21 @@ php artisan solex:sync --dry-run
 php artisan solex:sync
 ```
 
+Pour remplacer une ancienne configuration SOLEX sur un serveur déjà en service :
+
+```bash
+php artisan solex:sync --replace-legacy --dry-run
+php artisan solex:sync --replace-legacy
+```
+
+Le remplacement crée d'abord le nouveau réseau, puis supprime uniquement les
+anciennes grilles par ville, zones locales et routes SOLEX sans commande liée.
+Les réglages référencés par une commande sont conservés et désactivés, afin de
+préserver le suivi et l'historique. Le compte SOLEX, ses paiements, les agences
+et les autres transporteurs sont conservés. L'opération est transactionnelle.
+Exécuter les migrations avant cette commande ; ne pas utiliser `migrate:fresh`
+sur un serveur contenant des commandes.
+
 `SolexNetworkSeeder` est aussi appelée par `DatabaseSeeder` et par les anciens
 points d'entrée `DataSolexSeeder` et `DataSolexVillesSeeder`. Elle prépare
 58 grilles départementales, 360 cercles, 45 liaisons nationales aller-retour
