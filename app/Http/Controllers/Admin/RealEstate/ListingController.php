@@ -23,8 +23,7 @@ class ListingController extends Controller
         private ListingEditor $editor,
         private LandlordVerificationService $reviews,
         private RealEstatePricingService $pricing,
-    ) {
-    }
+    ) {}
 
     public function index(Request $request)
     {
@@ -33,6 +32,7 @@ class ListingController extends Controller
         $q = trim((string) $request->query('q'));
 
         $listings = Listing::with(['owner', 'cabinet', 'units', 'media'])
+            ->when($request->filled('cabinet_id'), fn ($w) => $w->where('cabinet_id', $request->integer('cabinet_id')))
             ->when($type, fn ($w) => $w->where('type', $type))
             ->when($status, fn ($w) => $w->where('status', $status))
             ->when($q !== '', fn ($w) => $w->where(fn ($x) => $x->where('title', 'like', "%$q%")
@@ -53,10 +53,13 @@ class ListingController extends Controller
 
     public function create(Request $request)
     {
+        $request->validate(['type' => ['nullable', Rule::in([Listing::TYPE_RENT, Listing::TYPE_LAND])]]);
+        $type = $request->query('type', Listing::TYPE_LAND);
+
         return view('admin.real_estate.listings.form', $this->formData(new Listing([
-            'type' => Listing::TYPE_LAND,
-            'cabinet_id' => $request->integer('cabinet_id') ?: null,
-            'property_kind' => 'building_land',
+            'type' => $type,
+            'cabinet_id' => $request->integer('cabinet_id') ?: Cabinet::defaultPartner()?->id,
+            'property_kind' => $type === Listing::TYPE_LAND ? 'building_land' : 'house',
             'land_titled' => true,
             'country' => 'CM',
         ])));
@@ -64,25 +67,27 @@ class ListingController extends Controller
 
     public function store(Request $request)
     {
-        $data = $request->validate(ListingEditor::rules(Listing::TYPE_LAND) + [
-            'cabinet_id' => ['required', 'exists:real_estate_cabinets,id'],
+        $request->validate(['type' => ['required', Rule::in([Listing::TYPE_RENT, Listing::TYPE_LAND])]]);
+        $type = $request->input('type');
+        $data = $request->validate(ListingEditor::rules($type) + [
+            'cabinet_id' => ['required', Rule::exists('real_estate_cabinets', 'id')->where(fn ($query) => $query->where('is_active', true))],
         ]);
         $data['units'] = $this->unitsFromRequest($request);
         $listing = $this->editor->save(new Listing([
-            'type' => Listing::TYPE_LAND, 'status' => Listing::STATUS_DRAFT,
+            'type' => $type, 'status' => Listing::STATUS_DRAFT,
         ]), $data);
         $listing->syncTranslations($request->input('translations'));
         $this->storeUploads($request, $listing);
 
         return redirect()->route('admin.real-estate.listings.edit', $listing)
-            ->with('success', "Terrain « {$listing->title} » créé. Ajoutez ses photos puis publiez-le.");
+            ->with('success', 'Annonce « '.$listing->title.' » créée. Ajoutez ses photos puis publiez-la.');
     }
 
     /** Saisie rapide : plusieurs localités d'un cabinet en une fois. */
     public function bulkLands(Request $request)
     {
         $data = $request->validate([
-            'cabinet_id' => ['required', 'exists:real_estate_cabinets,id'],
+            'cabinet_id' => ['required', Rule::exists('real_estate_cabinets', 'id')->where(fn ($query) => $query->where('is_active', true))],
             'city' => ['required', 'string', 'max:100'],
             'deposit_percent' => ['nullable', 'numeric', 'min:1', 'max:100'],
             'rows' => ['required', 'array', 'min:1'],
@@ -141,9 +146,8 @@ class ListingController extends Controller
     public function update(Request $request, Listing $listing)
     {
         $rules = ListingEditor::rules($listing->type, true);
-        if ($listing->isLand()) {
-            $rules['cabinet_id'] = ['required', 'exists:real_estate_cabinets,id'];
-        }
+        $cabinetRule = Rule::exists('real_estate_cabinets', 'id')->where(fn ($query) => $query->where('is_active', true));
+        $rules['cabinet_id'] = ['required', $cabinetRule];
         $data = $request->validate($rules);
         $data['amenity_ids'] = $request->input('amenity_ids', []);
         foreach (['furnished', 'is_landlocked', 'has_parking', 'has_fence', 'has_guard', 'land_titled', 'serviced'] as $flag) {
@@ -159,8 +163,11 @@ class ListingController extends Controller
 
     public function approve(Listing $listing)
     {
-        if (! $listing->isLand() && $listing->owner?->landlord_verification_status !== 'verified') {
+        if (! $listing->isManagedByCabinet() && $listing->owner?->landlord_verification_status !== 'verified') {
             return back()->with('error', "Le profil du bailleur n'est pas encore vérifié : validez d'abord ses pièces.");
+        }
+        if (! $this->pricing->commissionCabinet($listing)?->user || ($listing->isManagedByCabinet() && ! $listing->cabinet?->user)) {
+            return back()->with('error', 'Un cabinet partenaire actif avec un compte bénéficiaire est obligatoire.');
         }
         $missing = $this->editor->missingForSubmission($listing);
         if ($missing) {
@@ -248,10 +255,14 @@ class ListingController extends Controller
         $request->validate([
             'photos' => ['nullable', 'array', 'max:20'],
             'photos.*' => ['image', 'max:10240'],
+            'photo_room_kind' => ['nullable', Rule::in(\App\Models\RealEstate\Room::KINDS)],
             'video' => ['nullable', 'file', 'mimetypes:video/mp4,video/quicktime,video/webm', 'max:102400'],
         ]);
+        $room = ! $listing->isLand() && $request->filled('photo_room_kind') && $request->hasFile('photos')
+            ? $listing->tourRooms()->firstOrCreate(['kind' => $request->input('photo_room_kind')])
+            : null;
         foreach ($request->file('photos', []) as $photo) {
-            $this->editor->addMedia($listing, $photo);
+            $this->editor->addMedia($listing, $photo, $room?->id);
         }
         if ($request->hasFile('video')) {
             $this->editor->addMedia($listing, $request->file('video'));

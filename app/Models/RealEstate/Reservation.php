@@ -19,7 +19,8 @@ class Reservation extends Model
     public const PAID_STATUSES = ['paid', 'confirmed', 'disputed', 'released'];
 
     protected $fillable = [
-        'reference', 'listing_id', 'unit_id', 'tenant_id', 'payee_id', 'kind', 'move_in_date',
+        'reference', 'listing_id', 'unit_id', 'tenant_id', 'payee_id', 'partner_cabinet_id', 'partner_payee_id',
+        'partner_commission_amount', 'partner_cabinet_name', 'net_payee_kind', 'kind', 'move_in_date',
         'months', 'occupants', 'applicant_status', 'school_or_employer', 'message',
         'displayed_unit_price', 'base_amount', 'commission_amount', 'deposit_percent', 'advance_months', 'owner_amount', 'platform_amount', 'total_amount',
         'payment_method', 'payment_reference', 'status', 'contract_accepted_at', 'paid_at',
@@ -54,6 +55,16 @@ class Reservation extends Model
     public function payee(): BelongsTo
     {
         return $this->belongsTo(User::class, 'payee_id');
+    }
+
+    public function partnerCabinet(): BelongsTo
+    {
+        return $this->belongsTo(Cabinet::class, 'partner_cabinet_id');
+    }
+
+    public function partnerPayee(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'partner_payee_id');
     }
 
     public function dispute(): HasOne

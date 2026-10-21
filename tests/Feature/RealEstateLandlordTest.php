@@ -67,6 +67,7 @@ class RealEstateLandlordTest extends TestCase
 
     public function test_landlord_publishes_after_review(): void
     {
+        Cabinet::create(['name' => 'Cabinet partenaire', 'user_id' => User::factory()->create()->id]);
         $landlord = User::factory()->create();
         $this->sendDocuments($landlord);
         $verification = LandlordVerification::where('user_id', $landlord->id)->firstOrFail();
@@ -180,6 +181,7 @@ class RealEstateLandlordTest extends TestCase
 
         foreach ([
             '/admin/real-estate/listings', '/admin/real-estate/listings?type=land&status=draft', '/admin/real-estate/listings/create',
+            '/admin/real-estate/listings/create?type=rent',
             "/admin/real-estate/listings/{$land->id}", '/admin/real-estate/cabinets', "/admin/real-estate/cabinets/{$cabinet->id}",
             '/admin/real-estate/landlords', '/admin/real-estate/settings',
         ] as $url) {
@@ -187,12 +189,45 @@ class RealEstateLandlordTest extends TestCase
         }
 
         $this->actingAs($admin)->put('/admin/real-estate/settings', [
-            'immo_rent_markup_rate' => 5, 'immo_rent_commission_rate' => 10, 'immo_visit_window_days' => 7,
-            'immo_land_markup_rate' => 8, 'immo_land_commission_rate' => 0, 'immo_land_default_deposit_percent' => 10,
+            'immo_asso_markup_rate' => 10, 'immo_partner_commission_rate' => 5, 'immo_visit_window_days' => 7,
+            'immo_land_default_deposit_percent' => 10, 'immo_default_cabinet_id' => $cabinet->id,
             'immo_land_release_days' => 7, 'immo_low_stock_threshold' => 4, 'immo_popular_views' => 100,
         ])->assertRedirect();
         Cache::flush();
-        $this->assertEquals(8, \App\Services\RealEstate\RealEstatePricingService::setting('immo_land_markup_rate'));
+        $this->assertEquals(10, \App\Services\RealEstate\RealEstatePricingService::setting('immo_asso_markup_rate'));
+        $this->assertSame($cabinet->id, (int) \App\Models\Setting::get('immo_default_cabinet_id'));
+    }
+
+    public function test_admin_can_create_a_house_linked_to_a_partner_cabinet(): void
+    {
+        $admin = $this->admin();
+        $account = User::factory()->create();
+        $cabinet = Cabinet::create(['name' => 'Cabinet test', 'user_id' => $account->id]);
+
+        $this->actingAs($admin)->post('/admin/real-estate/listings', [
+            'type' => 'rent',
+            'cabinet_id' => $cabinet->id,
+            'property_kind' => 'house',
+            'title' => 'Maison partenaire',
+            'city' => 'Yaoundé',
+            'net_price' => 100000,
+            'photo_room_kind' => 'entrance',
+            'photos' => [UploadedFile::fake()->image('entree.jpg')],
+            'video' => UploadedFile::fake()->create('visite.mp4', 100, 'video/mp4'),
+        ])->assertRedirect();
+
+        $this->assertDatabaseHas('real_estate_listings', [
+            'title' => 'Maison partenaire',
+            'type' => 'rent',
+            'cabinet_id' => $cabinet->id,
+            'owner_id' => null,
+            'status' => 'draft',
+        ]);
+        $listing = Listing::where('title', 'Maison partenaire')->firstOrFail();
+        $this->assertTrue($listing->tourRooms()->where('kind', 'entrance')->whereHas('media')->exists());
+        $this->actingAs($admin)->post("/admin/real-estate/listings/{$listing->id}/approve")
+            ->assertRedirect()->assertSessionHas('success');
+        $this->assertSame('published', $listing->fresh()->status);
     }
 
     public function test_product_manager_cannot_open_real_estate_section(): void

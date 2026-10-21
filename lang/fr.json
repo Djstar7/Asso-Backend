@@ -1346,6 +1346,7 @@
             "immo_reservation_paid": "Réservation immobilière :reference",
             "immo_reservation_refunded": "Réservation immobilière :reference remboursée",
             "immo_reservation_received": "Réservation reçue :reference",
+            "immo_partner_commission": "Commission du cabinet partenaire :reference",
             "immo_funds_held": "Réservation :reference — montant bloqué jusqu'à la visite",
             "immo_funds_released": "Réservation :reference — montant débloqué",
             "asso_commission_rent": "Commission ASSO — location :reference",

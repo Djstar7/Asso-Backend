@@ -2,6 +2,7 @@
 
 namespace App\Services\RealEstate;
 
+use App\Models\RealEstate\Cabinet;
 use App\Models\RealEstate\Listing;
 use App\Models\RealEstate\Unit;
 use App\Models\Setting;
@@ -9,21 +10,16 @@ use App\Models\Setting;
 /**
  * Seul endroit où se calculent les prix de la rubrique Immobilier.
  *
- * - Le bailleur ou le cabinet saisit un prix NET ; l'app affiche ce prix
- *   majoré du taux réglé dans le back-office (loyers / terrains).
- * - Location : le locataire paie l'avance affichée + la commission ASSO
- *   (10 % par défaut de cette avance). Le bailleur touche net × mois.
- * - Terrain : l'acompte vaut prix affiché × % d'acompte ; le cabinet touche
- *   la même part de son prix net.
- * La part ASSO (majoration + commission) n'est jamais remboursable.
+ * - Le montant affiché inclut la part ASSO (10 % par défaut).
+ * - La commission partenaire (5 % par défaut) est calculée sur le montant net.
+ * - Le cabinet reçoit la commission et, s'il gère l'annonce, le montant net.
  */
 class RealEstatePricingService
 {
     public const DEFAULTS = [
-        'immo_rent_markup_rate' => 0,
-        'immo_land_markup_rate' => 0,
-        'immo_rent_commission_rate' => 10,
-        'immo_land_commission_rate' => 0,
+        'immo_asso_markup_rate' => 10,
+        'immo_partner_commission_rate' => 5,
+        'immo_default_cabinet_id' => 0,
         'immo_land_default_deposit_percent' => 10,
         'immo_visit_window_days' => 7,
         'immo_land_release_days' => 7,
@@ -38,10 +34,27 @@ class RealEstatePricingService
 
     public function markupRate(string $type): float
     {
-        return self::setting($type === Listing::TYPE_LAND ? 'immo_land_markup_rate' : 'immo_rent_markup_rate');
+        return self::setting('immo_asso_markup_rate');
     }
 
-    /** Prix affiché à partir d'un prix net, arrondi à la centaine supérieure. */
+    public function partnerCommissionRate(): float
+    {
+        return self::setting('immo_partner_commission_rate');
+    }
+
+    /** Commission partner for this listing, or the configured default partner. */
+    public function commissionCabinet(Listing $listing): ?Cabinet
+    {
+        if ($listing->cabinet_id) {
+            $cabinet = $listing->relationLoaded('cabinet') ? $listing->cabinet : $listing->cabinet()->first();
+
+            return $cabinet?->is_active ? $cabinet : null;
+        }
+
+        return Cabinet::defaultPartner();
+    }
+
+    /** Prix affiché avec la part ASSO, arrondi au franc. */
     public function displayed(int $net, string $type): int
     {
         if ($net <= 0) {
@@ -49,7 +62,7 @@ class RealEstatePricingService
         }
         $raw = $net * (1 + $this->markupRate($type) / 100);
 
-        return (int) (ceil(round($raw, 2) / 100) * 100);
+        return (int) round($raw);
     }
 
     /**
@@ -65,16 +78,16 @@ class RealEstatePricingService
 
         if ($listing->type === Listing::TYPE_LAND) {
             $percent = (float) ($listing->deposit_percent ?: self::setting('immo_land_default_deposit_percent'));
-            $base = (int) round($unitPrice * $percent / 100);
             $owner = (int) round($net * $percent / 100);
-            $commission = (int) round($base * self::setting('immo_land_commission_rate') / 100);
+            $base = $owner + (int) round($owner * $this->markupRate($listing->type) / 100);
+            $commission = (int) round($owner * $this->partnerCommissionRate() / 100);
             $months = null;
         } else {
             $months = max(1, (int) ($advanceMonths ?: $listing->advance_months ?: 1));
             $percent = null;
-            $base = $unitPrice * $months;
             $owner = $net * $months;
-            $commission = (int) round($base * self::setting('immo_rent_commission_rate') / 100);
+            $base = $owner + (int) round($owner * $this->markupRate($listing->type) / 100);
+            $commission = (int) round($owner * $this->partnerCommissionRate() / 100);
         }
 
         $total = $base + $commission;
@@ -87,7 +100,7 @@ class RealEstatePricingService
             'commission' => $commission,
             'total' => $total,
             'owner_amount' => $owner,
-            'platform_amount' => $total - $owner,
+            'platform_amount' => $base - $owner,
         ];
     }
 }

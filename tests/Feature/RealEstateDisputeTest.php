@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\RealEstate\Alert;
+use App\Models\RealEstate\Cabinet;
 use App\Models\RealEstate\Dispute;
 use App\Models\RealEstate\DisputeReason;
 use App\Models\RealEstate\Listing;
@@ -29,6 +30,7 @@ class RealEstateDisputeTest extends TestCase
     private User $platform;
     private User $owner;
     private User $tenant;
+    private User $partner;
     private Listing $listing;
 
     protected function setUp(): void
@@ -42,8 +44,11 @@ class RealEstateDisputeTest extends TestCase
         $this->owner = User::factory()->create();
         $this->owner->forceFill(['landlord_verification_status' => 'verified'])->save();
         $this->tenant = User::factory()->create();
-        Setting::set('immo_rent_markup_rate', '0', 'string');
-        Setting::set('immo_rent_commission_rate', '10', 'string');
+        $this->partner = User::factory()->create();
+        $cabinet = Cabinet::create(['name' => 'Cabinet partenaire', 'user_id' => $this->partner->id]);
+        Setting::set('immo_default_cabinet_id', $cabinet->id, 'integer');
+        Setting::set('immo_asso_markup_rate', '10', 'string');
+        Setting::set('immo_partner_commission_rate', '5', 'string');
         $this->listing = Listing::create([
             'type' => 'rent', 'owner_id' => $this->owner->id, 'title' => 'Studio à Odza', 'city' => 'Yaoundé',
             'net_price' => 50000, 'advance_months' => 2, 'status' => 'published', 'published_at' => now(),
@@ -113,10 +118,10 @@ class RealEstateDisputeTest extends TestCase
         $this->assertSame($this->owner->phone, $tenantView['contact']['phone']);
     }
 
-    public function test_refund_returns_held_share_but_keeps_asso_commission(): void
+    public function test_refund_returns_held_share_but_keeps_platform_and_partner_fees(): void
     {
         $r = $this->book();
-        $this->assertSame([90000.0, 90000.0], $this->balance($this->tenant));
+        $this->assertSame([85000.0, 85000.0], $this->balance($this->tenant));
 
         $this->open($r)->assertCreated()->assertJsonPath('data.status', 'disputed')
             ->assertJsonPath('data.dispute.attachments.0.author', 'tenant');
@@ -135,9 +140,10 @@ class RealEstateDisputeTest extends TestCase
         $this->actingAs($admin)->post("/admin/real-estate/disputes/{$dispute->id}/decide", ['decision' => 'refund', 'note' => 'Photos trompeuses.'])->assertRedirect();
 
         $this->assertSame('refunded', $r->fresh()->status);
-        $this->assertSame([190000.0, 190000.0], $this->balance($this->tenant));
+        $this->assertSame([185000.0, 185000.0], $this->balance($this->tenant));
         $this->assertSame([0.0, 0.0], $this->balance($this->owner));
         $this->assertSame([10000.0, 10000.0], $this->balance($this->platform));
+        $this->assertSame([5000.0, 5000.0], $this->balance($this->partner));
         $this->assertSame(3, $this->listing->units()->first()->units_available);
     }
 

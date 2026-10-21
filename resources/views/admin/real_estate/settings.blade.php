@@ -20,6 +20,16 @@
                     @if($help)<p class="text-xs text-gray-500 mt-1">{{ $help }}</p>@endif
                 </div>
             @endforeach
+            <div>
+                <label class="block text-sm text-gray-400 mb-1">Cabinet partenaire par défaut</label>
+                <select name="immo_default_cabinet_id" required class="{{ $in }}">
+                    <option value="">Sélectionner un cabinet</option>
+                    @foreach($cabinets as $cabinet)
+                        <option value="{{ $cabinet->id }}" @selected($defaultCabinetId === $cabinet->id)>{{ $cabinet->name }}</option>
+                    @endforeach
+                </select>
+                <p class="text-xs text-gray-500 mt-1">Cabinet rattaché par défaut aux nouvelles annonces ; il reçoit la commission de 5 %, y compris pour les maisons proposées par un bailleur.</p>
+            </div>
         </div>
         <div class="mt-4 flex justify-end"><button class="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600"><i class="fas fa-save mr-2"></i>Enregistrer</button></div>
     </form>

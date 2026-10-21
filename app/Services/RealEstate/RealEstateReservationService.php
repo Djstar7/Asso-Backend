@@ -25,8 +25,8 @@ use Illuminate\Support\Str;
  * Réservation d'une maison (avance de loyer) ou acompte sur un terrain.
  *
  * Au paiement :
- *  - la part ASSO (majoration + commission) est créditée tout de suite au
- *    compte plateforme, et n'est jamais remboursée ;
+ *  - la part ASSO (10 %) et la commission cabinet (5 %) sont créditées
+ *    séparément et ne sont jamais remboursées ;
  *  - la part du bailleur (ou du cabinet) est créditée sur son Wallet puis
  *    bloquée, le temps de la visite ;
  *  - une place est retirée au logement, contrat et facture sont générés.
@@ -39,9 +39,7 @@ class RealEstateReservationService
 {
     public const DOCS_DISK = 'local';
 
-    public function __construct(private RealEstatePricingService $pricing)
-    {
-    }
+    public function __construct(private RealEstatePricingService $pricing) {}
 
     /**
      * Contrôles avant paiement ; lance une exception au message affichable.
@@ -51,7 +49,7 @@ class RealEstateReservationService
         if ($listing->status !== Listing::STATUS_PUBLISHED) {
             throw new \DomainException(__('real_estate.reservation.not_available'));
         }
-        if ($listing->owner_id === $tenant->id || ($listing->cabinet && $listing->cabinet->user_id === $tenant->id)) {
+        if ($listing->owner_id === $tenant->id || $this->pricing->commissionCabinet($listing)?->user_id === $tenant->id) {
             throw new \DomainException(__('real_estate.reservation.own_listing'));
         }
         if ($listing->units()->exists()) {
@@ -65,7 +63,7 @@ class RealEstateReservationService
         if (! $listing->isLand() && $listing->min_lease_months && ! empty($data['months']) && $data['months'] < $listing->min_lease_months) {
             throw new \DomainException(__('real_estate.reservation.min_lease', ['months' => $listing->min_lease_months]));
         }
-        if (! $this->payee($listing)) {
+        if (! $this->payee($listing) || ! $this->pricing->commissionCabinet($listing)?->user) {
             throw new \DomainException(__('real_estate.reservation.not_available'));
         }
     }
@@ -73,13 +71,16 @@ class RealEstateReservationService
     /** Bénéficiaire de la part bloquée : bailleur ou compte du cabinet. */
     public function payee(Listing $listing): ?User
     {
-        return $listing->isLand() ? $listing->cabinet?->user : $listing->owner;
+        return $listing->isManagedByCabinet()
+            ? $listing->cabinet?->user
+            : $listing->owner;
     }
 
     public function create(User $tenant, Listing $listing, ?Unit $unit, array $data, string $method): Reservation
     {
         $this->assertBookable($tenant, $listing, $unit, $data);
         $quote = $this->pricing->quote($listing, $unit, $data['advance_months'] ?? null);
+        $partnerCabinet = $this->pricing->commissionCabinet($listing);
 
         return Reservation::create([
             'reference' => 'IMMO-'.now()->format('ymd').'-'.Str::upper(Str::random(5)),
@@ -87,6 +88,10 @@ class RealEstateReservationService
             'unit_id' => $unit?->id,
             'tenant_id' => $tenant->id,
             'payee_id' => $this->payee($listing)->id,
+            'partner_cabinet_id' => $partnerCabinet->id,
+            'partner_payee_id' => $partnerCabinet->user_id,
+            'partner_cabinet_name' => $partnerCabinet->name,
+            'net_payee_kind' => $listing->isManagedByCabinet() ? 'cabinet' : 'landlord',
             'kind' => $listing->type,
             'move_in_date' => $data['move_in_date'] ?? null,
             'months' => $data['months'] ?? null,
@@ -97,6 +102,7 @@ class RealEstateReservationService
             'displayed_unit_price' => $quote['unit_price'],
             'base_amount' => $quote['base_amount'],
             'commission_amount' => $quote['commission'],
+            'partner_commission_amount' => $quote['commission'],
             'deposit_percent' => $quote['deposit_percent'],
             'advance_months' => $quote['advance_months'],
             'owner_amount' => $quote['owner_amount'],
@@ -112,6 +118,10 @@ class RealEstateReservationService
     public function payWithWallet(Reservation $reservation): Reservation
     {
         DB::transaction(function () use ($reservation) {
+            $reservation = Reservation::whereKey($reservation->id)->lockForUpdate()->firstOrFail();
+            if ($reservation->status !== 'pending_payment') {
+                return;
+            }
             app(WalletService::class)->debit(
                 user: $reservation->tenant,
                 amount: (float) $reservation->total_amount,
@@ -256,10 +266,24 @@ class RealEstateReservationService
             $listing = $r->listing;
             $days = (int) RealEstatePricingService::setting($listing->isLand() ? 'immo_land_release_days' : 'immo_visit_window_days');
 
-            if ($r->platform_amount > 0 && ($platform = CommissionService::platformAccount())) {
+            if ($r->platform_amount > 0) {
+                $platform = CommissionService::platformAccount();
+                if (! $platform) {
+                    throw new \RuntimeException('The ASSO platform wallet is not configured.');
+                }
                 $wallet->credit($platform, (float) $r->platform_amount, null,
                     WalletTransaction::label($listing->isLand() ? 'asso_commission_land' : 'asso_commission_rent', ['reference' => $r->reference]),
                     ['reference_type' => 'real_estate_reservation', 'reference_id' => $r->id]);
+            }
+
+            if ($r->partner_commission_amount > 0) {
+                $partner = $r->partnerPayee;
+                if (! $partner) {
+                    throw new \RuntimeException('The real estate partner wallet is no longer available.');
+                }
+                $wallet->credit($partner, (float) $r->partner_commission_amount, null,
+                    WalletTransaction::label('immo_partner_commission', ['reference' => $r->reference]),
+                    ['reference_type' => 'real_estate_reservation', 'reference_id' => $r->id, 'component' => 'partner_commission']);
             }
 
             $payee = $r->payee;
@@ -351,7 +375,7 @@ class RealEstateReservationService
         $data = [
             'r' => $reservation,
             'listing' => $reservation->listing,
-            'commissionRate' => RealEstatePricingService::setting($reservation->kind === 'land' ? 'immo_land_commission_rate' : 'immo_rent_commission_rate'),
+            'commissionRate' => $this->pricing->partnerCommissionRate(),
             'days' => (int) RealEstatePricingService::setting($reservation->kind === 'land' ? 'immo_land_release_days' : 'immo_visit_window_days'),
         ];
 

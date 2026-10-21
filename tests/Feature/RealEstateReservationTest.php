@@ -25,8 +25,14 @@ class RealEstateReservationTest extends TestCase
     use RefreshDatabase;
 
     private User $platform;
+
     private User $owner;
+
     private User $tenant;
+
+    private User $partner;
+
+    private Cabinet $cabinet;
 
     protected function setUp(): void
     {
@@ -38,8 +44,11 @@ class RealEstateReservationTest extends TestCase
         $this->owner = User::factory()->create(['phone' => '690000111']);
         $this->owner->forceFill(['landlord_verification_status' => 'verified'])->save();
         $this->tenant = User::factory()->create();
-        Setting::set('immo_rent_markup_rate', '0', 'string');
-        Setting::set('immo_rent_commission_rate', '10', 'string');
+        $this->partner = User::factory()->create();
+        $this->cabinet = Cabinet::create(['name' => 'Cabinet partenaire', 'user_id' => $this->partner->id]);
+        Setting::set('immo_default_cabinet_id', $this->cabinet->id, 'integer');
+        Setting::set('immo_asso_markup_rate', '10', 'string');
+        Setting::set('immo_partner_commission_rate', '5', 'string');
         Setting::set('immo_visit_window_days', '7', 'string');
     }
 
@@ -79,23 +88,27 @@ class RealEstateReservationTest extends TestCase
         ]);
     }
 
-    public function test_wallet_payment_splits_platform_share_and_holds_owner_share(): void
+    public function test_wallet_payment_credits_asso_and_partner_and_holds_owner_share(): void
     {
         $this->wallet()->credit($this->tenant, 700000);
         $listing = $this->house();
 
         $res = $this->book($listing)->assertCreated();
         $res->assertJsonPath('data.status', 'paid')
-            ->assertJsonPath('data.total_amount', 660000)
-            ->assertJsonPath('data.commission_amount', 60000)
+            ->assertJsonPath('data.total_amount', 690000)
+            ->assertJsonPath('data.commission_amount', 30000)
+            ->assertJsonPath('data.partner_commission_amount', 30000)
+            ->assertJsonPath('data.platform_amount', 60000)
             ->assertJsonPath('data.contact.phone', '690000111')
             ->assertJsonPath('data.contact.address', 'Rue 5');
 
-        $this->assertSame([40000.0, 40000.0], $this->balance($this->tenant));
+        $this->assertSame([10000.0, 10000.0], $this->balance($this->tenant));
         // Bailleur : 600 000 crédités mais bloqués.
         $this->assertSame([600000.0, 0.0], $this->balance($this->owner));
-        // ASSO : commission acquise tout de suite.
+        // ASSO : sa majoration est acquise tout de suite.
         $this->assertSame([60000.0, 60000.0], $this->balance($this->platform));
+        // Le cabinet par défaut reçoit les 5 % même si l'annonce vient du bailleur.
+        $this->assertSame([30000.0, 30000.0], $this->balance($this->partner));
 
         $r = Reservation::firstOrFail();
         $this->assertTrue($r->visit_deadline_at->between(now()->addDays(6), now()->addDays(8)));
@@ -110,8 +123,44 @@ class RealEstateReservationTest extends TestCase
             ->assertJsonPath('data.status', 'released');
         $this->assertSame([600000.0, 600000.0], $this->balance($this->owner));
         $this->assertSame([60000.0, 60000.0], $this->balance($this->platform));
+        $this->assertSame([30000.0, 30000.0], $this->balance($this->partner));
 
         $this->get("/api/v1/real-estate/reservations/{$r->id}/documents/contract")->assertOk();
+    }
+
+    public function test_generated_rental_contract_contains_logo_move_in_date_and_handwritten_signature_fields(): void
+    {
+        $this->wallet()->credit($this->tenant, 700000);
+        $listing = $this->house();
+        $moveInDate = '2026-11-03';
+
+        $this->book($listing, ['move_in_date' => $moveInDate])->assertCreated();
+
+        $reservation = Reservation::with(['listing', 'tenant', 'payee'])->firstOrFail();
+        Storage::disk('local')->assertExists($reservation->contract_path);
+
+        $html = view('pdf.real_estate_contract', [
+            'r' => $reservation,
+            'listing' => $reservation->listing,
+            'commissionRate' => 10,
+            'days' => 7,
+        ])->render();
+
+        $logoData = 'data:image/png;base64,'.base64_encode(file_get_contents(public_path('logo/Asso.png')));
+        $tenantName = trim($reservation->tenant->first_name.' '.$reservation->tenant->last_name);
+        $landlordName = trim($reservation->payee->first_name.' '.$reservation->payee->last_name);
+
+        $this->assertStringContainsString($logoData, $html);
+        $this->assertStringContainsString("Date d'emménagement", $html);
+        $this->assertStringContainsString('03/11/2026', $html);
+        $this->assertStringContainsString('Signature manuscrite du bailleur', $html);
+        $this->assertStringContainsString('Signature manuscrite du locataire', $html);
+        $this->assertStringContainsString('Date : ____ / ____ / ______', $html);
+        $this->assertStringContainsString($tenantName, $html);
+        $this->assertStringContainsString($landlordName, $html);
+        $this->assertStringContainsString("ASSO n'est ni signataire ni partie", $html);
+
+        $this->get("/api/v1/real-estate/reservations/{$reservation->id}/documents/contract")->assertOk();
     }
 
     public function test_funds_are_released_automatically_after_the_visit_window(): void
@@ -174,7 +223,8 @@ class RealEstateReservationTest extends TestCase
 
     public function test_land_deposit_goes_blocked_to_the_cabinet_account(): void
     {
-        Setting::set('immo_land_markup_rate', '10', 'string');
+        Setting::set('immo_asso_markup_rate', '10', 'string');
+        Setting::set('immo_partner_commission_rate', '5', 'string');
         $cabinetUser = User::factory()->create();
         $cabinet = Cabinet::create(['name' => 'Cabinet Gwoda et Associés', 'user_id' => $cabinetUser->id, 'phone' => '698884810']);
         $land = Listing::create([
@@ -188,11 +238,14 @@ class RealEstateReservationTest extends TestCase
         $this->postJson("/api/v1/real-estate/listings/{$land->id}/reservations", [
             'unit_id' => $lot->id, 'contract_accepted' => true, 'payment_mode' => 'wallet',
         ])->assertCreated()
-            ->assertJsonPath('data.total_amount', 550000)
+            ->assertJsonPath('data.total_amount', 575000)
             ->assertJsonPath('data.contact.phone', '698884810');
 
-        $this->assertSame([500000.0, 0.0], $this->balance($cabinetUser));
+        $this->assertSame([525000.0, 25000.0], $this->balance($cabinetUser));
         $this->assertSame([50000.0, 50000.0], $this->balance($this->platform));
+        $reservation = Reservation::firstOrFail();
+        $this->assertSame($cabinet->id, $reservation->partner_cabinet_id);
+        $this->assertSame(25000, $reservation->partner_commission_amount);
     }
 
     public function test_platform_revenue_lists_real_estate_commissions(): void
@@ -202,5 +255,67 @@ class RealEstateReservationTest extends TestCase
 
         $admin = User::factory()->create(['role' => 'admin']);
         $this->actingAs($admin)->get('/admin/revenue')->assertOk()->assertSee('Immobilier — locations');
+    }
+
+    public function test_cabinet_house_receives_net_rent_and_commission_without_double_wallet_debit(): void
+    {
+        $listing = $this->house();
+        $listing->update(['owner_id' => null, 'cabinet_id' => $this->cabinet->id]);
+        $this->wallet()->credit($this->tenant, 700000);
+        $this->book($listing)->assertCreated()
+            ->assertJsonPath('data.net_payee_kind', 'cabinet')
+            ->assertJsonPath('data.net_amount', 600000)
+            ->assertJsonPath('data.contact.name', $this->cabinet->name);
+
+        $reservation = Reservation::firstOrFail();
+        $service = app(\App\Services\RealEstate\RealEstateReservationService::class);
+        $service->confirm($reservation);
+        $service->payWithWallet($reservation);
+
+        $this->assertSame([630000.0, 30000.0], $this->balance($this->partner));
+        $this->assertSame([10000.0, 10000.0], $this->balance($this->tenant));
+        $this->assertSame([60000.0, 60000.0], $this->balance($this->platform));
+        $this->assertSame([0.0, 0.0], $this->balance($this->owner));
+    }
+
+    public function test_landlord_house_keeps_net_rent_when_attached_to_a_cabinet(): void
+    {
+        $listing = $this->house();
+        $listing->update(['cabinet_id' => $this->cabinet->id]);
+        $this->wallet()->credit($this->tenant, 700000);
+        $this->book($listing)->assertCreated()
+            ->assertJsonPath('data.net_payee_kind', 'landlord');
+
+        $this->assertSame([600000.0, 0.0], $this->balance($this->owner));
+        $this->assertSame([30000.0, 30000.0], $this->balance($this->partner));
+    }
+
+    public function test_pending_payment_uses_snapshots_after_listing_and_partner_changes(): void
+    {
+        $listing = $this->house();
+        $service = app(\App\Services\RealEstate\RealEstateReservationService::class);
+        $reservation = $service->create($this->tenant, $listing, null, [], 'wallet');
+        $newPartner = User::factory()->create();
+        $this->cabinet->update(['user_id' => $newPartner->id, 'name' => 'Nouveau nom']);
+        $listing->update(['owner_id' => $newPartner->id, 'net_price' => 200000]);
+        Setting::set('immo_partner_commission_rate', 15, 'string');
+        $this->wallet()->credit($this->tenant, 700000);
+        $service->payWithWallet($reservation);
+
+        $this->assertSame([600000.0, 0.0], $this->balance($this->owner));
+        $this->assertSame([30000.0, 30000.0], $this->balance($this->partner));
+        $this->assertSame([0.0, 0.0], $this->balance($newPartner));
+        Sanctum::actingAs($this->tenant);
+        $this->getJson("/api/v1/real-estate/reservations/{$reservation->id}")
+            ->assertOk()->assertJsonPath('data.commission_cabinet.name', 'Cabinet partenaire');
+    }
+
+    public function test_missing_or_inactive_partner_prevents_payment(): void
+    {
+        $this->cabinet->update(['is_active' => false]);
+        $this->wallet()->credit($this->tenant, 700000);
+        $this->book($this->house())->assertStatus(422);
+        $this->assertSame(0, Reservation::count());
+        $this->assertSame([700000.0, 700000.0], $this->balance($this->tenant));
     }
 }

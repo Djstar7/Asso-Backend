@@ -10,5 +10,10 @@
     .amounts .total td { font-weight: bold; font-size: 13px; border-top: 2px solid #1a1a18; }
     .right { text-align: right; }
     .box { background: #fdf3ea; border: 1px solid #f6d9c0; padding: 10px; margin-top: 12px; }
-    .sign td { height: 60px; border-top: 1px solid #a8a8a3; width: 50%; }
+    .brand { margin-bottom: 12px; }
+    .brand td { vertical-align: middle; }
+    .logo { width: 100px; height: auto; }
+    .signatures { margin-top: 8px; }
+    .signatures td { width: 50%; border: 1px solid #a8a8a3; padding: 10px; }
+    .signature-line { height: 38px; border-bottom: 1px solid #1a1a18; margin-bottom: 6px; }
 </style>

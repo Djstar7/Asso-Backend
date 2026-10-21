@@ -1346,6 +1346,7 @@
             "immo_reservation_paid": "Real estate booking :reference",
             "immo_reservation_refunded": "Real estate booking :reference refunded",
             "immo_reservation_received": "Booking received :reference",
+            "immo_partner_commission": "Real estate partner commission :reference",
             "immo_funds_held": "Booking :reference — amount held until the visit",
             "immo_funds_released": "Booking :reference — amount released",
             "asso_commission_rent": "ASSO commission — rental :reference",

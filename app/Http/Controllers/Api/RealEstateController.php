@@ -25,9 +25,7 @@ use Illuminate\Support\Facades\DB;
  */
 class RealEstateController extends Controller
 {
-    public function __construct(private RealEstatePricingService $pricing)
-    {
-    }
+    public function __construct(private RealEstatePricingService $pricing) {}
 
     private function viewer(Request $request): ?User
     {
@@ -57,7 +55,8 @@ class RealEstateController extends Controller
                 'room_kinds' => \App\Models\RealEstate\Room::KINDS,
                 'amenities' => $amenities->map->toApi()->values(),
                 'cities' => Listing::published()->select('city')->distinct()->orderBy('city')->pluck('city'),
-                'rent_commission_rate' => RealEstatePricingService::setting('immo_rent_commission_rate'),
+                'asso_markup_rate' => RealEstatePricingService::setting('immo_asso_markup_rate'),
+                'partner_commission_rate' => $this->pricing->partnerCommissionRate(),
                 'visit_window_days' => (int) RealEstatePricingService::setting('immo_visit_window_days'),
                 'land_release_days' => (int) RealEstatePricingService::setting('immo_land_release_days'),
                 'currency' => 'XAF',
@@ -230,9 +229,22 @@ class RealEstateController extends Controller
         $unit = isset($data['unit_id']) ? $listing->units->firstWhere('id', $data['unit_id']) : $listing->units->sortBy('net_price')->first();
 
         $quote = $this->pricing->quote($listing, $unit, $data['advance_months'] ?? null);
-        unset($quote['owner_amount'], $quote['platform_amount']);
+        $netAmount = $quote['owner_amount'];
+        unset($quote['owner_amount']);
+        $cabinet = $this->pricing->commissionCabinet($listing);
 
-        return response()->json(['success' => true, 'data' => $quote + ['unit_id' => $unit?->id, 'currency' => 'XAF']]);
+        return response()->json(['success' => true, 'data' => $quote + [
+            'net_amount' => $netAmount,
+            'net_payee_kind' => $listing->isManagedByCabinet() ? 'cabinet' : 'landlord',
+            'partner_commission_amount' => $quote['commission'],
+            'commission_cabinet' => $cabinet ? [
+                'id' => $cabinet->id,
+                'name' => $cabinet->name,
+                'logo_url' => media_url($cabinet->logo_path),
+            ] : null,
+            'unit_id' => $unit?->id,
+            'currency' => 'XAF',
+        ]]);
     }
 
     public function cabinet(Request $request, int $id)

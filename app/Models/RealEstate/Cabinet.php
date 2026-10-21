@@ -2,6 +2,7 @@
 
 namespace App\Models\RealEstate;
 
+use App\Models\Setting;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -31,6 +32,15 @@ class Cabinet extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public static function defaultPartner(): ?self
+    {
+        $id = (int) Setting::get('immo_default_cabinet_id', 0);
+        $query = static::where('is_active', true);
+
+        // Une configuration explicite invalide ne doit pas détourner un paiement.
+        return $id > 0 ? $query->find($id) : $query->orderBy('id')->first();
     }
 
     public function listings(): HasMany

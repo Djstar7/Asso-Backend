@@ -203,13 +203,16 @@ class RealEstateLandlordController extends Controller
         ]);
         $displayed = $this->pricing->displayed($data['net_price'], Listing::TYPE_RENT);
         $months = $data['advance_months'] ?? 1;
-        $rate = RealEstatePricingService::setting('immo_rent_commission_rate');
+        $commission = (int) round($data['net_price'] * $months * $this->pricing->partnerCommissionRate() / 100);
+        $assoAmount = ($displayed - $data['net_price']) * $months;
 
         return response()->json(['success' => true, 'data' => [
             'displayed_price' => $displayed,
             'owner_receives_monthly' => $data['net_price'],
             'owner_receives_advance' => $data['net_price'] * $months,
-            'tenant_pays_advance' => (int) round($displayed * $months * (1 + $rate / 100)),
+            'asso_amount' => $assoAmount,
+            'partner_commission_amount' => $commission,
+            'tenant_pays_advance' => $displayed * $months + $commission,
             'visit_window_days' => (int) RealEstatePricingService::setting('immo_visit_window_days'),
         ]]);
     }

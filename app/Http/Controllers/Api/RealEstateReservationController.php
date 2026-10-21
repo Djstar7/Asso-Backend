@@ -3,9 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\RealEstate\DisputeReason;
 use App\Models\RealEstate\Listing;
 use App\Models\RealEstate\Reservation;
-use App\Models\RealEstate\DisputeReason;
 use App\Services\RealEstate\RealEstateDisputeService;
 use App\Services\RealEstate\RealEstateReservationService;
 use App\Services\WalletService;
@@ -20,9 +20,7 @@ use Illuminate\Validation\Rule;
  */
 class RealEstateReservationController extends Controller
 {
-    public function __construct(private RealEstateReservationService $service)
-    {
-    }
+    public function __construct(private RealEstateReservationService $service) {}
 
     public function store(Request $request, int $id)
     {
@@ -228,8 +226,16 @@ class RealEstateReservationController extends Controller
             'unit_price' => $r->displayed_unit_price,
             'base_amount' => $r->base_amount,
             'commission_amount' => $r->commission_amount,
+            'partner_commission_amount' => $r->partner_commission_amount,
+            'platform_amount' => $r->platform_amount,
             'total_amount' => $r->total_amount,
+            'net_amount' => $r->owner_amount,
+            'net_payee_kind' => $r->net_payee_kind,
             'owner_amount' => $r->payee_id === $request->user()->id ? $r->owner_amount : null,
+            'commission_cabinet' => $r->partnerCabinet ? [
+                'id' => $r->partnerCabinet->id,
+                'name' => $r->partner_cabinet_name ?? $r->partnerCabinet->name,
+            ] : null,
             'payment_method' => $r->payment_method,
             'paid_at' => $r->paid_at?->toIso8601String(),
             'visit_deadline_at' => $r->visit_deadline_at?->toIso8601String(),
@@ -251,11 +257,19 @@ class RealEstateReservationController extends Controller
             'can_dispute' => $r->status === 'paid' && $r->tenant_id === $request->user()->id
                 && (! $r->visit_deadline_at || $r->visit_deadline_at->isFuture()),
             // Coordonnées débloquées par le paiement.
-            'contact' => ! $isPayee && in_array($r->status, Reservation::PAID_STATUSES, true) && $listing ? ($listing->isLand()
-                ? $listing->cabinet?->toApi($request->user())['contact']
+            'contact' => ! $isPayee && in_array($r->status, Reservation::PAID_STATUSES, true) && $listing ? (($r->net_payee_kind === 'cabinet' || $r->kind === 'land')
+                ? [
+                    'name' => $r->partner_cabinet_name ?? $r->payee?->name,
+                    'phone' => $r->payee?->phone ?? $r->partnerCabinet?->phone ?? $listing->cabinet?->phone,
+                    'whatsapp' => $r->partnerCabinet?->whatsapp ?? ($r->kind === 'land' ? $listing->cabinet?->whatsapp : null),
+                    'email' => $r->partnerCabinet?->email,
+                    'address' => $listing->address,
+                    'latitude' => $listing->latitude,
+                    'longitude' => $listing->longitude,
+                ]
                 : [
-                    'name' => trim(($listing->owner?->first_name ?? '').' '.($listing->owner?->last_name ?? '')),
-                    'phone' => $listing->owner?->phone,
+                    'name' => trim(($r->payee?->first_name ?? '').' '.($r->payee?->last_name ?? '')),
+                    'phone' => $r->payee?->phone,
                     'address' => $listing->address,
                     'latitude' => $listing->latitude,
                     'longitude' => $listing->longitude,

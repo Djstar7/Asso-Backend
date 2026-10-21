@@ -6,13 +6,16 @@
     <div class="mb-6 flex items-center justify-between flex-wrap gap-3">
         <div>
             <h1 class="text-2xl font-bold text-white">Annonces immobilières</h1>
-            <p class="text-gray-400">Maisons publiées par les bailleurs (relues avant publication) et terrains des cabinets partenaires, saisis par ASSO.</p>
+            <p class="text-gray-400">Maisons et terrains gérés par les cabinets partenaires, ainsi que les annonces publiées par les bailleurs.</p>
         </div>
         <div class="flex gap-2">
             <button type="button" @click="bulk = !bulk" class="px-4 py-2 bg-dark-200 text-white rounded-lg hover:bg-dark-50">
                 <i class="fas fa-layer-group mr-2"></i> Saisie rapide de terrains
             </button>
-            <a href="{{ route('admin.real-estate.listings.create') }}" class="px-4 py-2 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-lg hover:shadow-lg">
+            <a href="{{ route('admin.real-estate.listings.create', ['type' => 'rent']) }}" class="px-4 py-2 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-lg hover:shadow-lg">
+                <i class="fas fa-plus mr-2"></i> Nouvelle maison
+            </a>
+            <a href="{{ route('admin.real-estate.listings.create', ['type' => 'land']) }}" class="px-4 py-2 bg-dark-200 text-white rounded-lg hover:bg-dark-50">
                 <i class="fas fa-plus mr-2"></i> Nouveau terrain
             </a>
         </div>
@@ -82,6 +85,12 @@
                 <option value="{{ $key }}" @selected(request('status') === $key)>{{ $label }} ({{ $counts[$key] ?? 0 }})</option>
             @endforeach
         </select>
+        <select name="cabinet_id" class="{{ $in }}">
+            <option value="">Tous les cabinets</option>
+            @foreach($cabinets as $cab)
+                <option value="{{ $cab->id }}" @selected(request('cabinet_id') == $cab->id)>{{ $cab->name }}</option>
+            @endforeach
+        </select>
         <button class="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600"><i class="fas fa-search mr-2"></i>Filtrer</button>
     </form>
 
@@ -113,8 +122,8 @@
                         </div>
                     </td>
                     <td class="px-4 py-3 text-sm text-gray-300">
-                        @if($l->isLand())
-                            <i class="fas fa-landmark mr-1 text-gray-500"></i>{{ $l->cabinet?->name ?? '—' }}
+                        @if($l->cabinet)
+                            <i class="fas fa-landmark mr-1 text-gray-500"></i>{{ $l->cabinet->name }}
                         @else
                             <i class="fas fa-user mr-1 text-gray-500"></i>{{ $l->owner?->name ?? '—' }}
                             @if($l->owner) <div class="mt-1">@include('admin.real_estate._status', ['status' => $l->owner->landlord_verification_status ?: 'none'])</div> @endif

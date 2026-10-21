@@ -26,15 +26,21 @@ class Listing extends Model
     use HasTranslations, SoftDeletes;
 
     public const TYPE_RENT = 'rent';
+
     public const TYPE_LAND = 'land';
 
     public const STATUS_DRAFT = 'draft';
+
     public const STATUS_PENDING = 'pending_review';
+
     public const STATUS_PUBLISHED = 'published';
+
     public const STATUS_REJECTED = 'rejected';
+
     public const STATUS_ARCHIVED = 'archived';
 
     public const RENT_KINDS = ['house', 'villa', 'apartment', 'studio', 'room', 'duplex', 'residence'];
+
     public const LAND_KINDS = ['building_land', 'farm_land', 'commercial_land'];
 
     protected $table = 'real_estate_listings';
@@ -212,6 +218,11 @@ class Listing extends Model
 
     // ---------------------------------------------------------------- API
 
+    public function isManagedByCabinet(): bool
+    {
+        return $this->isLand() || ! $this->owner_id;
+    }
+
     /** Carte de liste. */
     public function toCardApi(?User $viewer = null, array $favoriteIds = []): array
     {
@@ -221,11 +232,13 @@ class Listing extends Model
         $available = $this->unitsAvailable();
         $threshold = (int) RealEstatePricingService::setting('immo_low_stock_threshold');
         $old = $this->minOldNetPrice();
+        $commissionCabinet = $pricing->commissionCabinet($this);
 
         return [
             'id' => $this->id,
             'is_owner' => $viewer !== null && (int) $viewer->getKey() === (int) $this->owner_id,
             'reference' => $this->reference,
+            'net_payee_kind' => $this->isManagedByCabinet() ? 'cabinet' : 'landlord',
             'type' => $this->type,
             'property_kind' => $this->property_kind,
             'title' => $this->title,
@@ -259,6 +272,11 @@ class Listing extends Model
                 'id' => $this->cabinet->id,
                 'name' => $this->cabinet->name,
                 'logo_url' => media_url($this->cabinet->logo_path),
+            ] : null,
+            'commission_cabinet' => $commissionCabinet ? [
+                'id' => $commissionCabinet->id,
+                'name' => $commissionCabinet->name,
+                'logo_url' => media_url($commissionCabinet->logo_path),
             ] : null,
             'is_favorite' => in_array($this->id, $favoriteIds, true),
             'published_at' => $this->published_at?->toIso8601String(),
@@ -298,8 +316,10 @@ class Listing extends Model
 
         $owner = $this->owner;
         $ownerVerified = $owner && $owner->landlord_verification_status === 'verified';
+        $card = $this->toCardApi($viewer, $favoriteIds);
+        $card['cabinet'] = $this->cabinet?->toApi($viewer);
 
-        return $this->toCardApi($viewer, $favoriteIds) + [
+        return $card + [
             'description' => app(RealEstateDescriptionGenerator::class)->generate($this),
             'owner_description' => $this->owner_description,
             'bathrooms' => $this->bathrooms,
@@ -321,9 +341,7 @@ class Listing extends Model
                 : null,
             'min_lease_months' => $this->min_lease_months,
             'advance_months' => $this->advance_months,
-            'commission_rate' => $this->isLand()
-                ? RealEstatePricingService::setting('immo_land_commission_rate')
-                : RealEstatePricingService::setting('immo_rent_commission_rate'),
+            'commission_rate' => $pricing->partnerCommissionRate(),
             'visit_window_days' => (int) RealEstatePricingService::setting(
                 $this->isLand() ? 'immo_land_release_days' : 'immo_visit_window_days'
             ),

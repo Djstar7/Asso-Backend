@@ -60,7 +60,7 @@ class RealEstateListingTest extends TestCase
 
     public function test_list_returns_published_houses_with_displayed_price(): void
     {
-        Setting::set('immo_rent_markup_rate', 5, 'string');
+        Setting::set('immo_asso_markup_rate', 5, 'string');
         $this->house();
         $this->house(['status' => 'pending_review', 'title' => 'Brouillon']);
 
@@ -91,7 +91,7 @@ class RealEstateListingTest extends TestCase
         $res = $this->getJson('/api/v1/real-estate/listings?type=land&titled=1&surface_min=1000')->assertOk();
         $res->assertJsonCount(1, 'data');
         $this->assertSame('300 - 1 200 m²', $res->json('data.0.surface_label'));
-        $this->assertSame(3000000, $res->json('data.0.price'));
+        $this->assertSame(3300000, $res->json('data.0.price'));
         $this->assertTrue($res->json('data.0.price_from'));
         $this->assertSame('Cabinet Gwoda et Associés', $res->json('data.0.cabinet.name'));
     }
@@ -146,42 +146,45 @@ class RealEstateListingTest extends TestCase
         $this->getJson("/api/v1/real-estate/listings/{$listing->id}")->assertNotFound();
     }
 
-    public function test_rent_quote_adds_commission_on_first_advance(): void
+    public function test_rent_quote_splits_ten_percent_for_asso_and_five_percent_for_partner(): void
     {
-        Setting::set('immo_rent_markup_rate', 0, 'string');
-        Setting::set('immo_rent_commission_rate', 10, 'string');
+        Setting::set('immo_asso_markup_rate', 10, 'string');
+        Setting::set('immo_partner_commission_rate', 5, 'string');
         $listing = $this->house();
 
         $quote = app(RealEstatePricingService::class)->quote($listing->fresh());
-        $this->assertSame(600000, $quote['base_amount']);
-        $this->assertSame(60000, $quote['commission']);
-        $this->assertSame(660000, $quote['total']);
+        $this->assertSame(660000, $quote['base_amount']);
+        $this->assertSame(30000, $quote['commission']);
+        $this->assertSame(690000, $quote['total']);
         $this->assertSame(600000, $quote['owner_amount']);
         $this->assertSame(60000, $quote['platform_amount']);
 
         // L'aperçu public ne révèle pas la part du bailleur.
         $res = $this->getJson("/api/v1/real-estate/listings/{$listing->id}/quote")->assertOk();
-        $this->assertSame(660000, $res->json('data.total'));
+        $this->assertSame(690000, $res->json('data.total'));
+        $this->assertSame(30000, $res->json('data.partner_commission_amount'));
+        $this->assertSame(60000, $res->json('data.platform_amount'));
         $this->assertNull($res->json('data.owner_amount'));
     }
 
-    public function test_markup_goes_to_platform_share(): void
+    public function test_rent_markup_and_partner_commission_are_split_on_net_amount(): void
     {
-        Setting::set('immo_rent_markup_rate', 10, 'string');
-        Setting::set('immo_rent_commission_rate', 10, 'string');
+        Setting::set('immo_asso_markup_rate', 10, 'string');
+        Setting::set('immo_partner_commission_rate', 5, 'string');
         $listing = $this->house();
 
         $quote = app(RealEstatePricingService::class)->quote($listing->fresh(), null, 2);
-        // loyer affiché 110 000 × 2 = 220 000 ; commission 22 000.
-        $this->assertSame(242000, $quote['total']);
+        // Loyer affiché 110 000 × 2 = 220 000 ; 5 % partenaire sur 200 000 net.
+        $this->assertSame(230000, $quote['total']);
+        $this->assertSame(10000, $quote['commission']);
         $this->assertSame(200000, $quote['owner_amount']);
-        $this->assertSame(42000, $quote['platform_amount']);
+        $this->assertSame(20000, $quote['platform_amount']);
     }
 
     public function test_land_quote_uses_deposit_percent(): void
     {
-        Setting::set('immo_land_markup_rate', 10, 'string');
-        Setting::set('immo_land_commission_rate', 0, 'string');
+        Setting::set('immo_asso_markup_rate', 10, 'string');
+        Setting::set('immo_partner_commission_rate', 5, 'string');
         $listing = Listing::create([
             'type' => 'land', 'title' => 'Odza', 'city' => 'Yaoundé', 'deposit_percent' => 20,
             'status' => 'published', 'published_at' => now(),
@@ -190,7 +193,8 @@ class RealEstateListingTest extends TestCase
 
         $quote = app(RealEstatePricingService::class)->quote($listing->fresh(), $unit);
         $this->assertSame(4400000, $quote['unit_price']);
-        $this->assertSame(880000, $quote['total']);
+        $this->assertSame(920000, $quote['total']);
+        $this->assertSame(40000, $quote['commission']);
         $this->assertSame(800000, $quote['owner_amount']);
         $this->assertSame(80000, $quote['platform_amount']);
     }
@@ -292,6 +296,17 @@ class RealEstateListingTest extends TestCase
     {
         $res = $this->getJson('/api/v1/real-estate/meta')->assertOk();
         $this->assertNotEmpty($res->json('data.amenities'));
-        $this->assertEquals(10, $res->json('data.rent_commission_rate'));
+        $this->assertEquals(10, $res->json('data.asso_markup_rate'));
+        $this->assertEquals(5, $res->json('data.partner_commission_rate'));
+    }
+
+    public function test_base_one_hundred_is_exactly_one_hundred_fifteen(): void
+    {
+        $listing = $this->house(['net_price' => 100, 'advance_months' => 1]);
+        $quote = app(RealEstatePricingService::class)->quote($listing);
+        $this->assertSame(100, $quote['owner_amount']);
+        $this->assertSame(10, $quote['platform_amount']);
+        $this->assertSame(5, $quote['commission']);
+        $this->assertSame(115, $quote['total']);
     }
 }

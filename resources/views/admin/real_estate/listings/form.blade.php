@@ -21,7 +21,7 @@
         <div>
             <a href="{{ route('admin.real-estate.listings.index') }}" class="text-sm text-gray-400 hover:text-white"><i class="fas fa-arrow-left mr-1"></i> Annonces</a>
             <h1 class="text-2xl font-bold text-white mt-1">
-                {{ $exists ? $listing->title : 'Nouveau terrain' }}
+                {{ $exists ? $listing->title : ($isLand ? 'Nouveau terrain' : 'Nouvelle maison') }}
             </h1>
             @if($exists)
                 <p class="text-gray-400 flex items-center gap-2 mt-1">
@@ -91,9 +91,9 @@
                     <dl class="text-sm space-y-1">
                         <div class="flex justify-between"><dt class="text-gray-400">Prix affiché</dt><dd class="text-white">{{ number_format($quote['unit_price'], 0, ',', ' ') }} FCFA</dd></div>
                         <div class="flex justify-between"><dt class="text-gray-400">{{ $isLand ? 'Acompte' : 'Avance ('.$quote['advance_months'].' mois)' }}</dt><dd class="text-white">{{ number_format($quote['base_amount'], 0, ',', ' ') }}</dd></div>
-                        <div class="flex justify-between"><dt class="text-gray-400">Commission</dt><dd class="text-white">{{ number_format($quote['commission'], 0, ',', ' ') }}</dd></div>
+                        <div class="flex justify-between"><dt class="text-gray-400">Commission cabinet (5 % par défaut)</dt><dd class="text-white">{{ number_format($quote['commission'], 0, ',', ' ') }}</dd></div>
                         <div class="flex justify-between border-t border-dark-200 pt-1"><dt class="text-gray-300">Total payé</dt><dd class="text-white font-semibold">{{ number_format($quote['total'], 0, ',', ' ') }}</dd></div>
-                        <div class="flex justify-between"><dt class="text-gray-400">{{ $isLand ? 'Cabinet (bloqué)' : 'Bailleur (bloqué)' }}</dt><dd class="text-white">{{ number_format($quote['owner_amount'], 0, ',', ' ') }}</dd></div>
+                        <div class="flex justify-between"><dt class="text-gray-400">{{ $listing->isManagedByCabinet() ? 'Cabinet (net bloqué)' : 'Bailleur (net bloqué)' }}</dt><dd class="text-white">{{ number_format($quote['owner_amount'], 0, ',', ' ') }}</dd></div>
                         <div class="flex justify-between"><dt class="text-gray-400">Part ASSO</dt><dd class="text-primary-300 font-semibold">{{ number_format($quote['platform_amount'], 0, ',', ' ') }}</dd></div>
                     </dl>
                 </div>
@@ -104,21 +104,21 @@
     <form method="POST" enctype="multipart/form-data" action="{{ $exists ? route('admin.real-estate.listings.update', $listing) : route('admin.real-estate.listings.store') }}">
         @csrf
         @if($exists) @method('PUT') @endif
+        <input type="hidden" name="type" value="{{ $listing->type }}">
 
         <div class="{{ $card }}">
             <h2 class="text-lg font-semibold text-white mb-4"><i class="fas fa-info-circle mr-2 text-primary-400"></i>Annonce</h2>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                @if($isLand)
-                    <div>
-                        <label class="{{ $label }}">Cabinet partenaire</label>
-                        <select name="cabinet_id" required class="{{ $in }}">
-                            @foreach($cabinets as $cab)
-                                <option value="{{ $cab->id }}" @selected($val('cabinet_id') == $cab->id)>{{ $cab->name }}</option>
-                            @endforeach
-                        </select>
-                        @if($cabinets->isEmpty())<p class="text-xs text-yellow-300 mt-1">Créez d'abord un cabinet.</p>@endif
-                    </div>
-                @endif
+                <div>
+                    <label class="{{ $label }}">Cabinet gestionnaire / partenaire</label>
+                    <select name="cabinet_id" required class="{{ $in }}">
+                        @foreach($cabinets as $cab)
+                            <option value="{{ $cab->id }}" @selected($val('cabinet_id') == $cab->id)>{{ $cab->name }}{{ $cab->is_active ? '' : ' (inactif)' }}</option>
+                        @endforeach
+                    </select>
+                    <p class="text-xs text-gray-500 mt-1">Le cabinet reçoit la commission. Le net revient au bailleur s’il a proposé la maison, sinon au cabinet.</p>
+                    @if($cabinets->isEmpty())<p class="text-xs text-yellow-300 mt-1">Créez d'abord un cabinet partenaire actif.</p>@endif
+                </div>
                 <div>
                     <label class="{{ $label }}">Type de bien</label>
                     <select name="property_kind" required class="{{ $in }}">
@@ -305,6 +305,18 @@
                 @endforeach
             @endif
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                @unless($isLand)
+                    <div>
+                        <label class="{{ $label }}">Pièce des nouvelles photos</label>
+                        <select name="photo_room_kind" class="{{ $in }}">
+                            <option value="">Photos générales</option>
+                            @foreach(\App\Models\RealEstate\Room::KINDS as $roomKind)
+                                <option value="{{ $roomKind }}">{{ __('real_estate.rooms.'.$roomKind) }}</option>
+                            @endforeach
+                        </select>
+                        <p class="text-xs text-gray-500 mt-1">Ajoutez les photos d’entrée, puis celles des pièces, et une vidéo avant de publier.</p>
+                    </div>
+                @endunless
                 <div><label class="{{ $label }}">Ajouter des photos</label><input type="file" name="photos[]" multiple accept="image/*" class="{{ $in }}"></div>
                 <div><label class="{{ $label }}">Ajouter une vidéo</label><input type="file" name="video" accept="video/*" class="{{ $in }}"></div>
             </div>

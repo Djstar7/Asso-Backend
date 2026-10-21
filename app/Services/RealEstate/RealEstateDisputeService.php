@@ -22,7 +22,7 @@ use Illuminate\Support\Facades\Log;
  *  - remboursement : la part bloquée du bailleur (ou du cabinet) revient au
  *    locataire, la place est remise en vente ;
  *  - déblocage : la part est versée au bailleur.
- * La part d'ASSO (majoration + commission) n'est jamais remboursée.
+ * Les frais ASSO et la commission du cabinet déjà crédités ne sont pas remboursés.
  */
 class RealEstateDisputeService
 {

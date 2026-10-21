@@ -2,6 +2,7 @@
 
 namespace App\Services\RealEstate;
 
+use App\Models\RealEstate\Cabinet;
 use App\Models\RealEstate\Listing;
 use App\Models\RealEstate\Media;
 use App\Models\RealEstate\Room;
@@ -87,6 +88,9 @@ class ListingEditor
     {
         return DB::transaction(function () use ($listing, $data) {
             $fields = Arr::except($data, ['amenity_ids', 'units', 'rooms_tour']);
+            if (empty($fields['cabinet_id']) && ! $listing->cabinet_id) {
+                $fields['cabinet_id'] = Cabinet::defaultPartner()?->id;
+            }
             $listing->fill($fields)->save();
 
             if (array_key_exists('amenity_ids', $data)) {
@@ -110,10 +114,10 @@ class ListingEditor
             $total = (int) ($u['units_total'] ?? 1);
             $attrs = Arr::only($u, ['label', 'surface_min', 'surface_max', 'net_price', 'old_net_price', 'capacity',
                 'kitchen', 'furnished', 'serviced', 'available_from']) + [
-                'units_total' => $total,
-                'units_available' => min($total, (int) ($u['units_available'] ?? $total)),
-                'position' => $position,
-            ];
+                    'units_total' => $total,
+                    'units_available' => min($total, (int) ($u['units_available'] ?? $total)),
+                    'position' => $position,
+                ];
             $unit = ! empty($u['id']) ? $listing->units()->whereKey($u['id'])->first() : null;
             $unit ? $unit->update($attrs) : $unit = $listing->units()->create($attrs);
             $keep[] = $unit->id;

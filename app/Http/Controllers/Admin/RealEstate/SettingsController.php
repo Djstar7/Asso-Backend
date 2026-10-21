@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin\RealEstate;
 
 use App\Http\Controllers\Controller;
 use App\Models\RealEstate\Amenity;
+use App\Models\RealEstate\Cabinet;
 use App\Models\RealEstate\ProjectRequest;
 use App\Models\Setting;
 use App\Services\RealEstate\RealEstatePricingService;
@@ -15,11 +16,9 @@ use Illuminate\Validation\Rule;
 class SettingsController extends Controller
 {
     public const LABELS = [
-        'immo_rent_markup_rate' => ['Majoration des loyers (%)', 'Ajoutée au loyer net saisi par le bailleur. La différence revient à ASSO.'],
-        'immo_rent_commission_rate' => ['Commission sur la première avance (%)', 'Payée par le locataire en plus de l\'avance. Non remboursable.'],
+        'immo_asso_markup_rate' => ['Part ASSO (%)', 'Majoration appliquée au montant net du loyer ou de l’acompte terrain.'],
+        'immo_partner_commission_rate' => ['Commission du cabinet partenaire (%)', 'Commission versée au cabinet partenaire sur le montant net payé.'],
         'immo_visit_window_days' => ['Délai de visite (jours)', 'Part du bailleur bloquée pendant ce délai ; débloquée à la confirmation ou à son terme sans litige.'],
-        'immo_land_markup_rate' => ['Majoration des terrains (%)', 'Ajoutée au prix net du cabinet. La différence revient à ASSO.'],
-        'immo_land_commission_rate' => ['Commission sur l\'acompte terrain (%)', 'Payée par l\'acheteur en plus de l\'acompte. Non remboursable.'],
         'immo_land_default_deposit_percent' => ['Acompte terrain par défaut (%)', 'Utilisé quand le terrain n\'a pas son propre pourcentage.'],
         'immo_land_release_days' => ['Délai de confirmation terrain (jours)', 'Part du cabinet bloquée pendant ce délai.'],
         'immo_low_stock_threshold' => ['Seuil « Plus que N places »', 'Le badge s\'affiche à partir de ce nombre de places restantes.'],
@@ -36,6 +35,8 @@ class SettingsController extends Controller
         return view('admin.real_estate.settings', [
             'values' => $values,
             'labels' => self::LABELS,
+            'defaultCabinetId' => Cabinet::defaultPartner()?->id,
+            'cabinets' => Cabinet::where('is_active', true)->orderBy('name')->get(),
             'amenities' => Amenity::orderBy('kind')->orderBy('position')->get(),
             'projects' => ProjectRequest::with('user')->latest()->limit(100)->get(),
         ]);
@@ -47,10 +48,19 @@ class SettingsController extends Controller
         foreach (array_keys(self::LABELS) as $key) {
             $rules[$key] = ['required', 'numeric', 'min:0', 'max:'.(str_ends_with($key, '_days') || str_ends_with($key, '_views') || str_ends_with($key, '_threshold') ? 100000 : 100)];
         }
+        $rules['immo_default_cabinet_id'] = [
+            'required',
+            'integer',
+            Rule::exists('real_estate_cabinets', 'id')->where(fn ($query) => $query->where('is_active', true)),
+        ];
         $data = $request->validate($rules);
         foreach ($data as $key => $value) {
+            if (! array_key_exists($key, self::LABELS)) {
+                continue;
+            }
             Setting::set($key, (string) $value, 'string', 'real_estate', self::LABELS[$key][0]);
         }
+        Setting::set('immo_default_cabinet_id', (int) ($data['immo_default_cabinet_id'] ?? 0), 'integer', 'real_estate', 'Cabinet partenaire par défaut');
 
         return back()->with('success', 'Réglages immobiliers enregistrés.');
     }
