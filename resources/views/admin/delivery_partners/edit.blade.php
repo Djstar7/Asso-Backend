@@ -94,6 +94,8 @@
         </form>
     </div>
 
+    @include('admin.delivery_partners._agencies')
+
     <!-- Grilles urbaines zone à zone -->
     @foreach($partner->cityGrids as $grid)
         <div class="bg-dark-100 rounded-xl shadow-lg border border-dark-200 p-6 mb-6">

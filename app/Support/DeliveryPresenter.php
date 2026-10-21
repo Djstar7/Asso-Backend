@@ -62,9 +62,12 @@ class DeliveryPresenter
             'carrier_tracking_url' => $trackingUrl,
             'tracking_status' => $order->tracking_status,
             'tracking_status_label' => OrderTrackingService::stepLabel($order->tracking_status),
-            // Acheteur : confirmer le retrait en agence. À domicile, le coursier clôture
-            // avec le code à 6 chiffres.
-            'can_confirm_reception' => $isCarrier && !$order->hasLastMileDelivery() && $order->status === 'shipped',
+            // Le client accuse réception après la remise enregistrée par ASSO.
+            'can_confirm_reception' => $order->canConfirmReception(),
+            'delivery_option' => $order->isAgencyPickup() ? 'agency_pickup' : 'home_delivery',
+            'pickup_agency' => $order->isAgencyPickup() ? $order->pickup_agency_snapshot : null,
+            'agency_collected_at' => $order->agency_collected_at?->toIso8601String(),
+            'reception_confirmed_at' => $order->confirmed_by_client_at?->toIso8601String(),
             'timeline' => $order->relationLoaded('trackingEvents') ? OrderTrackingService::timeline($order) : [],
         ];
     }

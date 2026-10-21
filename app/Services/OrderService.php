@@ -1436,6 +1436,7 @@ class OrderService
             'route_label' => $quote['route_label'],
             'vehicle_label' => $quote['vehicle_label'],
             'delivery_option' => $quote['delivery_option'],
+            'destination_city' => $quote['city'] ?? null,
             'delivery_option_label' => $quote['delivery_option_label'],
             'lead_time' => $quote['lead_time'],
             'conditions' => $quote['conditions'],

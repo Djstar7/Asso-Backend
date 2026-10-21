@@ -297,3 +297,32 @@ Les contributions sont les bienvenues! Veuillez suivre ces étapes:
 ## Licence
 
 Ce projet est sous licence MIT. Voir le fichier `LICENSE` pour plus de détails.
+
+## Relais transporteur piloté par ASSO
+
+Les colis transporteur sont suivis dans **Expéditions** et, pour les imports, dans
+**Commandes en gros**. Solex et les autres transporteurs n'ont pas d'espace de
+connexion agence. Les courses locales `local` gardent leur parcours coursier.
+
+Parcours import : transport international → réception au dépôt ASSO de Douala →
+demande d'enlèvement transmise → acceptation → récupération physique par le
+partenaire. Hors de Douala : acheminement partenaire puis arrivée à destination.
+ASSO enregistre ensuite le départ en livraison et la remise à domicile, ou la
+disponibilité et le retrait en agence.
+
+Le contact avec le partenaire est effectué par l'équipe (téléphone, e-mail,
+WhatsApp, sur place ou document), puis tracé avec un contact et une référence.
+Aucun message externe n'est envoyé automatiquement par ces actions. Les preuves
+restent internes ; la note client et les étapes sont notifiées à l'acheteur.
+
+Créer les agences réelles dans **Partenaires logistiques**, puis affecter l'agence
+au colis. Le client voit ses coordonnées et présente sa référence de commande au
+retrait. Aucun code client n'est demandé au transporteur dans ASSO.
+
+La remise physique ouvre les 48 heures de contrôle. Le bouton client « J'ai reçu
+mon colis » accuse ensuite réception sans relancer ce délai ni effectuer un second
+règlement du partenaire. Les anciens colis disponibles sans agence doivent recevoir
+une agence puis une nouvelle confirmation d'arrivée et de disponibilité.
+
+Au déploiement, exécuter `php artisan migrate` pour les migrations
+`2026_10_21_180000_add_agency_pickup` et `2026_10_21_190000_add_shipment_confirmations`.

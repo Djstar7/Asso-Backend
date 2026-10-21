@@ -4,13 +4,13 @@
 <div class="p-6">
     <div class="mb-6">
         <h1 class="text-2xl font-bold text-white">Expéditions transporteur</h1>
-        <p class="text-gray-400">Commandes confiées à SOLEX, DHL, FedEx… Le vendeur valide la commande, remet le colis au transporteur avec le numéro de suivi, puis les étapes s'enchaînent jusqu'à la réception par l'acheteur.</p>
+        <p class="text-gray-400">Commandes confiées à SOLEX, DHL, FedEx… L’équipe ASSO suit l’acheminement et enregistre les confirmations du partenaire jusqu’à la remise au client.</p>
     </div>
 
     <form method="GET" class="flex flex-wrap gap-3 mb-4">
         <select name="status" onchange="this.form.submit()"
                 class="px-3 py-2 bg-dark-100 border border-dark-200 rounded-lg text-white text-sm">
-            @foreach(['in_progress' => 'En cours', 'awaiting_seller' => 'En attente du vendeur', 'shipped' => 'Expédiées', 'delivered' => 'Livrées', 'cancelled' => 'Annulées', 'all' => 'Toutes'] as $value => $label)
+            @foreach(['in_progress' => 'En cours', 'awaiting_seller' => 'En attente du vendeur', 'arrived_hub' => 'Chez ASSO · à contacter', 'pickup_requested' => 'Enlèvement demandé', 'pickup_accepted' => 'Enlèvement accepté', 'collected_by_carrier' => 'Récupérées par le partenaire', 'partner_in_transit' => 'Acheminement partenaire', 'ready_for_pickup' => 'Disponibles au retrait', 'shipped' => 'Expédiées', 'delivered' => 'Livrées', 'cancelled' => 'Annulées', 'all' => 'Toutes'] as $value => $label)
                 <option value="{{ $value }}" @selected($status === $value)>{{ $label }}</option>
             @endforeach
         </select>

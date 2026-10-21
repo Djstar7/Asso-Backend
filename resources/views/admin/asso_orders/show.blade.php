@@ -114,6 +114,10 @@
                 @endif
             </div>
 
+            @if($order->isCarrierDelivery())
+                @include('admin.shipments._tracking_actions')
+            @endif
+
             <!-- Historique -->
             <div class="{{ $card }}">
                 <h2 class="text-lg font-semibold text-white mb-4"><i class="fas fa-stream mr-2 text-primary-400"></i>Historique</h2>

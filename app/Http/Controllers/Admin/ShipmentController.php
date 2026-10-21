@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Services\OrderTrackingService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 /**
  * P4 — Suivi des expéditions transporteur (SOLEX, DHL, FedEx, import) jusqu'à la
@@ -30,6 +29,8 @@ class ShipmentController extends Controller
             $query->whereIn('status', ['pending', 'confirmed', 'preparing', 'shipped']);
         } elseif ($status === 'awaiting_seller') {
             $query->where('status', 'pending');
+        } elseif (in_array($status, ['arrived_hub', 'pickup_requested', 'pickup_accepted', 'collected_by_carrier', 'partner_in_transit', 'ready_for_pickup'], true)) {
+            $query->where('status', 'shipped')->where('tracking_status', $status);
         } elseif ($status !== 'all') {
             $query->where('status', $status);
         }
@@ -64,40 +65,15 @@ class ShipmentController extends Controller
         abort_unless($order->isCarrierDelivery(), 404);
 
         $validated = $request->validate([
-            'step' => 'required|in:handed_to_carrier,delivered,' . implode(',', OrderTrackingService::carrierUpdateSteps($order)),
+            'step' => 'required|string',
             'carrier_tracking_number' => 'nullable|string|max:100',
             'location' => 'nullable|string|max:150',
             'note' => 'nullable|string|max:500',
+            'confirmation_contact' => 'nullable|string|max:150',
+            'confirmation_reference' => 'nullable|string|max:150',
+            'confirmation_channel' => 'nullable|in:phone,email,whatsapp,document,in_person',
         ]);
-
-        if (in_array($order->status, ['cancelled', 'delivered', 'pending'], true)) {
-            return back()->with('error', "La commande est « {$order->status} » : aucune étape ne peut être ajoutée.");
-        }
-        if ($validated['step'] === 'delivered' && !$order->canBeHandedOver()) {
-            return back()->with('error', __('orders.balance_due_before_handover'));
-        }
-
-        DB::transaction(function () use ($order, $validated, $request) {
-            $updates = [];
-            if (!empty($validated['carrier_tracking_number'])) {
-                $updates['carrier_tracking_number'] = trim($validated['carrier_tracking_number']);
-            }
-            if ($order->status !== 'shipped' && $validated['step'] !== 'delivered') {
-                $updates += ['status' => 'shipped', 'shipped_at' => now()];
-            }
-            if ($validated['step'] === 'delivered') {
-                $updates += ['status' => 'delivered', 'delivered_at' => now(), 'confirmation_code' => null];
-            }
-            if ($updates) {
-                $order->update($updates);
-            }
-
-            $this->tracking->record(
-                $order, $validated['step'], $validated['location'] ?? null, $validated['note'] ?? null,
-                'admin', $request->user()?->id, notifyBuyer: true,
-            );
-        });
-
-        return back()->with('success', 'Étape enregistrée. L\'acheteur a été prévenu.');
+        app(\App\Services\AssoShipmentService::class)->advance($order, $validated, $request->user());
+        return back()->with('success', "Étape enregistrée. L'acheteur a été prévenu.");
     }
 }

@@ -43,38 +43,8 @@
                 </ol>
             </div>
 
-            <!-- Ajouter une étape -->
-            @unless(in_array($order->status, ['cancelled', 'delivered', 'pending'], true))
-                <div class="bg-dark-100 rounded-xl border border-dark-200 p-6">
-                    <h2 class="text-lg font-semibold text-white mb-4"><i class="fas fa-plus-circle mr-2 text-primary-400"></i>Ajouter une étape</h2>
-                    <form action="{{ route('admin.shipments.step', $order) }}" method="POST" class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        @csrf
-                        <div>
-                            <label class="block text-xs text-gray-400 mb-1">Étape</label>
-                            <select name="step" class="{{ $input }}">
-                                @foreach($steps as $value => $label)
-                                    <option value="{{ $value }}">{{ $label }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-xs text-gray-400 mb-1">N° de suivi transporteur</label>
-                            <input type="text" name="carrier_tracking_number" value="{{ $order->carrier_tracking_number }}" class="{{ $input }}">
-                        </div>
-                        <div>
-                            <label class="block text-xs text-gray-400 mb-1">Lieu (agence, ville…)</label>
-                            <input type="text" name="location" class="{{ $input }}">
-                        </div>
-                        <div>
-                            <label class="block text-xs text-gray-400 mb-1">Note pour l'acheteur</label>
-                            <input type="text" name="note" class="{{ $input }}">
-                        </div>
-                        <div class="md:col-span-2 text-right">
-                            <button class="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 text-sm"><i class="fas fa-save mr-1"></i> Enregistrer et prévenir l'acheteur</button>
-                        </div>
-                    </form>
-                </div>
-            @endunless
+            @include('admin.shipments._tracking_actions')
+
         </div>
 
         <!-- Détail -->

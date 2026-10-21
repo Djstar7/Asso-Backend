@@ -21,10 +21,17 @@ class OrderTrackingService
         'handed_to_carrier' => 'Remis au transporteur',
         'in_transit' => 'En transit',
         'customs' => 'En dédouanement',
+        'pickup_requested' => 'Demande d’enlèvement transmise au partenaire',
+        'pickup_accepted' => 'Enlèvement accepté par le partenaire',
+        'collected_by_carrier' => 'Colis récupéré chez ASSO par le partenaire',
+        'partner_in_transit' => 'En acheminement par le partenaire',
+        'agency_assigned' => 'Agence de retrait affectée',
+        'collected_at_agency' => 'Retrait en agence enregistré par ASSO',
+        'reception_confirmed' => 'Réception confirmée par le client',
         'arrived_hub' => "Arrivé à l'entrepôt ASSO de Douala",
         'arrived' => 'Arrivé dans la ville de destination',
         'ready_for_pickup' => 'Disponible au retrait en agence',
-        'delivered' => 'Livré — réception confirmée',
+        'delivered' => 'Livré — remise enregistrée',
         'conformity_confirmed' => 'Commande validée par le client — tout est conforme',
         'auto_validated' => 'Commande validée automatiquement (48 h sans réclamation)',
         'cancelled' => 'Commande annulée',
@@ -62,7 +69,17 @@ class OrderTrackingService
         string $actorType = 'system',
         ?int $actorId = null,
         bool $notifyBuyer = false,
+        array $confirmation = [],
     ): OrderTrackingEvent {
+        if ($order->isCarrierDelivery() && in_array($step, array_merge(
+            self::CARRIER_UPDATE_STEPS, [self::IMPORT_HUB_STEP, 'handed_to_carrier'],
+            AssoShipmentService::EXTERNAL_STEPS
+        ), true) && $actorType !== 'admin') {
+            // Le vendeur peut seulement déclarer le dépôt initial d'un colis national.
+            if ($actorType !== 'vendor' || $step !== 'handed_to_carrier' || $order->is_wholesale) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['step' => __('shipment.asso_only')]);
+            }
+        }
         $label = self::STEPS[$step] ?? $step;
 
         $event = OrderTrackingEvent::create([
@@ -74,25 +91,20 @@ class OrderTrackingService
             'actor_type' => $actorType,
             'actor_id' => $actorId,
             'occurred_at' => now(),
-        ]);
+        ] + array_intersect_key($confirmation, array_flip([
+            'confirmation_contact', 'confirmation_reference', 'confirmation_channel',
+        ])));
 
         $order->forceFill(['tracking_status' => $step])->saveQuietly();
 
         // Livraison confirmée : fenêtre de contrôle de 48 h (part vendeur bloquée).
-        if ($step === 'delivered') {
+        if (in_array($step, ['delivered', 'collected_at_agency'], true)) {
             app(OrderService::class)->startControlWindow($order->fresh());
         }
 
         // Commande avec acompte : produit présenté au client → vérification ASSO à faire.
         if ($order->isDepositOrder()) {
             app(DepositOrderService::class)->onTrackingStep($order, $step);
-        }
-
-        // Transporteur à domicile : colis arrivé à l'agence (ou import arrivé à l'entrepôt
-        // de Douala) → les coursiers du partenaire le voient dans l'app et l'un d'eux
-        // l'accepte (flux urbain, code à 6 chiffres).
-        if ($step === $order->lastMileStep() && $order->delivery_person_id === null) {
-            $this->notifyLastMileCouriers($order);
         }
 
         if ($notifyBuyer && $order->user) {
@@ -102,14 +114,16 @@ class OrderTrackingService
                     ? $buyer->localized("tracking.steps.{$step}")
                     : $label;
                 $variant = 'body' . ($location ? '_location' : '') . ($note ? '_note' : '');
+                $body = $buyer->localized("notifications.order_tracking.{$variant}", [
+                    'step' => $buyerLabel, 'location' => (string) $location, 'note' => (string) $note,
+                ]);
+                if ($step === 'ready_for_pickup' && $order->pickup_agency_snapshot) {
+                    $body = $buyer->localized('shipment.ready_notification', $order->pickup_agency_snapshot + ['order' => $order->order_number]);
+                }
                 $this->fcm->sendToUser(
                     $buyer,
                     $buyer->localized('notifications.order_tracking.title', ['order_number' => $order->order_number]),
-                    $buyer->localized("notifications.order_tracking.{$variant}", [
-                        'step' => $buyerLabel,
-                        'location' => (string) $location,
-                        'note' => (string) $note,
-                    ]),
+                    $body,
                     [
                         'type' => 'order_tracking',
                         'order_id' => (string) $order->id,
@@ -123,38 +137,6 @@ class OrderTrackingService
         }
 
         return $event;
-    }
-
-    private function notifyLastMileCouriers(Order $order): void
-    {
-        $syncs = \App\Models\DelivererCodeSync::where('company_id', $order->delivery_company_id)
-            ->active()
-            ->with('user')
-            ->get();
-
-        foreach ($syncs as $sync) {
-            if (!$sync->user) {
-                continue;
-            }
-            try {
-                $this->fcm->sendToUser(
-                    $sync->user,
-                    $sync->user->localized('notifications.agency_delivery_request.title'),
-                    $sync->user->localized('notifications.agency_delivery_request.body', [
-                        'order_number' => $order->order_number,
-                        'address' => $order->delivery_address,
-                    ]),
-                    [
-                        'type' => 'new_delivery_request',
-                        'order_id' => (string) $order->id,
-                        'order_number' => $order->order_number,
-                        'delivery_address' => (string) $order->delivery_address,
-                    ]
-                );
-            } catch (\Throwable $e) {
-                Log::warning('[OrderTracking] Notification coursier échouée: ' . $e->getMessage());
-            }
-        }
     }
 
     /** Suivi complet pour l'API (acheteur, vendeur, admin). */

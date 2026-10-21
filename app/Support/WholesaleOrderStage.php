@@ -23,7 +23,7 @@ class WholesaleOrderStage
     ];
 
     /** Étapes de suivi atteintes une fois le colis à Douala. */
-    private const AT_DOUALA = ['arrived_hub', 'arrived', 'ready_for_pickup', 'out_for_delivery'];
+    private const AT_DOUALA = ['arrived_hub', 'pickup_requested', 'pickup_accepted', 'collected_by_carrier', 'partner_in_transit', 'arrived', 'ready_for_pickup', 'out_for_delivery'];
 
     public static function of(Order $order): string
     {

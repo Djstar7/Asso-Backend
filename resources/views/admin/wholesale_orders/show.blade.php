@@ -178,47 +178,7 @@
                 @endif
             </div>
 
-            <!-- Ajouter une étape -->
-            @unless(in_array($order->status, ['cancelled', 'delivered', 'pending'], true))
-                <div class="{{ $card }}">
-                    <h2 class="text-lg font-semibold text-white mb-1"><i class="fas fa-plus-circle mr-2 text-primary-400"></i>Mettre à jour l'acheminement</h2>
-                    <p class="text-xs text-gray-400 mb-4">
-                        Remis au transporteur (avec son n° de suivi) → en transit → dédouanement → arrivé à l'entrepôt ASSO de Douala.
-                        @if($order->leavesFromImportHub() && $order->hasLastMileDelivery())
-                            À l'arrivée à Douala, les coursiers {{ $delivery['company_name'] }} sont prévenus et l'un d'eux vient chercher le colis.
-                        @elseif($hasLocal)
-                            Ensuite, remettez le colis à l'agence {{ $delivery['company_name'] }} de Douala pour le trajet vers {{ $order->deliveryRoute?->destination_city ?? 'la ville du client' }}.
-                        @endif
-                        Le client est prévenu à chaque étape.
-                    </p>
-                    <form action="{{ route('admin.shipments.step', $order) }}" method="POST" class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        @csrf
-                        <div>
-                            <label class="block text-xs text-gray-400 mb-1">Étape</label>
-                            <select name="step" class="{{ $input }}">
-                                @foreach($steps as $value => $label)
-                                    <option value="{{ $value }}" @selected($value === $nextStep)>{{ $label }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-xs text-gray-400 mb-1">N° de suivi {{ $shipping?->carrier ?: 'transporteur' }}</label>
-                            <input type="text" name="carrier_tracking_number" value="{{ $order->carrier_tracking_number }}" class="{{ $input }}">
-                        </div>
-                        <div>
-                            <label class="block text-xs text-gray-400 mb-1">Lieu</label>
-                            <input type="text" name="location" placeholder="Ex. Port de Douala, entrepôt ASSO…" class="{{ $input }}">
-                        </div>
-                        <div>
-                            <label class="block text-xs text-gray-400 mb-1">Note pour le client</label>
-                            <input type="text" name="note" class="{{ $input }}">
-                        </div>
-                        <div class="md:col-span-2 text-right">
-                            <button class="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 text-sm"><i class="fas fa-save mr-1"></i> Enregistrer et prévenir le client</button>
-                        </div>
-                    </form>
-                </div>
-            @endunless
+            @include('admin.shipments._tracking_actions')
 
             <!-- Historique -->
             <div class="{{ $card }}">

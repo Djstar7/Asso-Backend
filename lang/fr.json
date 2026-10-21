@@ -1360,6 +1360,13 @@
     },
     "tracking": {
         "steps": {
+            "pickup_requested": "Demande d’enlèvement transmise au partenaire",
+            "pickup_accepted": "Enlèvement accepté par le partenaire",
+            "collected_by_carrier": "Colis récupéré chez ASSO par le partenaire",
+            "partner_in_transit": "En acheminement par le partenaire",
+            "agency_assigned": "Agence de retrait affectée",
+            "collected_at_agency": "Retrait en agence enregistré par ASSO",
+            "reception_confirmed": "Réception confirmée par le client",
             "pending": "Commande passée",
             "confirmed": "Commande validée par le vendeur",
             "preparing": "Colis en préparation",
@@ -1370,7 +1377,7 @@
             "arrived_hub": "Arrivé à l'entrepôt ASSO de Douala",
             "arrived": "Arrivé dans la ville de destination",
             "ready_for_pickup": "Disponible au retrait en agence",
-            "delivered": "Livré — réception confirmée",
+            "delivered": "Livré — remise enregistrée",
             "cancelled": "Commande annulée",
             "conformity_confirmed": "Commande validée par le client — tout est conforme",
             "auto_validated": "Commande validée automatiquement (48 h sans réclamation)"
@@ -1643,5 +1650,18 @@
             "unknown_reason": "Choisissez un motif dans la liste.",
             "closed": "Ce litige est déjà tranché."
         }
+    },
+    "agency": {
+        "invalid_state": "Cette commande ne permet pas cette action.",
+        "assignment_locked": "L’agence ne peut plus être modifiée après l’arrivée.",
+        "wrong_agency": "Choisissez une agence active du transporteur dans la ville de destination.",
+        "assignment_required": "Affectez une agence de retrait active avant cette étape."
+    },
+    "shipment": {
+        "invalid_transition": "Cette étape ne suit pas l’état actuel du colis.",
+        "confirmation_required": "Renseignez le contact, le canal et la référence de la confirmation du transporteur.",
+        "asso_only": "Le suivi de ce transporteur est renseigné par l’équipe ASSO.",
+        "reception_unavailable": "La réception ne peut être confirmée qu’après une remise enregistrée et un paiement intégral.",
+        "ready_notification": "Commande :order disponible chez :name, :address, :city. Téléphone :phone. Présentez votre référence de commande pour le retrait."
     }
 }

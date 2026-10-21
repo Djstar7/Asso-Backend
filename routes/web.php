@@ -171,6 +171,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
 
         // P4 — Partenaires logistiques (réglages, conditions, trajets au poids) et expéditions
         Route::prefix('delivery-partners')->name('delivery-partners.')->group(function () {
+            Route::post('/{partner}/agencies', [\App\Http\Controllers\Admin\DeliveryAgencyController::class, 'store'])->name('agencies.store');
+            Route::put('/{partner}/agencies/{agency}', [\App\Http\Controllers\Admin\DeliveryAgencyController::class, 'update'])->name('agencies.update');
             Route::get('/', [\App\Http\Controllers\Admin\DeliveryPartnerController::class, 'index'])->name('index');
             Route::put('/settings', [\App\Http\Controllers\Admin\DeliveryPartnerController::class, 'updateSettings'])->name('settings');
             Route::post('/', [\App\Http\Controllers\Admin\DeliveryPartnerController::class, 'store'])->name('store');
@@ -195,6 +197,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/shipments', [\App\Http\Controllers\Admin\ShipmentController::class, 'index'])->name('shipments.index');
         Route::get('/shipments/{order}', [\App\Http\Controllers\Admin\ShipmentController::class, 'show'])->name('shipments.show');
         Route::post('/shipments/{order}/steps', [\App\Http\Controllers\Admin\ShipmentController::class, 'addStep'])->name('shipments.step');
+
+        Route::post('/shipments/{order}/agency', [\App\Http\Controllers\Admin\DeliveryAgencyController::class, 'assign'])->name('shipments.agency');
 
         // Commandes en gros (Chine, Dubaï, Turquie → Douala → SOLEX)
         Route::get('/wholesale-orders', [\App\Http\Controllers\Admin\WholesaleOrderController::class, 'index'])->name('wholesale-orders.index');

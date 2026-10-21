@@ -1360,6 +1360,13 @@
     },
     "tracking": {
         "steps": {
+            "pickup_requested": "Pickup request sent to partner",
+            "pickup_accepted": "Pickup accepted by partner",
+            "collected_by_carrier": "Parcel collected from ASSO by partner",
+            "partner_in_transit": "In transit with partner",
+            "agency_assigned": "Pickup agency assigned",
+            "collected_at_agency": "Agency collection recorded by ASSO",
+            "reception_confirmed": "Receipt confirmed by customer",
             "pending": "Order placed",
             "confirmed": "Order approved by the seller",
             "preparing": "Parcel being prepared",
@@ -1370,7 +1377,7 @@
             "arrived_hub": "Arrived at the ASSO warehouse in Douala",
             "arrived": "Arrived in the destination city",
             "ready_for_pickup": "Ready for pickup at the agency",
-            "delivered": "Delivered — receipt confirmed",
+            "delivered": "Delivered — handover recorded",
             "cancelled": "Order cancelled",
             "conformity_confirmed": "Order approved by the customer — everything is as described",
             "auto_validated": "Order approved automatically (48 h without a claim)"
@@ -1643,5 +1650,18 @@
             "unknown_reason": "Choose a reason from the list.",
             "closed": "This dispute has already been decided."
         }
+    },
+    "agency": {
+        "invalid_state": "This action is unavailable for this order.",
+        "assignment_locked": "The agency cannot be changed after arrival.",
+        "wrong_agency": "Select an active agency of this carrier in the destination city.",
+        "assignment_required": "Assign an active pickup agency before this step."
+    },
+    "shipment": {
+        "invalid_transition": "This step does not follow the current parcel state.",
+        "confirmation_required": "Enter the contact, channel and carrier confirmation reference.",
+        "asso_only": "ASSO staff manage tracking for this carrier.",
+        "reception_unavailable": "Receipt can only be confirmed after a recorded handover and full payment.",
+        "ready_notification": "Order :order is available at :name, :address, :city. Phone :phone. Present your order reference for collection."
     }
 }
