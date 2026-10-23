@@ -10,6 +10,7 @@ use App\Models\Setting;
 /**
  * Seul endroit où se calculent les prix de la rubrique Immobilier.
  *
+ * - Le prix affiché est le prix de référence, sans majoration.
  * - Le bailleur reçoit toute l'avance calculée sur le prix affiché.
  * - Les frais ASSO et partenaire s'ajoutent à cette avance, sans retenue.
  * - Les taux restent calculés sur le prix de référence (net_price).
@@ -57,12 +58,7 @@ class RealEstatePricingService
     /** Prix public servant au calcul de l’avance intégralement versée, arrondi au franc. */
     public function displayed(int $net, string $type): int
     {
-        if ($net <= 0) {
-            return 0;
-        }
-        $raw = $net * (1 + $this->markupRate($type) / 100);
-
-        return (int) round($raw);
+        return max(0, $net);
     }
 
     /**

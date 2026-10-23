@@ -5,7 +5,7 @@
 <div class="p-6">
     <div class="mb-6">
         <h1 class="text-2xl font-bold text-white">Réglages immobiliers</h1>
-        <p class="text-gray-400">Majorations, commissions, délais de blocage, catalogue des équipements et demandes « Confier mon projet ».</p>
+        <p class="text-gray-400">Frais ASSO, commissions, délais de blocage, catalogue des équipements et demandes « Confier mon projet ».</p>
     </div>
 
     @include('admin.real_estate._alerts')

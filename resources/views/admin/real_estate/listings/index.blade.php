@@ -124,7 +124,7 @@
                     </th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-white uppercase">Annonce</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-white uppercase">Bailleur / cabinet</th>
-                    <th class="px-4 py-3 text-left text-xs font-semibold text-white uppercase">Prix de référence → affiché</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-white uppercase">Prix affiché</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-white uppercase">Statut</th>
                     <th class="px-4 py-3 text-right text-xs font-semibold text-white uppercase">Actions</th>
                 </tr>
@@ -158,7 +158,7 @@
                         @endif
                     </td>
                     <td class="px-4 py-3 text-sm text-gray-300">
-                        {{ number_format($l->minNetPrice(), 0, ',', ' ') }} → <span class="text-white font-semibold">{{ number_format($pricing->displayed($l->minNetPrice(), $l->type), 0, ',', ' ') }}</span> FCFA
+                        <span class="text-white font-semibold">{{ number_format($pricing->displayed($l->minNetPrice(), $l->type), 0, ',', ' ') }}</span> FCFA
                         @if(! $l->isLand())<span class="text-gray-500">/ mois</span>@endif
                     </td>
                     <td class="px-4 py-3">@include('admin.real_estate._status', ['status' => $l->status])</td>

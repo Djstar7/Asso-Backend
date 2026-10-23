@@ -16,7 +16,7 @@ use Illuminate\Validation\Rule;
 class SettingsController extends Controller
 {
     public const LABELS = [
-        'immo_asso_markup_rate' => ['Part ASSO (%)', 'Taux sur le prix de référence : détermine le prix affiché et les frais ASSO ajoutés à l’avance. Le bénéficiaire reçoit toute l’avance affichée.'],
+        'immo_asso_markup_rate' => ['Part ASSO (%)', 'Frais ajoutés une seule fois à l’avance ou à l’acompte, calculés sur ce montant. Le prix affiché reste le prix de référence, sans majoration.'],
         'immo_partner_commission_rate' => ['Commission du cabinet partenaire (%)', 'Frais calculés sur le prix de référence, ajoutés à l’avance et versés au cabinet partenaire.'],
         'immo_visit_window_days' => ['Délai de visite (jours)', 'Part du bailleur bloquée pendant ce délai ; débloquée à la confirmation ou à son terme sans litige.'],
         'immo_land_default_deposit_percent' => ['Acompte terrain par défaut (%)', 'Utilisé quand le terrain n\'a pas son propre pourcentage.'],

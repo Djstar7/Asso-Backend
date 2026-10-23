@@ -95,10 +95,9 @@ class RealEstateController extends Controller
         $query = Listing::published()->where('type', $type)
             ->with(['units', 'media', 'tourRooms', 'amenities', 'cabinet']);
 
-        $this->applyFilters($query, $data, $type);
+        $this->applyFilters($query, $data);
 
-        // Le prix affiché dépend d'un taux global : on filtre et trie sur le
-        // prix net équivalent, ce qui garde l'ordre exact.
+        // Le prix affiché est le prix de référence, utilisé aussi pour le tri.
         $minNet = 'COALESCE((SELECT MIN(u.net_price) FROM real_estate_units u WHERE u.listing_id = real_estate_listings.id), real_estate_listings.net_price)';
         match ($data['sort'] ?? 'recent') {
             'price_asc' => $query->orderByRaw("$minNet asc"),
@@ -123,11 +122,8 @@ class RealEstateController extends Controller
         ]);
     }
 
-    private function applyFilters(Builder $query, array $data, string $type): void
+    private function applyFilters(Builder $query, array $data): void
     {
-        $markup = 1 + $this->pricing->markupRate($type) / 100;
-        $netBound = fn ($displayed) => (int) floor($displayed / $markup);
-
         if ($q = trim($data['q'] ?? '')) {
             $query->where(fn ($w) => $w->where('city', 'like', "%$q%")
                 ->orWhere('district', 'like', "%$q%")
@@ -144,12 +140,12 @@ class RealEstateController extends Controller
             $query->where('property_kind', $data['kind']);
         }
         if (isset($data['price_min'])) {
-            $min = $netBound($data['price_min']);
+            $min = (int) $data['price_min'];
             $query->where(fn ($w) => $w->whereHas('units', fn ($u) => $u->where('net_price', '>=', $min))
                 ->orWhere(fn ($x) => $x->doesntHave('units')->where('net_price', '>=', $min)));
         }
         if (isset($data['price_max'])) {
-            $max = (int) ceil($data['price_max'] / $markup);
+            $max = (int) $data['price_max'];
             $query->where(fn ($w) => $w->whereHas('units', fn ($u) => $u->where('net_price', '<=', $max))
                 ->orWhere(fn ($x) => $x->doesntHave('units')->where('net_price', '<=', $max)));
         }

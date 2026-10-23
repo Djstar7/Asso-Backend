@@ -5,7 +5,6 @@ namespace App\Console\Commands;
 use App\Models\RealEstate\Alert;
 use App\Models\RealEstate\Listing;
 use App\Services\FirebaseMessagingService;
-use App\Services\RealEstate\RealEstatePricingService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -20,12 +19,12 @@ class RealEstateNotifyAlerts extends Command
 
     protected $description = 'Notifie les nouveaux biens correspondant aux critères enregistrés';
 
-    public function handle(RealEstatePricingService $pricing): int
+    public function handle(): int
     {
         $sent = 0;
-        Alert::where('is_active', true)->with('user')->chunkById(200, function ($alerts) use ($pricing, &$sent) {
+        Alert::where('is_active', true)->with('user')->chunkById(200, function ($alerts) use (&$sent) {
             foreach ($alerts as $alert) {
-                Cache::lock('immo:alert:'.$alert->id, 120)->get(function () use ($alert, $pricing, &$sent) {
+                Cache::lock('immo:alert:'.$alert->id, 120)->get(function () use ($alert, &$sent) {
                     $alert->refresh();
                     if (! $alert->is_active || ! $alert->user) {
                         return;
@@ -37,15 +36,14 @@ class RealEstateNotifyAlerts extends Command
                     if ($until->lessThanOrEqualTo($since)) {
                         return;
                     }
-                    $markup = 1 + $pricing->markupRate($alert->type) / 100;
                     $matches = Listing::published()
                         ->where('type', $alert->type ?: 'rent')
                         ->where('published_at', '>=', $since)
                         ->where('published_at', '<', $until)
                         ->when($alert->city, fn ($q) => $q->where(fn ($w) => $w->where('city', 'like', $alert->city.'%')
                             ->orWhere('district', 'like', '%'.$alert->city.'%')))
-                        ->when($alert->budget_max !== null, fn ($q) => $q->whereRaw('ROUND(net_price * ?, 0) <= ?', [$markup, $alert->budget_max]))
-                        ->when($alert->budget_min !== null, fn ($q) => $q->whereRaw('ROUND(net_price * ?, 0) >= ?', [$markup, $alert->budget_min]))
+                        ->when($alert->budget_max !== null, fn ($q) => $q->where('net_price', '<=', $alert->budget_max))
+                        ->when($alert->budget_min !== null, fn ($q) => $q->where('net_price', '>=', $alert->budget_min))
                         ->when($alert->type === Listing::TYPE_RENT && $alert->lease_months, fn ($q) => $q->where(fn ($w) => $w->whereNull('min_lease_months')
                             ->orWhere('min_lease_months', '<=', $alert->lease_months)))
                         ->count();

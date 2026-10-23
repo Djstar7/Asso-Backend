@@ -92,8 +92,10 @@ class RealEstateNotificationsTest extends TestCase
     public function test_land_alert_excludes_rentals_and_respects_public_budget(): void
     {
         $alert = $this->alert();
+        $alert->update(['budget_min' => 40000000, 'budget_max' => 40000000]);
         $this->listing();
         $this->listing('rent');
+        $this->listing()->update(['net_price' => 39999999]);
         $this->listing()->update(['net_price' => 50000000]);
         $this->travel(1)->seconds();
         $this->mock(FirebaseMessagingService::class)->shouldReceive('sendToUser')->once()

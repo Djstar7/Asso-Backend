@@ -67,7 +67,7 @@ class RealEstateListingTest extends TestCase
         $res = $this->getJson('/api/v1/real-estate/listings?type=rent')->assertOk();
 
         $res->assertJsonCount(1, 'data');
-        $this->assertSame(105000, $res->json('data.0.price'));
+        $this->assertSame(100000, $res->json('data.0.price'));
         $this->assertSame('Bonamoussadi', $res->json('data.0.district'));
         $this->assertSame(1, $res->json('meta.total'));
     }
@@ -91,7 +91,7 @@ class RealEstateListingTest extends TestCase
         $res = $this->getJson('/api/v1/real-estate/listings?type=land&titled=1&surface_min=1000')->assertOk();
         $res->assertJsonCount(1, 'data');
         $this->assertSame('300 - 1 200 m²', $res->json('data.0.surface_label'));
-        $this->assertSame(3300000, $res->json('data.0.price'));
+        $this->assertSame(3000000, $res->json('data.0.price'));
         $this->assertTrue($res->json('data.0.price_from'));
         $this->assertNull($res->json('data.0.cabinet.name'));
         $this->assertNull($res->json('data.0.cabinet.logo_url'));
@@ -184,18 +184,47 @@ class RealEstateListingTest extends TestCase
         $listing = $this->house();
 
         $quote = app(RealEstatePricingService::class)->quote($listing->fresh());
-        $this->assertSame(660000, $quote['base_amount']);
+        $this->assertSame(600000, $quote['base_amount']);
         $this->assertSame(30000, $quote['commission']);
-        $this->assertSame(750000, $quote['total']);
-        $this->assertSame(660000, $quote['owner_amount']);
+        $this->assertSame(690000, $quote['total']);
+        $this->assertSame(600000, $quote['owner_amount']);
         $this->assertSame(60000, $quote['platform_amount']);
 
         // L'aperçu public ne révèle pas la part du bailleur.
         $res = $this->getJson("/api/v1/real-estate/listings/{$listing->id}/quote")->assertOk();
-        $this->assertSame(750000, $res->json('data.total'));
+        $this->assertSame(690000, $res->json('data.total'));
         $this->assertSame(30000, $res->json('data.partner_commission_amount'));
         $this->assertSame(60000, $res->json('data.platform_amount'));
         $this->assertNull($res->json('data.owner_amount'));
+    }
+
+    public function test_eight_month_reservation_has_no_markup_on_the_displayed_rent(): void
+    {
+        Setting::set('immo_asso_markup_rate', 10, 'string');
+        Setting::set('immo_partner_commission_rate', 5, 'string');
+        $listing = $this->house(['net_price' => 120000, 'advance_months' => 8]);
+
+        $this->getJson("/api/v1/real-estate/listings/{$listing->id}")->assertOk()
+            ->assertJsonPath('data.price', 120000);
+        $this->getJson("/api/v1/real-estate/listings/{$listing->id}/quote")->assertOk()
+            ->assertJsonPath('data.unit_price', 120000)
+            ->assertJsonPath('data.base_amount', 960000)
+            ->assertJsonPath('data.platform_amount', 96000)
+            ->assertJsonPath('data.partner_commission_amount', 48000)
+            ->assertJsonPath('data.total', 1104000);
+    }
+
+    public function test_price_filters_use_the_unmarked_price_at_both_budget_boundaries(): void
+    {
+        Setting::set('immo_asso_markup_rate', 10, 'string');
+        $listing = $this->house(['net_price' => 120000]);
+        $this->house(['net_price' => 119999]);
+        $this->house(['net_price' => 120001]);
+
+        $this->getJson('/api/v1/real-estate/listings?type=rent&price_min=120000&price_max=120000')
+            ->assertOk()->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $listing->id)
+            ->assertJsonPath('data.0.price', 120000);
     }
 
     public function test_landlord_preview_matches_the_tenant_quote_and_full_rent_payout(): void
@@ -206,12 +235,12 @@ class RealEstateListingTest extends TestCase
         $this->postJson('/api/v1/real-estate/landlord/price-preview', [
             'net_price' => 45000, 'advance_months' => 3,
         ])->assertOk()
-            ->assertJsonPath('data.displayed_price', 49500)
-            ->assertJsonPath('data.owner_receives_monthly', 49500)
-            ->assertJsonPath('data.owner_receives_advance', 148500)
+            ->assertJsonPath('data.displayed_price', 45000)
+            ->assertJsonPath('data.owner_receives_monthly', 45000)
+            ->assertJsonPath('data.owner_receives_advance', 135000)
             ->assertJsonPath('data.asso_amount', 13500)
             ->assertJsonPath('data.partner_commission_amount', 6750)
-            ->assertJsonPath('data.tenant_pays_advance', 168750);
+            ->assertJsonPath('data.tenant_pays_advance', 155250);
     }
 
     public function test_rounding_keeps_the_displayed_rent_times_months_and_balances_all_shares(): void
@@ -220,25 +249,25 @@ class RealEstateListingTest extends TestCase
         Setting::set('immo_partner_commission_rate', 5, 'string');
         $listing = $this->house(['net_price' => 7, 'advance_months' => 3]);
         $quote = app(RealEstatePricingService::class)->quote($listing);
-        $this->assertSame(8, $quote['unit_price']);
-        $this->assertSame(24, $quote['base_amount']);
-        $this->assertSame(24, $quote['owner_amount']);
+        $this->assertSame(7, $quote['unit_price']);
+        $this->assertSame(21, $quote['base_amount']);
+        $this->assertSame(21, $quote['owner_amount']);
         $this->assertSame(2, $quote['platform_amount']);
         $this->assertSame(1, $quote['commission']);
-        $this->assertSame(27, $quote['total']);
+        $this->assertSame(24, $quote['total']);
     }
 
-    public function test_rent_markup_and_partner_commission_are_split_on_net_amount(): void
+    public function test_rent_asso_fee_and_partner_commission_are_added_once_on_net_amount(): void
     {
         Setting::set('immo_asso_markup_rate', 10, 'string');
         Setting::set('immo_partner_commission_rate', 5, 'string');
         $listing = $this->house();
 
         $quote = app(RealEstatePricingService::class)->quote($listing->fresh(), null, 2);
-        // Le bailleur conserve 110 000 × 2 ; ASSO 20 000 et partenaire 10 000 en plus.
-        $this->assertSame(250000, $quote['total']);
+        // Le bailleur conserve 100 000 × 2 ; ASSO 20 000 et partenaire 10 000 en plus.
+        $this->assertSame(230000, $quote['total']);
         $this->assertSame(10000, $quote['commission']);
-        $this->assertSame(220000, $quote['owner_amount']);
+        $this->assertSame(200000, $quote['owner_amount']);
         $this->assertSame(20000, $quote['platform_amount']);
     }
 
@@ -253,10 +282,10 @@ class RealEstateListingTest extends TestCase
         $unit = $listing->units()->create(['label' => '400 m²', 'surface_min' => 400, 'net_price' => 4000000]);
 
         $quote = app(RealEstatePricingService::class)->quote($listing->fresh(), $unit);
-        $this->assertSame(4400000, $quote['unit_price']);
-        $this->assertSame(1000000, $quote['total']);
+        $this->assertSame(4000000, $quote['unit_price']);
+        $this->assertSame(920000, $quote['total']);
         $this->assertSame(40000, $quote['commission']);
-        $this->assertSame(880000, $quote['owner_amount']);
+        $this->assertSame(800000, $quote['owner_amount']);
         $this->assertSame(80000, $quote['platform_amount']);
     }
 
@@ -384,9 +413,9 @@ class RealEstateListingTest extends TestCase
     {
         $listing = $this->house(['net_price' => 100, 'advance_months' => 1]);
         $quote = app(RealEstatePricingService::class)->quote($listing);
-        $this->assertSame(110, $quote['owner_amount']);
+        $this->assertSame(100, $quote['owner_amount']);
         $this->assertSame(10, $quote['platform_amount']);
         $this->assertSame(5, $quote['commission']);
-        $this->assertSame(125, $quote['total']);
+        $this->assertSame(115, $quote['total']);
     }
 }
