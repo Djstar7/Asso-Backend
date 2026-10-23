@@ -46,7 +46,7 @@ class AdminWholesaleOrdersTest extends TestCase
         (new \Database\Seeders\DeliveryPartnersSeeder())->run();
         $this->grid = DeliveryCityGrid::where('city', 'Douala')->firstOrFail();
         $hub = ImportHub::ensureShop();
-        $hub->update(['address' => 'Rue 1.234, Akwa-Nord, Douala']);
+        $hub->update(['address' => 'Rue 1.234, Akwa-Nord, Douala', 'phone' => '237670000002']);
 
         ImportCountry::create(['code' => 'CN', 'name' => 'Chine', 'flag' => '🇨🇳', 'is_active' => true]);
         $this->product = Product::create([

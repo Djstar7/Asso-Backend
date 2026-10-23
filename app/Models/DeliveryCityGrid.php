@@ -236,7 +236,11 @@ class DeliveryCityGrid extends Model
     /** Prix HT d'un véhicule entre deux zones (grille symétrique), null si non renseigné. */
     public function price(string $vehicle, int $from, int $to): ?float
     {
-        $prices = $this->vehicle($vehicle)['prices'] ?? [];
+        $definition = $this->vehicle($vehicle);
+        $prices = $definition['prices'] ?? [];
+        if (!empty($definition['base_vehicle'])) {
+            $prices += $this->vehicle($definition['base_vehicle'])['prices'] ?? [];
+        }
         $key = min($from, $to).'-'.max($from, $to);
 
         return isset($prices[$key]) && $prices[$key] !== '' ? (float) $prices[$key] : null;
@@ -246,7 +250,8 @@ class DeliveryCityGrid extends Model
     public function vehiclesFor(float $weightKg): array
     {
         return collect($this->vehicles)
-            ->filter(fn ($v) => empty($v['max_weight_kg']) || $weightKg <= (float) $v['max_weight_kg'])
+            ->filter(fn ($v) => (empty($v['min_weight_kg']) || $weightKg > (float) $v['min_weight_kg'])
+                && (empty($v['max_weight_kg']) || $weightKg <= (float) $v['max_weight_kg']))
             ->sortBy(fn ($v) => empty($v['max_weight_kg']) ? PHP_FLOAT_MAX : (float) $v['max_weight_kg'])
             ->values()
             ->all();
@@ -263,6 +268,15 @@ class DeliveryCityGrid extends Model
         foreach ($this->vehiclesFor($weightKg) as $vehicle) {
             $price = $this->price($vehicle['code'], $fromZone, $toZone);
             if ($price !== null) {
+                if (($vehicle['billing'] ?? null) === 'excess_per_kg') {
+                    $included = max(1, (float) ($vehicle['included_weight_kg'] ?? 1000));
+                    $extraKg = (int) ceil(round(max(0, $weightKg - $included), 3));
+                    $rate = isset($vehicle['extra_per_kg']) ? (float) $vehicle['extra_per_kg'] : $price / $included;
+                    $extra = round($extraKg * $rate, 2);
+                    return ['vehicle' => $vehicle, 'price' => round($price + $extra, 2),
+                        'billing' => 'excess_per_kg', 'included_weight_kg' => $included,
+                        'range_price' => $price, 'extra_kg' => $extraKg, 'extra_per_kg' => $rate, 'extra_price' => $extra];
+                }
                 return ['vehicle' => $vehicle, 'price' => $price];
             }
         }

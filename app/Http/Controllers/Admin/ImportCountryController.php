@@ -38,6 +38,25 @@ class ImportCountryController extends Controller
             ->with('success', "Boutique « {$hub->name} » prête ({$moved} produit(s) en gros rattaché(s)). Placez-la sur la carte pour le calcul SOLEX.");
     }
 
+    public function updateHub(Request $request)
+    {
+        $data = $request->validate([
+            'address' => 'required|string|max:500', 'quarter' => 'required|string|max:100',
+            'city' => 'required|string|in:Douala', 'country' => 'required|string|in:Cameroun,CM',
+            'latitude' => 'required|numeric|between:-90,90', 'longitude' => 'required|numeric|between:-180,180',
+            'phone' => 'required|string|max:30',
+        ]);
+        $hub = ImportHub::ensureShop();
+        if (!$hub) {
+            return back()->with('error', 'Compte plateforme ASSO introuvable.');
+        }
+        $hub->fill($data);
+        $hub->save();
+        // Le quartier explicitement choisi prime sur la déduction par adresse.
+        $hub->update(['quarter' => $data['quarter']]);
+        return back()->with('success', 'Adresse de départ ASSO enregistrée.');
+    }
+
     public function store(Request $request)
     {
         $validated = $request->validate([

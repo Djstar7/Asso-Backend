@@ -58,6 +58,15 @@ class ImportHub
         return $shop;
     }
 
+    public static function isReady(): bool
+    {
+        $hub = self::shop();
+        return $hub && filled($hub->city) && filled($hub->country)
+            && filled($hub->address) && trim($hub->address) !== trim($hub->city)
+            && ($hub->hasLocation() || filled($hub->quarter))
+            && filled($hub->phone ?: $hub->user?->phone);
+    }
+
     /** Rattache tous les produits en gros à la boutique de réception. */
     public static function attachWholesaleProducts(Shop $hub): int
     {

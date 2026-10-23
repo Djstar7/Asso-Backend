@@ -30,7 +30,8 @@ class DeliveryNetworkController extends Controller
             'agency_zone' => 'required|integer|min:1',
             'vehicles' => 'required|array',
             'vehicles.*.label' => 'required|string|max:60',
-            'vehicles.*.max_weight_kg' => 'required|numeric|min:0.1',
+            'vehicles.*.max_weight_kg' => 'nullable|numeric|min:0.1',
+            'vehicles.*.extra_per_kg' => 'nullable|numeric|min:0',
             'vehicles.*.lead_time' => 'nullable|string|max:60',
             'vehicles.*.prices' => 'required|array',
             'vehicles.*.prices.*' => 'nullable|numeric|min:0',
@@ -57,6 +58,13 @@ class DeliveryNetworkController extends Controller
                 throw ValidationException::withMessages(['vehicles' => 'Véhicule manquant.']);
             }
             $vehicle = array_replace($vehicle, collect($data)->only(['label', 'max_weight_kg', 'lead_time'])->all());
+            if (($vehicle['billing'] ?? null) === 'excess_per_kg') {
+                if (isset($data['extra_per_kg'])) {
+                    $vehicle['extra_per_kg'] = (float) $data['extra_per_kg'];
+                } else {
+                    unset($vehicle['extra_per_kg']);
+                }
+            }
             $vehicle['prices'] = collect($data['prices'])->reject(fn ($v) => $v === null || $v === '')->map(fn ($v) => (float) $v)->all();
             $vehicles[] = $vehicle;
         }

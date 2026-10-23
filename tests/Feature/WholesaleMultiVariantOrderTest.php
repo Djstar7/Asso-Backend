@@ -42,7 +42,7 @@ class WholesaleMultiVariantOrderTest extends TestCase
         User::factory()->create(['email' => 'admin@asso.com']);
         (new \Database\Seeders\DeliveryPartnersSeeder())->run();
         $this->grid = \App\Models\DeliveryCityGrid::where('city', 'Douala')->firstOrFail();
-        \App\Support\ImportHub::ensureShop()->update(['address' => 'Rue 1.234, Akwa-Nord, Douala']);
+        \App\Support\ImportHub::ensureShop()->update(['address' => 'Rue 1.234, Akwa-Nord, Douala', 'phone' => '237670000002']);
 
         $seller = User::factory()->create();
         $shop = Shop::create(['user_id' => $seller->id, 'name' => 'Import', 'slug' => 'imp-' . uniqid(), 'status' => 'active']);

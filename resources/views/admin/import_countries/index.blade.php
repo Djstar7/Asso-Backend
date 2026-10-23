@@ -74,6 +74,22 @@
         </div>
     </div>
 
+    @if($hub)
+    <form method="POST" action="{{ route('admin.import-countries.hub.update') }}" class="bg-dark-100 rounded-xl border border-dark-200 p-6 mb-6">
+        @csrf @method('PUT')
+        <h2 class="text-lg text-white mb-3">Adresse de départ des livraisons grossistes</h2>
+        @unless(\App\Support\ImportHub::isReady())<p class="text-amber-300 mb-3">Complétez le départ ASSO avant de proposer les transports aux clients.</p>@endunless
+        <div class="grid md:grid-cols-2 gap-3">
+        @foreach(['country' => 'Pays', 'city' => 'Ville', 'quarter' => 'Quartier', 'address' => 'Adresse précise et repère', 'latitude' => 'Latitude', 'longitude' => 'Longitude', 'phone' => 'Téléphone du contact'] as $field => $label)
+            <label class="text-gray-300 text-sm">{{ $label }}
+                <input name="{{ $field }}" required value="{{ old($field, $hub->$field) }}" class="w-full px-3 py-2 bg-dark-200 rounded text-white" @if(in_array($field, ['latitude', 'longitude'])) type="number" step="any" @endif>
+            </label>
+        @endforeach
+        </div>
+        <button class="mt-3 px-4 py-2 bg-blue-600 rounded text-white">Enregistrer le point de départ</button>
+    </form>
+    @endif
+
     <!-- Formulaire d'ajout -->
     <div class="bg-dark-100 rounded-xl shadow-lg border border-dark-200 p-6 mb-6">
         <h2 class="text-lg font-semibold text-white mb-4"><i class="fas fa-plus-circle mr-2 text-primary-400"></i>Ajouter un pays</h2>

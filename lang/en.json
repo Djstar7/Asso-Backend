@@ -1099,7 +1099,14 @@
         "not_found_short": "Shop not found"
     },
     "delivery": {
-        "network": {"collection": "Collection from the seller’s shop", "distribution": "Delivery from the agency to your address", "collection_delivery": "Shop collection and local delivery", "range": "SOLEX collection and transport", "agency_mode": "Shop collection and agency pickup", "home_mode": "Shop collection and home delivery", "interregional": "National intercity", "intraregional": "Urban · regional delivery", "local": "Local", "description": "SOLEX shop collection and transport within active delivery coverage areas.", "conditions": "SOLEX collects from the seller’s shop, or the ASSO warehouse for imports. The recipient chooses pickup at the stated agency or delivery to the covered address. The price includes the required legs and one ASSO commission; displayed delivery times are estimates."},
+    "import_origin_incomplete": "The ASSO departure location must be configured before delivery can be calculated.",
+    "destination_incomplete": "Complete your city, neighbourhood and address.",
+
+        "network": {
+      "weight_limit": ":company covers this area, but this :weight order exceeds the configured :max capacity in :city. Suitable transport must be configured.",
+      "agency_unavailable": ":company pickup in :city requires an active agency with its address and phone number.",
+      "local_price_missing": "The local :company rate in :city must be completed for this route.",
+"collection": "Collection from the seller’s shop", "distribution": "Delivery from the agency to your address", "collection_delivery": "Shop collection and local delivery", "range": "SOLEX collection and transport", "agency_mode": "Shop collection and agency pickup", "home_mode": "Shop collection and home delivery", "interregional": "National intercity", "intraregional": "Urban · regional delivery", "local": "Local", "description": "SOLEX shop collection and transport within active delivery coverage areas.", "conditions": "SOLEX collects from the seller’s shop, or the ASSO warehouse for imports. The recipient chooses pickup at the stated agency or delivery to the covered address. The price includes the required legs and one ASSO commission; displayed delivery times are estimates."},
         "deliverer_not_found": "Delivery person not found",
         "order_or_company_required": "Please provide order_id or company_id",
         "company_not_found": "Delivery company not found",

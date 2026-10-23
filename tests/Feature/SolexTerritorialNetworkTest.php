@@ -92,7 +92,7 @@ class SolexTerritorialNetworkTest extends TestCase
         $this->assertSame(203, DeliveryRoute::where('is_active', true)->count());
         $this->assertTrue(DelivererCompany::first()->territorial_network_enabled);
         $this->assertSame(360, DeliveryCityGrid::whereNotNull('department_code')->get()->sum(fn ($g) => collect($g->zones)->where('is_active', true)->count()));
-        $this->assertSame(0, DeliveryAgency::where('is_active', true)->count());
+        $this->assertSame(58, DeliveryAgency::where('is_active', true)->count());
         $grid = DeliveryCityGrid::whereNotNull('department_code')->first();
         $zones = $grid->zones;
         $zones[0]['radius_km'] = 23;
@@ -129,7 +129,7 @@ class SolexTerritorialNetworkTest extends TestCase
         $this->assertSame(203, DeliveryRoute::whereNotNull('network_key')->where('is_active', true)->count());
         $this->assertSame(23, $grid->fresh()->zones[0]['radius_km']);
         $this->assertEquals($prices, $route->fresh()->pricing_data);
-        $this->assertSame(0, DeliveryAgency::where('is_active', true)->count());
+        $this->assertSame(58, DeliveryAgency::where('is_active', true)->count());
     }
 
     public function test_admin_landing_shows_complete_geography_without_bulk_editors_and_routes_are_paginated(): void
@@ -461,4 +461,89 @@ class SolexTerritorialNetworkTest extends TestCase
         $this->assertSame('Rue du marché', $order->fresh()->pickup_agency_snapshot['address']);
         $this->assertEquals(5170, $order->fresh()->delivery_breakdown['total']);
     }
+    public function test_heavy_weight_pricing_preserves_custom_prices_and_activates_provisional_agencies(): void
+    {
+        (new SolexNetworkSeeder)->run();
+        $grid = DeliveryCityGrid::whereNotNull('department_code')->firstOrFail();
+        $truck = $grid->vehicle('heavy');
+        $this->assertNull($truck['max_weight_kg']);
+        $this->assertSame('excess_per_kg', $truck['billing']);
+        $this->assertSame('1t', $truck['base_vehicle']);
+        $this->assertSame([], $truck['prices']);
+        $agency = DeliveryAgency::where('is_active', true)->firstOrFail();
+        $this->assertStringContainsString('Centre-ville', $agency->address);
+        $this->assertStringContainsString('confirmer', $agency->phone);
+        $vehicles = $grid->vehicles;
+        foreach ($vehicles as &$vehicle) {
+            if ($vehicle['code'] === 'heavy') {
+                $vehicle['prices'] = ['1-1' => 12345];
+            }
+        }
+        $grid->update(['vehicles' => $vehicles]);
+        (new SolexNetworkSeeder)->run();
+        $this->assertSame(['1-1' => 12345], $grid->fresh()->vehicle('heavy')['prices']);
+        $this->assertSame(1, collect($grid->fresh()->vehicles)->where('code', 'heavy')->count());
+    }
+
+    public function test_2500_kg_gets_home_and_agency_options_when_heavy_vehicle_is_configured(): void
+    {
+        [, $origin, $destination, $route, $product] = $this->prepare();
+        $product->update(['weight' => '50']);
+        $route->update(['pricing_data' => ['ranges' => [['min' => 0, 'max' => 3000, 'price' => 3000]]]]);
+        foreach ([$origin, $destination] as $grid) {
+            $truck = $grid->vehicles[0];
+            $truck['code'] = '1t';
+            $truck['label'] = 'Camion 1 tonne';
+            $truck['max_weight_kg'] = 1000;
+            $base = $grid->id === $origin->id ? 4000 : 6000;
+            $truck['prices'] = array_map(fn () => $base, $truck['prices']);
+            $heavy = ['code' => 'heavy', 'label' => 'Transport lourd au kilo', 'min_weight_kg' => 1000,
+                'max_weight_kg' => null, 'prices' => [], 'base_vehicle' => '1t',
+                'billing' => 'excess_per_kg', 'included_weight_kg' => 1000];
+            $grid->update(['vehicles' => [...$grid->vehicles, $truck, $heavy]]);
+            $this->assertSame('1t', $grid->vehicleFor(1000, $grid->agency_zone, $grid->agency_zone)['vehicle']['code']);
+        }
+        $point = $destination->zone($destination->agency_zone);
+        $result = app(DeliveryQuoteService::class)->quotes([['product_id' => $product->id, 'quantity' => 50]],
+            $point['center_latitude'], $point['center_longitude'], $destination->city, 'CM');
+        $this->assertTrue($result['available']);
+        $this->assertEquals(2500, $result['weight_kg']);
+        $offers = collect($result['partners'])->keyBy('delivery_option');
+        $this->assertCount(2, $offers);
+        $this->assertSame('home_delivery:heavy', $offers['home_delivery']['vehicle']);
+        $this->assertSame('agency_pickup:heavy', $offers['agency_pickup']['vehicle']);
+        $this->assertEquals(28000, $offers['home_delivery']['breakdown']['carrier_price_ht']);
+        $this->assertEquals(13000, $offers['agency_pickup']['breakdown']['carrier_price_ht']);
+        $collection = $offers['home_delivery']['breakdown']['legs'][0];
+        $this->assertEquals(1500, $collection['extra_kg']);
+        $this->assertEquals(4, $collection['extra_per_kg']);
+        $this->assertEquals(6000, $collection['extra_price']);
+        $this->assertEquals(10000, $collection['price']);
+        $this->assertEquals(6, $offers['home_delivery']['breakdown']['legs'][2]['extra_per_kg']);
+        $heavy = $origin->vehicles;
+        $heavy[array_key_last($heavy)]['extra_per_kg'] = 10;
+        $origin->update(['vehicles' => $heavy]);
+        $this->assertEquals(19000, $origin->vehicleFor(2500, $origin->agency_zone, $origin->agency_zone)['price']);
+    }
+
+    public function test_covered_destination_reports_capacity_and_inactive_agency_instead_of_no_partner(): void
+    {
+        [, , $destination, $route, $product] = $this->prepare();
+        $product->update(['weight' => '50']);
+        $route->update(['pricing_data' => ['ranges' => [['min' => 0, 'max' => 3000, 'price' => 3000]]]]);
+        DeliveryAgency::where('city', $destination->city)->update(['is_active' => false]);
+        $point = $destination->zone($destination->agency_zone);
+        $params = ['latitude' => $point['center_latitude'], 'longitude' => $point['center_longitude'],
+            'items' => [['product_id' => $product->id, 'quantity' => 50]]];
+        $response = $this->getJson('/api/v1/delivery/partners?'.http_build_query($params))->assertOk();
+        $response->assertJsonPath('quote.reason', 'network_configuration_incomplete')->assertJsonCount(0, 'partners');
+        $reasons = array_column($response->json('quote.configuration_issues'), 'reason');
+        $this->assertContains('weight_limit', $reasons);
+        $this->assertContains('agency_unavailable', $reasons);
+        $this->assertStringNotContainsString('Aucun partenaire', $response->json('message'));
+        $this->getJson('/api/v1/delivery/coverage?'.http_build_query($params))->assertOk()
+            ->assertJsonPath('coverage.geographically_served', true)
+            ->assertJsonPath('coverage.quote_reason', 'network_configuration_incomplete');
+    }
+
 }

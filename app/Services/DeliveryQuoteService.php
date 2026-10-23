@@ -72,9 +72,12 @@ class DeliveryQuoteService
      *
      * @param  array  $items  [['product_id' => int, 'quantity' => int, 'price_tier_id' => ?int], …]
      */
-    public function quotes(array $items, ?float $lat, ?float $lng, ?string $city, ?string $country = null, ?string $quarter = null, ?string $address = null): array
+    public function quotes(array $items, ?float $lat, ?float $lng, ?string $city, ?string $country = null, ?string $quarter = null, ?string $address = null, ?array $originOverride = null): array
     {
         $cart = $this->cart($items);
+        if ($originOverride !== null) {
+            $cart = array_replace($cart, $originOverride);
+        }
         [$destCity, $destCountry] = $this->destination($city, $country, $lat, $lng);
         [$originCity, $originCountry] = $cart['origin'];
         $gridContext = $this->gridContext($destCity, $quarter, $address ?? $city, $lat, $lng);
@@ -95,8 +98,20 @@ class DeliveryQuoteService
             'partners' => [],
         ];
 
+        if ($originOverride === null && $cart['wholesale'] && !ImportHub::isReady()) {
+            $result['reason'] = 'origin_incomplete';
+            $result['message'] = __('delivery.import_origin_incomplete');
+            return $result;
+        }
+        if (!$destCity && ($lat === null || $lng === null)) {
+            $result['reason'] = 'destination_incomplete';
+            $result['message'] = __('delivery.destination_incomplete');
+            return $result;
+        }
+
         $territorial = [];
-        foreach (app(TerritorialDeliveryService::class)->quotes($cart, $lat, $lng, $destCity, $destCountry) as $network) {
+        $networkIssues = [];
+        foreach (app(TerritorialDeliveryService::class)->quotes($cart, $lat, $lng, $destCity, $destCountry, $networkIssues) as $network) {
             $territorial[] = $this->offer($network['company'], $network['carrier_price_ht'], null,
                 __('delivery.network.range'), $cart['weight_kg'],
                 array_diff_key($network, array_flip(['company', 'carrier_price_ht', 'selection_rank'])));
@@ -123,6 +138,7 @@ class DeliveryQuoteService
 
         $result['partners'] = array_map(fn ($p) => array_diff_key($p, ['sort_group' => 1]), $partners);
         $result['available'] = $result['partners'] !== [];
+        $result['configuration_issues'] = $networkIssues;
 
         if (! $result['available']) {
             $result['reason'] = 'no_partner';
@@ -134,6 +150,16 @@ class DeliveryQuoteService
             $result['message'] = $originCity
                 ? __('delivery.no_partner_from_origin', $replace)
                 : __('delivery.no_partner', $replace);
+            if ($networkIssues !== []) {
+                $result['reason'] = 'network_configuration_incomplete';
+                $result['message'] = collect($networkIssues)->map(function ($issue) use ($cart) {
+                    return __('delivery.network.'.$issue['reason'], [
+                        'company' => $issue['company_name'], 'city' => $issue['city'],
+                        'weight' => $this->formatKg($cart['weight_kg']),
+                        'max' => $this->formatKg((float) ($issue['max_weight_kg'] ?? 0)),
+                    ]);
+                })->unique()->implode(' ');
+            }
             if (($originCountry === null || $originCountry === 'CM')
                 && ($cart['origin_lat'] === null || $cart['origin_lng'] === null)
                 && DelivererCompany::where('is_active', true)->where('territorial_network_enabled', true)->exists()) {
@@ -340,9 +366,9 @@ class DeliveryQuoteService
      *
      * @throws \Exception si l'offre n'est plus disponible
      */
-    public function quoteFor(array $items, int $companyId, ?int $zoneId, ?int $routeId, ?float $lat, ?float $lng, ?string $city, ?string $country = null, ?int $gridId = null, ?string $vehicle = null, ?string $quarter = null, ?string $address = null): array
+    public function quoteFor(array $items, int $companyId, ?int $zoneId, ?int $routeId, ?float $lat, ?float $lng, ?string $city, ?string $country = null, ?int $gridId = null, ?string $vehicle = null, ?string $quarter = null, ?string $address = null, ?array $originOverride = null): array
     {
-        $result = $this->quotes($items, $lat, $lng, $city, $country, $quarter, $address);
+        $result = $this->quotes($items, $lat, $lng, $city, $country, $quarter, $address, $originOverride);
 
         foreach ($result['partners'] as $partner) {
             if ($partner['company_id'] !== $companyId
@@ -361,6 +387,10 @@ class DeliveryQuoteService
             if (! $routeId && $zoneId && $partner['zone_id'] === $zoneId) {
                 return $partner + ['weight_kg' => $result['weight_kg']];
             }
+        }
+
+        if ($originOverride !== null || $result['reason'] === 'origin_incomplete') {
+            throw new \Exception($result['message'] ?: __('delivery.mode_unavailable_for_address'));
         }
 
         // Ancienne app : seule la zone est envoyée, sans ville → on accepte la zone
@@ -438,6 +468,7 @@ class DeliveryQuoteService
         }
 
         return [
+            'wholesale' => $products->contains(fn ($product) => (bool) $product->is_wholesale),
             'pickup_shop_count' => count($pickupShops),
             'weight_kg' => round($weight, 3),
             'missing_weight' => array_values(array_unique($missing)),

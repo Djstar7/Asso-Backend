@@ -44,6 +44,12 @@
             $vehicleEn = $grid->getTranslation('vehicles', 'en')[$code] ?? [];
         @endphp
         <div x-show="tab === '{{ $code }}'" x-cloak class="mb-6">
+            @if(($vehicle['billing'] ?? null) === 'excess_per_kg')
+                <p class="text-sm text-amber-300 mb-3">Au-delà de 1 000 kg : tarif de base du camion 1 tonne + kilos supplémentaires. Par défaut, prix au kilo = prix de base ÷ 1 000. Le trajet interurbain conserve sa propre grille.</p>
+                <label class="block text-xs text-gray-400 mb-3">Prix HT par kilo supplémentaire (facultatif, sinon prorata du tarif 1 tonne)
+                    <input type="number" step="0.001" min="0" name="vehicles[{{ $code }}][extra_per_kg]" value="{{ $vehicle['extra_per_kg'] ?? '' }}" class="{{ $input }}">
+                </label>
+            @endif
             <div class="grid grid-cols-1 md:grid-cols-5 gap-3 mb-3">
                 <div>
                     <label class="block text-xs text-gray-400 mb-1">Nom affiché</label>

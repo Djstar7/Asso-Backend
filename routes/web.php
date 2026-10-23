@@ -372,6 +372,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
 
         // Pays importés (Chine, Turquie, Dubaï…) — alimente la section "Produits importés" de l'app
         Route::get('/import-countries', [ImportCountryController::class, 'index'])->name('import-countries.index');
+        Route::put('/import-countries/hub', [ImportCountryController::class, 'updateHub'])->name('import-countries.hub.update');
         Route::post('/import-countries/hub', [ImportCountryController::class, 'createHub'])->name('import-countries.hub');
         Route::post('/import-countries', [ImportCountryController::class, 'store'])->name('import-countries.store');
         Route::put('/import-countries/{importCountry}', [ImportCountryController::class, 'update'])->name('import-countries.update');

@@ -12,8 +12,9 @@ use App\Support\WeightGrid;
 /** Collecte SOLEX systématique ; itinéraire hiérarchique, aucun détour implicite. */
 class TerritorialDeliveryService
 {
-    public function quotes(array $cart, ?float $lat, ?float $lng, ?string $city, ?string $country): array
+    public function quotes(array $cart, ?float $lat, ?float $lng, ?string $city, ?string $country, ?array &$issues = null): array
     {
+        $issues = [];
         if (($cart['pickup_shop_count'] ?? 1) > 1) {
             return [];
         }
@@ -23,9 +24,7 @@ class TerritorialDeliveryService
         $territories = DeliveryTerritory::all()->keyBy('code');
         $result = [];
         foreach (DelivererCompany::where('is_active', true)->where('territorial_network_enabled', true)->get() as $company) {
-            if ($company->max_weight_kg && $cart['weight_kg'] > $company->max_weight_kg) {
-                continue;
-            }
+            $companyWeightExceeded = $company->max_weight_kg && $cart['weight_kg'] > $company->max_weight_kg;
             $grids = $company->cityGrids()->whereNotNull('department_code')->where('is_active', true)->get();
             $routes = $company->deliveryRoutes()->whereNotNull('network_key')->where('is_active', true)->get();
             $agencies = DeliveryAgency::where('deliverer_company_id', $company->id)->where('is_active', true)
@@ -47,6 +46,10 @@ class TerritorialDeliveryService
                         if ($path === null) {
                             continue;
                         }
+                        if ($companyWeightExceeded) {
+                            $issues[] = $this->issue($company, 'weight_limit', $destination->city, 'transport', (float) $company->max_weight_kg);
+                            continue;
+                        }
                         $transport = [];
                         foreach ($path as $route) {
                             $price = WeightGrid::price($route->pricing_data ?? [], $cart['weight_kg']);
@@ -54,13 +57,19 @@ class TerritorialDeliveryService
                                 continue 2;
                             }
                             $transport[] = ['kind' => $route->network_level, 'route_id' => $route->id,
-                                'label' => $route->label(), 'price' => $price['price'], 'lead_time' => $route->lead_time];
+                                'label' => $route->label(), 'price' => $price['price'], 'lead_time' => $route->lead_time] + $price;
                         }
                         $agency = $agencies->first(fn ($a) => CountryCode::sameCity($a->city, $destination->city));
+                        if (!$agency) {
+                            $issues[] = $this->issue($company, 'agency_unavailable', $destination->city, 'agency_pickup');
+                        }
                         $sourceHub = $origin->zone($origin->agency_zone);
                         $targetHub = $destination->zone($destination->agency_zone);
                         $collection = ! empty($sourceHub['is_active'])
                             ? $origin->vehicleFor($cart['weight_kg'], $from['code'], $origin->agency_zone) : null;
+                        if (!$collection && !empty($sourceHub['is_active'])) {
+                            $issues[] = $this->vehicleIssue($company, $origin, $cart['weight_kg'], 'collection');
+                        }
                         if ($collection && $agency && ! empty($targetHub['is_active'])) {
                             $legs = [$this->localLeg('collection', $origin, $from, $sourceHub, $collection), ...$transport];
                             $result[] = $this->offer($company, $cart, $origin, $from, $destination,
@@ -70,6 +79,7 @@ class TerritorialDeliveryService
                             if ($origin->id === $destination->id) {
                                 $direct = $origin->vehicleFor($cart['weight_kg'], $from['code'], $to['code']);
                                 if (! $direct) {
+                                    $issues[] = $this->vehicleIssue($company, $origin, $cart['weight_kg'], 'home_delivery');
                                     continue;
                                 }
                                 $legs = [$this->localLeg('collection_delivery', $origin, $from, $to, $direct)];
@@ -77,6 +87,9 @@ class TerritorialDeliveryService
                             } else {
                                 $last = ! empty($targetHub['is_active'])
                                     ? $destination->vehicleFor($cart['weight_kg'], $destination->agency_zone, $to['code']) : null;
+                                if (!$last && !empty($targetHub['is_active'])) {
+                                    $issues[] = $this->vehicleIssue($company, $destination, $cart['weight_kg'], 'home_delivery');
+                                }
                                 if (! $collection || ! $last) {
                                     continue;
                                 }
@@ -96,7 +109,21 @@ class TerritorialDeliveryService
         usort($result, fn ($a, $b) => [$a['carrier_price_ht'], $a['selection_rank'], $a['grid_id'], $a['vehicle']]
             <=> [$b['carrier_price_ht'], $b['selection_rank'], $b['grid_id'], $b['vehicle']]);
 
+        $issues = collect($issues)->unique(fn ($issue) => json_encode($issue))->values()->all();
         return collect($result)->unique(fn ($q) => $q['company_id'].'-'.$q['delivery_option'])->values()->all();
+    }
+
+    private function issue(DelivererCompany $company, string $reason, string $city, string $stage, ?float $maxWeight = null): array
+    {
+        return ['company_id' => $company->id, 'company_name' => $company->name,
+            'reason' => $reason, 'city' => $city, 'stage' => $stage, 'max_weight_kg' => $maxWeight];
+    }
+
+    private function vehicleIssue(DelivererCompany $company, DeliveryCityGrid $grid, float $weight, string $stage): array
+    {
+        $unlimited = collect($grid->vehicles)->contains(fn ($vehicle) => empty($vehicle['max_weight_kg']));
+        $max = $unlimited ? null : (float) collect($grid->vehicles)->max('max_weight_kg');
+        return $this->issue($company, $max !== null && $weight > $max ? 'weight_limit' : 'local_price_missing', $grid->city, $stage, $max);
     }
 
     private function path(string $from, string $to, $territories, $routes): ?array
@@ -146,7 +173,8 @@ class TerritorialDeliveryService
         return ['kind' => $kind, 'label' => __('delivery.network.'.$kind), 'grid_id' => $grid->id,
             'vehicle' => $choice['vehicle']['code'], 'vehicle_label' => $choice['vehicle']['label'],
             'from' => $this->zoneSnapshot($grid, $from), 'to' => $this->zoneSnapshot($grid, $to),
-            'price' => $choice['price'], 'lead_time' => $choice['vehicle']['lead_time'] ?? null];
+            'price' => $choice['price'], 'lead_time' => $choice['vehicle']['lead_time'] ?? null]
+            + array_intersect_key($choice, array_flip(['billing', 'included_weight_kg', 'range_price', 'extra_kg', 'extra_per_kg', 'extra_price']));
     }
 
     private function zoneSnapshot(DeliveryCityGrid $grid, array $zone): array

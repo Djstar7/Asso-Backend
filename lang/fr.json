@@ -1099,7 +1099,14 @@
         "not_found_short": "Boutique introuvable"
     },
     "delivery": {
-        "network": {"collection": "Collecte dans la boutique du vendeur", "distribution": "Livraison depuis l’agence à domicile", "collection_delivery": "Collecte en boutique et livraison locale", "range": "Collecte et acheminement SOLEX", "agency_mode": "Collecte en boutique et retrait en agence", "home_mode": "Collecte en boutique et livraison à domicile", "interregional": "Interurbain national", "intraregional": "Urbain · desserte régionale", "local": "Local", "description": "Collecte SOLEX en boutique et acheminement dans les périmètres ouverts à la livraison.", "conditions": "SOLEX récupère le colis dans la boutique du vendeur, ou à l’entrepôt ASSO pour un import. Le destinataire choisit le retrait dans l’agence indiquée ou la livraison au point couvert. Le prix inclut les étapes utiles et une seule commission ASSO ; les délais affichés sont estimatifs."},
+    "import_origin_incomplete": "Le point de départ ASSO doit être configuré avant de calculer la livraison.",
+    "destination_incomplete": "Complétez votre ville, quartier et adresse.",
+
+        "network": {
+      "weight_limit": ":company couvre cette zone, mais cette commande de :weight dépasse la capacité configurée de :max à :city. Un transport adapté doit être configuré.",
+      "agency_unavailable": "Le retrait :company à :city attend l’activation de l’agence et ses coordonnées.",
+      "local_price_missing": "Le tarif local :company à :city doit être complété pour ce trajet.",
+"collection": "Collecte dans la boutique du vendeur", "distribution": "Livraison depuis l’agence à domicile", "collection_delivery": "Collecte en boutique et livraison locale", "range": "Collecte et acheminement SOLEX", "agency_mode": "Collecte en boutique et retrait en agence", "home_mode": "Collecte en boutique et livraison à domicile", "interregional": "Interurbain national", "intraregional": "Urbain · desserte régionale", "local": "Local", "description": "Collecte SOLEX en boutique et acheminement dans les périmètres ouverts à la livraison.", "conditions": "SOLEX récupère le colis dans la boutique du vendeur, ou à l’entrepôt ASSO pour un import. Le destinataire choisit le retrait dans l’agence indiquée ou la livraison au point couvert. Le prix inclut les étapes utiles et une seule commission ASSO ; les délais affichés sont estimatifs."},
         "deliverer_not_found": "Livreur non trouvé",
         "order_or_company_required": "Veuillez fournir order_id ou company_id",
         "company_not_found": "Entreprise de livraison non trouvée",

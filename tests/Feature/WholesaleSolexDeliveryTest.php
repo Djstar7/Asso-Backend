@@ -50,7 +50,7 @@ class WholesaleSolexDeliveryTest extends TestCase
 
         // Entrepôt à Akwa-Nord (Zone 2 de la grille SOLEX Douala).
         $this->hub = ImportHub::ensureShop();
-        $this->hub->update(['address' => 'Rue 1.234, Akwa-Nord, Douala']);
+        $this->hub->update(['address' => 'Rue 1.234, Akwa-Nord, Douala', 'phone' => '237670000002']);
 
         // Le fournisseur est en Chine : sa boutique ne compte pas pour la livraison.
         $supplier = User::factory()->create();
@@ -297,4 +297,30 @@ class WholesaleSolexDeliveryTest extends TestCase
         $this->assertSame(Order::VERIFICATION_PENDING, $order->verification_status);
         $this->assertEquals(26789, (float) WalletBalance::where('user_id', $this->buyer->id)->value('locked_balance'));
     }
+    public function test_incomplete_hub_is_distinguished_from_a_destination_without_coverage(): void
+    {
+        $this->hub->update(['address' => 'Douala', 'latitude' => null, 'longitude' => null]);
+        $response = $this->quote(['city' => 'Douala', 'quarter' => 'Makèpè']);
+        $this->assertSame('origin_incomplete', $response['quote']['reason']);
+        $this->assertSame([], $response['partners']);
+        $this->order([
+            'delivery_company_id' => $this->grid->deliverer_company_id,
+            'delivery_grid_id' => $this->grid->id, 'delivery_vehicle' => 'moto',
+            'delivery_city' => 'Douala', 'delivery_quarter' => 'Makèpè', 'delivery_address' => 'Makèpè, Douala',
+        ])->assertStatus(422);
+        $this->assertSame(0, Order::count());
+    }
+
+    public function test_admin_can_fill_the_departure_address_before_delivery_quotes(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $this->actingAs($admin)->put(route('admin.import-countries.hub.update'), [
+            'city' => 'Douala', 'country' => 'Cameroun', 'quarter' => 'Akwa-Nord',
+            'address' => 'Rue 1.234, Akwa-Nord, Douala', 'latitude' => 4.07, 'longitude' => 9.72,
+            'phone' => '237670000001',
+        ])->assertSessionHas('success');
+        $this->assertTrue(ImportHub::isReady());
+        $this->assertSame('Akwa-Nord', $this->hub->fresh()->quarter);
+    }
+
 }

@@ -55,11 +55,18 @@ class SolexNetworkSeeder extends Seeder
                     'city' => $department['hub_city'], 'country' => 'CM', 'coverage_scope' => 'department', 'zones' => $zones,
                     'agency_zone' => $agencyZone, 'vehicles' => $this->vehicles($zones), 'is_active' => true,
                 ]);
-                // Adresses et téléphones réels à renseigner avant ouverture au retrait.
-                DeliveryAgency::firstOrCreate(['code' => 'SOLEX-'.$department['code']], [
+                // Relais provisoire au centre-ville, remplacé dès que les coordonnées précises sont connues.
+                $agency = DeliveryAgency::firstOrCreate(['code' => 'SOLEX-'.$department['code']], [
                     'deliverer_company_id' => $company->id, 'name' => 'SOLEX — '.$department['hub_city'],
-                    'city' => $department['hub_city'], 'address' => '', 'phone' => '', 'is_active' => false,
+                    'city' => $department['hub_city'], 'address' => 'Centre-ville de '.$department['hub_city'].' — point exact à confirmer par SOLEX',
+                    'phone' => $company->phone ?: 'À confirmer', 'is_active' => true,
                 ]);
+                if (blank($agency->address) || blank($agency->phone)) {
+                    $agency->update([
+                        'address' => $agency->address ?: 'Centre-ville de '.$department['hub_city'].' — point exact à confirmer par SOLEX',
+                        'phone' => $agency->phone ?: ($company->phone ?: 'À confirmer'), 'is_active' => true,
+                    ]);
+                }
             }
             foreach ($rows->where('level', 1)->values() as $i => $from) {
                 foreach ($rows->where('level', 1)->values()->slice($i + 1) as $to) {
@@ -76,12 +83,16 @@ class SolexNetworkSeeder extends Seeder
             // Réactiver aussi les données déjà présentes, sans remplacer leurs réglages.
             $company->cityGrids()->whereNotNull('department_code')->get()->each(function ($grid) {
                 $zones = collect($grid->zones)->map(fn ($zone) => array_replace($zone, ['is_active' => true]))->all();
-                $grid->update(['is_active' => true, 'zones' => $zones]);
+                $vehicles = $grid->vehicles;
+                if (!collect($vehicles)->contains('code', 'heavy')) {
+                    $vehicles[] = $this->heavyVehicle();
+                }
+                $grid->update(['is_active' => true, 'zones' => $zones, 'vehicles' => $vehicles]);
             });
             $company->deliveryRoutes()->whereNotNull('network_key')->update(['is_active' => true]);
         });
         $this->command?->info('SOLEX : 10 régions, 58 départements, 360 cercles, 45 liaisons nationales et 158 régionales préparés.');
-        $this->command?->info('Mode territorial, 58 départements, 360 cercles et 203 liaisons actifs. Centres, rayons et tarifs conservés. Les agences sans coordonnées restent inactives.');
+        $this->command?->info('Mode territorial, 58 départements, 360 cercles et 203 liaisons actifs. Centres, rayons et tarifs conservés. Retrait proposé aux relais de centre-ville ; coordonnées provisoires à préciser.');
     }
 
     private function route(DelivererCompany $company, string $level, array $from, array $to): void
@@ -124,6 +135,14 @@ class SolexNetworkSeeder extends Seeder
                 'lead_time' => 'À confirmer', 'prices' => $prices];
         }
 
+        $vehicles[] = $this->heavyVehicle();
         return $vehicles;
+    }
+
+    private function heavyVehicle(): array
+    {
+        return ['code' => 'heavy', 'label' => 'Transport lourd au kilo', 'min_weight_kg' => 1000,
+            'max_weight_kg' => null, 'lead_time' => 'À confirmer', 'prices' => [],
+            'base_vehicle' => '1t', 'billing' => 'excess_per_kg', 'included_weight_kg' => 1000];
     }
 }
