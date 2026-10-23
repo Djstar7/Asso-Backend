@@ -132,6 +132,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::get('/listings/create', [$c, 'create'])->name('listings.create');
             Route::post('/listings', [$c, 'store'])->name('listings.store');
             Route::post('/listings/bulk-lands', [$c, 'bulkLands'])->name('listings.bulk-lands');
+            Route::delete('/listings', [$c, 'bulkDestroy'])->name('listings.bulk-destroy');
             Route::get('/listings/{listing}', [$c, 'edit'])->name('listings.edit');
             Route::put('/listings/{listing}', [$c, 'update'])->name('listings.update');
             Route::delete('/listings/{listing}', [$c, 'destroy'])->name('listings.destroy');

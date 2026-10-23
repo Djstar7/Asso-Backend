@@ -13,6 +13,7 @@ use App\Services\RealEstate\RealEstatePricingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Annonces immobilières : relecture des maisons des bailleurs, saisie des
@@ -203,15 +204,39 @@ class ListingController extends Controller
 
     public function destroy(Listing $listing)
     {
-        DB::transaction(function () use ($listing) {
-            $listing = Listing::whereKey($listing->id)->lockForUpdate()->firstOrFail();
-            $listing->update(['status' => Listing::STATUS_ARCHIVED]);
-            // La suppression logique garde les pièces et les liens des réservations.
-            $listing->delete();
-        });
+        $this->deleteListings([$listing->id]);
 
         return redirect()->route('admin.real-estate.listings.index')
             ->with('success', 'Annonce supprimée. Les réservations et paiements existants sont conservés.');
+    }
+
+    public function bulkDestroy(Request $request)
+    {
+        $data = $request->validate([
+            'ids' => ['required', 'array', 'min:1', 'max:100'],
+            'ids.*' => ['required', 'integer', 'distinct', Rule::exists('real_estate_listings', 'id')->whereNull('deleted_at')],
+        ]);
+        $count = $this->deleteListings($data['ids']);
+
+        return redirect()->route('admin.real-estate.listings.index')
+            ->with('success', "$count annonce(s) supprimée(s). Les réservations et paiements existants sont conservés.");
+    }
+
+    private function deleteListings(array $ids): int
+    {
+        return DB::transaction(function () use ($ids) {
+            $listings = Listing::whereIn('id', $ids)->orderBy('id')->lockForUpdate()->get();
+            if ($listings->count() !== count($ids)) {
+                throw ValidationException::withMessages(['ids' => 'Certaines annonces ne sont plus disponibles. Actualisez la liste.']);
+            }
+            foreach ($listings as $listing) {
+                $listing->update(['status' => Listing::STATUS_ARCHIVED]);
+                // La suppression logique garde les pièces et les liens des réservations.
+                $listing->delete();
+            }
+
+            return $listings->count();
+        });
     }
 
     public function destroyMedia(Listing $listing, Media $media)

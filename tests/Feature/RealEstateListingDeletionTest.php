@@ -93,4 +93,46 @@ class RealEstateListingDeletionTest extends TestCase
             ->assertRedirect(route('admin.login'))->assertSessionHasErrors('email');
         $this->assertNull($listing->fresh()->deleted_at);
     }
+
+    public function test_admin_can_delete_selected_listings_together_without_changing_paid_reservations(): void
+    {
+        $first = Listing::create(['type' => 'land', 'title' => 'Premier terrain', 'city' => 'Yaoundé']);
+        $second = Listing::create(['type' => 'rent', 'title' => 'Appartement', 'city' => 'Douala']);
+        $other = Listing::create(['type' => 'land', 'title' => 'Terrain conservé', 'city' => 'Yaoundé']);
+        $reservation = Reservation::create([
+            'reference' => 'IMMO-BULK', 'listing_id' => $first->id,
+            'tenant_id' => User::factory()->create()->id, 'kind' => 'land', 'status' => 'paid', 'total_amount' => 1000000,
+        ]);
+        $before = $reservation->fresh()->getRawOriginal();
+        $this->actingAs(User::factory()->create(['role' => 'admin']));
+        $this->get(route('admin.real-estate.listings.index'))
+            ->assertOk()->assertSee('Supprimer la sélection')->assertSee('form="bulk-delete-listings"', false);
+        $this->delete(route('admin.real-estate.listings.bulk-destroy'), ['ids' => [$first->id, $second->id]])
+            ->assertRedirect(route('admin.real-estate.listings.index'))->assertSessionHas('success');
+        $this->assertSoftDeleted($first);
+        $this->assertSoftDeleted($second);
+        $this->assertNull($other->fresh()->deleted_at);
+        $this->assertSame(Listing::STATUS_ARCHIVED, $first->fresh()->status);
+        $this->assertSame($before, $reservation->fresh()->getRawOriginal());
+        $this->assertSame($first->id, $reservation->fresh()->listing->id);
+    }
+
+    public function test_bulk_deletion_rejects_empty_duplicate_and_missing_ids_without_partial_deletion(): void
+    {
+        $listing = Listing::create(['type' => 'land', 'title' => 'Terrain', 'city' => 'Yaoundé']);
+        $this->actingAs(User::factory()->create(['role' => 'admin']));
+        foreach ([[], [$listing->id, $listing->id], [$listing->id, 999999], range(1, 101)] as $ids) {
+            $this->deleteJson(route('admin.real-estate.listings.bulk-destroy'), ['ids' => $ids])->assertUnprocessable();
+            $this->assertNull($listing->fresh()->deleted_at);
+        }
+    }
+
+    public function test_customer_cannot_delete_listings_in_bulk(): void
+    {
+        $listing = Listing::create(['type' => 'land', 'title' => 'Terrain', 'city' => 'Yaoundé']);
+        $this->actingAs(User::factory()->create(['role' => 'customer']))
+            ->delete(route('admin.real-estate.listings.bulk-destroy'), ['ids' => [$listing->id]])
+            ->assertRedirect(route('admin.login'));
+        $this->assertNull($listing->fresh()->deleted_at);
+    }
 }

@@ -2,7 +2,12 @@
 
 @section('content')
 @php($in = 'w-full px-3 py-2 bg-dark-50 border border-dark-200 rounded-lg text-white focus:border-primary-500 focus:outline-none')
-<div class="p-6" x-data="{ bulk: false }">
+<div class="p-6" x-data="{
+    bulk: false,
+    selected: [],
+    visibleIds: @js($listings->pluck('id')->map(fn ($id) => (string) $id)->values()->all()),
+    toggleAll() { this.selected = this.selected.length === this.visibleIds.length ? [] : [...this.visibleIds]; }
+}">
     <div class="mb-6 flex items-center justify-between flex-wrap gap-3">
         <div>
             <h1 class="text-2xl font-bold text-white">Annonces immobilières</h1>
@@ -94,10 +99,29 @@
         <button class="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600"><i class="fas fa-search mr-2"></i>Filtrer</button>
     </form>
 
+    <form id="bulk-delete-listings" method="POST" action="{{ route('admin.real-estate.listings.bulk-destroy') }}"
+          data-confirm="Supprimer les annonces sélectionnées ? Les réservations et paiements existants seront conservés."
+          :data-confirm="'Supprimer les ' + selected.length + ' annonce(s) sélectionnée(s) ? Les réservations et paiements existants seront conservés.'"
+          class="mb-4 flex items-center gap-3 flex-wrap">
+        @csrf
+        @method('DELETE')
+        <button type="submit" :disabled="selected.length === 0" disabled
+                class="px-4 py-2 border border-red-500/50 text-red-300 rounded-lg hover:bg-red-500/10 disabled:opacity-40 disabled:cursor-not-allowed">
+            <i class="fas fa-trash mr-2"></i>Supprimer la sélection
+        </button>
+        <span class="text-sm text-gray-400" aria-live="polite"><span x-text="selected.length">0</span> annonce(s) sélectionnée(s) sur cette page</span>
+    </form>
+
     <div class="bg-dark-100 rounded-xl border border-dark-200 overflow-x-auto">
         <table class="min-w-full divide-y divide-dark-200">
             <thead class="bg-dark-50">
                 <tr>
+                    <th class="px-4 py-3 text-left">
+                        <input type="checkbox" aria-label="Sélectionner toutes les annonces de cette page"
+                               :checked="visibleIds.length > 0 && selected.length === visibleIds.length"
+                               x-effect="$el.indeterminate = selected.length > 0 && selected.length < visibleIds.length"
+                               :disabled="visibleIds.length === 0" @change="toggleAll()" class="rounded">
+                    </th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-white uppercase">Annonce</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-white uppercase">Bailleur / cabinet</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-white uppercase">Prix de référence → affiché</th>
@@ -108,6 +132,10 @@
             <tbody class="divide-y divide-dark-200">
             @forelse($listings as $l)
                 <tr class="hover:bg-dark-50">
+                    <td class="px-4 py-3">
+                        <input type="checkbox" name="ids[]" value="{{ $l->id }}" form="bulk-delete-listings"
+                               x-model="selected" aria-label="Sélectionner {{ $l->title }}" class="rounded">
+                    </td>
                     <td class="px-4 py-3">
                         <div class="flex items-center gap-3">
                             @if($cover = $l->coverUrl())
@@ -144,7 +172,7 @@
                     </td>
                 </tr>
             @empty
-                <tr><td colspan="5" class="px-4 py-10 text-center text-gray-400">Aucune annonce.</td></tr>
+                <tr><td colspan="6" class="px-4 py-10 text-center text-gray-400">Aucune annonce.</td></tr>
             @endforelse
             </tbody>
         </table>
