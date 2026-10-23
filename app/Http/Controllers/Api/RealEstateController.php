@@ -238,11 +238,7 @@ class RealEstateController extends Controller
             'net_amount' => $netAmount,
             'net_payee_kind' => $listing->isManagedByCabinet() ? 'cabinet' : 'landlord',
             'partner_commission_amount' => $quote['commission'],
-            'commission_cabinet' => $cabinet ? [
-                'id' => $cabinet->id,
-                'name' => $cabinet->name,
-                'logo_url' => media_url($cabinet->logo_path),
-            ] : null,
+            'commission_cabinet' => $cabinet?->toApi($this->viewer($request)),
             'unit_id' => $unit?->id,
             'currency' => 'XAF',
         ]]);

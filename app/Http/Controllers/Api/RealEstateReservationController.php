@@ -247,7 +247,8 @@ class RealEstateReservationController extends Controller
             'owner_amount' => $r->payee_id === $request->user()->id ? $r->owner_amount : null,
             'commission_cabinet' => $r->partnerCabinet ? [
                 'id' => $r->partnerCabinet->id,
-                'name' => $r->partner_cabinet_name ?? $r->partnerCabinet->name,
+                'name' => $isPayee || in_array($r->status, Reservation::PAID_STATUSES, true)
+                    ? ($r->partner_cabinet_name ?? $r->partnerCabinet->name) : null,
             ] : null,
             'payment_method' => $r->payment_method,
             'paid_at' => $r->paid_at?->toIso8601String(),

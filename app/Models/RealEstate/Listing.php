@@ -271,16 +271,8 @@ class Listing extends Model
             'low_stock' => $available > 0 && $available <= $threshold && $this->unitsTotal() > 1,
             'amenities' => ($this->relationLoaded('amenities') ? $this->amenities : collect())
                 ->where('kind', '!=', 'service')->take(3)->pluck('name')->values()->all(),
-            'cabinet' => $this->cabinet ? [
-                'id' => $this->cabinet->id,
-                'name' => $this->cabinet->name,
-                'logo_url' => media_url($this->cabinet->logo_path),
-            ] : null,
-            'commission_cabinet' => $commissionCabinet ? [
-                'id' => $commissionCabinet->id,
-                'name' => $commissionCabinet->name,
-                'logo_url' => media_url($commissionCabinet->logo_path),
-            ] : null,
+            'cabinet' => $this->cabinet?->toApi($viewer),
+            'commission_cabinet' => $commissionCabinet?->toApi($viewer),
             'is_favorite' => in_array($this->id, $favoriteIds, true),
             'published_at' => $this->published_at?->toIso8601String(),
         ];

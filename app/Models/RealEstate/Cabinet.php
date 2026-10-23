@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
  * Cabinet partenaire (foncier, juridique) : créé par ASSO, il porte les
- * terrains à vendre. Son nom est public ; le contact client est communiqué
+ * terrains à vendre. Son identité reste privée ; le contact client est communiqué
  * dans la réservation payée, sans débloquer la fiche générale du cabinet.
  */
 class Cabinet extends Model
@@ -63,20 +63,20 @@ class Cabinet extends Model
 
         $data = [
             'id' => $this->id,
-            'name' => $this->name,
-            'tagline' => $this->tagline,
-            'logo_url' => media_url($this->logo_path),
+            'name' => $unlocked ? $this->name : null,
+            'tagline' => $unlocked ? $this->tagline : null,
+            'logo_url' => $unlocked ? media_url($this->logo_path) : null,
             'is_verified' => (bool) $this->is_verified,
             'headquarters_city' => $this->headquarters_city,
         ];
 
         if ($withDetails) {
             $data += [
-                'specialties' => $this->specialties,
-                'description' => $this->description,
-                'why_choose_us' => array_values(array_filter($this->why_choose_us ?? [])),
-                'owners_message' => $this->owners_message,
-                'banner_url' => media_url($this->banner_path),
+                'specialties' => $unlocked ? $this->specialties : null,
+                'description' => $unlocked ? $this->description : null,
+                'why_choose_us' => $unlocked ? array_values(array_filter($this->why_choose_us ?? [])) : [],
+                'owners_message' => $unlocked ? $this->owners_message : null,
+                'banner_url' => $unlocked ? media_url($this->banner_path) : null,
                 'region' => $this->region,
                 'listings_count' => $this->listings()->published()->count(),
             ];

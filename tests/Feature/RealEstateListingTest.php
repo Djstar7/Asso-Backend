@@ -93,7 +93,38 @@ class RealEstateListingTest extends TestCase
         $this->assertSame('300 - 1 200 m²', $res->json('data.0.surface_label'));
         $this->assertSame(3300000, $res->json('data.0.price'));
         $this->assertTrue($res->json('data.0.price_from'));
-        $this->assertSame('Cabinet Gwoda et Associés', $res->json('data.0.cabinet.name'));
+        $this->assertNull($res->json('data.0.cabinet.name'));
+        $this->assertNull($res->json('data.0.cabinet.logo_url'));
+    }
+
+    public function test_partner_identity_is_hidden_on_public_surfaces_and_unpaid_reservations(): void
+    {
+        $account = User::factory()->create();
+        $cabinet = Cabinet::create([
+            'name' => 'PARTENAIRE-PRIVE', 'user_id' => $account->id,
+            'logo_path' => 'partner-secret-logo.png', 'banner_path' => 'partner-secret-banner.png',
+            'tagline' => 'PARTENAIRE-PRIVE', 'description' => 'PARTENAIRE-PRIVE',
+        ]);
+        $listing = Listing::create([
+            'type' => 'land', 'cabinet_id' => $cabinet->id, 'title' => 'Terrain', 'city' => 'Yaoundé',
+            'status' => 'published', 'net_price' => 40000000,
+        ]);
+        $buyer = User::factory()->create();
+        Sanctum::actingAs($buyer);
+        foreach (['/listings?type=land', '/listings/'.$listing->id, '/listings/'.$listing->id.'/quote', '/cabinets/'.$cabinet->id] as $path) {
+            $this->getJson('/api/v1/real-estate'.$path)->assertOk()
+                ->assertDontSee('PARTENAIRE-PRIVE')->assertDontSee('partner-secret-logo.png')->assertDontSee('partner-secret-banner.png');
+        }
+        $reservation = Reservation::create([
+            'reference' => 'IMMO-PRIVATE', 'listing_id' => $listing->id, 'tenant_id' => $buyer->id,
+            'payee_id' => $account->id, 'partner_cabinet_id' => $cabinet->id, 'partner_cabinet_name' => $cabinet->name,
+            'kind' => 'land', 'status' => 'pending_payment',
+        ]);
+        $this->getJson('/api/v1/real-estate/reservations/'.$reservation->id)->assertOk()
+            ->assertDontSee('PARTENAIRE-PRIVE')->assertJsonPath('data.contact', null);
+        $reservation->update(['status' => 'paid']);
+        $this->getJson('/api/v1/real-estate/reservations/'.$reservation->id)->assertOk()
+            ->assertJsonPath('data.contact.name', 'PARTENAIRE-PRIVE');
     }
 
     public function test_detail_masks_owner_and_address_until_paid(): void
@@ -257,7 +288,7 @@ class RealEstateListingTest extends TestCase
 
         $res = $this->getJson("/api/v1/real-estate/cabinets/{$cabinet->id}")->assertOk();
         $this->assertNull($res->json('data.contact'));
-        $this->assertSame(['Accompagnement dans les démarches foncières'], $res->json('data.why_choose_us'));
+        $this->assertSame([], $res->json('data.why_choose_us'));
         $res->assertJsonCount(3, 'data.listings');
 
         $buyer = User::factory()->create();
