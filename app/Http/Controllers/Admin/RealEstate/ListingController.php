@@ -11,6 +11,7 @@ use App\Services\RealEstate\LandlordVerificationService;
 use App\Services\RealEstate\ListingEditor;
 use App\Services\RealEstate\RealEstatePricingService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 /**
@@ -198,6 +199,19 @@ class ListingController extends Controller
         $listing->update(['status' => $listing->status === Listing::STATUS_ARCHIVED ? Listing::STATUS_DRAFT : Listing::STATUS_ARCHIVED]);
 
         return back()->with('success', 'Statut mis à jour.');
+    }
+
+    public function destroy(Listing $listing)
+    {
+        DB::transaction(function () use ($listing) {
+            $listing = Listing::whereKey($listing->id)->lockForUpdate()->firstOrFail();
+            $listing->update(['status' => Listing::STATUS_ARCHIVED]);
+            // La suppression logique garde les pièces et les liens des réservations.
+            $listing->delete();
+        });
+
+        return redirect()->route('admin.real-estate.listings.index')
+            ->with('success', 'Annonce supprimée. Les réservations et paiements existants sont conservés.');
     }
 
     public function destroyMedia(Listing $listing, Media $media)

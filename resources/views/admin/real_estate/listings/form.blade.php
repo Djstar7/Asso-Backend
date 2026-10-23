@@ -46,6 +46,7 @@
                 <form method="POST" action="{{ route('admin.real-estate.listings.archive', $listing) }}">@csrf
                     <button class="px-4 py-2 bg-dark-200 text-white rounded-lg hover:bg-dark-50"><i class="fas fa-archive mr-2"></i>{{ $listing->status === 'archived' ? 'Désarchiver' : 'Archiver' }}</button>
                 </form>
+                @include('admin.real_estate.listings._delete')
                 <form x-show="reject" x-cloak method="POST" action="{{ route('admin.real-estate.listings.reject', $listing) }}" class="w-full flex gap-2 mt-2">@csrf
                     <input name="reason" required placeholder="Motif communiqué au bailleur (photos floues, prix incohérent…)" class="{{ $in }}">
                     <button class="px-4 py-2 bg-red-600 text-white rounded-lg">Envoyer</button>

@@ -135,9 +135,12 @@
                     </td>
                     <td class="px-4 py-3">@include('admin.real_estate._status', ['status' => $l->status])</td>
                     <td class="px-4 py-3 text-right">
-                        <a href="{{ route('admin.real-estate.listings.edit', $l) }}" class="px-3 py-1.5 text-sm bg-primary-500/20 text-primary-300 rounded-lg hover:bg-primary-500/30">
-                            <i class="fas {{ $l->status === 'pending_review' ? 'fa-search' : 'fa-edit' }} mr-1"></i>{{ $l->status === 'pending_review' ? 'Relire' : 'Ouvrir' }}
-                        </a>
+                        <div class="flex items-center justify-end gap-2">
+                            <a href="{{ route('admin.real-estate.listings.edit', $l) }}" class="px-3 py-1.5 text-sm bg-primary-500/20 text-primary-300 rounded-lg hover:bg-primary-500/30">
+                                <i class="fas {{ $l->status === 'pending_review' ? 'fa-search' : 'fa-edit' }} mr-1"></i>{{ $l->status === 'pending_review' ? 'Relire' : 'Ouvrir' }}
+                            </a>
+                            @include('admin.real_estate.listings._delete', ['listing' => $l])
+                        </div>
                     </td>
                 </tr>
             @empty
