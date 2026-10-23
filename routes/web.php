@@ -146,6 +146,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::post('/cabinets', [$cab, 'store'])->name('cabinets.store');
             Route::get('/cabinets/{cabinet}', [$cab, 'edit'])->name('cabinets.edit');
             Route::put('/cabinets/{cabinet}', [$cab, 'update'])->name('cabinets.update');
+            Route::delete('/cabinets/{cabinet}', [$cab, 'destroy'])->name('cabinets.destroy');
 
             $v = \App\Http\Controllers\Admin\RealEstate\VerificationController::class;
             Route::get('/landlords', [$v, 'index'])->name('verifications.index');

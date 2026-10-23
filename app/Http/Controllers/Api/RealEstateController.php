@@ -202,13 +202,14 @@ class RealEstateController extends Controller
     {
         $viewer = $this->viewer($request);
         $listing = Listing::with(['units', 'media', 'tourRooms', 'amenities', 'cabinet', 'owner'])->findOrFail($id);
+        $isOwner = $viewer !== null && $viewer->id === $listing->owner_id;
 
         // Une annonce non publiée n'est visible que de son bailleur.
-        if ($listing->status !== Listing::STATUS_PUBLISHED && $viewer?->id !== $listing->owner_id) {
+        if ($listing->status !== Listing::STATUS_PUBLISHED && ! $isOwner) {
             abort(404);
         }
 
-        if ($viewer?->id !== $listing->owner_id) {
+        if (! $isOwner) {
             $listing->increment('views_count');
         }
 

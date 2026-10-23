@@ -24,20 +24,25 @@
 
     <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         @forelse($cabinets as $cab)
-            <a href="{{ route('admin.real-estate.cabinets.edit', $cab) }}" class="bg-dark-100 rounded-xl border border-dark-200 p-5 hover:border-primary-500/60 transition-all block">
-                <div class="flex items-center gap-3">
-                    @if($cab->logo_path)
-                        <img src="{{ media_url($cab->logo_path) }}" class="w-14 h-14 rounded-full object-cover bg-white" alt="">
-                    @else
-                        <div class="w-14 h-14 rounded-full bg-dark-50 flex items-center justify-center text-gray-400"><i class="fas fa-landmark"></i></div>
-                    @endif
-                    <div>
-                        <p class="text-white font-semibold">{{ $cab->name }}</p>
-                        <p class="text-sm text-gray-400">{{ $cab->headquarters_city }} · {{ $cab->listings_count }} terrain(s)</p>
+            <div class="bg-dark-100 rounded-xl border border-dark-200 p-5 hover:border-primary-500/60 transition-all">
+                <a href="{{ route('admin.real-estate.cabinets.edit', $cab) }}" class="block">
+                    <div class="flex items-center gap-3">
+                        @if($cab->logo_path)
+                            <img src="{{ media_url($cab->logo_path) }}" class="w-14 h-14 rounded-full object-cover bg-white" alt="">
+                        @else
+                            <div class="w-14 h-14 rounded-full bg-dark-50 flex items-center justify-center text-gray-400"><i class="fas fa-landmark"></i></div>
+                        @endif
+                        <div>
+                            <p class="text-white font-semibold">{{ $cab->name }}</p>
+                            <p class="text-sm text-gray-400">{{ $cab->headquarters_city }} · {{ $cab->listings_count }} terrain(s)</p>
+                        </div>
                     </div>
+                    <p class="mt-3 text-xs {{ $cab->is_active ? 'text-green-300' : 'text-gray-500' }}">{{ $cab->is_active ? 'Actif' : 'Inactif' }}</p>
+                </a>
+                <div class="mt-4 flex justify-end">
+                    @include('admin.real_estate.cabinets._delete', ['cabinet' => $cab])
                 </div>
-                <p class="mt-3 text-xs {{ $cab->is_active ? 'text-green-300' : 'text-gray-500' }}">{{ $cab->is_active ? 'Actif' : 'Inactif' }}</p>
-            </a>
+            </div>
         @empty
             <p class="text-gray-400">Aucun cabinet pour le moment.</p>
         @endforelse

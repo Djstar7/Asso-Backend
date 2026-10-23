@@ -22,7 +22,11 @@ return new class extends Migration
         DB::transaction(function () {
             Setting::set('immo_asso_markup_rate', 10, 'string', 'real_estate', 'Part ASSO (%)');
             Setting::set('immo_partner_commission_rate', 5, 'string', 'real_estate', 'Commission du cabinet partenaire (%)');
-            $cabinet = Cabinet::defaultPartner();
+            // Cette migration précède l'ajout de deleted_at : ne pas dépendre
+            // du scope SoftDeletes du modèle actuel lors d'une installation neuve.
+            $defaultId = (int) Setting::get('immo_default_cabinet_id', 0);
+            $cabinets = Cabinet::withTrashed()->where('is_active', true);
+            $cabinet = $defaultId > 0 ? $cabinets->find($defaultId) : $cabinets->orderBy('id')->first();
             if (! $cabinet) {
                 return;
             }

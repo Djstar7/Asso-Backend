@@ -105,7 +105,8 @@ class Listing extends Model
 
     public function cabinet(): BelongsTo
     {
-        return $this->belongsTo(Cabinet::class);
+        // Les réservations et justificatifs d'une annonce archivée gardent son cabinet.
+        return $this->belongsTo(Cabinet::class)->withTrashed();
     }
 
     public function units(): HasMany

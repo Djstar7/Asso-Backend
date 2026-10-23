@@ -76,7 +76,7 @@ class GwodaRealEstateSeeder extends Seeder
     private function cabinet(): Cabinet
     {
         // Réutilise aussi « Cabinet Gwoda et Associés », sans renommer son compte.
-        $matches = Cabinet::whereRaw('LOWER(name) LIKE ?', ['%gwoda%'])->get()
+        $matches = Cabinet::withTrashed()->whereRaw('LOWER(name) LIKE ?', ['%gwoda%'])->get()
             ->filter(fn (Cabinet $cabinet) => preg_match('/\bgwoda\b/i', $cabinet->name));
         if ($matches->count() > 1) {
             throw new RuntimeException('Plusieurs cabinets GWODA existent : résolvez le doublon avant cet import.');
@@ -85,7 +85,7 @@ class GwodaRealEstateSeeder extends Seeder
         $cabinet = $matches->first() ?? Cabinet::create([
             'name' => 'GWODA', 'is_active' => true, 'is_verified' => false,
         ]);
-        if (! $cabinet->is_active) {
+        if ($cabinet->trashed() || ! $cabinet->is_active) {
             throw new RuntimeException('Le cabinet GWODA est inactif. Import annulé.');
         }
 

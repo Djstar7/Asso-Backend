@@ -4,8 +4,11 @@ namespace App\Http\Controllers\Admin\RealEstate;
 
 use App\Http\Controllers\Controller;
 use App\Models\RealEstate\Cabinet;
+use App\Models\RealEstate\Listing;
+use App\Models\Setting;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -53,6 +56,30 @@ class CabinetController extends Controller
         return back()->with('success', 'Cabinet mis à jour.');
     }
 
+    public function destroy(Cabinet $cabinet)
+    {
+        $wasDefault = DB::transaction(function () use ($cabinet) {
+            $cabinet = Cabinet::whereKey($cabinet->id)->lockForUpdate()->firstOrFail();
+            $wasDefault = Cabinet::defaultPartner()?->id === $cabinet->id;
+            if ($wasDefault) {
+                // Garder une configuration explicite invalide évite de transférer
+                // automatiquement les prochaines commissions à un autre cabinet.
+                Setting::set('immo_default_cabinet_id', $cabinet->id, 'integer', 'real_estate', 'Cabinet partenaire par défaut');
+            }
+            $cabinet->listings()->update(['status' => Listing::STATUS_ARCHIVED]);
+            $cabinet->update(['is_active' => false]);
+            $cabinet->delete();
+
+            // Le compte bénéficiaire, les médias et les liens historiques sont conservés.
+            return $wasDefault;
+        });
+
+        return redirect()->route('admin.real-estate.cabinets.index')->with('success',
+            'Cabinet supprimé et ses annonces archivées. Les réservations et paiements sont conservés.'
+            .($wasDefault ? ' Sélectionnez un nouveau cabinet par défaut dans les réglages immobiliers.' : '')
+        );
+    }
+
     private function validated(Request $request, ?Cabinet $cabinet = null): array
     {
         $data = $request->validate([
@@ -87,7 +114,7 @@ class CabinetController extends Controller
             return $existing;
         }
 
-        $user = new User();
+        $user = new User;
         $user->forceFill([
             'first_name' => Str::limit($data['name'], 60, ''),
             'last_name' => 'Cabinet',

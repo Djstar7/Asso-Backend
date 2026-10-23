@@ -72,7 +72,7 @@ class Reservation extends Model
 
     public function partnerCabinet(): BelongsTo
     {
-        return $this->belongsTo(Cabinet::class, 'partner_cabinet_id');
+        return $this->belongsTo(Cabinet::class, 'partner_cabinet_id')->withTrashed();
     }
 
     public function partnerPayee(): BelongsTo
