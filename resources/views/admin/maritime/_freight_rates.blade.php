@@ -1,11 +1,11 @@
 <div class="bg-dark-100 rounded-xl border border-dark-200 p-6 mb-6">
     <h2 class="text-lg font-semibold text-white mb-2">Tarifs internationaux du partenaire</h2>
-    <p class="text-sm text-gray-400 mb-4">Renseignez une ligne par route, mode et catégorie. L'échéance est celle annoncée par le partenaire ; l'encaissement et le reversement dans ASSO suivent le circuit habituel. Les tarifs sont repris à la création d'un départ, sans modifier les envois déjà réservés.</p>
+    <p class="text-sm text-gray-400 mb-4">Renseignez une ligne par route, mode et catégorie. Le client paie ASSO à la réservation. L’échéance du tarif fixe le crédit du fret sur le Wallet partenaire : à l’embarquement ou à l’arrivée au QG. Les tarifs sont repris à la création d'un départ, sans modifier les envois déjà réservés.</p>
     @foreach($freightRates->concat([null]) as $rate)
         <details class="mb-4 border border-dark-200 rounded-lg p-3" @if(!$rate) open @endif>
             <summary class="cursor-pointer text-white font-medium">
                 @if($rate)
-                    {{ $rate->origin_country }} → {{ $rate->destination_country }} · {{ $rate->transport_mode === 'sea' ? 'Maritime' : 'Aérien' }} · {{ $rate->cargo_category === 'sensitive' ? 'Colis sensible' : 'Colis général' }} : {{ number_format($rate->rate_amount, 0, ',', ' ') }} {{ $rate->currency }}/{{ $rate->rate_unit === 'cbm' ? 'CBM' : 'kg' }} · {{ $rate->transit_days_min }}–{{ $rate->transit_days_max }} jours
+                    {{ $rate->origin_country }} → {{ $rate->destination_country }} · {{ $rate->transport_mode === 'sea' ? 'Maritime' : 'Aérien' }} · {{ $rate->cargo_category === 'sensitive' ? 'Colis sensible' : 'Colis général' }} : {{ number_format($rate->rate_amount, 0, ',', ' ') }} {{ $rate->currency }}/{{ $rate->rate_unit === 'cbm' ? 'CBM' : 'kg' }} · {{ $rate->transit_days_max ? $rate->transit_days_min.'–'.$rate->transit_days_max.' jours' : 'Délai à confirmer' }}
                 @else
                     Ajouter un tarif
                 @endif
@@ -31,7 +31,7 @@
                 @endforeach
                 @foreach(['rate_amount' => 'Coût partenaire par unité', 'transit_days_min' => 'Délai minimum (jours)', 'transit_days_max' => 'Délai maximum (jours)'] as $field => $label)
                     <label class="text-sm text-gray-300">{{ $label }}
-                        <input type="number" name="{{ $field }}" min="{{ $field === 'rate_amount' ? '0.01' : '1' }}" step="{{ $field === 'rate_amount' ? '0.01' : '1' }}" value="{{ $rate?->$field ?? old($field) }}" required class="{{ $input }}">
+                        <input type="number" name="{{ $field }}" min="{{ $field === 'rate_amount' ? '0.01' : '1' }}" step="{{ $field === 'rate_amount' ? '0.01' : '1' }}" value="{{ $rate?->$field ?? old($field) }}" @required($field === 'rate_amount') class="{{ $input }}">
                         @error($field)<span class="text-red-400">{{ $message }}</span>@enderror
                     </label>
                 @endforeach

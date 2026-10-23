@@ -376,7 +376,7 @@ class MaritimeController extends Controller
             'price' => $rate->rate_amount,
             'currency' => $rate->currency,
         ]);
-        if (! $request->filled('estimated_arrival_date')) {
+        if (! $request->filled('estimated_arrival_date') && $rate->transit_days_max !== null) {
             $request->merge(['estimated_arrival_date' => \Carbon\Carbon::parse($request->input('departure_date'))->addDays($rate->transit_days_max)->toDateString()]);
         }
 
@@ -508,6 +508,10 @@ class MaritimeController extends Controller
             $b = $this->service->advance($booking);
         } catch (MaritimeBookingException $e) {
             return back()->with('error', $e->getMessage());
+        } catch (\RuntimeException $e) {
+            \Illuminate\Support\Facades\Log::warning('[Maritime] Reversement impossible à cette étape', ['booking_id' => $booking->id, 'error' => $e->getMessage()]);
+
+            return back()->with('error', __('maritime.settlement_unavailable'));
         }
 
         return back()->with('success', 'Étape enregistrée : '.MaritimeBooking::STATUSES[$b->status].'. L\'expéditeur est prévenu.');
@@ -523,7 +527,7 @@ class MaritimeController extends Controller
             return back()->with('error', $e->getMessage());
         }
 
-        return back()->with('success', 'Colis remis : fret crédité au Wallet du partenaire, commission et assurance à ASSO.');
+        return back()->with('success', 'Colis remis : commission et assurance créditées à ASSO ; fret partenaire réglé selon son échéance.');
     }
 
     public function updateNotes(Request $request, MaritimeBooking $booking)

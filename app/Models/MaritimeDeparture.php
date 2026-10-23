@@ -153,6 +153,27 @@ class MaritimeDeparture extends Model
         return (float) $this->price_per_cbm > 0 && (float) $this->kg_per_cbm > 0;
     }
 
+    public function requiresQuote(): bool
+    {
+        return $this->originHub?->country === 'CN'
+            && ! in_array($this->destinationHub?->country, ['CN', 'CM', null], true)
+            && ($this->freight_rate_snapshot['transport_mode'] ?? 'sea') === 'sea';
+    }
+
+    public function quoteIdentity(): array
+    {
+        return [
+            'company_id' => $this->deliverer_company_id,
+            'origin_hub_id' => $this->origin_hub_id,
+            'destination_hub_id' => $this->destination_hub_id,
+            'departure_date' => $this->departure_date->toDateString(),
+            'origin_country' => $this->originHub?->country,
+            'destination_country' => $this->destinationHub?->country,
+            'transport_mode' => $this->freight_rate_snapshot['transport_mode'] ?? 'sea',
+            'cargo_category' => $this->freight_rate_snapshot['cargo_category'] ?? 'general',
+        ];
+    }
+
     /** Volume (m³) correspondant à des kilos, selon la conversion du départ. */
     public function volumeForKg(float $kg): ?float
     {
@@ -209,6 +230,7 @@ class MaritimeDeparture extends Model
 
         return [
             'id' => $this->id,
+            'requires_quote' => $this->requiresQuote(),
             'transport_mode' => $this->freight_rate_snapshot['transport_mode'] ?? 'sea',
             'cargo_category' => $this->freight_rate_snapshot['cargo_category'] ?? 'general',
             'transit_days_min' => $this->freight_rate_snapshot['transit_days_min'] ?? null,
@@ -227,9 +249,9 @@ class MaritimeDeparture extends Model
             'is_bookable' => $this->isBookable(),
             'capacity_kg' => (float) $this->capacity_kg,
             'remaining_kg' => (float) $this->remaining_kg,
-            'price_per_kg' => $this->publicPricePerKg(),
+            'price_per_kg' => $this->requiresQuote() ? null : $this->publicPricePerKg(),
             // Départ tarifé au m³ : tarif public au m³ et conversion, pour l'affichage.
-            'price_per_cbm' => $this->isPricedPerCbm()
+            'price_per_cbm' => ! $this->requiresQuote() && $this->isPricedPerCbm()
                 ? (float) ($this->freight_rate_snapshot['public_rate_amount'] ?? round((float) $this->price_per_cbm * (1 + self::commissionRate() / 100), 2))
                 : null,
             'kg_per_cbm' => $this->isPricedPerCbm() ? (float) $this->kg_per_cbm : null,

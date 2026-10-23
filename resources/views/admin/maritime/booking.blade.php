@@ -58,6 +58,8 @@
             <div class="bg-dark-100 rounded-xl border border-dark-200 p-6">
                 <h2 class="text-lg font-semibold text-white mb-4">Montants</h2>
                 <dl class="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                    <dt class="text-gray-500">Échéance du fret partenaire</dt><dd class="text-white">{{ ['arrival' => 'À l’arrivée au QG', 'departure' => 'À l’embarquement', 'completion' => 'À la remise au destinataire'][$booking->partner_freight_payment_timing] ?? 'À la remise au destinataire' }}</dd>
+                    <dt class="text-gray-500">Fret crédité au partenaire</dt><dd class="text-white">{{ $booking->partner_freight_paid_at ? number_format((float) $booking->partner_freight_paid_xaf, 0, ',', ' ').' FCFA · '.$booking->partner_freight_paid_at->format('d/m/Y H:i') : 'En attente' }}</dd>
                     <dt class="text-gray-500">Fret partenaire</dt><dd class="text-white">{{ $money($booking->freight_subtotal) }}</dd>
                     <dt class="text-gray-500">Assurance effectivement payée</dt><dd class="text-white">{{ $money($booking->insurance_amount) }}</dd>
                     <dt class="text-gray-500">Commission ASSO</dt><dd class="text-white">{{ $money($booking->commission_amount) }}</dd>

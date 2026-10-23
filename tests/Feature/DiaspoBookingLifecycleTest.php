@@ -208,8 +208,11 @@ class DiaspoBookingLifecycleTest extends TestCase
     public function test_code_validation_without_exchange_rate_credits_nothing(): void
     {
         ExchangeRate::query()->delete();
+        Http::fake(['*' => Http::response([], 503)]);
         $platform = $this->makePlatformAccount();
         [$seller, , $booking] = $this->makePaidBooking('paid');
+        // EUR/XAF dispose d'une parité fixe même sans taux en base.
+        $booking->offer->update(['currency' => 'USD']);
 
         Sanctum::actingAs($seller);
         $this->postJson("/api/v1/diaspo/bookings/{$booking->id}/seller-confirm-code", [

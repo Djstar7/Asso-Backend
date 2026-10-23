@@ -504,6 +504,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
 
         // DIASPO Maritime : réglages, QG, départs et envois
         Route::prefix('maritime')->name('maritime.')->controller(App\Http\Controllers\Admin\MaritimeController::class)->group(function () {
+            Route::get('/inquiries', [\App\Http\Controllers\Admin\FreightInquiryController::class, 'index'])->name('inquiries.index');
+            Route::post('/inquiries/{id}/quote', [\App\Http\Controllers\Admin\FreightInquiryController::class, 'quote'])->name('inquiries.quote')->whereNumber('id');
             Route::get('/', 'index')->name('index');
             Route::post('/settings', 'updateSettings')->name('settings');
             Route::post('/indemnity-cap', 'updateIndemnityCap')->name('indemnity-cap');

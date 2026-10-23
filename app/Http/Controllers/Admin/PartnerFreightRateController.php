@@ -45,8 +45,8 @@ class PartnerFreightRateController extends Controller
             'public_rate_amount' => 'nullable|numeric|gte:rate_amount|max:1000000000000',
             'frequency_days' => 'nullable|integer|min:1|max:365|prohibited_if:origin_country,CN',
             'currency' => 'required|in:XAF,EUR,USD,CNY,CAD,GBP',
-            'transit_days_min' => 'required|integer|min:1|max:730',
-            'transit_days_max' => 'required|integer|gte:transit_days_min|max:730',
+            'transit_days_min' => 'nullable|required_with:transit_days_max|integer|min:1|max:730',
+            'transit_days_max' => 'nullable|required_with:transit_days_min|integer|gte:transit_days_min|max:730',
             'freight_payment_timing' => 'required|in:departure,arrival',
             'notes' => 'nullable|string|max:3000',
         ]);

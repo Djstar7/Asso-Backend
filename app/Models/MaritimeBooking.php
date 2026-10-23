@@ -92,9 +92,14 @@ class MaritimeBooking extends Model
         'cancel_reason',
         'cancelled_at',
         'admin_notes',
+        'partner_freight_payment_timing',
+        'partner_freight_paid_at',
+        'partner_freight_paid_xaf',
     ];
 
     protected $casts = [
+        'partner_freight_paid_at' => 'datetime',
+        'partner_freight_paid_xaf' => 'decimal:2',
         'kg_booked' => 'decimal:2',
         'volume_cbm' => 'decimal:4',
         'parcels_count' => 'integer',

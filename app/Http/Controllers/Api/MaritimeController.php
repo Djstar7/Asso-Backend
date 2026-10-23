@@ -127,6 +127,7 @@ class MaritimeController extends Controller
     private function bookingRules(): array
     {
         return [
+            'freight_inquiry_id' => 'nullable|integer|min:1',
             'kg_booked' => 'required|numeric|min:0.5',
             'parcels_count' => 'nullable|integer|min:1|max:500',
             'sender_first_name' => 'required|string|max:100',

@@ -20,13 +20,14 @@
 
     @include('admin.maritime._flash')
 
+    <a class="inline-block text-primary-400 mb-4" href="{{ route('admin.maritime.inquiries.index') }}">Demandes de devis Chine → autres pays</a>
     <!-- Comment ça marche -->
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         @foreach([
             ['fa-anchor', '1. Partenaire', 'Créez le partenaire de transport ci-dessous, puis ajoutez ses tarifs aériens et/ou maritimes.'],
             ['fa-warehouse', '2. QG', 'Ajoutez ses QG de dépôt et de retrait (ex. Paris, Douala).'],
             ['fa-ship', '3. Départs', 'Ouvrez ses départs : date, capacité, tarif au m³ ou au kg.'],
-            ['fa-wallet', '4. Paiement', 'Le fret arrive sur son Wallet à chaque remise ; versez-le comme le retrait ASSO.'],
+            ['fa-wallet', '4. Paiement', 'Le fret est crédité au Wallet selon l’échéance du tarif (embarquement ou arrivée). Les envois historiques restent réglés à la remise.'],
         ] as [$icon, $title, $text])
             <div class="bg-dark-100 rounded-xl border border-dark-200 p-4">
                 <p class="text-white font-semibold"><i class="fas {{ $icon }} mr-2 text-primary-400"></i>{{ $title }}</p>

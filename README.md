@@ -589,3 +589,69 @@ de `quote_available` (trajet chiffrable pour ces articles). Si la boutique ou
 l'entrepôt n'a pas de coordonnées de collecte, `quote_reason` vaut
 `origin_not_located` : le client conserve sa position choisie et le serveur
 ne lui annonce plus à tort que son adresse n'est pas couverte.
+
+
+## Tarifs réels et devis Diaspo Exchange — livraison du 23/10/2026
+
+Pour initialiser cette version en production, depuis `Asso-Backend` :
+
+```bash
+php artisan migrate --force
+php artisan db:seed --class=InternationalTransportProductionSeeder --force
+```
+
+Ce seeder complète le paramétrage précédent (`transport:configure`) avec les
+routes France → Cameroun. Il est relançable : il conserve les tarifs et
+activations déjà modifiés dans l’administration, les comptes existants, les
+paiements et les réservations. Aucun crédit de portefeuille n’est créé par le
+seeder. Le compte interne de règlement et, si nécessaire, le compte de messagerie
+support sont provisionnés avec des mots de passe aléatoires, sans réinitialiser
+les comptes existants.
+
+| Route | Mode / catégorie | Coût partenaire | Prix client | Délai indicatif |
+|---|---|---:|---:|---|
+| Chine → Cameroun | Maritime général | 330 000 FCFA/CBM | 450 000 FCFA/CBM | 45–55 jours |
+| Chine → Cameroun | Maritime sensible | 390 000 FCFA/CBM | 500 000 FCFA/CBM | 45–55 jours |
+| Chine → Cameroun | Aérien général | 12 000 FCFA/kg | 20 000 FCFA/kg | 10–14 jours |
+| France → Cameroun | Aérien général | 12 000 FCFA/kg | 20 000 FCFA/kg | À renseigner |
+| France → Cameroun | Maritime général | 900 EUR/CBM | Commission configurée : 945 EUR/CBM si 5 % | À renseigner |
+
+Les prix client fixes ne subissent aucune commission supplémentaire. Le tarif
+maritime France n’a pas de prix client fixe : le taux existant reste appliqué,
+sans modification globale du réglage par le seeder.
+
+Les seuls éléments nettoyés sont les QG et départs **explicitement marqués
+`is_demo` de SinoCam** : QG désactivés et départs encore ouverts fermés. Aucun
+historique n’est supprimé. Un nouveau partenaire reste inactif jusqu’à ce que
+ses QG réels, dates et capacités aient été renseignés dans `/admin/maritime`.
+Les délais France ne sont pas inventés. Les cinq tarifs sont rattachés au
+partenaire SinoCam existant ; aucun second transporteur n’est créé.
+
+Le client paie ASSO à la réservation. Pour les **nouveaux envois** issus d’un tarif
+Chine → Cameroun avec échéance `arrival`, le fret partenaire est crédité sur son
+Wallet lors de l’étape « Arrivé au QG ». Il est ensuite disponible pour le
+règlement depuis la fiche partenaire. L’échéance `departure` crédite le partenaire
+à l’embarquement. Le crédit est protégé contre les doublons : la remise finale
+ne reverse pas le fret une deuxième fois. La commission ASSO et l’assurance
+restent créditées à la remise. Les envois historiques conservent leur ancien
+règlement à la remise ; aucune redistribution rétroactive n’est exécutée.
+
+Pour **Chine → pays autre que Cameroun**, onglet Maritime → Devis :
+
+1. Le client renseigne pays, poids, volume facultatif, catégorie et description.
+2. La demande ouvre une conversation avec le compte support ASSO, accessible
+   depuis la messagerie de l’administration.
+3. Dans `/admin/maritime/inquiries`, ASSO choisit un départ maritime réel,
+   correspondant au pays et à la catégorie, puis propose le fret total et sa
+   date d’expiration. Le prix couvre le coût partenaire ; l’assurance reste
+   facultative et sera ajoutée au paiement.
+4. Le client accepte les montants affichés et passe au formulaire de réservation
+   existant. Le devis fige poids, fret, coût partenaire, devise et trajet.
+   Aucun paiement n’est initialisé sans acceptation ou avec un devis expiré,
+   modifié, appartenant à un autre client, ou déjà utilisé.
+5. Après paiement, l’envoi suit les étapes existantes dans « Mes envois ».
+
+Une application mobile reconstruite avec cette version est nécessaire pour
+l’onglet Devis. Les anciens clients ne peuvent pas contourner le devis obligatoire
+pour le maritime Chine → autres pays. Aucun départ, adresse ou capacité réels
+n’est créé automatiquement à partir d’une simple grille de tarifs.

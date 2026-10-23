@@ -54,9 +54,27 @@ class MaritimeBookingService
             }
 
             $currency = strtoupper($departure->currency);
+            if ($departure->requiresQuote() && empty($data['freight_inquiry_id'])) {
+                throw new MaritimeBookingException('Un devis accepté est requis pour le fret maritime Chine → autres pays.');
+            }
             // Départ au m³ : kilos convertis en m³, puis tarif au m³ (voir MaritimeDeparture).
             $freightSubtotal = $departure->partnerFreightFor((float) $data['kg_booked']);
             $freight = $departure->publicFreightFor((float) $data['kg_booked']);
+            $inquiry = null;
+            if (! empty($data['freight_inquiry_id'])) {
+                $inquiry = \App\Models\FreightInquiry::where('user_id', $sender->id)->lockForUpdate()->findOrFail($data['freight_inquiry_id']);
+                if ($inquiry->status !== 'accepted' || ! $inquiry->expires_at?->isFuture()
+                    || $inquiry->maritime_departure_id !== $departure->id
+                    || round($inquiry->kg, 2) !== round((float) $data['kg_booked'], 2)
+                    || $inquiry->currency !== $currency || $inquiry->maritime_booking_id) {
+                    throw new MaritimeBookingException('Le devis doit être accepté, valide et correspondre au départ et au poids réservés.');
+                }
+                if ($inquiry->departure_snapshot != $departure->quoteIdentity()) {
+                    throw new MaritimeBookingException('Les conditions du départ ont changé. Contactez ASSO pour un nouveau devis.');
+                }
+                $freightSubtotal = $inquiry->partner_amount;
+                $freight = $inquiry->freight_amount;
+            }
             $commission = round($freight - $freightSubtotal, 2);
 
             try {
@@ -113,6 +131,7 @@ class MaritimeBookingService
                 'commission_amount' => $commission,
                 'total_price' => $total,
                 'currency' => $currency,
+                'partner_freight_payment_timing' => $departure->freight_rate_snapshot['freight_payment_timing'] ?? 'completion',
                 'dropoff_deadline' => $departure->dropoffDeadline(),
                 'confirmation_code' => str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT),
                 'status' => MaritimeBooking::STATUS_PENDING,
@@ -129,6 +148,7 @@ class MaritimeBookingService
             );
 
             $departure->decrement('remaining_kg', (float) $data['kg_booked']);
+            $inquiry?->update(['status' => 'booked', 'maritime_booking_id' => $booking->id]);
 
             $payment = match ($method) {
                 'wallet' => $this->payWithWallet($booking, $sender, round($totalPivot, 2)),
@@ -445,6 +465,10 @@ class MaritimeBookingService
                 throw new MaritimeBookingException('Aucune étape suivante pour ce statut.');
             }
             $b->status = $next;
+            if (($next === MaritimeBooking::STATUS_ARRIVED && $b->partner_freight_payment_timing === 'arrival')
+                || ($next === MaritimeBooking::STATUS_SHIPPED && $b->partner_freight_payment_timing === 'departure')) {
+                $this->settlePartner($b);
+            }
             $b->{"{$next}_at"} = now();
             $b->save();
             $this->recordBookingHistory($b, 'booking_status', $next, null, null);
@@ -510,18 +534,10 @@ class MaritimeBookingService
             'insurance_amount' => (float) $b->insurance_amount,
         ];
 
-        $freight = $this->toWalletCurrency($b->currency, (float) $b->freight_subtotal);
         $commission = $this->toWalletCurrency($b->currency, (float) $b->commission_amount);
         $insurance = $this->toWalletCurrency($b->currency, (float) $b->insurance_amount);
 
-        PartnerAccountService::credit(
-            (int) MaritimeDeparture::whereKey($b->maritime_departure_id)->value('deliverer_company_id'),
-            $freight,
-            WalletTransaction::label('maritime_freight', ['booking' => $b->id]),
-            'maritime_booking',
-            $b->id,
-            $metadata
-        );
+        $this->settlePartner($b);
 
         $platform = CommissionService::platformAccount();
         if (! $platform) {
@@ -535,6 +551,23 @@ class MaritimeBookingService
         if ($insurance > 0) {
             $wallet->credit($platform, $insurance, null, WalletTransaction::label('asso_parcel_insurance', ['reference' => "Maritime #{$b->id}"]), $metadata, 'kpay');
         }
+    }
+
+    /** Appelé uniquement dans la transaction qui verrouille l’envoi. */
+    private function settlePartner(MaritimeBooking $booking): void
+    {
+        if ($booking->partner_freight_paid_at !== null) {
+            return;
+        }
+        $amount = $this->toWalletCurrency($booking->currency, (float) $booking->freight_subtotal);
+        PartnerAccountService::credit(
+            (int) MaritimeDeparture::whereKey($booking->maritime_departure_id)->value('deliverer_company_id'),
+            $amount, WalletTransaction::label('maritime_freight', ['booking' => $booking->id]),
+            'maritime_booking', $booking->id,
+            ['maritime_booking_id' => $booking->id, 'currency' => $booking->currency, 'freight_subtotal' => (float) $booking->freight_subtotal, 'timing' => $booking->partner_freight_payment_timing]
+        );
+        $booking->forceFill(['partner_freight_paid_at' => now(), 'partner_freight_paid_xaf' => $amount])->save();
+        $this->recordBookingHistory($booking, 'partner_freight_paid', $booking->status, null, null, ['amount_xaf' => $amount]);
     }
 
     private function toWalletCurrency(string $currency, float $amount): float
