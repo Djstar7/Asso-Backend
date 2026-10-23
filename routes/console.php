@@ -127,8 +127,12 @@ Schedule::command('immo:auto-release')
     ->withoutOverlapping(600);
 
 Schedule::command('immo:notify-alerts')
-    ->hourly()
-    ->withoutOverlapping(1800);
+    ->everyFiveMinutes()
+    ->withoutOverlapping(10);
+
+Schedule::command('immo:notify-publications')
+    ->everyFiveMinutes()
+    ->withoutOverlapping(10);
 
 /**
  * =====================================================

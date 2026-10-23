@@ -41,6 +41,7 @@ class AppServiceProvider extends ServiceProvider
 
         // Register DiaspoOffer observer for automatic approval
         DiaspoOffer::observe(DiaspoOfferObserver::class);
+        \App\Models\RealEstate\Listing::observe(\App\Observers\RealEstateListingObserver::class);
 
         // Register Conversation observer for automatic security message
         Conversation::observe(ConversationObserver::class);

@@ -79,6 +79,10 @@ class FirebaseMessagingService
 
     public function __construct()
     {
+        // Les fixtures publiées par PHPUnit ne doivent jamais diffuser sur les vrais topics.
+        if (app()->runningUnitTests()) {
+            return;
+        }
         try {
             // Chemin vers le fichier de configuration Firebase
             $serviceAccountPath = storage_path('app/private/firebase/service-account.json');
@@ -499,6 +503,14 @@ class FirebaseMessagingService
     private function saveNotificationToDatabase(int $userId, string|LocalizedText $title, string|LocalizedText $body, array $data = []): ?int
     {
         try {
+            // Les reprises immobilières réutilisent l'entrée d'historique du même lot.
+            if (! empty($data['notification_key'])) {
+                $existing = NotificationModel::where('user_id', $userId)
+                    ->where('data->notification_key', $data['notification_key'])->first();
+                if ($existing) {
+                    return $existing->id;
+                }
+            }
             $notification = NotificationModel::create([
                 'user_id' => $userId,
                 'title' => (string) $title,

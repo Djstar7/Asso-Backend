@@ -117,6 +117,9 @@ class LandlordVerificationService
             ? ['status' => Listing::STATUS_PUBLISHED, 'rejection_reason' => null, 'published_at' => $listing->published_at ?? now()]
             : ['status' => Listing::STATUS_REJECTED, 'rejection_reason' => $reason]);
 
+        if (! $listing->wasChanged('status')) {
+            return;
+        }
         if ($listing->owner) {
             $key = $approved ? 'real_estate_listing_published' : 'real_estate_listing_rejected';
             $this->notify($listing->owner, $key, [

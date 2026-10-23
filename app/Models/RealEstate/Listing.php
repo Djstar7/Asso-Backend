@@ -60,6 +60,8 @@ class Listing extends Model
     ];
 
     protected $casts = [
+        'announced_topics' => 'array',
+        'announced_at' => 'datetime',
         'furnished' => 'boolean',
         'is_landlocked' => 'boolean',
         'has_parking' => 'boolean',

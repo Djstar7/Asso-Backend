@@ -923,6 +923,14 @@
             "title": "Amount released",
             "body": "The dispute on :reference is closed: the amount is available on your Wallet."
         },
+        "new_real_estate_land": {
+            "title": "New property for sale",
+            "body": ":title in :city. Discover this new listing."
+        },
+        "new_real_estate_rent": {
+            "title": "New home for rent",
+            "body": ":title in :city. Discover this new listing."
+        },
         "real_estate_alert": {
             "title": "New properties for you",
             "body": ":count property(ies) match your criteria :city."

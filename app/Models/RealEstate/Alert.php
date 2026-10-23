@@ -21,6 +21,7 @@ class Alert extends Model
         'move_in_date' => 'date',
         'is_active' => 'boolean',
         'last_notified_at' => 'datetime',
+        'pending_until' => 'datetime',
     ];
 
     public function user(): BelongsTo

@@ -322,10 +322,19 @@ class RealEstateController extends Controller
             'is_active' => 'nullable|boolean',
         ]);
 
-        $alert = Alert::updateOrCreate(
-            ['user_id' => $request->user()->id],
-            $data + ['type' => 'rent', 'is_active' => true]
-        );
+        $alert = Alert::firstOrNew(['user_id' => $request->user()->id]);
+        // Les anciennes apps omettent le type : conserver celui d'une alerte existante.
+        $data['type'] = $data['type'] ?? $alert->type ?? Listing::TYPE_RENT;
+        $data['is_active'] = $data['is_active'] ?? true;
+        if ($data['type'] === Listing::TYPE_LAND) {
+            foreach (['applicant_status', 'school', 'move_in_date', 'lease_months'] as $field) {
+                $data[$field] = null;
+            }
+        }
+        $alert->fill($data);
+        if (! $alert->exists || $alert->isDirty()) {
+            $alert->forceFill(['last_notified_at' => now()->startOfSecond(), 'pending_until' => null])->save();
+        }
 
         return response()->json(['success' => true, 'data' => $alert->toApi()]);
     }

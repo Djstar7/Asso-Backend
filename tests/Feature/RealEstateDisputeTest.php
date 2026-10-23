@@ -183,7 +183,7 @@ class RealEstateDisputeTest extends TestCase
     public function test_alert_notifies_new_matching_listings_once(): void
     {
         $fcm = $this->mock(FirebaseMessagingService::class);
-        $fcm->shouldReceive('sendToUser')->once()->andReturn([]);
+        $fcm->shouldReceive('sendToUser')->once()->andReturn(['success' => true]);
         Alert::create(['user_id' => $this->tenant->id, 'type' => 'rent', 'city' => 'Yaoundé', 'budget_max' => 60000, 'is_active' => true]);
         $this->travel(1)->minutes();
         Listing::create([
@@ -191,6 +191,7 @@ class RealEstateDisputeTest extends TestCase
             'net_price' => 40000, 'status' => 'published', 'published_at' => now(),
         ]);
 
+        $this->travel(1)->seconds();
         $this->artisan('immo:notify-alerts')->assertSuccessful();
         $this->artisan('immo:notify-alerts')->assertSuccessful();
     }

@@ -923,6 +923,14 @@
             "title": "Montant débloqué",
             "body": "Le litige sur :reference est clos : le montant est disponible sur votre Wallet."
         },
+        "new_real_estate_land": {
+            "title": "Nouveau bien à vendre",
+            "body": ":title à :city. Découvrez cette nouvelle annonce."
+        },
+        "new_real_estate_rent": {
+            "title": "Nouveau logement à louer",
+            "body": ":title à :city. Découvrez cette nouvelle annonce."
+        },
         "real_estate_alert": {
             "title": "Nouveaux biens pour vous",
             "body": ":count bien(s) correspondent à vos critères :city."
