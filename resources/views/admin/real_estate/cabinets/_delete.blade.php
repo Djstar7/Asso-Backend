@@ -1,5 +1,5 @@
 <form method="POST" action="{{ route('admin.real-estate.cabinets.destroy', $cabinet) }}"
-      onsubmit="return confirm('Supprimer ce cabinet partenaire ? Ses annonces seront archivées. Les réservations et paiements existants seront conservés.');">
+      data-confirm="Supprimer ce cabinet partenaire ? Ses annonces seront archivées. Les réservations et paiements existants seront conservés.">
     @csrf
     @method('DELETE')
     <button type="submit" aria-label="Supprimer {{ $cabinet->name }}" class="px-4 py-2 border border-red-500/50 text-red-300 rounded-lg hover:bg-red-500/10">
