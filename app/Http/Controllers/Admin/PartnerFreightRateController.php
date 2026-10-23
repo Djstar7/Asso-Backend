@@ -33,6 +33,14 @@ class PartnerFreightRateController extends Controller
         return back()->with('success', 'Tarif de transport mis à jour.');
     }
 
+    public function destroy(DelivererCompany $partner, PartnerFreightRate $rate)
+    {
+        abort_unless($partner->service_type === DelivererCompany::SERVICE_MARITIME && $rate->deliverer_company_id === $partner->id, 404);
+        $rate->delete();
+
+        return back()->with('success', 'Tarif de transport supprimé. Les départs et réservations existants sont conservés.');
+    }
+
     private function validated(Request $request): array
     {
         return $request->validate([

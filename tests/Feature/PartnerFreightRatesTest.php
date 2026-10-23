@@ -84,6 +84,29 @@ class PartnerFreightRatesTest extends TestCase
         $this->assertSame(3, MaritimeDeparture::count());
     }
 
+    public function test_freight_rate_deletion_checks_partner_and_admin_access(): void
+    {
+        $this->seed(SinoCamFreightRatesSeeder::class);
+        $rate = PartnerFreightRate::firstOrFail();
+        $partner = $rate->company;
+        $url = route('admin.maritime.freight-rates.destroy', [$partner, $rate]);
+        $this->delete($url)->assertRedirect(route('login'));
+        $this->actingAs(User::factory()->create(['role' => 'client']), 'web')->delete($url)->assertRedirect(route('admin.login'));
+        $this->assertDatabaseHas('partner_freight_rates', ['id' => $rate->id]);
+
+        $admin = User::factory()->create(['role' => 'admin']);
+        $other = DelivererCompany::create(['name' => 'Autre partenaire', 'service_type' => DelivererCompany::SERVICE_MARITIME, 'is_active' => true]);
+        $this->actingAs($admin, 'web')->delete(route('admin.maritime.freight-rates.destroy', [$other, $rate]))->assertNotFound();
+        $this->assertDatabaseHas('partner_freight_rates', ['id' => $rate->id]);
+        $this->get(route('admin.maritime.partners.show', $partner))->assertOk()
+            ->assertSee('Supprimer le tarif')->assertSee('data-confirm=', false)->assertSee($url, false);
+        $this->from(route('admin.maritime.partners.show', $partner))->delete($url)
+            ->assertRedirect(route('admin.maritime.partners.show', $partner))->assertSessionHas('success');
+        $this->assertDatabaseMissing('partner_freight_rates', ['id' => $rate->id]);
+        $this->assertSame(2, PartnerFreightRate::count());
+        $this->delete($url)->assertNotFound();
+    }
+
     public function test_meeting_locations_are_only_returned_to_the_customer_after_payment_and_partner_stays_anonymous(): void
     {
         Mail::fake();
@@ -119,6 +142,14 @@ class PartnerFreightRatesTest extends TestCase
         $this->getJson($url)->assertOk()->assertJsonPath('data.partner', null)
             ->assertJsonPath('data.origin_hub.address', '123 rue privée')->assertJsonPath('data.meeting_details_available', true);
         $this->actingAs(User::factory()->create(), 'sanctum')->getJson($url)->assertOk()->assertJsonPath('data.origin_hub.address', null);
+        // Supprimer le catalogue ne change ni le prix convenu ni l'envoi payé.
+        $snapshot = $departure->freight_rate_snapshot;
+        $this->actingAs($admin, 'web')->delete(route('admin.maritime.freight-rates.destroy', [$partner, $rate]))->assertRedirect();
+        $this->assertDatabaseMissing('partner_freight_rates', ['id' => $rate->id]);
+        $this->assertNull($departure->fresh()->partner_freight_rate_id);
+        $this->assertSame($snapshot, $departure->fresh()->freight_rate_snapshot);
+        $this->assertEquals(200000, $departure->fresh()->publicFreightFor(10));
+        $this->assertDatabaseHas('maritime_bookings', ['id' => $booking, 'payment_status' => 'completed', 'total_price' => 200000]);
         $this->actingAs($buyer, 'sanctum')->postJson("/api/v1/maritime/bookings/{$booking}/cancel")->assertOk();
         $this->getJson($url)->assertOk()->assertJsonPath('data.meeting_details_available', false);
     }

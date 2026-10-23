@@ -51,6 +51,16 @@
                 @if($rate)<label class="text-gray-300"><input type="checkbox" name="is_active" value="1" @checked($rate->is_active)> Tarif actif</label>@endif
                 <button class="{{ $btn }}" type="submit">Enregistrer le tarif</button>
             </form>
+            @if($rate)
+                <form method="POST" action="{{ route('admin.maritime.freight-rates.destroy', [$partner, $rate]) }}" class="mt-4"
+                      data-confirm="Supprimer le tarif {{ $rate->origin_country }} → {{ $rate->destination_country }} · {{ $rate->transport_mode === 'sea' ? 'Maritime' : 'Aérien' }} · {{ $rate->cargo_category === 'sensitive' ? 'Colis sensible' : 'Colis général' }} ? Les départs et réservations existants seront conservés.">
+                    @csrf
+                    @method('DELETE')
+                    <button type="submit" class="px-4 py-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/30">
+                        <i class="fas fa-trash mr-2" aria-hidden="true"></i>Supprimer le tarif
+                    </button>
+                </form>
+            @endif
         </details>
     @endforeach
 </div>
