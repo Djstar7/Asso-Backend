@@ -71,10 +71,14 @@ class OrderTrackingService
         bool $notifyBuyer = false,
         array $confirmation = [],
     ): OrderTrackingEvent {
+        $assignedCarrierCourier = $actorType === 'deliverer' && $actorId !== null
+            && $order->carrier_courier_requested_at !== null && $order->delivery_person_id === $actorId
+            && in_array($step, ['pickup_accepted', 'collected_by_carrier', 'partner_in_transit', 'arrived', 'out_for_delivery', 'ready_for_pickup', 'delivered'], true)
+            && \App\Models\DelivererCodeSync::where('user_id', $actorId)->where('company_id', $order->delivery_company_id)->active()->exists();
         if ($order->isCarrierDelivery() && in_array($step, array_merge(
             self::CARRIER_UPDATE_STEPS, [self::IMPORT_HUB_STEP, 'handed_to_carrier'],
             AssoShipmentService::EXTERNAL_STEPS
-        ), true) && $actorType !== 'admin') {
+        ), true) && $actorType !== 'admin' && !$assignedCarrierCourier) {
             // Le vendeur peut seulement déclarer le dépôt initial d'un colis national.
             if ($actorType !== 'vendor' || $step !== 'handed_to_carrier' || $order->is_wholesale) {
                 throw \Illuminate\Validation\ValidationException::withMessages(['step' => __('shipment.asso_only')]);

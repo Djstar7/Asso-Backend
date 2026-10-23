@@ -75,13 +75,71 @@ class AssoShipmentService
         });
     }
 
-    public function advance(Order $order, array $data, User $actor): Order
+    /** Coordonnées du partenaire et référence connue, sans inventer une réponse externe. */
+    public static function formDefaults(Order $order, ?string $step = null, ?string $trackingNumber = null): array
     {
-        return DB::transaction(function () use ($order, $data, $actor) {
+        $company = $order->deliveryCompany;
+        $destinationStep = in_array($step, ['arrived', 'ready_for_pickup', 'out_for_delivery', 'delivered', 'collected_at_agency'], true);
+        $shop = $order->is_wholesale ? \App\Support\ImportHub::shop() : $order->items->first()?->product?->shop;
+        $city = $destinationStep
+            ? ($order->delivery_city ?: ($order->delivery_breakdown['destination_city'] ?? null))
+            : ($shop?->city ?: ($order->delivery_breakdown['origin_city'] ?? null));
+        $agency = null;
+        if ($destinationStep && $order->pickup_agency_snapshot && $order->delivery_agency_id) {
+            $assigned = $order->deliveryAgency;
+            if ($assigned?->deliverer_company_id === $order->delivery_company_id) {
+                $agency = $order->pickup_agency_snapshot;
+            }
+        }
+        if (!$agency && $company && $city) {
+            $choices = DeliveryAgency::where('deliverer_company_id', $company->id)->where('is_active', true)->get()
+                ->filter(fn ($a) => CountryCode::sameCity($a->city, $city));
+            // Aucune agence arbitraire si plusieurs agences desservent la ville.
+            if ($choices->count() === 1) {
+                $agency = $choices->first()->toPickupArray();
+            }
+        }
+        $phone = collect([$agency['phone'] ?? null, $company?->phone, $company?->user?->phone])
+            ->first(fn ($value) => strlen(preg_replace('/\D/', '', (string) $value)) >= 8);
+        $email = $company?->email ?: $company?->user?->email;
+        $name = $agency['name'] ?? $company?->name;
+        $contact = implode(' · ', array_filter(array_unique([$name, $phone, $email])));
+        $location = $destinationStep && !$order->isAgencyPickup()
+            ? ($order->delivery_address ?: $city)
+            : ($agency['address'] ?? $shop?->address ?? $city);
+        $reference = filled($trackingNumber) ? trim($trackingNumber) : $order->carrier_tracking_number;
+
+        return [
+            'partner_name' => $company?->name,
+            'agency_name' => $agency['name'] ?? null,
+            'phone' => $phone, 'email' => $email,
+            'location' => mb_substr((string) $location, 0, 150),
+            'confirmation_contact' => mb_substr($contact, 0, 150),
+            'confirmation_reference' => mb_substr($reference ?: 'ASSO:'.$order->order_number.':'.$step, 0, 150),
+            'confirmation_channel' => 'platform',
+        ];
+    }
+
+    public function advance(Order $order, array $data, User $actor, string $actorType = 'admin'): Order
+    {
+        return DB::transaction(function () use ($order, $data, $actor, $actorType) {
             $order = Order::lockForUpdate()->findOrFail($order->id);
             $step = $data['step'];
             $this->check(in_array($step, self::nextSteps($order), true), 'shipment.invalid_transition');
             if (in_array($step, self::EXTERNAL_STEPS, true)) {
+                $defaults = self::formDefaults($order, $step, $data['carrier_tracking_number'] ?? null);
+                if (!filled($data['confirmation_contact'] ?? null)) {
+                    $data['confirmation_contact'] = $defaults['confirmation_contact'];
+                }
+                if (!filled($data['confirmation_channel'] ?? null) || $data['confirmation_channel'] === 'platform') {
+                    $data['confirmation_channel'] = 'platform';
+                    if (!filled($data['confirmation_reference'] ?? null)) {
+                        $data['confirmation_reference'] = $defaults['confirmation_reference'];
+                    }
+                }
+                if (!filled($data['location'] ?? null)) {
+                    $data['location'] = $defaults['location'];
+                }
                 foreach (['confirmation_contact', 'confirmation_reference', 'confirmation_channel'] as $field) {
                     $this->check(filled($data[$field] ?? null), 'shipment.confirmation_required');
                 }
@@ -108,7 +166,10 @@ class AssoShipmentService
             $order->update($updates);
             app(OrderTrackingService::class)->record($order, $step,
                 $data['location'] ?? ($order->isAgencyPickup() ? ($order->pickup_agency_snapshot['name'] ?? null) : null),
-                $data['note'] ?? null, 'admin', $actor->id, notifyBuyer: true, confirmation: $data);
+                $data['note'] ?? null, $actorType, $actor->id, notifyBuyer: true, confirmation: $data);
+            if (!$order->carrier_courier_requested_at && in_array($step, CarrierCourierService::OPEN_STEPS, true)) {
+                DB::afterCommit(fn () => app(CarrierCourierService::class)->request($order));
+            }
 
             return $order->fresh();
         });

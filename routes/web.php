@@ -228,6 +228,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
 
         // Réclamations / litiges : analyse, décision ASSO, remplacement, retour et remboursement
         Route::prefix('disputes')->name('disputes.')->controller(\App\Http\Controllers\Admin\DisputeController::class)->group(function () {
+            Route::post('/settings', 'settings')->name('settings');
             Route::get('/', 'index')->name('index');
             Route::get('/{dispute}', 'show')->name('show');
             Route::post('/{dispute}/review', 'review')->name('review');

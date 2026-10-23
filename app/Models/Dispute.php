@@ -63,9 +63,19 @@ class Dispute extends Model
         'status', 'decision', 'decision_note', 'decided_by', 'decided_at',
         'resolution', 'replacement_count', 'auto_validate_at', 'refunded_at', 'closed_at',
         'client_bank_withdrawal_id', 'vendor_bank_withdrawal_id',
+        'asso_managed', 'vendor_refunded_amount', 'quantity', 'vendor_response_due_at', 'vendor_responded_at',
+        'vendor_reminded_at', 'vendor_escalated_at', 'replacement_due_at',
     ];
 
     protected $casts = [
+        'asso_managed' => 'boolean',
+        'vendor_refunded_amount' => 'decimal:2',
+        'quantity' => 'integer',
+        'vendor_response_due_at' => 'datetime',
+        'vendor_responded_at' => 'datetime',
+        'vendor_reminded_at' => 'datetime',
+        'vendor_escalated_at' => 'datetime',
+        'replacement_due_at' => 'datetime',
         'held_amount' => 'decimal:2',
         'refund_amount' => 'decimal:2',
         'replacement_count' => 'integer',
@@ -86,6 +96,22 @@ class Dispute extends Model
                 $dispute->number = $number;
             }
         });
+    }
+
+    public function isAssoManaged(): bool
+    {
+        return $this->asso_managed ?? ((bool) $this->order?->is_wholesale
+            || ($this->seller_id !== null && $this->seller_id === \App\Services\CommissionService::platformAccount()?->id));
+    }
+
+    public function disputedQuantity(): int
+    {
+        return $this->quantity ?? (int) $this->item->quantity;
+    }
+
+    public function disputedTotal(): float
+    {
+        return round((float) $this->item->total_price * $this->disputedQuantity() / max(1, (int) $this->item->quantity), 2);
     }
 
     public function isOpen(): bool

@@ -368,6 +368,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/pending', [DeliveryController::class, 'pendingRequests']);
             Route::get('/active', [DeliveryController::class, 'activeDeliveries']);
             Route::post('/{id}/accept', [DeliveryController::class, 'accept']);
+            Route::post('/{id}/carrier-step', [DeliveryController::class, 'carrierStep']);
             Route::post('/{id}/complete', [DeliveryController::class, 'complete']);
 
             // Courses de litige (remplacement, retour) : remise contre le code du destinataire.

@@ -43,6 +43,7 @@ class DisputeController extends Controller
     {
         $validated = $request->validate([
             'order_item_id' => 'required|integer',
+            'quantity' => 'nullable|integer|min:1',
             'reason' => 'required|in:' . implode(',', Dispute::REASONS),
             'description' => 'required|string|min:10|max:2000',
             'photos' => 'nullable|array|max:6',
@@ -59,6 +60,7 @@ class DisputeController extends Controller
                 $validated['reason'],
                 $validated['description'],
                 $request->file('photos', []),
+                isset($validated['quantity']) ? (int) $validated['quantity'] : null,
             );
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
@@ -125,7 +127,7 @@ class DisputeController extends Controller
     public function similarProducts(Request $request, $id)
     {
         $dispute = $this->find($request, $id);
-        if ($dispute->status !== Dispute::STATUS_REFUNDED) {
+        if (!$dispute->refunded_at && $dispute->status !== Dispute::STATUS_REFUNDED) {
             return response()->json(['success' => false, 'message' => __('disputes.action_unavailable')], 422);
         }
 

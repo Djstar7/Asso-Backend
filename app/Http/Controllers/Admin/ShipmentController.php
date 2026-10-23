@@ -71,9 +71,9 @@ class ShipmentController extends Controller
             'note' => 'nullable|string|max:500',
             'confirmation_contact' => 'nullable|string|max:150',
             'confirmation_reference' => 'nullable|string|max:150',
-            'confirmation_channel' => 'nullable|in:phone,email,whatsapp,document,in_person',
+            'confirmation_channel' => 'nullable|in:phone,email,whatsapp,document,in_person,platform',
         ]);
         app(\App\Services\AssoShipmentService::class)->advance($order, $validated, $request->user());
-        return back()->with('success', "Étape enregistrée. L'acheteur a été prévenu.");
+        return back()->with('success', "Étape enregistrée. Le suivi client et les missions des livreurs ont été mis à jour.");
     }
 }

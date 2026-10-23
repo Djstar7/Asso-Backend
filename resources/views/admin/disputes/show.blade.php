@@ -33,10 +33,13 @@
 
     <div class="grid lg:grid-cols-3 gap-6">
         <div class="lg:col-span-2 space-y-6">
+            @if($dispute->refunded_at && !$dispute->closed_at)
+                <p class="bg-green-900/20 p-4 text-green-300 rounded-lg">Client remboursé — retour de la marchandise en cours.</p>
+            @endif
             <!-- Financier -->
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
                 @foreach([
-                    ['Prix payé (article)', $item?->total_price, 'fa-tag'],
+                    ['Prix payé (quantité contestée)', $dispute->disputedTotal(), 'fa-tag'],
                     ['Part vendeur bloquée', $dispute->held_amount, 'fa-lock'],
                     ['Livraison initiale', $order?->deliveryPriceShown(), 'fa-truck'],
                     ['Remboursement', $dispute->refund_amount, 'fa-undo'],
@@ -73,7 +76,7 @@
                         <p class="text-gray-500 text-xs uppercase">Vendeur</p>
                         <p class="text-white">{{ $dispute->seller?->name ?? '—' }}</p>
                         <p class="text-gray-400">{{ $dispute->seller?->phone }}</p>
-                        @if($order?->is_wholesale)<p class="text-primary-400 text-xs">Import en gros : ASSO est le revendeur et gère le dossier.</p>@endif
+                        @if($dispute->isAssoManaged())<p class="text-primary-400 text-xs">Boutique ASSO : réponse et traitement depuis ce tableau de bord.</p>@endif
                     </div>
                     <div>
                         <p class="text-gray-500 text-xs uppercase">Paiement</p>
@@ -104,23 +107,33 @@
             <!-- Réponse vendeur -->
             <div class="bg-dark-100 rounded-xl border border-dark-200 p-6">
                 <h2 class="text-lg font-semibold text-white mb-2">Réponse du vendeur</h2>
+                @if($dispute->vendor_response_due_at)
+                    <p class="text-sm text-gray-400 mb-3">Réponse attendue avant le {{ $dispute->vendor_response_due_at->displayTz()->format('d/m/Y H:i') }}@if($dispute->vendor_responded_at) · réponse reçue @endif</p>
+                @endif
+                @if($dispute->isAssoManaged() && $dispute->isOpen())
+                    <form method="POST" action="{{ route('admin.disputes.evidence', $dispute) }}" enctype="multipart/form-data" class="space-y-2 mb-4">
+                        @csrf
+                        <textarea name="note" rows="3" required placeholder="Réponse et justification de la boutique ASSO" class="w-full px-3 py-2 bg-dark-200 rounded-lg text-white"></textarea>
+                        <input type="file" name="files[]" accept="image/*" multiple class="text-gray-400 text-xs">
+                        <button class="px-4 py-2 bg-blue-600 text-white rounded-lg">Répondre à la réclamation</button>
+                    </form>
+                @endif
                 @forelse($vendorEvents as $event)
                     <p class="text-sm text-gray-200 bg-dark-200 rounded-lg p-3 mb-2">{{ $event->note ?: '(pièces jointes)' }}
                         <span class="block text-xs text-gray-500 mt-1">{{ $event->occurred_at?->displayTz()->format('d/m/Y H:i') }}</span></p>
+                    <div class="flex flex-wrap gap-2 mb-3">
+                        @foreach($dispute->attachments->where('dispute_event_id', $event->id) as $file)
+                            <a href="{{ $file->url() }}" target="_blank"><img src="{{ $file->url() }}" class="w-24 h-24 rounded-lg object-cover border border-dark-200" alt="Preuve jointe à la réponse"></a>
+                        @endforeach
+                    </div>
                 @empty
                     <p class="text-sm text-gray-500">Aucune réponse du vendeur pour l'instant.</p>
                 @endforelse
-                @if($vendorFiles->isNotEmpty() || $adminFiles->isNotEmpty())
-                    <div class="flex flex-wrap gap-2 mt-3">
-                        @foreach($vendorFiles->concat($adminFiles) as $file)
-                            <a href="{{ $file->url() }}" target="_blank" title="{{ $actors[$file->author_type] ?? '' }}"><img src="{{ $file->url() }}" class="w-24 h-24 rounded-lg object-cover border border-dark-200" alt=""></a>
-                        @endforeach
-                    </div>
-                @endif
+
             </div>
 
             <!-- Logistique -->
-            @foreach(array_filter(['Remplacement (Cas A)' => $replacement, 'Retour (Cas B)' => $return]) as $title => $shipment)
+            @foreach(array_filter(['Collecte pour échange' => $collection, 'Remplacement (Cas A)' => $replacement, 'Retour définitif (Cas B)' => $return]) as $title => $shipment)
                 <div class="bg-dark-100 rounded-xl border border-blue-500/30 p-6 text-sm">
                     <h2 class="text-lg font-semibold text-white mb-2"><i class="fas fa-shipping-fast text-blue-400 mr-2"></i>{{ $title }}</h2>
                     <div class="grid md:grid-cols-2 gap-2 text-gray-300 mb-3">
@@ -131,6 +144,12 @@
                         <p>Livreur : <span class="text-white">{{ $shipment->deliveryPerson?->name ?? 'pas encore accepté' }}</span>@if($shipment->deliveryPerson?->phone) · {{ $shipment->deliveryPerson->phone }}@endif</p>
                         <p>Remise contre le code du <span class="text-white">{{ $shipment->codeHolder() === 'client' ? 'client' : 'vendeur' }}</span></p>
                     </div>
+                    @if($shipment->payer === 'asso' && $shipment->codeHolder() === 'vendor' && $shipment->isOpenForCourier())
+                        <p class="text-white mb-3">Code de réception boutique : <strong>{{ $shipment->confirmation_code }}</strong> — à communiquer au livreur à la remise du colis.</p>
+                    @endif
+                    @if($shipment->funding_error)
+                        <p class="text-amber-300 mb-3">Financement en attente : {{ $shipment->funding_error }}</p>
+                    @endif
                     <ol class="flex flex-wrap gap-2 mb-3">
                         @php $reached = true; @endphp
                         @foreach($shipment->steps() as $key => $label)
@@ -149,20 +168,23 @@
                                     <option value="{{ $step }}">{{ $shipment->steps()[$step] }}</option>
                                 @endforeach
                             </select>
-                            <input type="text" name="confirmation_code" inputmode="numeric" maxlength="6"
+                            @if(in_array($shipment->codeStep(), $shipment->manualSteps(), true))
+                            <p class="md:col-span-2 text-white font-semibold">{{ $shipment->codeHolder() === 'vendor' ? 'Réception en boutique — confirmer la remise du colis' : 'Remise du remplacement au client' }}</p>
+                            <input type="text" name="confirmation_code" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" required
                                    placeholder="Code du {{ $shipment->codeHolder() === 'client' ? 'client' : 'vendeur' }} (étape « {{ $shipment->steps()[$shipment->codeStep()] }} »)"
                                    class="px-3 py-2 bg-dark-200 border border-dark-300 rounded-lg text-white">
+                            @endif
                             <input type="text" name="carrier_tracking_number" placeholder="N° de suivi (facultatif)" class="px-3 py-2 bg-dark-200 border border-dark-300 rounded-lg text-white">
                             <input type="text" name="note" placeholder="Note (facultatif)" class="px-3 py-2 bg-dark-200 border border-dark-300 rounded-lg text-white">
                             <input type="file" name="proof" accept="image/*" class="text-gray-400 text-xs">
                             <button class="md:col-span-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
-                                    onclick="return this.form.step.value !== 'delivered_to_vendor' || confirm('Confirmer la remise au vendeur ? Le client sera remboursé sur son Wallet ASSO.')">
+                                    >
                                 <i class="fas fa-check mr-1"></i> Enregistrer l'étape
                             </button>
                             <p class="md:col-span-2 text-xs text-gray-500">
                                 Le livreur valide normalement la remise dans son application avec le code du {{ $shipment->codeHolder() === 'client' ? 'client' : 'vendeur' }}.
                                 Saisissez-le ici seulement si le livreur ne peut pas le faire.
-                                @if($shipment->type === 'return') La remise au vendeur rembourse aussitôt le client.@endif
+                                @if($shipment->type === 'return') La remise clôture le retour et déclenche le remboursement si celui-ci n’a pas déjà été effectué.@else @if($shipment->type === 'collection') La réception permet de préparer le remplacement, sans remboursement.@endif @endif
                             </p>
                         </form>
                     @endif
@@ -204,7 +226,7 @@
                         <button class="w-full px-4 py-2 bg-dark-200 border border-amber-500/50 text-amber-200 rounded-lg"><i class="fas fa-search mr-1"></i> Prendre en analyse</button>
                     </form>
                 @endif
-                @if($undecided && !$order?->is_wholesale)
+                @if($undecided && !$dispute->isAssoManaged())
                     <form method="POST" action="{{ route('admin.disputes.contact-vendor', $dispute) }}" class="space-y-2">
                         @csrf
                         <textarea name="note" rows="2" placeholder="Ce qui est demandé au vendeur (facultatif)" class="w-full px-3 py-2 bg-dark-200 border border-dark-300 rounded-lg text-white text-sm"></textarea>
@@ -224,10 +246,21 @@
                     </form>
                 @endif
 
+                @if($replacement?->status === 'awaiting_preparation' && $dispute->isAssoManaged())
+                    <p class="text-gray-300">Produit récupéré : contrôlez et préparez le remplacement.</p>
+                    <form method="POST" action="{{ route('admin.disputes.replace', $dispute) }}">
+                        @csrf
+                        <button class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg">Remplacement prêt — financer et livrer</button>
+                    </form>
+                    <form method="POST" action="{{ route('admin.disputes.return', $dispute) }}">
+                        @csrf
+                        <button class="w-full px-4 py-2 bg-dark-200 text-red-300 rounded-lg">Remplacement indisponible — rembourser</button>
+                    </form>
+                @endif
                 @if($founded)
                     <div class="pt-3 border-t border-dark-200 space-y-2">
-                        <p class="text-gray-300">{{ $order?->is_wholesale ? 'ASSO, revendeur, choisit la suite :' : 'Le vendeur choisit dans son espace. ASSO peut imposer le retour :' }}</p>
-                        @if($order?->is_wholesale && $dispute->replacement_count < Dispute::MAX_REPLACEMENTS)
+                        <p class="text-gray-300">{{ $dispute->isAssoManaged() ? 'ASSO, revendeur, choisit la suite :' : 'Le vendeur choisit dans son espace. ASSO peut imposer le retour :' }}</p>
+                        @if($dispute->isAssoManaged() && $dispute->replacement_count < Dispute::MAX_REPLACEMENTS)
                             <form method="POST" action="{{ route('admin.disputes.replace', $dispute) }}">
                                 @csrf
                                 <button class="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg"><i class="fas fa-exchange-alt mr-1"></i> Remplacer le produit</button>
@@ -253,7 +286,7 @@
             @if($pending)
                 <div class="bg-dark-100 rounded-xl border border-blue-500/30 p-6 text-sm space-y-3">
                     <h2 class="text-lg font-semibold text-white">Course à payer</h2>
-                    <p class="text-gray-400 text-xs">{{ $pending->payer === 'asso' ? 'Import en gros : ASSO prend la course à sa charge.' : 'Le vendeur a reçu une notification lui demandant de choisir un partenaire et de payer (Wallet, Mobile Money, carte). Vous pouvez choisir le partenaire à sa place.' }}</p>
+                    <p class="text-gray-400 text-xs">{{ $pending->payer === 'asso' ? 'Boutique ASSO : financement automatique ; une action manuelle permet de reprendre un échec.' : 'Le vendeur a reçu une notification lui demandant de choisir un partenaire et de payer (Wallet, Mobile Money, carte). Vous pouvez choisir le partenaire à sa place.' }}</p>
                     @if(!empty($quotes['partners']))
                         <form method="POST" action="{{ route('admin.disputes.shipments.partner', $pending) }}" class="space-y-2">
                             @csrf
@@ -270,10 +303,10 @@
                     @else
                         <p class="text-red-300 text-xs">{{ $quotes['message'] ?? 'Aucun partenaire disponible pour cette adresse.' }}</p>
                     @endif
-                    @if($pending->payer === 'asso' && $pending->deliverer_company_id)
+                    @if($pending->payer === 'asso' && $pending->deliverer_company_id && $pending->status !== 'awaiting_preparation')
                         <form method="POST" action="{{ route('admin.disputes.shipments.pay-by-asso', $pending) }}">
                             @csrf
-                            <button class="w-full px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg">Prise en charge par ASSO ({{ $fcfa($pending->price) }})</button>
+                            <button class="w-full px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg">Débiter ASSO et lancer la course ({{ $fcfa($pending->carrier_amount) }})</button>
                         </form>
                     @endif
                 </div>

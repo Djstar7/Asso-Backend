@@ -1415,6 +1415,15 @@
         }
     },
     "disputes": {
+    "invalid_quantity": "Disputed quantity must be between 1 and the ordered quantity.",
+    "door_delivery_required": "This mission requires delivery to the shop or home, without agency pickup.",
+    "addresses_required": "Complete the pickup and dropoff addresses.",
+    "collection_received": "Item received at the shop for exchange, without refund.",
+    "refunded_return_pending": "Customer refunded — return in progress",
+    "vendor_reminder": "Reminder: seller response expected.",
+    "vendor_escalation": "No response: claim escalated to ASSO.",
+    "replacement_expired": "Replacement deadline expired: return and refund.",
+
         "bank_transfer": {
             "not_available": "No IBAN transfer is possible for this dispute (order not paid by card, or dispute not settled).",
             "already_done": "This IBAN transfer has already been made.",
@@ -1485,6 +1494,7 @@
                 "confirmed": "Return confirmed"
             },
             "replacement": {
+        "awaiting_preparation": "Replacement awaiting preparation",
                 "awaiting_payment": "Replacement approved — delivery to be paid by the seller",
                 "courier_selected": "Courier selected",
                 "shipped": "Replacement product shipped",

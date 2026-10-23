@@ -17,6 +17,7 @@ class DisputeShipment extends Model
 {
     public const TYPE_REPLACEMENT = 'replacement';
     public const TYPE_RETURN = 'return';
+    public const TYPE_COLLECTION = 'collection';
 
     public const PAYMENT_PENDING = 'pending';
     public const PAYMENT_PAID = 'paid';
@@ -45,23 +46,26 @@ class DisputeShipment extends Model
     public const CODE_STEPS = [
         self::TYPE_REPLACEMENT => 'delivered',
         self::TYPE_RETURN => 'delivered_to_vendor',
+        self::TYPE_COLLECTION => 'delivered_to_vendor',
     ];
 
     /** Étape « colis récupéré » enregistrée par le livreur. */
     public const PICKUP_STEPS = [
         self::TYPE_REPLACEMENT => 'shipped',
         self::TYPE_RETURN => 'picked_up',
+        self::TYPE_COLLECTION => 'picked_up',
     ];
 
     protected $fillable = [
         'dispute_id', 'type', 'deliverer_company_id', 'delivery_person_id', 'quote', 'price', 'carrier_amount', 'asso_commission',
         'payer', 'payment_status', 'payment_mode', 'payment_reference', 'payment_currency', 'payment_amount', 'paid_at',
-        'accepted_at', 'picked_up_at',
+        'accepted_at', 'picked_up_at', 'stops', 'funding_error',
         'status', 'confirmation_code', 'carrier_tracking_number', 'proof_path', 'delivered_at',
     ];
 
     protected $casts = [
         'quote' => 'array',
+        'stops' => 'array',
         'price' => 'decimal:2',
         'carrier_amount' => 'decimal:2',
         'asso_commission' => 'decimal:2',
@@ -99,7 +103,7 @@ class DisputeShipment extends Model
     /** Qui détient le code : le client (remplacement) ou le vendeur (retour). */
     public function codeHolder(): string
     {
-        return $this->type === self::TYPE_RETURN ? 'vendor' : 'client';
+        return $this->type !== self::TYPE_REPLACEMENT ? 'vendor' : 'client';
     }
 
     /** Remis au destinataire (ou retour confirmé). */
@@ -114,9 +118,15 @@ class DisputeShipment extends Model
         return $this->isPaid() && !$this->isHandedOver();
     }
 
+    public function translationType(): string
+    {
+        return $this->type === self::TYPE_COLLECTION ? self::TYPE_RETURN : $this->type;
+    }
+
     public function steps(): array
     {
-        return $this->type === self::TYPE_RETURN ? self::RETURN_STEPS : self::REPLACEMENT_STEPS;
+        return $this->type !== self::TYPE_REPLACEMENT ? self::RETURN_STEPS :
+            ($this->status === 'awaiting_preparation' ? ['awaiting_preparation' => 'Remplacement à préparer'] + self::REPLACEMENT_STEPS : self::REPLACEMENT_STEPS);
     }
 
     public function isPaid(): bool
@@ -142,7 +152,7 @@ class DisputeShipment extends Model
         $keys = array_keys($this->steps());
         $index = array_search($this->status, $keys, true);
 
-        return $index === false ? [] : array_slice($keys, $index + 1);
+        return $index === false ? [] : array_slice($keys, $index + 1, 1);
     }
 
     /**
@@ -156,6 +166,7 @@ class DisputeShipment extends Model
         return [
             'id' => $this->id,
             'type' => $this->type,
+            'funding_error' => $viewer === 'vendor' ? $this->funding_error : null,
             'company_id' => $this->deliverer_company_id,
             'company_name' => $this->company?->name ?? ($this->quote['company_name'] ?? null),
             'price' => (float) $this->price,
@@ -163,8 +174,8 @@ class DisputeShipment extends Model
             'payment_status' => $this->payment_status,
             'payment_mode' => $this->payment_mode,
             'status' => $this->status,
-            'status_label' => isset($this->steps()[$this->status]) ? __("disputes.shipment_steps.{$this->type}.{$this->status}") : $this->status,
-            'steps' => collect($this->steps())->map(fn ($label, $key) => ['key' => $key, 'label' => __("disputes.shipment_steps.{$this->type}.{$key}")])->values()->all(),
+            'status_label' => isset($this->steps()[$this->status]) ? __("disputes.shipment_steps.{$this->translationType()}.{$this->status}") : $this->status,
+            'steps' => collect($this->steps())->map(fn ($label, $key) => ['key' => $key, 'label' => __("disputes.shipment_steps.{$this->translationType()}.{$key}")])->values()->all(),
             'carrier_tracking_number' => $this->carrier_tracking_number,
             'proof_url' => $this->proof_path ? media_url($this->proof_path) : null,
             'paid_at' => $this->paid_at?->toIso8601String(),

@@ -74,7 +74,7 @@ class Order extends Model
         'tracking_number', 'confirmation_code',
         'delivery_person_id', 'delivery_company_id', 'delivery_zone_id',
         'delivery_mode', 'delivery_route_id', 'delivery_city_grid_id', 'delivery_vehicle', 'shipping_weight_kg', 'delivery_vat_amount', 'delivery_breakdown',
-        'carrier_tracking_number', 'tracking_status',
+        'carrier_tracking_number', 'tracking_status', 'carrier_courier_requested_at', 'carrier_handover_code',
         'delivery_agency_id', 'pickup_agency_snapshot', 'agency_collected_at', 'agency_collected_by',
         'payment_method', 'payment_reference', 'payment_currency', 'payment_amount', 'payment_status',
         'payment_plan', 'deposit_amount', 'balance_amount', 'balance_status',
@@ -90,6 +90,7 @@ class Order extends Model
     ];
 
     protected $casts = [
+        'carrier_courier_requested_at' => 'datetime',
         'subtotal' => 'decimal:2',
         'delivery_fee' => 'decimal:2',
         'import_shipping_fee' => 'decimal:2',
@@ -134,6 +135,24 @@ class Order extends Model
     public const DELIVERY_LOCAL = 'local';
 
     public const DELIVERY_CARRIER = 'carrier';
+
+    protected $hidden = ['carrier_handover_code'];
+
+    public function scopeCourierVisible($query)
+    {
+        return $query->where(fn ($q) => $q->where('delivery_mode', self::DELIVERY_LOCAL)
+            ->orWhere(fn ($carrier) => $carrier->where('delivery_mode', self::DELIVERY_CARRIER)->whereNotNull('carrier_courier_requested_at')));
+    }
+
+    public function scopeAwaitingCourier($query)
+    {
+        return $query->where(fn ($q) => $q->where(fn ($local) => $local->where('delivery_mode', self::DELIVERY_LOCAL)->whereIn('status', ['confirmed', 'preparing']))
+            ->orWhere(fn ($carrier) => $carrier->where('delivery_mode', self::DELIVERY_CARRIER)
+                ->whereNotNull('carrier_courier_requested_at')->whereNull('delivery_person_id')
+                ->whereHas('deliveryCompany', fn ($company) => $company->where('is_active', true))
+                ->where('payment_status', self::PAYMENT_PAID)->where('status', 'shipped')
+                ->whereIn('tracking_status', \App\Services\CarrierCourierService::OPEN_STEPS)));
+    }
 
     public function isCarrierDelivery(): bool
     {

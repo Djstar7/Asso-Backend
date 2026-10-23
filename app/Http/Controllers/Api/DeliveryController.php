@@ -41,8 +41,7 @@ class DeliveryController extends Controller
         // Commandes assignées directement à ce livreur
         $directOrders = Order::with(['items.product.primaryImage', 'items.product.shop', 'user', 'deliveryCompany'])
             ->where('delivery_person_id', $user->id)
-            ->where('delivery_mode', Order::DELIVERY_LOCAL)
-            ->whereIn('status', ['preparing', 'confirmed'])
+            ->awaitingCourier()
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -57,8 +56,7 @@ class DeliveryController extends Controller
             $companyOrders = Order::with(['items.product.primaryImage', 'items.product.shop', 'user', 'deliveryCompany'])
                 ->whereIn('delivery_company_id', $companyIds)
                 ->whereNull('delivery_person_id')
-                ->where('delivery_mode', Order::DELIVERY_LOCAL)
-                ->where('status', 'confirmed')
+                ->awaitingCourier()
                 ->orderBy('created_at', 'desc')
                 ->get();
         }
@@ -86,7 +84,18 @@ class DeliveryController extends Controller
             ->pluck('company_id');
 
         try {
+            $carrier = Order::where('delivery_mode', Order::DELIVERY_CARRIER)->find($id);
+            if ($carrier) {
+                $alreadyAssigned = $carrier->delivery_person_id === $user->id;
+                $order = app(\App\Services\CarrierCourierService::class)->accept($carrier, $user);
+                if (!$alreadyAssigned) {
+                    $this->notifyOtherDeliverers($order, $user);
+                }
+                return response()->json(['success' => true, 'message' => __('delivery.accepted_run_started'),
+                    'order' => $this->formatDeliveryRequest($order)]);
+            }
             $order = DB::transaction(function () use ($user, $id, $companyIds) {
+                User::whereKey($user->id)->lockForUpdate()->firstOrFail();
                 // lockForUpdate empêche 2 livreurs d'accepter en même temps
                 $order = Order::lockForUpdate()
                     ->where(function ($q) use ($user, $companyIds) {
@@ -108,6 +117,7 @@ class DeliveryController extends Controller
                 // lignes puis on les compte.
                 $activeRuns = Order::where('delivery_person_id', $user->id)
                     ->where('status', 'shipped')
+                    ->where(fn ($q) => $q->whereNull('tracking_status')->orWhere('tracking_status', '!=', 'ready_for_pickup'))
                     ->where('id', '!=', $order->id)
                     ->lockForUpdate()
                     ->pluck('id')
@@ -210,6 +220,12 @@ class DeliveryController extends Controller
         ]);
 
         $user = $request->user();
+        $carrier = Order::where('delivery_mode', Order::DELIVERY_CARRIER)->whereNotNull('carrier_courier_requested_at')
+            ->where('delivery_person_id', $user->id)->find($id);
+        if ($carrier) {
+            app(\App\Services\CarrierCourierService::class)->complete($carrier, $user, $request->confirmation_code);
+            return response()->json(['success' => true, 'message' => __('delivery.confirmed')]);
+        }
 
         $order = Order::with(['items.seller', 'user'])
             ->where('delivery_person_id', $user->id)
@@ -359,8 +375,8 @@ class DeliveryController extends Controller
 
         $orders = Order::with(['items.product.primaryImage', 'user', 'deliveryCompany'])
             ->where('delivery_person_id', $user->id)
-            ->where('delivery_mode', Order::DELIVERY_LOCAL)
-            ->where('status', 'shipped')
+            ->courierVisible()
+            ->where('status', 'shipped')->where(fn ($q) => $q->whereNull('tracking_status')->orWhere('tracking_status', '!=', 'ready_for_pickup'))
             ->orderBy('shipped_at', 'desc')
             ->get();
 
@@ -368,6 +384,14 @@ class DeliveryController extends Controller
             'success' => true,
             'deliveries' => $orders->map(fn($order) => $this->formatDeliveryRequest($order)),
         ]);
+    }
+
+    public function carrierStep(Request $request, $id)
+    {
+        $data = $request->validate(['step' => 'required|string']);
+        $order = Order::where('delivery_mode', Order::DELIVERY_CARRIER)->where('delivery_person_id', $request->user()->id)->findOrFail($id);
+        $order = app(\App\Services\CarrierCourierService::class)->advance($order, $request->user(), $data['step']);
+        return response()->json(['success' => true, 'order' => $this->formatDeliveryRequest($order)]);
     }
 
     /**
@@ -441,6 +465,7 @@ class DeliveryController extends Controller
             $coverage['message'] = $quote['message'];
             $coverage['quote_available'] = $quote['available'];
             $coverage['quote_reason'] = $quote['reason'];
+            $coverage['configuration_issues'] = $quote['configuration_issues'] ?? [];
         }
 
         return response()->json(['success' => true, 'coverage' => $coverage]);
@@ -600,8 +625,10 @@ class DeliveryController extends Controller
     {
         $delivery = \App\Support\DeliveryPresenter::forOrder($order);
         $pickup = \App\Support\DeliveryPresenter::pickupFor($order);
+        $dropoff = \App\Services\CarrierCourierService::dropoff($order);
 
-        return [
+        return \App\Services\CarrierCourierService::presentation($order)
+                    + \App\Support\DeliveryPresenter::distanceBetween($pickup, $dropoff) + [
             // Où récupérer le colis : boutique (quartier, ville), entrepôt ASSO de Douala
             // pour un import, ou agence du partenaire.
             'pickup_address' => $pickup['kind'] === 'agency'
@@ -619,7 +646,7 @@ class DeliveryController extends Controller
             'delivery' => $delivery,
             // Les deux bouts de la course, en clair : où retirer, chez qui livrer.
             'pickup' => $pickup,
-            'dropoff' => \App\Support\DeliveryPresenter::dropoffFor($order),
+            'dropoff' => $dropoff,
             'id' => $order->id,
             'order_number' => $order->order_number,
             'status' => $order->status,

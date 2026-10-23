@@ -28,6 +28,19 @@
     </div>
 
     @include('admin.wholesale_orders._flash')
+    @if(auth()->user()->isAdmin())
+    <form method="POST" action="{{ route('admin.disputes.settings') }}" class="flex flex-wrap gap-3 items-end mb-4 text-sm text-gray-300">
+        @csrf
+        <label>Délai de réponse vendeur (heures)
+            <input type="number" name="response_hours" min="1" max="720" required value="{{ \App\Models\Setting::get('dispute_response_hours', 48) }}" class="block bg-dark-100 rounded px-3 py-2 text-white">
+        </label>
+        <label>Délai de préparation du remplacement (heures)
+            <input type="number" name="replacement_hours" min="1" max="720" required value="{{ \App\Models\Setting::get('dispute_replacement_hours', 48) }}" class="block bg-dark-100 rounded px-3 py-2 text-white">
+        </label>
+        <button class="bg-dark-200 rounded px-3 py-2 text-white">Enregistrer les délais</button>
+    </form>
+    @endif
+
 
     <div class="flex flex-wrap gap-2 mb-4">
         @foreach($tabs as $value => $label)
@@ -77,12 +90,12 @@
                         </td>
                         <td class="px-4 py-3">
                             {{ $dispute->seller?->name ?? '—' }}
-                            @if($dispute->order?->is_wholesale)<div class="text-xs text-primary-400">Import — ASSO revendeur</div>@endif
+                            @if($dispute->isAssoManaged())<div class="text-xs text-primary-400">Boutique ASSO</div>@endif
                         </td>
                         <td class="px-4 py-3">{{ $reasons[$dispute->reason] ?? $dispute->reason }}</td>
                         <td class="px-4 py-3 text-right text-white">{{ $fcfa($dispute->held_amount) }}</td>
                         <td class="px-4 py-3">
-                            <span class="px-2 py-1 rounded-full text-xs border whitespace-nowrap {{ $badges[$dispute->status] ?? '' }}">{{ Dispute::STATUSES[$dispute->status] ?? $dispute->status }}</span>
+                            <span class="px-2 py-1 rounded-full text-xs border whitespace-nowrap {{ $badges[$dispute->status] ?? '' }}">{{ $dispute->refunded_at && !$dispute->closed_at ? 'Client remboursé — retour en cours' : (Dispute::STATUSES[$dispute->status] ?? $dispute->status) }}</span>
                         </td>
                         <td class="px-4 py-3 text-right whitespace-nowrap">
                             <a href="{{ route('admin.disputes.show', $dispute) }}" class="text-primary-400 hover:text-primary-300"><i class="fas fa-eye mr-1"></i> Gérer</a>

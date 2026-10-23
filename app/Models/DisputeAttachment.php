@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /** Preuve d'un litige : photo du client, élément du vendeur ou pièce ajoutée par ASSO. */
 class DisputeAttachment extends Model
 {
-    protected $fillable = ['dispute_id', 'author_type', 'author_id', 'path'];
+    protected $fillable = ['dispute_id', 'dispute_event_id', 'author_type', 'author_id', 'path'];
 
     public function dispute(): BelongsTo { return $this->belongsTo(Dispute::class); }
 

@@ -628,6 +628,9 @@ class OrderController extends Controller
                     'status_label' => \App\Models\Dispute::statusLabel($dispute->status),
                     // Produit de remplacement livré : mêmes choix qu'à la première
                     // réception (« Tout est conforme » / « Signaler un problème »).
+                    'status_label' => $dispute->refunded_at && !$dispute->closed_at ? __('disputes.refunded_return_pending') : \App\Models\Dispute::statusLabel($dispute->status),
+                    'can_confirm_replacement' => $dispute->isInReplacementControl(),
+                    'can_report_replacement' => $dispute->isInReplacementControl(),
                     'replacement_control_until' => $dispute->isInReplacementControl()
                         ? $dispute->auto_validate_at->toIso8601String()
                         : null,
@@ -663,11 +666,12 @@ class OrderController extends Controller
 
         $data['delivery'] = \App\Support\DeliveryPresenter::forOrder($order);
 
-        // Code de confirmation : livraison urbaine en cours uniquement (le transporteur
-        // ne le demande pas, l'acheteur confirme lui-même la réception).
+        // Code de remise : disponible dès l’affectation du livreur, y compris
+        // pour le transporteur. La validation reste contrôlée par les étapes de transport.
         // Commande avec acompte : le code n'est remis qu'une fois le solde payé.
-        if ($order->status === 'shipped' && !$order->isCarrierDelivery()
-            && $order->canBeHandedOver()) {
+        if ($order->status === 'shipped' && $order->canBeHandedOver()
+            && (!$order->isCarrierDelivery() || ($order->carrier_courier_requested_at && $order->delivery_person_id
+                && !$order->isAgencyPickup()))) {
             $data['confirmation_code'] = $order->confirmation_code;
         }
 

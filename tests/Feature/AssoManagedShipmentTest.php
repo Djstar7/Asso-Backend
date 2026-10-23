@@ -215,4 +215,58 @@ class AssoManagedShipmentTest extends TestCase
         $this->post(route('admin.shipments.agency', $order), ['delivery_agency_id' => $agency->id])->assertSessionHasNoErrors();
         $this->get(route('admin.shipments.show', $order))->assertOk()->assertSee('Solex Akwa');
     }
+    public function test_tracking_form_and_server_load_partner_details_automatically(): void
+    {
+        $this->partner->update(['phone' => '237670000001', 'email' => 'transport@example.com']);
+        DeliveryAgency::create(['deliverer_company_id' => $this->partner->id, 'code' => 'SLX-DLA',
+            'name' => 'SOLEX Douala Centre', 'city' => 'Douala', 'address' => 'Centre-ville de Douala',
+            'phone' => '237670000002', 'is_active' => true]);
+        $order = $this->order();
+        $order->update(['delivery_breakdown' => ['delivery_option' => 'home_delivery', 'origin_city' => 'Douala', 'destination_city' => 'Douala'],
+            'carrier_tracking_number' => 'BORD-345']);
+        $this->atHub($order);
+        $this->actingAs($this->admin)->get(route('admin.shipments.show', $order))->assertOk()
+            ->assertSee('SOLEX Douala Centre')->assertSee('237670000002')->assertSee('transport@example.com')
+            ->assertSee('Données ASSO (automatique)');
+        $this->post(route('admin.shipments.step', $order), [
+            'step' => 'pickup_requested', 'confirmation_contact' => '', 'confirmation_channel' => '', 'confirmation_reference' => '',
+        ])->assertSessionHasNoErrors();
+        $event = $order->trackingEvents()->where('step', 'pickup_requested')->firstOrFail();
+        $this->assertSame('platform', $event->confirmation_channel);
+        $this->assertSame('BORD-345', $event->confirmation_reference);
+        $this->assertStringContainsString('237670000002', $event->confirmation_contact);
+        $this->assertSame('Centre-ville de Douala', $event->location);
+        $this->assertArrayNotHasKey('confirmation_contact', $event->toApi());
+    }
+
+    public function test_internal_reference_is_explicit_and_never_reuses_a_previous_external_confirmation(): void
+    {
+        $order = $this->order();
+        $this->atHub($order);
+        $this->step($order, 'pickup_requested', ['confirmation_reference' => 'ANCIEN-APPEL'])->assertSessionHasNoErrors();
+        $this->actingAs($this->admin)->post(route('admin.shipments.step', $order), ['step' => 'pickup_accepted'])
+            ->assertSessionHasNoErrors();
+        $event = $order->trackingEvents()->where('step', 'pickup_accepted')->firstOrFail();
+        $this->assertSame('platform', $event->confirmation_channel);
+        $this->assertSame('ASSO:'.$order->order_number.':pickup_accepted', $event->confirmation_reference);
+        $this->assertNotSame('ANCIEN-APPEL', $event->confirmation_reference);
+    }
+
+    public function test_partner_contact_uses_the_correct_agency_for_the_current_stage(): void
+    {
+        $origin = DeliveryAgency::create(['deliverer_company_id' => $this->partner->id, 'code' => 'ORIGIN',
+            'name' => 'SOLEX départ', 'city' => 'Douala', 'address' => 'Entrepôt Douala', 'phone' => '237670000003', 'is_active' => true]);
+        $destination = DeliveryAgency::create(['deliverer_company_id' => $this->partner->id, 'code' => 'DEST',
+            'name' => 'SOLEX arrivée', 'city' => 'Yaoundé', 'address' => 'Mvan', 'phone' => '237670000004', 'is_active' => true]);
+        $order = $this->order(true, true);
+        $order->update(['delivery_agency_id' => $destination->id, 'pickup_agency_snapshot' => $destination->toPickupArray(),
+            'delivery_breakdown' => ['delivery_option' => 'agency_pickup', 'origin_city' => 'Douala', 'destination_city' => 'Yaoundé']]);
+        $pickup = \App\Services\AssoShipmentService::formDefaults($order->fresh(), 'pickup_requested');
+        $arrival = \App\Services\AssoShipmentService::formDefaults($order->fresh(), 'ready_for_pickup');
+        $this->assertStringContainsString($origin->phone, $pickup['confirmation_contact']);
+        $this->assertStringNotContainsString($destination->phone, $pickup['confirmation_contact']);
+        $this->assertStringContainsString($destination->phone, $arrival['confirmation_contact']);
+        $this->assertSame('Mvan', $arrival['location']);
+    }
+
 }

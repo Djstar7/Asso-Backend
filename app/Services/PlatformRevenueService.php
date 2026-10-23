@@ -238,10 +238,10 @@ class PlatformRevenueService
             ->join('order_items as i', 'i.id', '=', 'd.order_item_id')
             ->whereNotNull('d.refunded_at')
             ->selectRaw("d.refunded_at as occurred_at,
-                case when d.seller_id = {$platform} then i.total_price else i.total_price - d.held_amount end as amount,
+                case when d.seller_id = {$platform} then coalesce(d.refund_amount, i.total_price) else coalesce(d.refund_amount, i.total_price) - coalesce(d.vendor_refunded_amount, d.held_amount) end as amount,
                 d.number as reference, 'dispute' as subject_type, d.id as subject_id,
                 " . $this->concat(["'Retour '", 'd.number', "case when d.seller_id = {$platform} then ' · produit ASSO, prix complet' else ' · commission rendue' end"]) . ' as detail')
-            ->whereRaw("(case when d.seller_id = {$platform} then i.total_price else i.total_price - d.held_amount end) > 0");
+            ->whereRaw("(case when d.seller_id = {$platform} then coalesce(d.refund_amount, i.total_price) else coalesce(d.refund_amount, i.total_price) - coalesce(d.vendor_refunded_amount, d.held_amount) end) > 0");
     }
 
     private function assoShipments(): Builder

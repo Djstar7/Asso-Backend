@@ -520,7 +520,7 @@ class ProfileController extends Controller
 
         // 1. Commandes assignées directement à ce livreur
         $directOrders = \App\Models\Order::where('delivery_person_id', $user->id)
-            ->where('delivery_mode', \App\Models\Order::DELIVERY_LOCAL)
+            ->courierVisible()
             ->with(['items.product.primaryImage', 'user', 'deliveryCompany'])
             ->orderBy('created_at', 'desc')
             ->get();
@@ -556,9 +556,8 @@ class ProfileController extends Controller
         $companyOrders = collect();
         if ($companyIds->isNotEmpty()) {
             $companyOrders = \App\Models\Order::whereIn('delivery_company_id', $companyIds)
-                ->where('delivery_mode', \App\Models\Order::DELIVERY_LOCAL)
                 ->whereNull('delivery_person_id')
-                ->where('status', 'confirmed')
+                ->awaitingCourier()
                 ->with(['items.product.primaryImage', 'user', 'deliveryCompany'])
                 ->orderBy('created_at', 'desc')
                 ->get();
@@ -584,9 +583,9 @@ class ProfileController extends Controller
 
         $stats = [
             'total_deliveries' => $deliveries->count(),
-            'completed' => $directOrders->where('status', 'delivered')->count(),
-            'in_progress' => $directOrders->where('status', 'shipped')->count(),
-            'pending' => $deliveries->whereIn('status', ['confirmed', 'preparing'])->count(),
+            'completed' => $directOrders->filter(fn ($o) => \App\Services\CarrierCourierService::courierDone($o))->count(),
+            'in_progress' => $directOrders->filter(fn ($o) => $o->status === 'shipped' && !\App\Services\CarrierCourierService::courierDone($o))->count(),
+            'pending' => $deliveries->filter(fn ($o) => in_array($o->status, ['confirmed', 'preparing'], true) || ($o->isCarrierDelivery() && !$o->delivery_person_id))->count(),
             'total_commissions' => $totalCommissions,
             // Plafond de courses simultanées, pour l'affichage côté mobile.
             'max_active_runs' => \App\Http\Controllers\Api\DeliveryController::MAX_ACTIVE_RUNS,
@@ -659,9 +658,11 @@ class ProfileController extends Controller
             // contenu du colis, délai annoncé), pas seulement l'adresse d'arrivée.
             'deliveries' => $deliveries->map(function ($order) {
                 $delivery = \App\Support\DeliveryPresenter::forOrder($order);
-                $shop = $order->items->first()?->product?->shop;
+                $pickup = \App\Support\DeliveryPresenter::pickupFor($order);
+                $dropoff = \App\Services\CarrierCourierService::dropoff($order);
 
-                return [
+                return \App\Services\CarrierCourierService::presentation($order)
+                    + \App\Support\DeliveryPresenter::distanceBetween($pickup, $dropoff) + [
                     'id' => $order->id,
                     'order_id' => $order->id,
                     'order_number' => $order->order_number,
@@ -690,13 +691,13 @@ class ProfileController extends Controller
                         'name' => $order->deliveryCompany->name,
                     ] : null,
                     'delivery' => $delivery,
-                    'pickup' => \App\Support\DeliveryPresenter::pickupFor($order),
-                    'dropoff' => \App\Support\DeliveryPresenter::dropoffFor($order),
-                    'pickup_address' => $order->hasLastMileDelivery()
+                    'pickup' => $pickup,
+                    'dropoff' => $dropoff,
+                    'pickup_address' => $pickup['kind'] === 'agency'
                         ? "Agence {$delivery['company_name']}"
-                        : trim(implode(' — ', array_filter([$shop?->name, $shop?->location_label, $shop?->address]))),
-                    'pickup_latitude' => $shop?->latitude,
-                    'pickup_longitude' => $shop?->longitude,
+                        : trim(implode(' — ', array_filter([$pickup['name'], $pickup['address']]))),
+                    'pickup_latitude' => $pickup['latitude'],
+                    'pickup_longitude' => $pickup['longitude'],
                     'notes' => trim(implode(' · ', array_filter([
                         $delivery['vehicle_label'],
                         $delivery['route_label'],

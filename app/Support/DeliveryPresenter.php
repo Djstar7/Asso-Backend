@@ -59,6 +59,7 @@ class DeliveryPresenter
             // Import en gros : trajet Chine / Dubaï / Turquie → Douala, avant SOLEX.
             'import_leg' => $snapshot['import_leg'] ?? null,
             'carrier_tracking_number' => $order->carrier_tracking_number,
+            'show_tracking_pending' => $order->status === 'pending' && !$order->confirmed_at,
             'carrier_tracking_url' => $trackingUrl,
             'tracking_status' => $order->tracking_status,
             'tracking_status_label' => OrderTrackingService::stepLabel($order->tracking_status),
@@ -108,6 +109,25 @@ class DeliveryPresenter
             'city' => $shop?->city,
             'latitude' => $shop?->latitude !== null ? (float) $shop->latitude : null,
             'longitude' => $shop?->longitude !== null ? (float) $shop->longitude : null,
+        ];
+    }
+
+    /** Estimation géographique : ne constitue pas une distance routière. */
+    public static function distanceBetween(array $pickup, array $dropoff): array
+    {
+        foreach ([$pickup, $dropoff] as $point) {
+            if (! is_numeric($point['latitude'] ?? null) || ! is_numeric($point['longitude'] ?? null)
+                || abs((float) $point['latitude']) > 90 || abs((float) $point['longitude']) > 180) {
+                return ['distance' => null, 'distance_type' => null];
+            }
+        }
+
+        return [
+            'distance' => round(\App\Models\DeliveryCityGrid::distanceKm(
+                (float) $pickup['latitude'], (float) $pickup['longitude'],
+                (float) $dropoff['latitude'], (float) $dropoff['longitude'],
+            ), 3),
+            'distance_type' => 'straight_line',
         ];
     }
 

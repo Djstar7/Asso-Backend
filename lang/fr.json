@@ -1415,6 +1415,15 @@
         }
     },
     "disputes": {
+    "invalid_quantity": "La quantité contestée doit être comprise entre 1 et la quantité commandée.",
+    "door_delivery_required": "Cette mission nécessite une remise à la boutique ou au domicile, sans retrait en agence.",
+    "addresses_required": "Complétez les adresses de collecte et de remise.",
+    "collection_received": "Produit reçu à la boutique pour échange, sans remboursement.",
+    "refunded_return_pending": "Client remboursé — retour en cours",
+    "vendor_reminder": "Relance : réponse du vendeur attendue.",
+    "vendor_escalation": "Absence de réponse : dossier transmis à ASSO.",
+    "replacement_expired": "Remplacement indisponible dans le délai prévu : retour et remboursement.",
+
         "bank_transfer": {
             "not_available": "Aucun virement IBAN possible pour ce litige (commande non payée par carte ou litige non tranché).",
             "already_done": "Ce virement IBAN a déjà été fait.",
@@ -1485,6 +1494,7 @@
                 "confirmed": "Retour confirmé"
             },
             "replacement": {
+        "awaiting_preparation": "Remplacement à préparer",
                 "awaiting_payment": "Remplacement autorisé — paiement de la course par le vendeur",
                 "courier_selected": "Livreur sélectionné",
                 "shipped": "Produit de remplacement expédié",

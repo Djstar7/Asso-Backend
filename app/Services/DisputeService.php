@@ -37,8 +37,8 @@ use Illuminate\Support\Facades\Mail;
  *    proposer des produits similaires dont le VENDEUR offre la livraison.
  *
  * Le vendeur paie les courses comme un client (Wallet, Mobile Money / OM, carte) ; le
- * processus reprend dès que le paiement est confirmé. Import en gros (ASSO China,
- * Türkiye, Dubai) : ASSO est le revendeur, il gère et paie lui-même depuis le back-office.
+ * processus reprend dès que le paiement est confirmé. Pour ses propres boutiques,
+ * ASSO collecte avant échange et finance les transports depuis sa trésorerie.
  */
 class DisputeService
 {
@@ -64,7 +64,7 @@ class DisputeService
      * @param UploadedFile[] $photos
      * @throws \Exception
      */
-    public function open(Order $order, int $orderItemId, User $client, string $reason, string $description, array $photos = []): Dispute
+    public function open(Order $order, int $orderItemId, User $client, string $reason, string $description, array $photos = [], ?int $quantity = null): Dispute
     {
         if ($order->user_id !== $client->id) {
             throw new \Exception(__('disputes.not_found'));
@@ -72,7 +72,7 @@ class DisputeService
 
         $paths = $this->storePhotos($photos);
 
-        $dispute = DB::transaction(function () use ($order, $orderItemId, $client, $reason, $description, $paths) {
+        $dispute = DB::transaction(function () use ($order, $orderItemId, $client, $reason, $description, $paths, $quantity) {
             $locked = Order::whereKey($order->id)->lockForUpdate()->firstOrFail();
             if (!$locked->isInControlWindow()) {
                 throw new \Exception(__('disputes.window_closed'));
@@ -85,7 +85,11 @@ class DisputeService
                 throw new \Exception(__('disputes.already_opened'));
             }
 
-            $share = min(self::itemVendorShare($locked, $item), (float) $locked->vendor_funds_held_amount);
+            $quantity ??= (int) $item->quantity;
+            if ($quantity < 1 || $quantity > $item->quantity) {
+                throw new \Exception(__('disputes.invalid_quantity'));
+            }
+            $share = min(round(self::itemVendorShare($locked, $item) * $quantity / max(1, (int) $item->quantity), 2), (float) $locked->vendor_funds_held_amount);
             $share = max(0.0, round($share, 2));
             $locked->update(['vendor_funds_held_amount' => round((float) $locked->vendor_funds_held_amount - $share, 2)]);
 
@@ -98,6 +102,9 @@ class DisputeService
                 'reason' => $reason,
                 'description' => $description,
                 'held_amount' => $share,
+                'quantity' => $quantity,
+                'asso_managed' => (bool) $locked->is_wholesale || ($item->seller_id !== null && $item->seller_id === CommissionService::platformAccount()?->id),
+                'vendor_response_due_at' => now()->addHours($this->responseHours()),
                 'status' => Dispute::STATUS_NEW,
             ]);
             foreach ($paths as $path) {
@@ -143,16 +150,23 @@ class DisputeService
      */
     public function addEvidence(Dispute $dispute, string $authorType, User $author, ?string $note, array $files = []): Dispute
     {
-        if (!$dispute->isOpen()) {
-            throw new \Exception(__('disputes.closed'));
-        }
-        foreach ($this->storePhotos($files) as $path) {
-            $dispute->attachments()->create(['author_type' => $authorType, 'author_id' => $author->id, 'path' => $path]);
-        }
-        $label = $authorType === 'vendor' ? __('disputes.events.vendor_reply', [], 'fr') : __('disputes.events.asso_evidence', [], 'fr');
-        $this->event($dispute, 'evidence', $label, $note, $authorType, $author->id);
+        $paths = $this->storePhotos($files);
+        return DB::transaction(function () use ($dispute, $authorType, $author, $note, $paths) {
+            $dispute = Dispute::whereKey($dispute->id)->lockForUpdate()->firstOrFail();
+            if (!$dispute->isOpen()) {
+                throw new \Exception(__('disputes.closed'));
+            }
+            foreach ($paths as $path) {
+                $dispute->attachments()->create(['author_type' => $authorType, 'author_id' => $author->id, 'path' => $path]);
+            }
+            if ($authorType === 'vendor') {
+                $dispute->update(['vendor_responded_at' => now()]);
+            }
+            $label = $authorType === 'vendor' ? __('disputes.events.vendor_reply', [], 'fr') : __('disputes.events.asso_evidence', [], 'fr');
+            $this->event($dispute, 'evidence', $label, $note, $authorType, $author->id);
 
-        return $dispute;
+            return $dispute;
+        });
     }
 
     /** Note interne de l'équipe ASSO (jamais visible du client ni du vendeur). */
@@ -167,50 +181,58 @@ class DisputeService
      */
     public function decide(Dispute $dispute, User $employee, string $decision, string $note): Dispute
     {
-        $this->assertNotDecided($dispute);
+        return DB::transaction(function () use ($dispute, $employee, $decision, $note) {
+            $dispute = Dispute::whereKey($dispute->id)->lockForUpdate()->firstOrFail();
+            $this->assertNotDecided($dispute);
 
-        if ($decision === Dispute::DECISION_UNFOUNDED) {
-            DB::transaction(function () use ($dispute, $employee, $note) {
-                $locked = Dispute::whereKey($dispute->id)->lockForUpdate()->firstOrFail();
-                $this->releaseDisputeFunds($locked, 'unfounded');
-                $locked->update([
-                    'decision' => Dispute::DECISION_UNFOUNDED,
-                    'decision_note' => $note,
-                    'decided_by' => $employee->id,
-                    'decided_at' => now(),
-                    'status' => Dispute::STATUS_REJECTED,
-                    'closed_at' => now(),
-                ]);
-                $this->event($locked, 'decision', __('disputes.events.decision_unfounded', [], 'fr'), $note, 'admin', $employee->id);
-            });
-            $dispute->refresh();
-            $this->notifyClient($dispute, 'dispute_unfounded', ['number' => $dispute->number]);
-            $this->notifySeller($dispute, 'dispute_unfounded_vendor', ['number' => $dispute->number]);
+            if ($decision === Dispute::DECISION_UNFOUNDED) {
+                DB::transaction(function () use ($dispute, $employee, $note) {
+                    $locked = Dispute::whereKey($dispute->id)->lockForUpdate()->firstOrFail();
+                    $this->releaseDisputeFunds($locked, 'unfounded');
+                    $locked->update([
+                        'decision' => Dispute::DECISION_UNFOUNDED,
+                        'decision_note' => $note,
+                        'decided_by' => $employee->id,
+                        'decided_at' => now(),
+                        'status' => Dispute::STATUS_REJECTED,
+                        'closed_at' => now(),
+                    ]);
+                    $this->event($locked, 'decision', __('disputes.events.decision_unfounded', [], 'fr'), $note, 'admin', $employee->id);
+                });
+                $dispute->refresh();
+                $this->notifyClient($dispute, 'dispute_unfounded', ['number' => $dispute->number]);
+                $this->notifySeller($dispute, 'dispute_unfounded_vendor', ['number' => $dispute->number]);
 
-            return $dispute;
-        }
+                return $dispute;
+            }
 
-        $dispute->update([
-            'decision' => Dispute::DECISION_FOUNDED,
-            'decision_note' => $note,
-            'decided_by' => $employee->id,
-            'decided_at' => now(),
-            'status' => Dispute::STATUS_VENDOR_CONTACTED,
-        ]);
-        $this->event($dispute, 'decision', __('disputes.events.decision_founded', [], 'fr'), $note, 'admin', $employee->id);
+            $dispute->update([
+                'decision' => Dispute::DECISION_FOUNDED,
+                'decision_note' => $note,
+                'decided_by' => $employee->id,
+                'decided_at' => now(),
+                'status' => Dispute::STATUS_VENDOR_CONTACTED,
+                'replacement_due_at' => now()->addHours(max(1, (int) \App\Models\Setting::get('dispute_replacement_hours', 48))),
+            ]);
+            $this->event($dispute, 'decision', __('disputes.events.decision_founded', [], 'fr'), $note, 'admin', $employee->id);
 
-        // Remplacement déjà utilisé (réclamation sur le produit de remplacement) : le
-        // retour est imposé, le vendeur est aussitôt invité à payer la course.
-        if ($dispute->replacement_count >= Dispute::MAX_REPLACEMENTS) {
-            $this->startReturn($dispute, 'admin', $employee->id);
+            // Remplacement déjà utilisé (réclamation sur le produit de remplacement) : le
+            // retour est imposé, le vendeur est aussitôt invité à payer la course.
+            if ($dispute->replacement_count >= Dispute::MAX_REPLACEMENTS) {
+                $this->startReturn($dispute, 'admin', $employee->id);
+
+                return $dispute->refresh();
+            }
+
+            if ($dispute->isAssoManaged()) {
+                $this->startReplacement($dispute, 'admin', $employee->id);
+            }
+
+            $this->notifyClient($dispute, 'dispute_founded', ['number' => $dispute->number]);
+            $this->notifySeller($dispute, 'dispute_founded_vendor', ['number' => $dispute->number]);
 
             return $dispute->refresh();
-        }
-
-        $this->notifyClient($dispute, 'dispute_founded', ['number' => $dispute->number]);
-        $this->notifySeller($dispute, 'dispute_founded_vendor', ['number' => $dispute->number]);
-
-        return $dispute;
+        });
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -222,6 +244,14 @@ class DisputeService
     {
         return DB::transaction(function () use ($dispute, $actorType, $actorId) {
             $locked = Dispute::whereKey($dispute->id)->lockForUpdate()->firstOrFail();
+            $prepared = $locked->shipment(DisputeShipment::TYPE_REPLACEMENT);
+            if ($locked->isAssoManaged() && $locked->status === Dispute::STATUS_REPLACEMENT
+                && $locked->shipment(DisputeShipment::TYPE_COLLECTION)?->isHandedOver()
+                && $prepared?->status === 'awaiting_preparation') {
+                $prepared->update(['status' => 'awaiting_payment']);
+                DB::afterCommit(fn () => $this->autoFundAsso($prepared));
+                return $prepared;
+            }
             if ($locked->decision !== Dispute::DECISION_FOUNDED || $locked->status !== Dispute::STATUS_VENDOR_CONTACTED) {
                 throw new \Exception(__('disputes.action_unavailable'));
             }
@@ -235,7 +265,7 @@ class DisputeService
                 'replacement_count' => $locked->replacement_count + 1,
                 'auto_validate_at' => null,
             ]);
-            $shipment = $this->createShipment($locked, DisputeShipment::TYPE_REPLACEMENT);
+            $shipment = $this->createShipment($locked, $locked->isAssoManaged() ? DisputeShipment::TYPE_COLLECTION : DisputeShipment::TYPE_REPLACEMENT);
             $this->event($locked, 'replacement', __('disputes.events.replacement_authorized', [], 'fr'), null, $actorType, $actorId);
 
             return $shipment;
@@ -247,7 +277,7 @@ class DisputeService
      * impossible), par ASSO, ou imposé après un remplacement encore non conforme. Le
      * vendeur est notifié qu'il doit payer la course de retour.
      */
-    public function startReturn(Dispute $dispute, string $actorType, ?int $actorId, ?string $note = null): DisputeShipment
+    public function startReturn(Dispute $dispute, string $actorType, ?int $actorId, ?string $note = null): ?DisputeShipment
     {
         $shipment = DB::transaction(function () use ($dispute, $actorType, $actorId, $note) {
             $locked = Dispute::whereKey($dispute->id)->lockForUpdate()->firstOrFail();
@@ -257,7 +287,9 @@ class DisputeService
             if (!$allowed) {
                 throw new \Exception(__('disputes.action_unavailable'));
             }
-            if ($afterReplacement && !$this->replacementDelivered($locked)) {
+            $collected = $locked->shipment(DisputeShipment::TYPE_COLLECTION)?->isHandedOver()
+                && !$locked->shipment(DisputeShipment::TYPE_REPLACEMENT)?->isPaid();
+            if ($afterReplacement && !$this->replacementDelivered($locked) && !$collected) {
                 throw new \Exception(__('disputes.replacement_in_progress'));
             }
 
@@ -266,7 +298,13 @@ class DisputeService
                 'resolution' => Dispute::RESOLUTION_RETURN_REFUND,
                 'auto_validate_at' => null,
             ]);
-            $shipment = $this->createShipment($locked, DisputeShipment::TYPE_RETURN);
+            if ($collected) {
+                $locked->shipments()->where('type', DisputeShipment::TYPE_REPLACEMENT)->where('payment_status', '!=', 'paid')->delete();
+            }
+            $shipment = $collected ? null : $this->createShipment($locked, DisputeShipment::TYPE_RETURN);
+            if ($collected) {
+                $this->refund($locked, $actorType, $actorId);
+            }
             $this->event(
                 $locked,
                 'return',
@@ -282,6 +320,9 @@ class DisputeService
         });
 
         $dispute->refresh();
+        if (!$shipment) {
+            return null;
+        }
         $this->notifyClient($dispute, 'dispute_return_validated', ['number' => $dispute->number]);
         // Vendeur (ou, en gros, l'équipe ASSO) : course à payer.
         $this->notifySeller($dispute, 'dispute_shipment_payment_required', [
@@ -307,8 +348,9 @@ class DisputeService
 
     /**
      * Le client signale un problème sur le produit de remplacement, pendant ses 48 h :
-     * le dossier est rouvert comme une première réclamation (réponse du vendeur, puis
-     * décision ASSO). La part de l'article reste bloquée. Non fondée : vente conclue ;
+     * le dossier repasse par la réponse de la boutique et la décision ASSO.
+     * Toute boutique, y compris ASSO, attend une nouvelle décision motivée.
+     * Pour un vendeur indépendant, la part reste bloquée. Non fondée : vente conclue ;
      * fondée : retour imposé (pas de second remplacement), voir decide().
      *
      * @param UploadedFile[] $photos
@@ -335,6 +377,11 @@ class DisputeService
                 'auto_validate_at' => null,
             ]);
             $this->event($locked, 'replacement_rejected', __('disputes.events.replacement_rejected', [], 'fr'), $description, 'client', $client->id);
+            $locked->update([
+                'vendor_response_due_at' => now()->addHours($this->responseHours()),
+                'vendor_responded_at' => null, 'vendor_reminded_at' => null, 'vendor_escalated_at' => null,
+            ]);
+
         });
 
         $dispute->refresh();
@@ -349,61 +396,59 @@ class DisputeService
 
     /**
      * Partenaires de livraison disponibles pour la course (même calcul qu'une commande,
-     * entre la boutique et l'adresse du client ; le trajet retour coûte autant).
+     * dans le sens réel du trajet de chaque mission).
      */
     public function partnerQuotes(DisputeShipment $shipment): array
     {
-        $dispute = $shipment->dispute;
-        $order = $dispute->order;
-
+        $stops = $this->courseStops($shipment);
         return app(DeliveryQuoteService::class)->quotes(
-            $this->quoteItems($dispute),
-            $order->delivery_latitude !== null ? (float) $order->delivery_latitude : null,
-            $order->delivery_longitude !== null ? (float) $order->delivery_longitude : null,
-            null,
-            null,
-            null,
-            $order->delivery_address,
+            $this->quoteItems($shipment->dispute),
+            $stops['dropoff']['latitude'], $stops['dropoff']['longitude'],
+            $stops['dropoff']['city'], $stops['dropoff']['country'],
+            $stops['dropoff']['quarter'], $stops['dropoff']['address'],
+            $this->quoteOrigin($stops['pickup']),
         );
     }
 
-    /** Partenaire choisi : prix recalculé côté serveur et figé sur la course. */
+    /** Devis serveur dans le sens réel du trajet, figé avant financement. */
     public function choosePartner(DisputeShipment $shipment, array $choice): DisputeShipment
     {
-        if ($shipment->isPaid() || $shipment->payment_reference) {
-            throw new \Exception(__('disputes.shipment_already_paid'));
-        }
-        $dispute = $shipment->dispute;
-        $order = $dispute->order;
+        return DB::transaction(function () use ($shipment, $choice) {
+            $shipment = DisputeShipment::whereKey($shipment->id)->lockForUpdate()->firstOrFail();
+            if ($shipment->isPaid() || $shipment->payment_reference) {
+                throw new \Exception(__('disputes.shipment_already_paid'));
+            }
+            $stops = $this->courseStops($shipment);
+            $quote = app(DeliveryQuoteService::class)->quoteFor(
+                $this->quoteItems($shipment->dispute), (int) $choice['company_id'],
+                isset($choice['zone_id']) ? (int) $choice['zone_id'] : null,
+                isset($choice['route_id']) ? (int) $choice['route_id'] : null,
+                $stops['dropoff']['latitude'], $stops['dropoff']['longitude'],
+                $stops['dropoff']['city'], $stops['dropoff']['country'],
+                isset($choice['grid_id']) ? (int) $choice['grid_id'] : null,
+                $choice['vehicle'] ?? null, $stops['dropoff']['quarter'], $stops['dropoff']['address'],
+                $this->quoteOrigin($stops['pickup']),
+            );
+            if (($quote['delivery_option'] ?? null) === 'agency_pickup') {
+                throw new \Exception(__('disputes.door_delivery_required'));
+            }
+            $shipment->update([
+                'deliverer_company_id' => $quote['company_id'], 'quote' => $quote, 'stops' => $stops,
+                'price' => (float) $quote['delivery_price'], 'carrier_amount' => (float) $quote['base_price'],
+                'asso_commission' => (float) $quote['asso_commission'],
+                'payment_status' => DisputeShipment::PAYMENT_PENDING, 'funding_error' => null,
+            ]);
+            return $shipment->refresh();
+        });
+    }
 
-        $quote = app(DeliveryQuoteService::class)->quoteFor(
-            $this->quoteItems($dispute),
-            (int) $choice['company_id'],
-            isset($choice['zone_id']) ? (int) $choice['zone_id'] : null,
-            isset($choice['route_id']) ? (int) $choice['route_id'] : null,
-            $order->delivery_latitude !== null ? (float) $order->delivery_latitude : null,
-            $order->delivery_longitude !== null ? (float) $order->delivery_longitude : null,
-            null,
-            null,
-            isset($choice['grid_id']) ? (int) $choice['grid_id'] : null,
-            $choice['vehicle'] ?? null,
-            null,
-            $order->delivery_address,
-        );
-
-        $shipment->update([
-            'deliverer_company_id' => $quote['company_id'],
-            'quote' => array_intersect_key($quote, array_flip([
-                'company_id', 'company_name', 'zone_id', 'route_id', 'grid_id', 'vehicle',
-                'service_type_label', 'service_mode_label', 'route_label', 'lead_time', 'delivery_option_label',
-            ])),
-            'price' => (float) $quote['delivery_price'],
-            'carrier_amount' => (float) $quote['base_price'],
-            'asso_commission' => (float) $quote['asso_commission'],
-            'payment_status' => DisputeShipment::PAYMENT_PENDING,
-        ]);
-
-        return $shipment->refresh();
+    private function quoteOrigin(array $stop): array
+    {
+        return [
+            'origin' => [$stop['city'], $stop['country']], 'origin_address' => $stop['address'],
+            'origin_quarter' => $stop['quarter'], 'origin_lat' => $stop['latitude'],
+            'origin_lng' => $stop['longitude'], 'free_delivery' => false,
+        ];
     }
 
     /**
@@ -515,14 +560,20 @@ class DisputeService
     /** Import en gros : ASSO, revendeur, prend la course à sa charge (back-office). */
     public function payByAsso(DisputeShipment $shipment, User $employee): void
     {
-        if ($shipment->payer !== 'asso') {
-            throw new \Exception(__('disputes.action_unavailable'));
-        }
-        if (!$shipment->deliverer_company_id) {
-            throw new \Exception(__('disputes.choose_partner_first'));
-        }
-        $shipment->update(['payment_mode' => 'asso']);
-        $this->confirmPayment($shipment, $employee);
+        DB::transaction(function () use ($shipment, $employee) {
+            $shipment = DisputeShipment::whereKey($shipment->id)->lockForUpdate()->firstOrFail();
+            if ($shipment->isPaid()) {
+                return;
+            }
+            if ($shipment->payer !== 'asso' || $shipment->status === 'awaiting_preparation') {
+                throw new \Exception(__('disputes.action_unavailable'));
+            }
+            if (!$shipment->deliverer_company_id) {
+                throw new \Exception(__('disputes.choose_partner_first'));
+            }
+            $shipment->update(['payment_mode' => 'asso']);
+            $this->confirmPayment($shipment, $employee);
+        });
     }
 
     /**
@@ -537,6 +588,16 @@ class DisputeService
                 return null;
             }
             $dispute = $locked->dispute;
+            if ($locked->payer === 'asso') {
+                $platform = CommissionService::platformAccount();
+                if (!$platform || !$locked->deliverer_company_id) {
+                    throw new \Exception(__('disputes.action_unavailable'));
+                }
+                // ASSO ne se verse pas de commission sur sa propre course.
+                $this->wallet->debit($platform, (float) $locked->carrier_amount,
+                    WalletTransaction::label('dispute_delivery_'.$this->shipmentKind($locked), ['number' => $dispute->number]),
+                    'dispute_shipment', $locked->id, ['dispute_id' => $dispute->id, 'payer' => 'asso'], 'kpay');
+            }
 
             // Rail direct : trace dans l'historique du vendeur (solde Wallet inchangé).
             if (in_array($locked->payment_mode, ['kpay_direct', 'stripe_direct'], true) && $dispute->seller_id) {
@@ -581,12 +642,13 @@ class DisputeService
             $locked->update([
                 'payment_status' => DisputeShipment::PAYMENT_PAID,
                 'paid_at' => now(),
+                'funding_error' => null,
                 'status' => 'courier_selected',
             ]);
             $this->event(
                 $dispute,
                 'shipment_paid',
-                __('disputes.events.' . ($locked->type === DisputeShipment::TYPE_RETURN ? 'return' : 'replacement')
+                __('disputes.events.' . ($locked->type !== DisputeShipment::TYPE_REPLACEMENT ? 'return' : 'replacement')
                     . ($locked->payer === 'asso' ? '_paid_asso' : '_paid_vendor'), [], 'fr'),
                 $locked->company?->name,
                 $locked->payer === 'asso' ? 'admin' : 'vendor',
@@ -628,7 +690,7 @@ class DisputeService
             ->unique('id');
 
         $stops = $this->courseStops($shipment);
-        $type = $shipment->type === DisputeShipment::TYPE_RETURN ? 'dispute_return_course' : 'dispute_replacement_course';
+        $type = $shipment->type !== DisputeShipment::TYPE_REPLACEMENT ? 'dispute_return_course' : 'dispute_replacement_course';
         foreach ($recipients as $user) {
             try {
                 $this->fcm->sendToUser(
@@ -713,65 +775,83 @@ class DisputeService
      */
     public function recordStep(DisputeShipment $shipment, string $step, string $actorType, ?int $actorId, ?string $note = null, ?string $trackingNumber = null, ?UploadedFile $proof = null, ?string $confirmationCode = null): DisputeShipment
     {
-        if (!in_array($step, $shipment->nextSteps(), true)) {
-            throw new \Exception(__('disputes.step_invalid'));
-        }
-        if ($actorType === 'vendor' && $step !== 'shipped') {
-            throw new \Exception(__('disputes.step_invalid'));
-        }
-        // « Retour confirmé » suit automatiquement la remise au vendeur.
-        if ($step === 'confirmed' && $actorType !== 'system') {
-            throw new \Exception(__('disputes.step_invalid'));
-        }
-        // Course créée avant les codes : pas de code à vérifier.
-        if ($step === $shipment->codeStep() && $shipment->confirmation_code !== null
-            && !hash_equals((string) $shipment->confirmation_code, trim((string) $confirmationCode))) {
-            throw new \Exception(__('disputes.confirmation_code_incorrect'));
-        }
-
-        $updates = ['status' => $step];
-        if ($trackingNumber) {
-            $updates['carrier_tracking_number'] = trim($trackingNumber);
-        }
-        if ($proof) {
-            $updates['proof_path'] = $proof->store('disputes/proofs', 'public');
-        }
-        if (in_array($step, ['delivered', 'delivered_to_vendor'], true)) {
-            $updates['delivered_at'] = now();
-        }
-        if ($step === $shipment->pickupStep()) {
-            $updates['picked_up_at'] = now();
-        }
-        $shipment->update($updates);
-
-        $dispute = $shipment->dispute;
-        $this->event($dispute, "shipment_{$step}", $shipment->steps()[$step], $note, $actorType, $actorId);
-
-        if ($shipment->type === DisputeShipment::TYPE_REPLACEMENT) {
-            if ($step === 'shipped') {
-                $this->notifyClient($dispute, 'dispute_replacement_shipped', ['number' => $dispute->number]);
-            } elseif ($step === 'delivered') {
-                // Nouveau contrôle client de 48 h sur le produit de remplacement.
-                $dispute->update(['auto_validate_at' => now()->addHours(Order::CONTROL_WINDOW_HOURS)]);
-                $this->notifyClient($dispute, 'dispute_replacement_delivered', [
-                    'number' => $dispute->number,
-                    'hours' => Order::CONTROL_WINDOW_HOURS,
-                ]);
+        return DB::transaction(function () use ($shipment, $step, $actorType, $actorId, $note, $trackingNumber, $proof, $confirmationCode) {
+            Dispute::whereKey($shipment->dispute_id)->lockForUpdate()->firstOrFail();
+            $shipment = DisputeShipment::whereKey($shipment->id)->lockForUpdate()->firstOrFail();
+            if ($actorType === 'partner' && $shipment->delivery_person_id !== $actorId) {
+                throw new \Exception(__('disputes.course_unavailable'));
             }
-        } else {
-            if ($step === 'pickup_scheduled') {
-                $this->notifyClient($dispute, 'dispute_pickup_scheduled', ['number' => $dispute->number]);
-            } elseif ($step === 'delivered_to_vendor') {
-                $this->notifySeller($dispute, 'dispute_return_delivered', ['number' => $dispute->number]);
-
-                // Code du vendeur validé : le retour est confirmé, le client remboursé.
-                return $this->recordStep($shipment->refresh(), 'confirmed', 'system', null);
-            } elseif ($step === 'confirmed') {
-                $this->refund($dispute->refresh(), $actorType, $actorId);
+            if ($step === $shipment->codeStep() && !$shipment->picked_up_at) {
+                throw new \Exception(__('disputes.step_invalid'));
             }
-        }
+            if (!in_array($step, $shipment->nextSteps(), true)) {
+                throw new \Exception(__('disputes.step_invalid'));
+            }
+            if ($actorType === 'vendor' && $step !== 'shipped') {
+                throw new \Exception(__('disputes.step_invalid'));
+            }
+            // « Retour confirmé » suit automatiquement la remise au vendeur.
+            if ($step === 'confirmed' && $actorType !== 'system') {
+                throw new \Exception(__('disputes.step_invalid'));
+            }
+            // Course créée avant les codes : pas de code à vérifier.
+            if ($step === $shipment->codeStep() && $shipment->confirmation_code !== null
+                && !hash_equals((string) $shipment->confirmation_code, trim((string) $confirmationCode))) {
+                throw new \Exception(__('disputes.confirmation_code_incorrect'));
+            }
 
-        return $shipment->refresh();
+            $updates = ['status' => $step];
+            if ($trackingNumber) {
+                $updates['carrier_tracking_number'] = trim($trackingNumber);
+            }
+            if ($proof) {
+                $updates['proof_path'] = $proof->store('disputes/proofs', 'public');
+            }
+            if (in_array($step, ['delivered', 'delivered_to_vendor'], true)) {
+                $updates['delivered_at'] = now();
+            }
+            if ($step === $shipment->pickupStep()) {
+                $updates['picked_up_at'] = now();
+            }
+            $shipment->update($updates);
+
+            $dispute = $shipment->dispute;
+            $this->event($dispute, "shipment_{$step}", $shipment->steps()[$step], $note, $actorType, $actorId);
+
+            if ($shipment->type === DisputeShipment::TYPE_REPLACEMENT) {
+                if ($step === 'shipped') {
+                    $this->notifyClient($dispute, 'dispute_replacement_shipped', ['number' => $dispute->number]);
+                } elseif ($step === 'delivered') {
+                    // Nouveau contrôle client de 48 h sur le produit de remplacement.
+                    $dispute->update(['auto_validate_at' => now()->addHours(Order::CONTROL_WINDOW_HOURS)]);
+                    $this->notifyClient($dispute, 'dispute_replacement_delivered', [
+                        'number' => $dispute->number,
+                        'hours' => Order::CONTROL_WINDOW_HOURS,
+                    ]);
+                }
+            } else {
+                if ($step === 'pickup_scheduled') {
+                    $this->notifyClient($dispute, 'dispute_pickup_scheduled', ['number' => $dispute->number]);
+                } elseif ($step === 'delivered_to_vendor') {
+                    $this->notifySeller($dispute, 'dispute_return_delivered', ['number' => $dispute->number]);
+
+                    // La confirmation distingue la collecte pour échange du retour définitif.
+                    return $this->recordStep($shipment->refresh(), 'confirmed', 'system', null);
+                } elseif ($step === 'confirmed') {
+                    if ($shipment->type === DisputeShipment::TYPE_COLLECTION) {
+                        $dispute->update(['replacement_due_at' => now()->addHours(max(1, (int) \App\Models\Setting::get('dispute_replacement_hours', 48)))]);
+                        $replacement = $this->createShipment($dispute, DisputeShipment::TYPE_REPLACEMENT);
+                        $this->event($dispute, 'collection_received', __('disputes.collection_received', [], 'fr'), null, $actorType, $actorId);
+                    } elseif ($dispute->refunded_at) {
+                        $dispute->update(['status' => Dispute::STATUS_REFUNDED, 'closed_at' => now()]);
+                    } else {
+                        $this->refund($dispute->refresh(), $actorType, $actorId);
+                    }
+                }
+            }
+
+            return $shipment->refresh();
+        });
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -806,7 +886,14 @@ class DisputeService
                 || ($locked->delivery_person_id && $locked->delivery_person_id !== $courier->id)) {
                 throw new \Exception(__('disputes.course_unavailable'));
             }
+            if ($locked->delivery_person_id === $courier->id) {
+                return $locked;
+            }
             $locked->update(['delivery_person_id' => $courier->id, 'accepted_at' => $locked->accepted_at ?? now()]);
+            if ($locked->type !== DisputeShipment::TYPE_REPLACEMENT && $locked->status === 'courier_selected') {
+                $this->recordStep($locked, 'pickup_scheduled', 'partner', $courier->id);
+                $locked->refresh();
+            }
             $this->event($locked->dispute, 'course_accepted', __('disputes.events.course_accepted', [], 'fr'), $courier->name, 'partner', $courier->id);
 
             return $locked;
@@ -818,7 +905,11 @@ class DisputeService
     {
         $this->assertCourier($shipment, $courier);
 
-        return $this->recordStep($shipment, $shipment->pickupStep(), 'partner', $courier->id);
+        return DB::transaction(function () use ($shipment, $courier) {
+            $picked = $this->recordStep($shipment, $shipment->pickupStep(), 'partner', $courier->id);
+            return $picked->type === DisputeShipment::TYPE_REPLACEMENT ? $picked
+                : $this->recordStep($picked, 'in_transit', 'partner', $courier->id);
+        });
     }
 
     /** Remise au destinataire, validée par son code à 6 chiffres. */
@@ -832,12 +923,16 @@ class DisputeService
     /** Points de retrait et de remise d'une course, avec les numéros à appeler. */
     public function courseStops(DisputeShipment $shipment): array
     {
+        if ($shipment->stops) {
+            return $shipment->stops;
+        }
         $dispute = $shipment->dispute;
         $order = $dispute->order;
         $shop = $order?->leavesFromImportHub()
             ? (\App\Support\ImportHub::shop() ?? $dispute->item?->product?->shop)
             : $dispute->item?->product?->shop;
         $shopStop = [
+            'city' => $shop?->city, 'country' => \App\Support\CountryCode::normalize($shop?->country), 'quarter' => $shop?->quarter,
             'role' => 'vendor',
             'name' => $shop?->name,
             'phone' => $shop?->phone ?: $shop?->user?->phone,
@@ -845,9 +940,10 @@ class DisputeService
             'latitude' => $shop?->latitude !== null ? (float) $shop->latitude : null,
             'longitude' => $shop?->longitude !== null ? (float) $shop->longitude : null,
         ];
-        $clientStop = ['role' => 'client'] + \App\Support\DeliveryPresenter::dropoffFor($order);
+        [$addressCity] = \App\Support\LocationFormatter::parse($order->delivery_address);
+        $clientStop = ['city' => $order->delivery_city ?: $addressCity, 'country' => \App\Support\CountryCode::normalize($order->delivery_country) ?: 'CM', 'quarter' => $order->delivery_quarter, 'role' => 'client'] + \App\Support\DeliveryPresenter::dropoffFor($order);
 
-        return $shipment->type === DisputeShipment::TYPE_RETURN
+        return $shipment->type !== DisputeShipment::TYPE_REPLACEMENT
             ? ['pickup' => $clientStop, 'dropoff' => $shopStop]
             : ['pickup' => $shopStop, 'dropoff' => $clientStop];
     }
@@ -863,11 +959,11 @@ class DisputeService
             'dispute_number' => $dispute->number,
             'order_number' => $dispute->order?->order_number,
             'product_name' => $dispute->item?->product?->name,
-            'quantity' => (int) ($dispute->item?->quantity ?? 1),
+            'quantity' => $dispute->disputedQuantity(),
             'company_name' => $shipment->company?->name,
             'commission' => (float) $shipment->carrier_amount,
             'status' => $shipment->status,
-            'status_label' => __("disputes.shipment_steps.{$shipment->type}.{$shipment->status}"),
+            'status_label' => __("disputes.shipment_steps.{$shipment->translationType()}.{$shipment->status}"),
             'is_mine' => $shipment->delivery_person_id === $courier->id,
             'picked_up' => $shipment->picked_up_at !== null,
             'paid_at' => $shipment->paid_at?->toIso8601String(),
@@ -907,21 +1003,23 @@ class DisputeService
             }
             $order = $locked->order;
             $client = User::find($locked->client_id);
-            $amount = round((float) $locked->item->total_price, 2);
+            $amount = $locked->disputedTotal();
             $held = round((float) $locked->held_amount, 2);
             $label = WalletTransaction::label('dispute_refund', ['number' => $locked->number, 'order_number' => $order->order_number]);
 
-            if ($held > 0 && ($vendor = $this->fundsHolder($order))) {
+            if ($held > 0 && !($vendor = $this->fundsHolder($order))) {
+                throw new \Exception(__('disputes.action_unavailable'));
+            }
+            if ($held > 0) {
                 $this->wallet->releaseEscrow($vendor, $held, $label, 'dispute', $locked->id, ['dispute_refund' => true], 'kpay');
             }
             // Part ASSO de l'article (commission) reprise sur le compte plateforme.
             $assoPart = round($amount - $held, 2);
-            if ($assoPart > 0 && ($platform = CommissionService::platformAccount())) {
-                try {
-                    $this->wallet->debit($platform, $assoPart, $label, 'dispute', $locked->id, ['dispute_refund' => true], 'kpay');
-                } catch (\Throwable $e) {
-                    Log::warning('[Dispute] Reprise de la commission ASSO impossible', ['dispute_id' => $locked->id, 'error' => $e->getMessage()]);
-                }
+            if ($assoPart > 0 && !($platform = CommissionService::platformAccount())) {
+                throw new \Exception(__('disputes.action_unavailable'));
+            }
+            if ($assoPart > 0) {
+                $this->wallet->debit($platform, $assoPart, $label, 'dispute', $locked->id, ['dispute_refund' => true], 'kpay');
             }
             if ($client && $amount > 0) {
                 $this->wallet->credit($client, $amount, null, $label, [
@@ -934,9 +1032,10 @@ class DisputeService
             $locked->update([
                 'held_amount' => 0,
                 'refund_amount' => $amount,
+                'vendor_refunded_amount' => $held,
                 'refunded_at' => now(),
-                'status' => Dispute::STATUS_REFUNDED,
-                'closed_at' => now(),
+                'status' => $locked->isAssoManaged() && $locked->shipment(DisputeShipment::TYPE_RETURN) && !$locked->shipment(DisputeShipment::TYPE_RETURN)->isHandedOver() ? Dispute::STATUS_RETURN : Dispute::STATUS_REFUNDED,
+                'closed_at' => $locked->isAssoManaged() && $locked->shipment(DisputeShipment::TYPE_RETURN) && !$locked->shipment(DisputeShipment::TYPE_RETURN)->isHandedOver() ? null : now(),
             ]);
             $this->event($locked, 'refunded', __('disputes.events.refunded', [], 'fr'), null, $actorType, $actorId);
 
@@ -979,7 +1078,7 @@ class DisputeService
         }
 
         $options = [];
-        if ($dispute->status === Dispute::STATUS_REFUNDED && (float) $dispute->refund_amount > 0
+        if ($dispute->refunded_at && (float) $dispute->refund_amount > 0
             && ($client = User::find($dispute->client_id))) {
             $options['client'] = [
                 'user' => $client,
@@ -991,7 +1090,7 @@ class DisputeService
             && $dispute->item && ($vendor = $this->fundsHolder($order))) {
             $options['vendor'] = [
                 'user' => $vendor,
-                'amount' => round(self::itemVendorShare($order, $dispute->item), 2),
+                'amount' => round(self::itemVendorShare($order, $dispute->item) * $dispute->disputedQuantity() / max(1, $dispute->item->quantity), 2),
                 'withdrawal' => $dispute->vendorBankWithdrawal,
             ];
         }
@@ -1138,14 +1237,19 @@ class DisputeService
                 'id' => $dispute->product_id,
                 'name' => $item?->product?->name,
                 'image' => $item?->product?->primaryImage ? media_url($item->product->primaryImage->image_path ?? null) : null,
-                'quantity' => $item?->quantity,
-                'total_price' => (float) ($item?->total_price ?? 0),
+                'quantity' => $dispute->disputedQuantity(),
+                'total_price' => $dispute->disputedTotal(),
                 'variant_attributes' => $item?->variant_attributes,
             ],
             'reason' => $dispute->reason,
             'description' => $dispute->description,
             'status' => $dispute->status,
-            'status_label' => Dispute::statusLabel($dispute->status),
+            'status_label' => $dispute->refunded_at && !$dispute->closed_at ? __('disputes.refunded_return_pending') : Dispute::statusLabel($dispute->status),
+            'asso_managed' => $dispute->isAssoManaged(),
+            'vendor_response_due_at' => $dispute->vendor_response_due_at?->toIso8601String(),
+            'vendor_responded_at' => $dispute->vendor_responded_at?->toIso8601String(),
+            'refunded_at' => $dispute->refunded_at?->toIso8601String(),
+            'collection' => $dispute->shipment(DisputeShipment::TYPE_COLLECTION)?->toApi($viewer),
             'decision' => $dispute->decision,
             'decision_note' => $dispute->decision_note,
             'resolution' => $dispute->resolution,
@@ -1153,8 +1257,11 @@ class DisputeService
             'held_amount' => $viewer === 'vendor' ? (float) $dispute->held_amount : null,
             'refund_amount' => $dispute->refund_amount !== null ? (float) $dispute->refund_amount : null,
             'replacement_control_until' => $dispute->isInReplacementControl() ? $dispute->auto_validate_at->toIso8601String() : null,
-            'attachments' => $dispute->attachments->map->toApi()->values()->all(),
-            'events' => $dispute->events->where('internal', false)->map->toApi()->values()->all(),
+            'attachments' => $dispute->attachments->filter(fn ($a) => $a->author_type === 'client' &&
+                $dispute->events->firstWhere('id', $a->dispute_event_id)?->type === 'opened')->map->toApi()->values()->all(),
+            'events' => $dispute->events->where('internal', false)->map(fn ($event) => $event->toApi() + [
+                'attachments' => $event->type === 'opened' ? [] : $dispute->attachments->where('dispute_event_id', $event->id)->map->toApi()->values()->all(),
+            ])->values()->all(),
             'replacement' => $replacement?->toApi($viewer),
             'return' => $return?->toApi($viewer),
             'actions' => $this->actions($dispute, $viewer),
@@ -1168,13 +1275,17 @@ class DisputeService
     {
         $replacement = $dispute->shipment(DisputeShipment::TYPE_REPLACEMENT);
         $return = $dispute->shipment(DisputeShipment::TYPE_RETURN);
+        $collection = $dispute->shipment(DisputeShipment::TYPE_COLLECTION);
         $current = $dispute->status === Dispute::STATUS_RETURN ? $return : ($dispute->status === Dispute::STATUS_REPLACEMENT ? $replacement : null);
 
+        if ($collection && !$collection->isHandedOver() && $dispute->status === Dispute::STATUS_REPLACEMENT) {
+            $current = $collection;
+        }
         if ($viewer === 'client') {
             return [
                 'confirm_replacement' => $dispute->isInReplacementControl(),
                 'report_replacement' => $dispute->isInReplacementControl(),
-                'similar_products' => $dispute->status === Dispute::STATUS_REFUNDED,
+                'similar_products' => $dispute->refunded_at !== null || $dispute->status === Dispute::STATUS_REFUNDED,
             ];
         }
 
@@ -1195,16 +1306,97 @@ class DisputeService
 
     private function createShipment(Dispute $dispute, string $type): DisputeShipment
     {
-        // Gros : mêmes règles que le classique, mais le « vendeur » est ASSO
-        // (boutique de Douala) : la course est payée depuis le back-office.
-        $payer = $dispute->order?->is_wholesale ? 'asso' : 'vendor';
+        // Le propriétaire ASSO est figé à l’ouverture, y compris hors import en gros.
+        $payer = $dispute->isAssoManaged() ? 'asso' : 'vendor';
 
-        return $dispute->shipments()->create([
+        $shipment = $dispute->shipments()->create([
             'type' => $type,
             'payer' => $payer,
             'payment_status' => DisputeShipment::PAYMENT_PENDING,
             'status' => 'awaiting_payment',
         ]);
+        $shipment->update(['stops' => $this->courseStops($shipment)]);
+        if ($payer === 'asso' && $type === DisputeShipment::TYPE_REPLACEMENT && $dispute->shipment(DisputeShipment::TYPE_COLLECTION)) {
+            $shipment->update(['status' => 'awaiting_preparation']);
+        }
+        if ($payer === 'asso' && $shipment->status !== 'awaiting_preparation') {
+            DB::afterCommit(fn () => $this->autoFundAsso($shipment));
+        }
+        return $shipment;
+    }
+
+    /** Finance automatiquement les missions ASSO ; un échec reste reprenable au dashboard. */
+    public function autoFundAsso(DisputeShipment $shipment): void
+    {
+        $shipment->refresh();
+        if ($shipment->payer !== 'asso' || $shipment->isPaid() || $shipment->status === 'awaiting_preparation') {
+            return;
+        }
+        try {
+            $stops = $this->courseStops($shipment);
+            if (blank($stops['pickup']['address']) || blank($stops['dropoff']['address'])) {
+                throw new \Exception(__('disputes.addresses_required'));
+            }
+            if (!$shipment->deliverer_company_id) {
+                $offers = collect($this->partnerQuotes($shipment)['partners'] ?? [])
+                    ->reject(fn ($offer) => ($offer['delivery_option'] ?? null) === 'agency_pickup')
+                    ->sortBy(fn ($offer) => [
+                        $offer['company_id'] === $shipment->dispute->order->delivery_company_id ? 0 : 1,
+                        $offer['delivery_price'],
+                    ]);
+                $choice = $offers->first();
+                if (!$choice) {
+                    throw new \Exception(__('delivery.mode_unavailable_for_address'));
+                }
+                $shipment = $this->choosePartner($shipment, $choice);
+            }
+            $this->payByAsso($shipment, CommissionService::platformAccount() ?? throw new \Exception(__('disputes.action_unavailable')));
+        } catch (\Throwable $e) {
+            $shipment->refresh();
+            if (!$shipment->isPaid()) {
+                $shipment->update(['funding_error' => $e->getMessage()]);
+            }
+            Log::warning('[Dispute] Financement ASSO en attente', ['shipment_id' => $shipment->id, 'error' => $e->getMessage()]);
+        }
+    }
+
+    private function responseHours(): int
+    {
+        return max(1, (int) \App\Models\Setting::get('dispute_response_hours', 48));
+    }
+
+    /** Relance, escalade et remplacement indisponible : chaque échéance est traitée une fois. */
+    public function processDeadlines(): void
+    {
+        Dispute::open()->orderBy('id')->each(function (Dispute $dispute) {
+            DB::transaction(function () use ($dispute) {
+                $dispute = Dispute::whereKey($dispute->id)->lockForUpdate()->firstOrFail();
+                if (!$dispute->isOpen()) {
+                    return;
+                }
+                if (!$dispute->decision && !$dispute->vendor_responded_at && $dispute->vendor_response_due_at?->isPast()) {
+                    if (!$dispute->vendor_reminded_at) {
+                        $dispute->update(['vendor_reminded_at' => now()]);
+                        $this->event($dispute, 'vendor_reminder', __('disputes.vendor_reminder', [], 'fr'), null, 'system', null);
+                        DB::afterCommit(fn () => $this->notifySeller($dispute, 'dispute_vendor_contacted', ['number' => $dispute->number]));
+                    } elseif (!$dispute->vendor_escalated_at && $dispute->vendor_reminded_at->copy()->addHours($this->responseHours())->isPast()) {
+                        $dispute->update(['vendor_escalated_at' => now(), 'status' => Dispute::STATUS_IN_REVIEW]);
+                        $this->event($dispute, 'vendor_escalation', __('disputes.vendor_escalation', [], 'fr'), null, 'system', null, true);
+                        DB::afterCommit(function () use ($dispute) {
+                            foreach (self::disputeStaff() as $employee) {
+                                $this->notifyStaff($employee, $dispute, 'dispute_vendor_contacted', ['number' => $dispute->number]);
+                            }
+                        });
+                    }
+                }
+                if ($dispute->decision === Dispute::DECISION_FOUNDED && $dispute->replacement_due_at?->isPast()
+                    && ($dispute->status === Dispute::STATUS_VENDOR_CONTACTED
+                        || ($dispute->status === Dispute::STATUS_REPLACEMENT
+                            && $dispute->shipment(DisputeShipment::TYPE_REPLACEMENT)?->status === 'awaiting_preparation'))) {
+                    $this->startReturn($dispute, 'system', null, __('disputes.replacement_expired'));
+                }
+            });
+        });
     }
 
     private function replacementDelivered(Dispute $dispute): bool
@@ -1257,7 +1449,7 @@ class DisputeService
 
         return [[
             'product_id' => $item->product_id,
-            'quantity' => (int) $item->quantity,
+            'quantity' => $dispute->disputedQuantity(),
             'price_tier_id' => $item->price_tier_id,
             'product_variant_id' => $item->product_variant_id,
         ]];
@@ -1273,7 +1465,7 @@ class DisputeService
     /** Suffixe des libellés du portefeuille : return ou replacement. */
     private function shipmentKind(DisputeShipment $shipment): string
     {
-        return $shipment->type === DisputeShipment::TYPE_RETURN ? 'return' : 'replacement';
+        return $shipment->type !== DisputeShipment::TYPE_REPLACEMENT ? 'return' : 'replacement';
     }
 
     /** @param UploadedFile[] $files */
@@ -1288,7 +1480,7 @@ class DisputeService
 
     private function event(Dispute $dispute, string $type, string $label, ?string $note, string $actorType, ?int $actorId, bool $internal = false): void
     {
-        DisputeEvent::create([
+        $event = DisputeEvent::create([
             'dispute_id' => $dispute->id,
             'type' => $type,
             'label' => $label,
@@ -1298,6 +1490,11 @@ class DisputeService
             'actor_id' => $actorId,
             'occurred_at' => now(),
         ]);
+        if (in_array($type, ['opened', 'evidence', 'replacement_rejected'], true)) {
+            $dispute->attachments()->whereNull('dispute_event_id')
+                ->where('author_type', $actorType)->where('author_id', $actorId)
+                ->update(['dispute_event_id' => $event->id]);
+        }
     }
 
     private function notifyClient(Dispute $dispute, string $type, array $replace): void
@@ -1309,7 +1506,7 @@ class DisputeService
     {
         // Import en gros : le « vendeur » est ASSO. Les employés en charge des litiges
         // sont prévenus à sa place (push + e-mail) et agissent depuis le back-office.
-        if ($dispute->order?->is_wholesale) {
+        if ($dispute->isAssoManaged()) {
             foreach (self::disputeStaff() as $employee) {
                 $this->notifyStaff($employee, $dispute, $type, $replace);
             }

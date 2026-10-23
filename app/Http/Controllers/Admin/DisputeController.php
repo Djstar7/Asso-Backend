@@ -52,6 +52,18 @@ class DisputeController extends Controller
         ]);
     }
 
+    public function settings(Request $request)
+    {
+        abort_unless($request->user()->isAdmin(), 403);
+        $data = $request->validate([
+            'response_hours' => 'required|integer|min:1|max:720',
+            'replacement_hours' => 'required|integer|min:1|max:720',
+        ]);
+        \App\Models\Setting::set('dispute_response_hours', $data['response_hours'], 'integer', 'disputes');
+        \App\Models\Setting::set('dispute_replacement_hours', $data['replacement_hours'], 'integer', 'disputes');
+        return back()->with('success', 'Délais enregistrés pour les prochaines échéances.');
+    }
+
     public function show(Dispute $dispute)
     {
         $dispute->load([
@@ -61,7 +73,8 @@ class DisputeController extends Controller
 
         $replacement = $dispute->shipment(DisputeShipment::TYPE_REPLACEMENT);
         $return = $dispute->shipment(DisputeShipment::TYPE_RETURN);
-        $pending = collect([$return, $replacement])->first(fn ($s) => $s && !$s->isPaid());
+        $collection = $dispute->shipment(DisputeShipment::TYPE_COLLECTION);
+        $pending = collect([$collection, $return, $replacement])->first(fn ($s) => $s && !$s->isPaid());
 
         // Partenaires proposés pour la course en attente de paiement.
         $quotes = null;
@@ -76,6 +89,7 @@ class DisputeController extends Controller
         return view('admin.disputes.show', [
             'dispute' => $dispute,
             'replacement' => $replacement,
+            'collection' => $collection,
             'return' => $return,
             'pending' => $pending,
             'quotes' => $quotes,
@@ -123,7 +137,7 @@ class DisputeController extends Controller
     {
         $note = $request->validate(['note' => 'nullable|string|max:1000'])['note'] ?? null;
 
-        return $this->run(fn () => $this->disputes->startReturn($dispute, 'admin', $request->user()->id, $note), 'Retour lancé : le vendeur doit payer la livraison retour (notification envoyée).');
+        return $this->run(fn () => $this->disputes->startReturn($dispute, 'admin', $request->user()->id, $note), 'Retour et remboursement organisés selon le responsable du financement.');
     }
 
     /** Partenaire choisi par ASSO (import en gros, ou vendeur à aider). */
@@ -161,18 +175,18 @@ class DisputeController extends Controller
             $shipment, $validated['step'], 'admin', $request->user()->id,
             $validated['note'] ?? null, $validated['carrier_tracking_number'] ?? null, $request->file('proof'),
             $validated['confirmation_code'] ?? null,
-        ), $validated['step'] === 'delivered_to_vendor' ? 'Retour remis au vendeur : client remboursé, dossier clôturé.' : 'Étape enregistrée.');
+        ), 'Étape enregistrée.');
     }
 
     public function evidence(Request $request, Dispute $dispute)
     {
         $validated = $request->validate([
-            'note' => 'nullable|string|max:2000',
+            'note' => 'required_without:files|nullable|string|max:2000',
             'files' => 'nullable|array|max:6',
             'files.*' => 'image|max:8192',
         ]);
 
-        return $this->run(fn () => $this->disputes->addEvidence($dispute, 'admin', $request->user(), $validated['note'] ?? null, $request->file('files', [])), 'Pièce ajoutée.');
+        return $this->run(fn () => $this->disputes->addEvidence($dispute, $dispute->isAssoManaged() ? 'vendor' : 'admin', $request->user(), $validated['note'] ?? null, $request->file('files', [])), 'Pièce ajoutée.');
     }
 
     public function note(Request $request, Dispute $dispute)

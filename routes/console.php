@@ -207,3 +207,23 @@ Schedule::command('product-videos:prune')
 Schedule::command('asso:sync-platform-wallet')
     ->dailyAt('01:00')
     ->withoutOverlapping(600);
+
+Artisan::command('disputes:process', function () {
+    app(\App\Services\DisputeService::class)->processDeadlines();
+    $this->info('Échéances des réclamations traitées.');
+});
+Schedule::command('disputes:process')->everyFiveMinutes()->withoutOverlapping(15);
+
+Artisan::command('carriers:dispatch-pending', function () {
+    $count = 0;
+    \App\Models\Order::where('delivery_mode', \App\Models\Order::DELIVERY_CARRIER)
+        ->where('payment_status', \App\Models\Order::PAYMENT_PAID)->where('status', 'shipped')
+        ->whereNull('delivery_person_id')->whereNull('carrier_courier_requested_at')
+        ->whereIn('tracking_status', \App\Services\CarrierCourierService::OPEN_STEPS)
+        ->eachById(function ($order) use (&$count) {
+            app(\App\Services\CarrierCourierService::class)->request($order);
+            if ($order->fresh()->carrier_courier_requested_at) $count++;
+        });
+    $this->info("{$count} mission(s) transporteur synchronisée(s).");
+});
+Schedule::command('carriers:dispatch-pending')->everyFiveMinutes()->withoutOverlapping(15);
