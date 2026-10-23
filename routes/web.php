@@ -140,6 +140,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::post('/listings/{listing}/reject', [$c, 'reject'])->name('listings.reject');
             Route::post('/listings/{listing}/featured', [$c, 'toggleFeatured'])->name('listings.featured');
             Route::post('/listings/{listing}/archive', [$c, 'archive'])->name('listings.archive');
+            Route::post('/listings/{listing}/video', [$c, 'uploadVideo'])->name('listings.video.store');
             Route::delete('/listings/{listing}/media/{media}', [$c, 'destroyMedia'])->name('listings.media.destroy');
             Route::post('/listings/{listing}/media/{media}/cover', [$c, 'coverMedia'])->name('listings.media.cover');
 

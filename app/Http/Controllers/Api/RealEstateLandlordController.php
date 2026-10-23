@@ -179,7 +179,7 @@ class RealEstateLandlordController extends Controller
     {
         $listing = $this->ownListing($request, $id);
         $request->validate([
-            'file' => ['required', 'file', 'mimetypes:image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/3gpp,video/webm', 'max:102400'],
+            'file' => ['required', 'file', 'mimetypes:image/jpeg,image/png,image/webp,'.ListingEditor::VIDEO_MIMES, 'max:102400'],
             'room_id' => ['nullable', 'integer'],
             'is_cover' => ['nullable', 'boolean'],
         ]);

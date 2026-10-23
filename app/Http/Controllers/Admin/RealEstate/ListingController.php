@@ -69,6 +69,7 @@ class ListingController extends Controller
 
     public function store(Request $request)
     {
+        $request->validate($this->uploadRules());
         $request->validate(['type' => ['required', Rule::in([Listing::TYPE_RENT, Listing::TYPE_LAND])]]);
         $type = $request->input('type');
         $data = $request->validate(ListingEditor::rules($type) + [
@@ -147,6 +148,7 @@ class ListingController extends Controller
 
     public function update(Request $request, Listing $listing)
     {
+        $request->validate($this->uploadRules());
         $rules = ListingEditor::rules($listing->type, true);
         $cabinetRule = Rule::exists('real_estate_cabinets', 'id')->where(fn ($query) => $query->where('is_active', true));
         $rules['cabinet_id'] = ['required', $cabinetRule];
@@ -289,14 +291,26 @@ class ListingController extends Controller
             ->values()->all();
     }
 
-    private function storeUploads(Request $request, Listing $listing): void
+    public function uploadVideo(Request $request, Listing $listing)
     {
-        $request->validate([
+        $request->validate(['video' => ListingEditor::videoRules(true)]);
+        $media = $this->editor->addMedia($listing, $request->file('video'), field: 'video');
+
+        return response()->json(['success' => true, 'media' => $media->toApi()], 201);
+    }
+
+    private function uploadRules(): array
+    {
+        return [
             'photos' => ['nullable', 'array', 'max:20'],
             'photos.*' => ['image', 'max:10240'],
             'photo_room_kind' => ['nullable', Rule::in(\App\Models\RealEstate\Room::KINDS)],
-            'video' => ['nullable', 'file', 'mimetypes:video/mp4,video/quicktime,video/webm', 'max:102400'],
-        ]);
+            'video' => ListingEditor::videoRules(),
+        ];
+    }
+
+    private function storeUploads(Request $request, Listing $listing): void
+    {
         $room = ! $listing->isLand() && $request->filled('photo_room_kind') && $request->hasFile('photos')
             ? $listing->tourRooms()->firstOrCreate(['kind' => $request->input('photo_room_kind')])
             : null;
@@ -304,7 +318,7 @@ class ListingController extends Controller
             $this->editor->addMedia($listing, $photo, $room?->id);
         }
         if ($request->hasFile('video')) {
-            $this->editor->addMedia($listing, $request->file('video'));
+            $this->editor->addMedia($listing, $request->file('video'), field: 'video');
         }
     }
 }

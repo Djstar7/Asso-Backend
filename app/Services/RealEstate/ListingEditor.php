@@ -21,6 +21,13 @@ class ListingEditor
 {
     public const DISK = 'public';
 
+    public const VIDEO_MIMES = 'video/mp4,video/quicktime,video/x-m4v,video/3gpp,video/webm';
+
+    public static function videoRules(bool $required = false): array
+    {
+        return [$required ? 'required' : 'nullable', 'file', 'mimetypes:'.self::VIDEO_MIMES, 'max:102400'];
+    }
+
     /** Règles de validation d'une annonce ; $partial pour une mise à jour. */
     public static function rules(string $type, bool $partial = false): array
     {
@@ -145,13 +152,21 @@ class ListingEditor
         });
     }
 
-    public function addMedia(Listing $listing, UploadedFile $file, ?int $roomId = null, bool $cover = false): Media
+    public function addMedia(Listing $listing, UploadedFile $file, ?int $roomId = null, bool $cover = false, string $field = 'file'): Media
     {
         if ($roomId && ! $listing->tourRooms()->whereKey($roomId)->exists()) {
             throw ValidationException::withMessages(['room_id' => __('real_estate.errors.unknown_room')]);
         }
         $isVideo = str_starts_with((string) $file->getMimeType(), 'video/');
-        $path = $file->store("real_estate/{$listing->id}", self::DISK);
+        try {
+            $path = $file->store("real_estate/{$listing->id}", self::DISK);
+        } catch (\League\Flysystem\FilesystemException $e) {
+            report($e);
+            throw ValidationException::withMessages([$field => __('landlord_upload.store_failed')]);
+        }
+        if (! is_string($path) || $path === '') {
+            throw ValidationException::withMessages([$field => __('landlord_upload.store_failed')]);
+        }
 
         return DB::transaction(function () use ($listing, $path, $isVideo, $roomId, $cover) {
             $hasCover = $listing->media()->where('is_cover', true)->exists();

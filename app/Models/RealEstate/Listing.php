@@ -365,7 +365,7 @@ class Listing extends Model
                 'media' => $media->where('room_id', $r->id)->values()->map->toApi()->all(),
             ])->values()->all(),
             'media' => $media->values()->map->toApi()->all(),
-            'video' => optional($media->firstWhere('type', 'video'))->toApi(),
+            'video' => optional($media->where('type', 'video')->sortByDesc('id')->first())->toApi(),
             'views_count' => $this->views_count,
             'location' => [
                 'city' => $this->city,

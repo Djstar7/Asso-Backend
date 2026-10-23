@@ -319,7 +319,7 @@
                     </div>
                 @endunless
                 <div><label class="{{ $label }}">Ajouter des photos</label><input type="file" name="photos[]" multiple accept="image/*" class="{{ $in }}"></div>
-                <div><label class="{{ $label }}">Ajouter une vidéo</label><input type="file" name="video" accept="video/*" class="{{ $in }}"></div>
+                @include('admin.real_estate.listings._video_upload')
             </div>
         </div>
 
