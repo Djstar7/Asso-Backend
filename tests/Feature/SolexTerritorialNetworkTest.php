@@ -93,6 +93,13 @@ class SolexTerritorialNetworkTest extends TestCase
         $this->assertTrue(DelivererCompany::first()->territorial_network_enabled);
         $this->assertSame(360, DeliveryCityGrid::whereNotNull('department_code')->get()->sum(fn ($g) => collect($g->zones)->where('is_active', true)->count()));
         $this->assertSame(58, DeliveryAgency::where('is_active', true)->count());
+        $doualaAgency = DeliveryAgency::where('code', 'SOLEX-CM005004')->firstOrFail();
+        $this->assertSame('Douala-Wouri', $doualaAgency->address);
+        $doualaAgency->update(['address' => 'Centre-ville de Douala — point exact à confirmer par SOLEX']);
+        $yaoundeAgency = DeliveryAgency::where('code', 'SOLEX-CM002007')->firstOrFail();
+        $yaoundeAgency->update(['address' => 'Yaounde — chef-lieu (département : Mfoundi). Adresse exacte du relais SOLEX à préciser.']);
+        $customAgency = DeliveryAgency::where('code', 'SOLEX-CM008001')->firstOrFail();
+        $customAgency->update(['address' => 'Adresse précise saisie par SOLEX']);
         $grid = DeliveryCityGrid::whereNotNull('department_code')->first();
         $zones = $grid->zones;
         $zones[0]['radius_km'] = 23;
@@ -104,6 +111,9 @@ class SolexTerritorialNetworkTest extends TestCase
         $this->assertDatabaseCount('delivery_routes', 203);
         $this->assertEquals(23, $grid->fresh()->zones[0]['radius_km']);
         $this->assertSame(12345, $route->fresh()->pricing_data['ranges'][0]['price']);
+        $this->assertSame('Douala-Wouri', $doualaAgency->fresh()->address);
+        $this->assertSame('Yaounde-Mfoundi', $yaoundeAgency->fresh()->address);
+        $this->assertSame('Adresse précise saisie par SOLEX', $customAgency->fresh()->address);
         $this->assertTrue($grid->fresh()->is_active);
         $this->assertTrue($route->fresh()->is_active);
     }
@@ -119,11 +129,15 @@ class SolexTerritorialNetworkTest extends TestCase
         $route = DeliveryRoute::whereNotNull('network_key')->firstOrFail();
         $prices = ['ranges' => [['min' => 0, 'max' => 10, 'price' => 12345]]];
         $route->update(['is_active' => false, 'pricing_data' => $prices]);
+        $agency = $company->agencies()->where('code', 'like', 'SOLEX-%')->firstOrFail();
+        $agency->update(['is_active' => false]);
         $this->artisan('solex:sync', ['--activate' => true, '--dry-run' => true])->assertSuccessful();
         $this->assertFalse($grid->fresh()->is_active);
         $this->assertFalse($company->fresh()->territorial_network_enabled);
+        $this->assertFalse($agency->fresh()->is_active);
         $this->artisan('solex:sync')->assertSuccessful();
         $this->assertTrue($company->fresh()->territorial_network_enabled);
+        $this->assertTrue($agency->fresh()->is_active);
         $this->assertSame(58, DeliveryCityGrid::whereNotNull('department_code')->where('is_active', true)->count());
         $this->assertSame(360, DeliveryCityGrid::whereNotNull('department_code')->get()->sum(fn ($g) => collect($g->zones)->where('is_active', true)->count()));
         $this->assertSame(203, DeliveryRoute::whereNotNull('network_key')->where('is_active', true)->count());

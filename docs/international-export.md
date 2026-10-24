@@ -255,10 +255,11 @@ les deux montants. Un changement ultérieur de GPS ou de tarif ne recalcule pas 
 commande déjà acceptée. Pour les anciennes commandes sans GPS figé, l’écran utilise
 les points actuellement connus pour afficher une estimation, sans modifier le prix payé.
 
-`SolexNetworkSeeder` renseigne les coordonnées de centre-ville du référentiel territorial
-pour les nouveaux relais provisoires et complète les anciens relais dont le GPS manque
-et dont l’adresse indique encore « point exact à confirmer ». Les coordonnées déjà
-renseignées et les agences personnalisées sont conservées. Ces points portent
+`SolexNetworkSeeder` renseigne les coordonnées des chefs-lieux du référentiel territorial
+pour les nouveaux relais provisoires et complète les anciens relais dont le GPS manque.
+Les anciens libellés automatiques « Centre-ville … point exact à confirmer » sont remplacés
+par `Ville-Département` (par exemple `Douala-Wouri`). Les coordonnées déjà renseignées, les adresses
+personnalisées et les agences personnalisées sont conservées. Ces points portent
 `coordinate_precision = city_center` et restent provisoires : ils se corrigent dans
 **Agences de retrait**, avec latitude/longitude et précision des coordonnées.
 Les distances affichées sont géographiques à vol d’oiseau, pas des distances routières.
