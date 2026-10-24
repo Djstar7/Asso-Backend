@@ -11,6 +11,7 @@
                 @if($task->dispute)<a class="text-primary-400" href="{{ route('admin.disputes.show', $task->dispute) }}">{{ $task->dispute->number }}</a>
                 @else <a class="text-primary-400" href="{{ route('admin.disputes.resolution.index', ['claim_id' => $task->order_delivery_claim_id]) }}">Commande {{ $task->claim?->order?->order_number }}</a> @endif
                 · {{ $task->stageLabel() }} · {{ $task->assignee?->name ?? $task->responsible }} · {{ $task->due_at->displayTz()->format('d/m/Y H:i') }} · {{ $task->escalations }} escalade(s)<br>
+                @if($task->reminded_at)<span class="text-blue-300">Rappel enregistré le {{ $task->reminded_at->displayTz()->format('d/m/Y H:i') }}</span><br>@endif
                 {{ $task->expected_proof }} @if($task->last_error)<span class="text-orange-300">{{ $task->last_error }}</span>@endif
             </p>
         @empty<p>Aucune attente enregistrée.</p>@endforelse
@@ -66,6 +67,9 @@
         @foreach(['review_hours' => 'Arbitrage ASSO', 'payment_hours' => 'Financement transport', 'receipt_contest_hours' => 'Contestation réception', 'local_transit_hours' => 'Transit local', 'international_transit_hours' => 'Transit international et douane', 'dispatch_hours' => 'Remise au transporteur', 'preparation_hours' => 'Préparation locale', 'import_preparation_hours' => 'Préparation import'] as $key => $label)
             <label class="block">{{ $label }} (heures) <input type="number" name="{{ $key }}" min="1" max="8760" required value="{{ \App\Models\Setting::get('dispute_'.$key, config('disputes.'.$key)) }}" class="bg-dark-200 p-2 rounded text-white"></label>
         @endforeach
+        <label class="block">Rappel avant l’échéance (heures)
+            <input type="number" name="reminder_lead_hours" min="1" max="720" required value="{{ \App\Models\Setting::get('dispute_reminder_lead_hours', config('disputes.reminder_lead_hours')) }}" class="bg-dark-200 p-2 rounded text-white">
+        </label>
         <label class="block">Plafond par avance automatique (FCFA ; 0 = décision manuelle)
             <input type="number" step="0.01" name="automatic_advance_limit" min="0" max="10000000" required value="{{ \App\Models\Setting::get('dispute_automatic_advance_limit', 0) }}" class="bg-dark-200 p-2 rounded text-white">
         </label>

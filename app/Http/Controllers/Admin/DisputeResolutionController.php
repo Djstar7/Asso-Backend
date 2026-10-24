@@ -94,7 +94,7 @@ class DisputeResolutionController extends Controller
         $rules = collect(['review_hours', 'payment_hours', 'receipt_contest_hours', 'local_transit_hours',
             'international_transit_hours', 'dispatch_hours', 'preparation_hours', 'import_preparation_hours'])
             ->mapWithKeys(fn ($key) => [$key => 'required|integer|min:1|max:8760'])->all();
-        $data = $request->validate($rules + ['automatic_advance_limit' => 'required|numeric|min:0|max:10000000']);
+        $data = $request->validate($rules + ['reminder_lead_hours' => 'sometimes|required|integer|min:1|max:720', 'automatic_advance_limit' => 'required|numeric|min:0|max:10000000']);
         foreach ($data as $key => $value) {
             \App\Models\Setting::set('dispute_'.$key, $value, $key === 'automatic_advance_limit' ? 'string' : 'integer', 'disputes');
         }

@@ -20,7 +20,7 @@ class DisputeResolutionTask extends Model
 
     protected $guarded = ['id'];
 
-    protected $casts = ['due_at' => 'datetime', 'escalated_at' => 'datetime', 'completed_at' => 'datetime'];
+    protected $casts = ['due_at' => 'datetime', 'escalated_at' => 'datetime', 'completed_at' => 'datetime', 'reminder_due_at' => 'datetime', 'reminded_at' => 'datetime'];
 
     public function dispute()
     {

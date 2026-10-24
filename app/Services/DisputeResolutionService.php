@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\DeliveryAgency;
 use App\Models\Dispute;
 use App\Models\DisputeAdvance;
 use App\Models\DisputeAttachment;
@@ -13,6 +14,7 @@ use App\Models\Order;
 use App\Models\OrderDeliveryClaim;
 use App\Models\Setting;
 use App\Models\User;
+use App\Support\Translation\LocalizedText;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -46,6 +48,7 @@ class DisputeResolutionService
                 'receipt_accepted' => 'Réception établie sur preuve indépendante',
                 'administrative_refund' => 'Remboursement autorisé par arbitrage ASSO',
                 'funding_advance' => 'Transport avancé par ASSO',
+                'resolution_reminder' => 'Rappel automatique de l’action attendue',
                 default => 'Échéance dépassée : dossier réaffecté',
             }, 'note' => $note, 'actor_type' => $actor ? $actorType : 'system', 'actor_id' => $actor?->id,
             'internal' => false, 'occurred_at' => now()]);
@@ -277,9 +280,17 @@ class DisputeResolutionService
         $assignee = $attributes['responsible'] === 'asso'
             ? DisputeService::disputeStaff()->first(fn ($user) => $user->isAdmin())?->id : null;
 
-        return DisputeResolutionTask::firstOrCreate(['workflow_key' => $key], $attributes + [
-            'assigned_to' => $assignee, 'due_at' => $since->copy()->addHours($hours),
+        $due = $since->copy()->addHours($hours);
+        $task = DisputeResolutionTask::firstOrCreate(['workflow_key' => $key], $attributes + [
+            'assigned_to' => $assignee, 'due_at' => $due,
+            'reminder_due_at' => $due->copy()->subHours($this->hours('reminder_lead_hours')),
         ]);
+        // Les dossiers déjà présents avant cette migration conservent leur échéance.
+        if (! $task->reminder_due_at && ! $task->reminded_at && ! $task->completed_at) {
+            $task->update(['reminder_due_at' => $task->due_at->copy()->subHours($this->hours('reminder_lead_hours'))]);
+        }
+
+        return $task;
     }
 
     /** Une panne sur un dossier ne bloque pas le traitement des suivants. */
@@ -328,6 +339,15 @@ class DisputeResolutionService
                 }
             });
         OrderDeliveryClaim::where('status', 'open')->eachById(fn ($claim) => $this->trackClaim($claim));
+        DisputeResolutionTask::whereNull('completed_at')->whereNull('reminded_at')
+            ->where('reminder_due_at', '<=', now())->where('due_at', '>', now())
+            ->eachById(function ($task) {
+                try {
+                    $this->remind($task);
+                } catch (\Throwable $e) {
+                    Log::warning('Relance de résolution en échec', ['task_id' => $task->id, 'error' => $e->getMessage()]);
+                }
+            });
         DisputeResolutionTask::whereNull('completed_at')->where('due_at', '<=', now())->eachById(function ($task) {
             try {
                 $this->expire($task);
@@ -386,6 +406,119 @@ class DisputeResolutionService
         DisputeResolutionTask::where('dispute_id', $dispute->id)->whereKeyNot($task->id)->whereNull('completed_at')->update(['completed_at' => now()]);
     }
 
+    /** Rappel avant l’échéance ; le verrou évite les doublons entre deux workers. */
+    private function remind(DisputeResolutionTask $task): void
+    {
+        DB::transaction(function () use ($task) {
+            // Même ordre de verrouillage que les décisions financières.
+            $dispute = $task->dispute_id ? Dispute::whereKey($task->dispute_id)->lockForUpdate()->first() : null;
+            $claim = $task->order_delivery_claim_id
+                ? OrderDeliveryClaim::whereKey($task->order_delivery_claim_id)->lockForUpdate()->first() : null;
+            $task = DisputeResolutionTask::whereKey($task->id)->lockForUpdate()->firstOrFail();
+            if ($task->completed_at || $task->reminded_at || ! $task->reminder_due_at
+                || $task->reminder_due_at->isFuture() || ! $task->due_at->isFuture()) {
+                return;
+            }
+            if ($dispute && (! $dispute->isOpen() || $dispute->refunded_at || $dispute->isInReplacementControl())
+                || $claim && $claim->status !== 'open') {
+                $task->update(['completed_at' => now()]);
+
+                return;
+            }
+            $shipment = null;
+            $parts = explode(':', $task->workflow_key);
+            if ($parts[0] === 'shipment') {
+                $shipment = DisputeShipment::where('dispute_id', $dispute?->id)->find($parts[1]);
+                if (! $shipment || $shipment->status !== ($parts[2] ?? null)) {
+                    $task->update(['completed_at' => now()]);
+
+                    return;
+                }
+            } elseif ($parts[0] === 'receipt') {
+                $receipt = DisputeReceipt::find($parts[1]);
+                $phase = $receipt?->contested_at ? 'contested' : 'waiting';
+                if (! $receipt || $receipt->accepted_at || $phase !== ($parts[2] ?? null)) {
+                    $task->update(['completed_at' => now()]);
+
+                    return;
+                }
+            } elseif ($dispute && $task->workflow_key !== 'dispute:'.$dispute->id.':'.$dispute->status) {
+                $task->update(['completed_at' => now()]);
+
+                return;
+            }
+            [$users, $emails, $role] = $this->reminderTargets($task, $dispute, $shipment);
+            if ($users->isEmpty() && ! $emails) {
+                $task->update(['last_error' => 'Relance impossible : aucun destinataire opérationnel disponible.']);
+
+                return;
+            }
+            $task->update(['reminded_at' => now(), 'last_error' => $task->last_error === 'Relance impossible : aucun destinataire opérationnel disponible.' ? null : $task->last_error]);
+            if ($dispute) {
+                $this->audit($dispute, 'resolution_reminder', $task->stageLabel().' — échéance '.$task->due_at->toIso8601String().' — destinataire '.$role);
+            }
+            $number = $dispute?->number ?? $claim?->order?->order_number;
+            DB::afterCommit(function () use ($task, $dispute, $claim, $shipment, $users, $emails, $role, $number) {
+                $data = ['type' => 'dispute_resolution_reminder', 'role' => $role,
+                    'task_id' => (string) $task->id, 'order_id' => (string) ($dispute?->order_id ?? $claim?->order_id)];
+                if ($dispute) {
+                    $data['dispute_id'] = (string) $dispute->id;
+                }
+                if ($shipment && $role === 'partner') {
+                    $data['type'] = $shipment->type === DisputeShipment::TYPE_REPLACEMENT ? 'dispute_replacement_course' : 'dispute_return_course';
+                }
+                foreach ($users as $user) {
+                    $params = ['number' => $number,
+                        'stage' => $user->localized('notifications.dispute_resolution_reminder.stages.'.$task->stage),
+                        'date' => $task->due_at->copy()->timezone(config('app.timezone'))->format('d/m/Y H:i T'),
+                        'link' => route('admin.disputes.resolution.index')];
+                    $this->notify($user, $user->localized('notifications.dispute_resolution_reminder.title'),
+                        $user->localized('notifications.dispute_resolution_reminder.'.($role === 'staff' ? 'staff_body' : 'body'), $params), $data);
+                }
+                foreach ($emails as $email) {
+                    try {
+                        $params = ['number' => $number, 'stage' => $task->stageLabel(),
+                            'date' => $task->due_at->copy()->timezone(config('app.timezone'))->format('d/m/Y H:i T')];
+                        \Illuminate\Support\Facades\Mail::raw(__('notifications.dispute_resolution_reminder.body', $params, 'fr'),
+                            fn ($mail) => $mail->to($email)->subject(__('notifications.dispute_resolution_reminder.title', [], 'fr')));
+                    } catch (\Throwable $e) {
+                        Log::warning('Relance transporteur non envoyée', ['task_id' => $task->id, 'error' => $e->getMessage()]);
+                    }
+                }
+            });
+        });
+    }
+
+    /** Les clients et comptes financiers techniques ne reçoivent pas les tâches d’un tiers. */
+    private function reminderTargets(DisputeResolutionTask $task, ?Dispute $dispute, ?DisputeShipment $shipment): array
+    {
+        if ($task->responsible === 'vendor' && $dispute && ! $dispute->isAssoManaged()
+            && $dispute->seller && ! $dispute->seller->isTechnicalAccount()) {
+            return [collect([$dispute->seller]), [], 'vendor'];
+        }
+        if ($task->responsible === 'carrier' && $shipment) {
+            $company = $shipment->company;
+            $solexLeg = $shipment->isInternational() && (
+                $shipment->type === DisputeShipment::TYPE_REPLACEMENT
+                    ? in_array($shipment->status, ['courier_selected', 'solex_pickup_scheduled', 'solex_collected'], true)
+                    : in_array($shipment->status, ['at_solex', 'solex_pickup_scheduled', 'solex_collected'], true));
+            if ($solexLeg) {
+                $company = DeliveryAgency::find($shipment->agencyId())?->company;
+            }
+            $users = collect([$shipment->deliveryPerson, $company?->is_active && $company->user_id ? User::find($company->user_id) : null])
+                ->filter(fn ($user) => $user && ! $user->isTechnicalAccount())->unique('id')->values();
+            $emails = $company?->is_active && filter_var($company->email, FILTER_VALIDATE_EMAIL)
+                && ! $users->contains(fn ($user) => strtolower((string) $user->email) === strtolower($company->email)) ? [$company->email] : [];
+            if ($users->isNotEmpty() || $emails) {
+                return [$users, $emails, 'partner'];
+            }
+        }
+        $admins = DisputeService::disputeStaff()->filter(fn ($user) => $user->isAdmin())->values();
+        $assigned = $admins->where('id', $task->assigned_to)->values();
+
+        return [$assigned->isNotEmpty() ? $assigned : $admins, [], 'staff'];
+    }
+
     private function expire(DisputeResolutionTask $task): void
     {
         DB::transaction(function () use ($task) {
@@ -404,6 +537,8 @@ class DisputeResolutionService
             $next = $admins->first(fn ($u) => $u->id !== $task->assigned_to) ?? $admins->first();
             $task->update(['assigned_to' => $next?->id, 'escalations' => $task->escalations + 1,
                 'escalated_at' => now(), 'due_at' => now()->addHours($this->hours('review_hours')),
+                'reminded_at' => null,
+                'reminder_due_at' => now()->addHours($this->hours('review_hours'))->subHours($this->hours('reminder_lead_hours')),
                 'responsible' => 'asso', 'last_error' => $next ? null : 'Aucun administrateur opérationnel disponible.']);
             if ($dispute) {
                 $this->audit($dispute, 'resolution_escalation', 'Étape '.$task->stageLabel().' — responsable #'.($next?->id ?? 'non affecté'));
@@ -437,7 +572,7 @@ class DisputeResolutionService
         }
     }
 
-    private function notify(?User $user, string $title, string $message, array $data = []): void
+    private function notify(?User $user, string|LocalizedText $title, string|LocalizedText $message, array $data = []): void
     {
         if (! $user || $user->isTechnicalAccount()) {
             return;
@@ -450,7 +585,7 @@ class DisputeResolutionService
         }
         if ($user->email) {
             try {
-                \Illuminate\Support\Facades\Mail::raw($message, fn ($mail) => $mail->to($user->email)->subject($title));
+                \Illuminate\Support\Facades\Mail::raw((string) $message, fn ($mail) => $mail->to($user->email)->subject((string) $title));
             } catch (\Throwable $e) {
                 Log::warning('Courriel de résolution échoué', ['user_id' => $user->id, 'error' => $e->getMessage()]);
             }

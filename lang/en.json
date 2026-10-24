@@ -394,6 +394,21 @@
         "wallet_insufficient": "Insufficient Wallet balance for this payment. Top up your Wallet or choose another method."
     },
     "notifications": {
+        "dispute_resolution_reminder": {
+            "title": "ASSO reminder: action required",
+            "body": "Case :number: :stage is due before :date. Open the case in ASSO and provide the required evidence.",
+            "staff_body": "Case :number: :stage is due before :date. Open ASSO case management: :link",
+            "stages": {
+                "review_hours": "ASSO decision",
+                "payment_hours": "transport payment",
+                "receipt_contest_hours": "review of receipt evidence and any objection",
+                "preparation_hours": "product preparation",
+                "dispatch_hours": "carrier collection",
+                "local_transit_hours": "local shipment verification",
+                "international_transit_hours": "international transport and customs verification",
+                "import_preparation_hours": "import preparation"
+            }
+        },
         "diaspo_booking_paid": {
             "title": "New paid booking",
             "body": "A booking of :kg kg has been paid."

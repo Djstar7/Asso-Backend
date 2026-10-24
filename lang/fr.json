@@ -394,6 +394,21 @@
         "wallet_insufficient": "Solde Wallet insuffisant pour ce paiement. Rechargez votre Wallet ou choisissez un autre moyen."
     },
     "notifications": {
+        "dispute_resolution_reminder": {
+            "title": "Rappel ASSO : une action est attendue",
+            "body": "Dossier :number : :stage à effectuer avant le :date. Consultez le dossier dans ASSO et fournissez les justificatifs attendus.",
+            "staff_body": "Dossier :number : :stage à traiter avant le :date. Ouvrez le suivi ASSO : :link",
+            "stages": {
+                "review_hours": "décision ASSO",
+                "payment_hours": "paiement du transport",
+                "receipt_contest_hours": "examen de la preuve de réception et éventuelle contestation",
+                "preparation_hours": "préparation du produit",
+                "dispatch_hours": "prise en charge par le transporteur",
+                "local_transit_hours": "vérification de l’acheminement local",
+                "international_transit_hours": "vérification du transport international et de la douane",
+                "import_preparation_hours": "préparation de l’import"
+            }
+        },
         "diaspo_booking_paid": {
             "title": "Nouvelle réservation payée",
             "body": "Une réservation de :kg kg a été payée."

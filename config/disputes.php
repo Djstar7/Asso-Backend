@@ -3,6 +3,7 @@
 return [
     'collect_before_replacement' => true,
     'review_hours' => 48,
+    'reminder_lead_hours' => 24,
     'payment_hours' => 48,
     'receipt_contest_hours' => 48,
     'local_transit_hours' => 168,

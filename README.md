@@ -724,6 +724,21 @@ Les paramètres se règlent dans le même écran : décision et financement 48 h
 remise au transporteur 48 h, transit local 7 jours, transit international/douane
 45 jours, préparation import 30 jours par défaut. Les échéances déjà enregistrées
 ne sont pas repoussées par une modification de configuration ou une relance.
+Le vendeur sans réponse reçoit une relance à 48 h, puis une escalade intervient
+48 h supplémentaires plus tard. Pour les autres attentes, un rappel part 24 h avant
+l’échéance vers le responsable : vendeur, transporteur ou administrateur ASSO. Il
+est envoyé dans l’application et par e-mail lorsqu’une adresse est disponible.
+Le délai d’anticipation se règle dans le même écran (24 h par défaut, valeur de
+repli `disputes.reminder_lead_hours`). Le nouveau réglage s’applique aux étapes
+suivantes ; les rappels déjà programmés conservent leur date.
+Chaque rappel est enregistré dans le suivi pour éviter les répétitions à chaque
+passage. Une nouvelle étape ou une réaffectation peut donner lieu à un nouveau
+rappel ; une étape terminée, remboursée ou devenue obsolète n’en reçoit plus.
+Un passage tardif du scheduler déclenche directement l’escalade des étapes déjà
+échues. Le rappel n’allonge ni l’échéance de traitement ni le délai de contestation.
+La migration `2026_10_24_220000_add_reminders_to_dispute_resolution_tasks.php`
+ajoute le suivi des rappels aux dossiers déjà existants.
+
 Une expiration sans preuve suffisante déclenche une réaffectation et une alerte,
 pas un remboursement sans examen. Les échecs de financement ASSO sont repris par
 le superviseur et restent visibles pour arbitrage si la trésorerie est insuffisante.

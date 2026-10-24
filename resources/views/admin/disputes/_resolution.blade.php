@@ -3,7 +3,8 @@
     <h2 class="text-lg text-white font-semibold">Arbitrage ASSO</h2>
     <a class="text-primary-400" href="{{ route('admin.disputes.resolution.index') }}">Échéances, dossiers avant livraison et avances</a>
     @foreach(\App\Models\DisputeResolutionTask::with('assignee')->where('dispute_id', $dispute->id)->whereNull('completed_at')->get() as $task)
-        <p class="text-sm text-gray-300">Responsable : {{ $task->assignee?->name ?? $task->responsible }} · Échéance : {{ $task->due_at->displayTz()->format('d/m/Y H:i') }} · Escalades : {{ $task->escalations }}<br>{{ $task->expected_proof }}</p>
+        <p class="text-sm text-gray-300">Responsable : {{ $task->assignee?->name ?? $task->responsible }} · Échéance : {{ $task->due_at->displayTz()->format('d/m/Y H:i') }} · Escalades : {{ $task->escalations }}<br>@if($task->reminded_at)<span class="text-blue-300">Rappel enregistré le {{ $task->reminded_at->displayTz()->format('d/m/Y H:i') }}</span><br>@endif
+                {{ $task->expected_proof }}</p>
     @endforeach
     @if($dispute->isOpen() && !$dispute->refunded_at)
         <p class="text-sm text-gray-300">Vérifiez les justificatifs avant de décider. Le remboursement exceptionnel crédite le Wallet client et arrête les courses encore actives. Le recours vendeur ou transporteur reste distinct.</p>
