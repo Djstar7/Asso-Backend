@@ -394,6 +394,15 @@
         "wallet_insufficient": "Solde Wallet insuffisant pour ce paiement. Rechargez votre Wallet ou choisissez un autre moyen."
     },
     "notifications": {
+        "preferences_saved": "Préférences de notifications enregistrées.",
+        "delivery": {
+            "stored": "Notification enregistrée dans ASSO.",
+            "queued": "Notification enregistrée ; envoi en attente.",
+            "accepted": "Notification acceptée par Firebase ; sa lecture sur l’appareil n’est pas confirmée.",
+            "suppressed": "Notification conservée dans ASSO ; envoi désactivé selon vos préférences.",
+            "no_device": "Notification conservée dans ASSO ; aucun appareil actif enregistré.",
+            "failed": "L’envoi a échoué ; la notification reste disponible dans ASSO."
+        },
         "dispute_resolution_reminder": {
             "title": "Rappel ASSO : une action est attendue",
             "body": "Dossier :number : :stage à effectuer avant le :date. Consultez le dossier dans ASSO et fournissez les justificatifs attendus.",

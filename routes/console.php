@@ -231,3 +231,5 @@ Artisan::command('carriers:dispatch-pending', function () {
     $this->info("{$count} mission(s) transporteur synchronisée(s).");
 });
 Schedule::command('carriers:dispatch-pending')->everyFiveMinutes()->withoutOverlapping(15);
+
+Schedule::command('notifications:retry')->everyMinute()->withoutOverlapping(5);

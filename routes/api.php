@@ -517,6 +517,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Notifications
         Route::prefix('notifications')->group(function () {
+            Route::get('/preferences', [\App\Http\Controllers\Api\NotificationPreferenceController::class, 'show']);
+            Route::put('/preferences', [\App\Http\Controllers\Api\NotificationPreferenceController::class, 'update']);
+            Route::get('/diagnostics', [\App\Http\Controllers\Api\NotificationPreferenceController::class, 'diagnostics']);
             // Get user notifications (history)
             Route::get('/', [NotificationController::class, 'index']);
             Route::get('/unread', [NotificationController::class, 'unread']);

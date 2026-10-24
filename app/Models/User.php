@@ -98,6 +98,7 @@ class User extends Authenticatable implements HasLocalePreference
             'preferences' => 'array',
             'roles' => 'array',
             'admin_permissions' => 'array',
+            'notification_preferences' => 'array',
             'is_profile_complete' => 'boolean',
             'otp_expires_at' => 'datetime',
             'diaspo_verified_at' => 'datetime',

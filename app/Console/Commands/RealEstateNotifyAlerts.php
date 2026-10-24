@@ -66,7 +66,7 @@ class RealEstateNotifyAlerts extends Command
                                 'notification_key' => 'immo-alert:'.$alert->id.':'.$since->timestamp.':'.$until->timestamp,
                             ],
                         );
-                        if (! ($result['success'] ?? false) || (isset($result['success_count']) && $result['success_count'] < 1)) {
+                        if (!($result['queued'] ?? false) && !($result['duplicate'] ?? false) && (! ($result['success'] ?? false) || (isset($result['success_count']) && $result['success_count'] < 1))) {
                             Log::warning('[IMMO] Alerte à reprendre', ['alert' => $alert->id, 'message' => $result['message'] ?? null]);
 
                             return;

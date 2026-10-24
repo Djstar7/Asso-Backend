@@ -756,3 +756,24 @@ est reprenable et isole les erreurs par dossier. Déployer aussi la version mobi
 pour afficher le signalement avant livraison et la contestation sur justificatifs.
 Le suivi DHL/FedEx reste fondé sur les justificatifs contrôlés et les événements
 réellement disponibles ; cette évolution ne crée pas d'intégration transporteur.
+
+### Notifications : préférences et reprise des envois
+
+`GET/PUT /api/v1/notifications/preferences` consulte ou modifie les préférences du
+compte connecté : activation globale et catégories `orders`, `payments`, `messages`,
+`disputes`, `real_estate`, `marketing`, `system`. Désactiver le push conserve
+l'historique personnel dans ASSO. `GET /api/v1/notifications/diagnostics` expose
+les enregistrements d'appareils et les codes d'erreur du compte, sans révéler de token.
+
+L'historique distingue `stored`, `queued`, `accepted`, `suppressed`, `no_device` et
+`failed`. `accepted` signifie accepté par Firebase, pas livré ou lu sur le téléphone.
+Le titre et le texte traduisibles sont conservés avec leurs clés ; une reprise est
+rédigée dans la langue actuelle du destinataire. `notification_key` identifie un
+événement métier stable ; les messages identiques sans cette clé sont dédupliqués
+pendant dix minutes. Les mises en file attendent la validation de la transaction.
+
+Le scheduler lance `notifications:retry` chaque minute. Chaque appareil a sa propre
+reprise : les appareils déjà servis ne sont pas renvoyés. Les erreurs temporaires
+ont des délais progressifs et un nombre de tentatives limité ; seul un token
+explicitement révoqué (`UNREGISTERED`) est désactivé. Les erreurs APNs, de quota,
+d'identifiants ou de contenu ne désactivent pas automatiquement tous les appareils.

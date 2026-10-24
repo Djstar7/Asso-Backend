@@ -394,6 +394,15 @@
         "wallet_insufficient": "Insufficient Wallet balance for this payment. Top up your Wallet or choose another method."
     },
     "notifications": {
+        "preferences_saved": "Notification preferences saved.",
+        "delivery": {
+            "stored": "Notification saved in ASSO.",
+            "queued": "Notification saved; delivery pending.",
+            "accepted": "Notification accepted by Firebase; reading on the device is not confirmed.",
+            "suppressed": "Notification saved in ASSO; push delivery is disabled by your preferences.",
+            "no_device": "Notification saved in ASSO; no active device is registered.",
+            "failed": "Push delivery failed; the notification is still available in ASSO."
+        },
         "dispute_resolution_reminder": {
             "title": "ASSO reminder: action required",
             "body": "Case :number: :stage is due before :date. Open the case in ASSO and provide the required evidence.",
