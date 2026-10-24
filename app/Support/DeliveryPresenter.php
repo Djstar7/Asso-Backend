@@ -52,17 +52,20 @@ class DeliveryPresenter
             'price_grid' => $snapshot['price_grid'] ?? [],
             'weight_kg' => $order->shipping_weight_kg,
             'breakdown' => $snapshot !== [] ? array_intersect_key($snapshot, array_flip([
-                'weight_kg', 'range_label', 'range_price', 'extra_kg', 'extra_per_kg', 'extra_price', 'legs',
+                'weight_kg', 'range_label', 'range_price', 'price_per_kg', 'extra_kg', 'extra_per_kg', 'extra_price', 'legs',
                 'carrier_price_ht', 'prices_exclude_vat', 'vat_rate', 'vat_amount', 'carrier_price',
                 'asso_commission', 'total', 'origin_coverage', 'destination_coverage',
             ])) : null,
             // Import en gros : trajet Chine / Dubaï / Turquie → Douala, avant SOLEX.
             'import_leg' => $snapshot['import_leg'] ?? null,
+            'international_export' => $order->isInternationalExport(),
+            'solex_agency' => $snapshot['solex_agency'] ?? null,
+            'destination_country' => $snapshot['destination_country'] ?? null,
             'carrier_tracking_number' => $order->carrier_tracking_number,
             'show_tracking_pending' => $order->status === 'pending' && !$order->confirmed_at,
             'carrier_tracking_url' => $trackingUrl,
             'tracking_status' => $order->tracking_status,
-            'tracking_status_label' => OrderTrackingService::stepLabel($order->tracking_status),
+            'tracking_status_label' => OrderTrackingService::stepLabel($order->tracking_status, $order),
             // Le client accuse réception après la remise enregistrée par ASSO.
             'can_confirm_reception' => $order->canConfirmReception(),
             'delivery_option' => $order->isAgencyPickup() ? 'agency_pickup' : 'home_delivery',
@@ -100,7 +103,8 @@ class DeliveryPresenter
             ];
         }
 
-        return [
+        $origin = $order->isInternationalExport() ? ($order->delivery_breakdown['collection_origin'] ?? []) : [];
+        return $origin + [
             'kind' => 'shop',
             'name' => $shop?->name,
             // Le vendeur est le contact sur place si la boutique n'a pas de ligne.
@@ -137,10 +141,11 @@ class DeliveryPresenter
     public static function dropoffFor(Order $order): array
     {
         return [
-            'name' => $order->user?->name ?: 'Client',
+            'name' => $order->recipient_name ?: ($order->user?->name ?: 'Client'),
             'phone' => $order->customer_phone ?: ($order->user?->phone ?? null),
             'address' => $order->delivery_address,
             'address_details' => $order->delivery_address_details,
+            'postal_code' => $order->delivery_postal_code,
             'latitude' => $order->delivery_latitude !== null ? (float) $order->delivery_latitude : null,
             'longitude' => $order->delivery_longitude !== null ? (float) $order->delivery_longitude : null,
         ];

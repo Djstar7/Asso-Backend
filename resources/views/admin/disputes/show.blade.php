@@ -30,6 +30,7 @@
     </div>
 
     @include('admin.wholesale_orders._flash')
+    @include('admin.disputes._resolution')
 
     <div class="grid lg:grid-cols-3 gap-6">
         <div class="lg:col-span-2 space-y-6">
@@ -142,8 +143,17 @@
                         <p>Paiement : <span class="text-white">{{ ['pending' => 'En attente', 'paid' => 'Payé', 'failed' => 'Échoué'][$shipment->payment_status] ?? $shipment->payment_status }}</span>@if($shipment->payment_mode) ({{ $shipment->payment_mode }})@endif</p>
                         <p>N° de suivi : <span class="text-white">{{ $shipment->carrier_tracking_number ?? '—' }}</span></p>
                         <p>Livreur : <span class="text-white">{{ $shipment->deliveryPerson?->name ?? 'pas encore accepté' }}</span>@if($shipment->deliveryPerson?->phone) · {{ $shipment->deliveryPerson->phone }}@endif</p>
-                        <p>Remise contre le code du <span class="text-white">{{ $shipment->codeHolder() === 'client' ? 'client' : 'vendeur' }}</span></p>
+                        @if(!$shipment->isInternational())<p>Remise contre le code du <span class="text-white">{{ $shipment->codeHolder() === 'client' ? 'client' : 'vendeur' }}</span></p>@endif
                     </div>
+                    @if($shipment->isInternational())
+                        <p class="text-blue-200 mb-3">{{ $shipment->type === 'replacement' ? 'Vendeur → Solex → transporteur → client' : 'Client → transporteur → Solex → vendeur' }}. Le vendeur confirme personnellement la réception du retour. DHL/FedEx assure les étapes internationales.</p>
+                        @foreach($shipment->quote['breakdown']['legs'] ?? [] as $leg)
+                            <p class="text-gray-300">{{ $leg['label'] }} : {{ $fcfa($leg['price']) }} {{ ($shipment->quote['breakdown']['prices_exclude_vat'] ?? false) ? 'HT' : '' }}</p>
+                        @endforeach
+                        @if($shipment->type === 'replacement' && $shipment->isOpenForCourier())
+                            <p class="text-gray-300">Code de dépôt Solex : <strong>{{ $shipment->confirmation_code }}</strong>. À remettre au collecteur uniquement à l’arrivée en agence.</p>
+                        @endif
+                    @endif
                     @if($shipment->payer === 'asso' && $shipment->codeHolder() === 'vendor' && $shipment->isOpenForCourier())
                         <p class="text-white mb-3">Code de réception boutique : <strong>{{ $shipment->confirmation_code }}</strong> — à communiquer au livreur à la remise du colis.</p>
                     @endif
@@ -168,7 +178,7 @@
                                     <option value="{{ $step }}">{{ $shipment->steps()[$step] }}</option>
                                 @endforeach
                             </select>
-                            @if(in_array($shipment->codeStep(), $shipment->manualSteps(), true))
+                            @if((!$shipment->isInternational() || $shipment->type !== \App\Models\DisputeShipment::TYPE_REPLACEMENT) && in_array($shipment->codeStep(), $shipment->manualSteps(), true))
                             <p class="md:col-span-2 text-white font-semibold">{{ $shipment->codeHolder() === 'vendor' ? 'Réception en boutique — confirmer la remise du colis' : 'Remise du remplacement au client' }}</p>
                             <input type="text" name="confirmation_code" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" required
                                    placeholder="Code du {{ $shipment->codeHolder() === 'client' ? 'client' : 'vendeur' }} (étape « {{ $shipment->steps()[$shipment->codeStep()] }} »)"
@@ -181,11 +191,11 @@
                                     >
                                 <i class="fas fa-check mr-1"></i> Enregistrer l'étape
                             </button>
-                            <p class="md:col-span-2 text-xs text-gray-500">
+                            @if(!$shipment->isInternational())<p class="md:col-span-2 text-xs text-gray-500">
                                 Le livreur valide normalement la remise dans son application avec le code du {{ $shipment->codeHolder() === 'client' ? 'client' : 'vendeur' }}.
                                 Saisissez-le ici seulement si le livreur ne peut pas le faire.
                                 @if($shipment->type === 'return') La remise clôture le retour et déclenche le remboursement si celui-ci n’a pas déjà été effectué.@else @if($shipment->type === 'collection') La réception permet de préparer le remplacement, sans remboursement.@endif @endif
-                            </p>
+                            </p>@else<p class="md:col-span-2 text-xs text-gray-500">Enregistrez les confirmations du transporteur. La réception finale du retour doit être confirmée par le vendeur dans son espace.</p>@endif
                         </form>
                     @endif
                 </div>
@@ -246,7 +256,7 @@
                     </form>
                 @endif
 
-                @if($replacement?->status === 'awaiting_preparation' && $dispute->isAssoManaged())
+                @if($replacement?->status === 'awaiting_preparation')
                     <p class="text-gray-300">Produit récupéré : contrôlez et préparez le remplacement.</p>
                     <form method="POST" action="{{ route('admin.disputes.replace', $dispute) }}">
                         @csrf
@@ -259,11 +269,11 @@
                 @endif
                 @if($founded)
                     <div class="pt-3 border-t border-dark-200 space-y-2">
-                        <p class="text-gray-300">{{ $dispute->isAssoManaged() ? 'ASSO, revendeur, choisit la suite :' : 'Le vendeur choisit dans son espace. ASSO peut imposer le retour :' }}</p>
-                        @if($dispute->isAssoManaged() && $dispute->replacement_count < Dispute::MAX_REPLACEMENTS)
+                        <p class="text-gray-300">{{ $dispute->isAssoManaged() ? 'ASSO, revendeur, choisit la suite :' : 'Le vendeur peut choisir dans son espace. ASSO peut également lancer le remplacement ou le retour ; les frais restent à la charge du vendeur.' }}</p>
+                        @if($dispute->replacement_count < Dispute::MAX_REPLACEMENTS)
                             <form method="POST" action="{{ route('admin.disputes.replace', $dispute) }}">
                                 @csrf
-                                <button class="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg"><i class="fas fa-exchange-alt mr-1"></i> Remplacer le produit</button>
+                                <button class="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg"><i class="fas fa-exchange-alt mr-1"></i> Remplacer le produit (Cas A)</button>
                             </form>
                         @endif
                         <form method="POST" action="{{ route('admin.disputes.return', $dispute) }}" class="space-y-2">

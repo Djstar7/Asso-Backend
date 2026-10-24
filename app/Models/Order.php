@@ -68,14 +68,14 @@ class Order extends Model
         'is_wholesale', 'has_local_products', 'import_country_code', 'shipping_mode', 'shipping_option_id',
         'delivery_address',
         'delivery_address_details',
-        'customer_phone',
+        'customer_phone', 'recipient_name', 'delivery_postal_code',
         'delivery_latitude',
         'delivery_longitude',
         'tracking_number', 'confirmation_code',
         'delivery_person_id', 'delivery_company_id', 'delivery_zone_id',
         'delivery_mode', 'delivery_route_id', 'delivery_city_grid_id', 'delivery_vehicle', 'shipping_weight_kg', 'delivery_vat_amount', 'delivery_breakdown',
         'carrier_tracking_number', 'tracking_status', 'carrier_courier_requested_at', 'carrier_handover_code',
-        'delivery_agency_id', 'pickup_agency_snapshot', 'agency_collected_at', 'agency_collected_by',
+        'collection_agency_id', 'collection_completed_at', 'delivery_agency_id', 'pickup_agency_snapshot', 'agency_collected_at', 'agency_collected_by',
         'payment_method', 'payment_reference', 'payment_currency', 'payment_amount', 'payment_status',
         'payment_plan', 'deposit_amount', 'balance_amount', 'balance_status',
         'balance_payment_method', 'balance_payment_reference', 'balance_payment_currency', 'balance_payment_amount',
@@ -127,6 +127,7 @@ class Order extends Model
         'deposit_vendor_amount' => 'decimal:2',
         'vendor_funds_held_amount' => 'decimal:2',
         'vendor_funds_released_at' => 'datetime',
+        'collection_completed_at' => 'datetime',
         'conformity_confirmed_at' => 'datetime',
         'auto_validate_at' => 'datetime',
     ];
@@ -137,6 +138,20 @@ class Order extends Model
     public const DELIVERY_CARRIER = 'carrier';
 
     protected $hidden = ['carrier_handover_code'];
+
+    public function collectionAgency()
+    {
+        return $this->belongsTo(DeliveryAgency::class, 'collection_agency_id');
+    }
+
+    public function scopeOfferedToCourier($query, User $user)
+    {
+        $syncs = DelivererCodeSync::where('user_id', $user->id)->active()->where('is_online', true)->get();
+        return $query->where(fn ($q) => $q
+            ->where(fn ($normal) => $normal->whereNull('collection_agency_id')->whereIn('delivery_company_id', $syncs->pluck('company_id')))
+            ->orWhere(fn ($collection) => $collection->whereIn('collection_agency_id', $syncs->pluck('delivery_agency_id')->filter())
+                ->whereHas('collectionAgency', fn ($agency) => $agency->where('is_active', true)->whereHas('company', fn ($company) => $company->where('is_active', true)))));
+    }
 
     public function scopeCourierVisible($query)
     {
@@ -152,6 +167,11 @@ class Order extends Model
                 ->whereHas('deliveryCompany', fn ($company) => $company->where('is_active', true))
                 ->where('payment_status', self::PAYMENT_PAID)->where('status', 'shipped')
                 ->whereIn('tracking_status', \App\Services\CarrierCourierService::OPEN_STEPS)));
+    }
+
+    public function isInternationalExport(): bool
+    {
+        return (bool) ($this->delivery_breakdown['international_export'] ?? false);
     }
 
     public function isCarrierDelivery(): bool

@@ -10,10 +10,10 @@ use App\Models\DeliveryTerritory;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
-/** Réseau réactivé à chaque seed ; centres, rayons et tarifs existants conservés. */
+/** Synchronisation explicite : réactivation ; déploiement groupé : activations existantes conservées. */
 class SolexNetworkSeeder extends Seeder
 {
-    public function run(): void
+    public function run(bool $preserveExistingActivation = false): void
     {
         $reference = json_decode(file_get_contents(database_path('data/cameroon-delivery-territories.json')), true, flags: JSON_THROW_ON_ERROR);
         $rows = collect($reference['territories']);
@@ -21,7 +21,7 @@ class SolexNetworkSeeder extends Seeder
             throw_unless($rows->where('level', $level)->count() === $count, \RuntimeException::class, 'Référentiel Cameroun incomplet.');
         }
 
-        DB::transaction(function () use ($rows, $reference) {
+        DB::transaction(function () use ($rows, $reference, $preserveExistingActivation) {
             foreach ($rows as $row) {
                 DeliveryTerritory::firstOrCreate(['code' => $row['code']],
                     collect($row)->only(['level', 'parent_code', 'name', 'name_en', 'latitude', 'longitude'])->all() + [
@@ -37,7 +37,9 @@ class SolexNetworkSeeder extends Seeder
                 'description' => 'Collecte en boutique, transport national et livraison à domicile ou retrait en agence.',
             ]);
             $departments = $rows->where('level', 2)->values();
-            $company->update(['is_active' => true, 'territorial_network_enabled' => true]);
+            if (! $preserveExistingActivation) {
+                $company->update(['is_active' => true, 'territorial_network_enabled' => true]);
+            }
             foreach ($departments as $department) {
                 $arrondissements = $rows->where('level', 3)->where('parent_code', $department['code'])->sortBy('code')->values();
                 $zones = $arrondissements->map(fn ($a, $i) => [
@@ -60,11 +62,19 @@ class SolexNetworkSeeder extends Seeder
                     'deliverer_company_id' => $company->id, 'name' => 'SOLEX — '.$department['hub_city'],
                     'city' => $department['hub_city'], 'address' => 'Centre-ville de '.$department['hub_city'].' — point exact à confirmer par SOLEX',
                     'phone' => $company->phone ?: 'À confirmer', 'is_active' => true,
+                    'country' => 'CM', 'latitude' => $department['hub_latitude'], 'longitude' => $department['hub_longitude'],
+                    'coordinate_precision' => 'city_center', 'is_provisional' => true,
                 ]);
+                if (($agency->latitude === null || $agency->longitude === null)
+                    && str_contains($agency->address ?? '', 'point exact à confirmer')) {
+                    $agency->update(['country' => 'CM', 'latitude' => $department['hub_latitude'],
+                        'longitude' => $department['hub_longitude'], 'coordinate_precision' => 'city_center', 'is_provisional' => true]);
+                }
                 if (blank($agency->address) || blank($agency->phone)) {
                     $agency->update([
                         'address' => $agency->address ?: 'Centre-ville de '.$department['hub_city'].' — point exact à confirmer par SOLEX',
-                        'phone' => $agency->phone ?: ($company->phone ?: 'À confirmer'), 'is_active' => true,
+                        'phone' => $agency->phone ?: ($company->phone ?: 'À confirmer'),
+                        'is_active' => $preserveExistingActivation ? $agency->is_active : true,
                     ]);
                 }
             }
@@ -80,18 +90,24 @@ class SolexNetworkSeeder extends Seeder
                     }
                 }
             }
-            // Réactiver aussi les données déjà présentes, sans remplacer leurs réglages.
-            $company->cityGrids()->whereNotNull('department_code')->get()->each(function ($grid) {
-                $zones = collect($grid->zones)->map(fn ($zone) => array_replace($zone, ['is_active' => true]))->all();
-                $vehicles = $grid->vehicles;
-                if (!collect($vehicles)->contains('code', 'heavy')) {
-                    $vehicles[] = $this->heavyVehicle();
-                }
-                $grid->update(['is_active' => true, 'zones' => $zones, 'vehicles' => $vehicles]);
-            });
-            $company->deliveryRoutes()->whereNotNull('network_key')->update(['is_active' => true]);
+            if (! $preserveExistingActivation) {
+                // Réactiver aussi les données déjà présentes, sans remplacer leurs réglages.
+                $company->cityGrids()->whereNotNull('department_code')->get()->each(function ($grid) {
+                    $zones = collect($grid->zones)->map(fn ($zone) => array_replace($zone, ['is_active' => true]))->all();
+                    $vehicles = $grid->vehicles;
+                    if (!collect($vehicles)->contains('code', 'heavy')) {
+                        $vehicles[] = $this->heavyVehicle();
+                    }
+                    $grid->update(['is_active' => true, 'zones' => $zones, 'vehicles' => $vehicles]);
+                });
+                $company->deliveryRoutes()->whereNotNull('network_key')->update(['is_active' => true]);
+            }
         });
         $this->command?->info('SOLEX : 10 régions, 58 départements, 360 cercles, 45 liaisons nationales et 158 régionales préparés.');
+        if ($preserveExistingActivation) {
+            $this->command?->info('Réseau Solex complété sans réinitialiser les tarifs, centres, rayons ou activations existants.');
+            return;
+        }
         $this->command?->info('Mode territorial, 58 départements, 360 cercles et 203 liaisons actifs. Centres, rayons et tarifs conservés. Retrait proposé aux relais de centre-ville ; coordonnées provisoires à préciser.');
     }
 

@@ -8,8 +8,23 @@
 
 @endphp
 <div class="bg-dark-100 rounded-xl border border-dark-200 p-6" id="shipment-tracking">
-    <h2 class="text-lg font-semibold text-white mb-3">Acheminement du colis · suivi ASSO</h2>
+    <h2 class="text-lg font-semibold text-white mb-3">Mettre à jour le statut de livraison</h2>
+    @if($order->isInternationalExport())
+        <p class="text-sm text-gray-300 mb-3">Vendeur → collecte Solex → agence Solex → {{ $order->deliveryCompany?->name }} → destinataire. ASSO enregistre les confirmations de chaque étape. Un incident exige une note ; la remise au transporteur exige un numéro de suivi.</p>
+        @if(\App\Support\ExportTestTracking::enabled())
+            <p class="text-sm text-yellow-300 mb-3">Mode test : une référence TEST-ASSO est préremplie automatiquement. Elle sert au suivi interne et ne constitue pas un numéro DHL/FedEx. Les étapes restent à confirmer après les opérations.</p>
+        @endif
+        @if($solex = $order->delivery_breakdown['solex_agency'] ?? null)
+            @php($collectionAgency = \App\Models\DeliveryAgency::find($solex['id'] ?? null))
+            @if($collectionAgency)
+                <p class="text-sm text-gray-300 mb-3">{{ \App\Models\DelivererCodeSync::where('company_id', $collectionAgency->deliverer_company_id)->where('delivery_agency_id', $collectionAgency->id)->active()->distinct()->count('user_id') }} livreur(s) rattaché(s) à cette agence.
+                    <a class="text-primary-400 underline" href="{{ route('admin.deliverers.syncs.company', $collectionAgency->deliverer_company_id) }}">Voir les rattachements</a></p>
+            @endif
+            <p class="text-sm text-gray-300 mb-3">Agence de départ : {{ $solex['name'] }} · {{ $solex['address'] }} · {{ $solex['phone'] }}</p>
+        @endif
+    @else
     <p class="text-sm text-gray-300 mb-3">ASSO suit le colis jusqu'à sa remise au client. Après réception à Douala, la demande d’enlèvement est proposée aux livreurs synchronisés du partenaire. Le premier qui accepte est affecté ; le suivi reste accessible à ASSO.</p>
+    @endif
     @if($order->deliveryCompany)
         <div class="text-sm text-gray-300 mb-3 space-y-1">
             <p>Partenaire : {{ $order->deliveryCompany->name }}</p>
@@ -20,9 +35,19 @@
         </div>
     @endif
     @if($order->tracking_status)
-        <p class="text-sm text-white mb-3">Dernière étape : {{ \App\Services\OrderTrackingService::stepLabel($order->tracking_status) }}</p>
+        <p class="text-sm text-white mb-3">Dernière étape : {{ \App\Services\OrderTrackingService::stepLabel($order->tracking_status, $order) }}</p>
     @endif
-    @if($order->carrier_courier_requested_at)
+    @if($order->carrier_courier_requested_at && $order->isInternationalExport())
+        @if($order->collection_completed_at)
+        <p class="text-sm text-green-300 mb-3">Collecte Solex terminée : colis déposé à {{ $order->collectionAgency?->name }}. {{ $order->deliveryCompany?->name }} assure ensuite le transport international et la livraison finale. Aucun livreur DHL/FedEx n’est affecté automatiquement par ASSO.</p>
+        @else
+        <p class="text-sm text-green-300 mb-3">Mission de collecte ouverte auprès des livreurs rattachés à {{ $order->collectionAgency?->name }}.
+            {{ $order->delivery_person_id ? 'Livreur affecté : '.$order->deliveryPerson?->name : 'En attente de la première acceptation.' }}</p>
+        @endif
+        @if($order->carrier_handover_code)
+            <p class="text-sm text-gray-300 mb-3">Code de dépôt à l’agence Solex : <strong>{{ $order->carrier_handover_code }}</strong>. Le réceptionnaire de l’agence le communique au livreur lors du dépôt.</p>
+        @endif
+    @elseif($order->carrier_courier_requested_at)
         <p class="text-sm text-green-300 mb-3">Mission ouverte aux livreurs synchronisés du partenaire.
             @if($order->delivery_person_id)
                 Livreur affecté : {{ $order->deliveryPerson?->name ?? '#'.$order->delivery_person_id }}.
@@ -76,15 +101,16 @@
                     }
                   }">
                 @csrf
-                <label class="text-sm text-gray-300">Étape
+                <p class="md:col-span-2 text-sm text-gray-400">Choisissez la prochaine étape après confirmation de l’opération. Elle sera ajoutée au suivi de la commande du client.</p>
+                <label class="text-sm text-gray-300">Prochaine étape
                     <select name="step" x-model="step" @change="applyStep()" class="{{ $shipmentInput }}" required>
                         @foreach($nextShipmentSteps as $step)
-                            <option value="{{ $step }}" @selected($initialShipmentStep === $step)>{{ \App\Services\OrderTrackingService::stepLabel($step) }}</option>
+                            <option value="{{ $step }}" @selected($initialShipmentStep === $step)>{{ \App\Services\OrderTrackingService::stepLabel($step, $order) }}</option>
                         @endforeach
                     </select>
                 </label>
-                <label class="text-sm text-gray-300">N° de suivi transporteur
-                    <input name="carrier_tracking_number" maxlength="100" value="{{ old('carrier_tracking_number', $order->carrier_tracking_number) }}" class="{{ $shipmentInput }}">
+                <label class="text-sm text-gray-300">{{ $order->isInternationalExport() && \App\Support\ExportTestTracking::enabled() ? 'Référence de suivi (TEST-ASSO ou n° transporteur)' : 'N° de suivi transporteur' }}
+                    <input name="carrier_tracking_number" maxlength="100" value="{{ old('carrier_tracking_number', $initialShipmentDefaults['carrier_tracking_number'] ?? $order->carrier_tracking_number) }}" class="{{ $shipmentInput }}">
                 </label>
                 <label class="text-sm text-gray-300">Lieu
                     <input name="location" x-model="location" maxlength="150" value="{{ old('location', $initialShipmentDefaults['location'] ?? '') }}" class="{{ $shipmentInput }}">

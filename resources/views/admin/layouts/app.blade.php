@@ -300,7 +300,11 @@
                     <a href="{{ route('admin.shipments.index') }}"
                        class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.shipments.*') ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md' : 'text-gray-300 hover:bg-dark-200 hover:text-white' }}">
                         <i class="fas fa-shipping-fast w-5 mr-3"></i>
-                        Expéditions
+                        Expéditions et statuts
+                    </a>
+                    <a href="{{ route('admin.shipments.index', ['scope' => 'export', 'status' => 'all']) }}"
+                       class="flex items-center px-4 py-3 text-sm rounded-lg transition-all {{ request()->routeIs('admin.shipments.*') && request('scope') === 'export' ? 'text-primary-400 bg-dark-200' : 'text-gray-300 hover:bg-dark-200' }}">
+                        <i class="fas fa-globe w-5 mr-3"></i>Commandes internationales
                     </a>
                     @endadminCan
 

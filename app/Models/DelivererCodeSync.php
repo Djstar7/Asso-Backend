@@ -10,7 +10,7 @@ class DelivererCodeSync extends Model
     protected $fillable = [
         'sync_code_id',
         'user_id',
-        'company_id',
+        'company_id', 'delivery_agency_id',
         'is_active',
         'is_online',
         'is_banned',
@@ -20,6 +20,11 @@ class DelivererCodeSync extends Model
         'banned_by',
         'ban_reason',
     ];
+
+    public function agency(): BelongsTo
+    {
+        return $this->belongsTo(DeliveryAgency::class, 'delivery_agency_id');
+    }
 
     protected $casts = [
         'is_active' => 'boolean',

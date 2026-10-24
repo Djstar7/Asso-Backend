@@ -42,6 +42,16 @@
         }
     },
     "scripts": {
+        "deploy:carriers": [
+            "@php artisan config:clear",
+            "@php artisan migrate --force",
+            "@php artisan delivery:configure-carriers"
+        ],
+        "deploy:international": [
+            "@php artisan config:clear",
+            "@php artisan migrate --force",
+            "@php artisan transport:configure"
+        ],
         "setup": [
             "composer install",
             "@php -r \"file_exists('.env') || copy('.env.example', '.env');\"",

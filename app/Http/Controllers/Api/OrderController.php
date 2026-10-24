@@ -107,6 +107,8 @@ class OrderController extends Controller
             'delivery_address' => 'nullable|string',
             'delivery_address_details' => 'nullable|string|max:500',
             'customer_phone' => 'required|string|max:30',
+            'recipient_name' => 'nullable|string|max:150',
+            'delivery_postal_code' => 'nullable|string|max:30',
             'delivery_latitude' => 'nullable|numeric',
             'delivery_longitude' => 'nullable|numeric',
             'notes' => 'nullable|string',
@@ -147,6 +149,8 @@ class OrderController extends Controller
                 deliveryGridId: $request->delivery_grid_id ? (int) $request->delivery_grid_id : null,
                 deliveryVehicle: $request->input('delivery_vehicle'),
                 deliveryQuarter: $request->input('delivery_quarter'),
+                recipientName: $request->input('recipient_name'),
+                deliveryPostalCode: $request->input('delivery_postal_code'),
             );
 
             return response()->json([
@@ -592,6 +596,9 @@ class OrderController extends Controller
             'delivery_address' => $order->delivery_address,
             'delivery_address_details' => $order->delivery_address_details,
             'customer_phone' => $order->customer_phone,
+            'recipient_name' => $order->recipient_name,
+            'delivery_postal_code' => $order->delivery_postal_code,
+            'delivery_country' => $order->delivery_breakdown['destination_country'] ?? null,
             'items' => $order->items->map(fn($item) => [
                 'id' => $item->id,
                 'product_id' => $item->product_id,
@@ -647,7 +654,8 @@ class OrderController extends Controller
         ];
 
         if ($order->deliveryPerson) {
-            $data['delivery_person'] = [
+            // An export courier only collects the parcel for the Solex agency.
+            $data[$order->isInternationalExport() ? 'collection_courier' : 'delivery_person'] = [
                 'id' => $order->deliveryPerson->id,
                 'name' => $order->deliveryPerson->name,
                 'phone' => $order->deliveryPerson->phone,
@@ -669,7 +677,7 @@ class OrderController extends Controller
         // Code de remise : disponible dès l’affectation du livreur, y compris
         // pour le transporteur. La validation reste contrôlée par les étapes de transport.
         // Commande avec acompte : le code n'est remis qu'une fois le solde payé.
-        if ($order->status === 'shipped' && $order->canBeHandedOver()
+        if (!$order->isInternationalExport() && $order->status === 'shipped' && $order->canBeHandedOver()
             && (!$order->isCarrierDelivery() || ($order->carrier_courier_requested_at && $order->delivery_person_id
                 && !$order->isAgencyPickup()))) {
             $data['confirmation_code'] = $order->confirmation_code;
@@ -681,6 +689,10 @@ class OrderController extends Controller
 
         // Fenêtre de contrôle de 48 h après la livraison : « Tout est conforme » ou
         // réclamation par article. Sans action, la commande est validée automatiquement.
+        $claim = \App\Models\OrderDeliveryClaim::where('order_id', $order->id)->first();
+        $data['delivery_claim'] = $claim?->only(['id', 'status', 'reason', 'decision_note', 'refund_amount']);
+        $data['can_report_delivery'] = !in_array($order->status, ['delivered', 'cancelled'], true)
+            && !$order->refunded_at && array_sum($order->collectedAmounts()) > 0;
         $data['control'] = [
             'window_open' => $controlOpen,
             'until' => $controlOpen ? $order->auto_validate_at?->toIso8601String() : null,

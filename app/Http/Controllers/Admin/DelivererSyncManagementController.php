@@ -27,6 +27,16 @@ class DelivererSyncManagementController extends Controller
         return view('admin.deliverers.code-syncs', compact('syncCode'));
     }
 
+    public function assignAgency(Request $request, DelivererCodeSync $codeSync)
+    {
+        $data = $request->validate(['delivery_agency_id' => ['nullable', 'integer',
+            \Illuminate\Validation\Rule::exists('delivery_agencies', 'id')->where('deliverer_company_id', $codeSync->company_id)
+                ->where(fn ($query) => $query->where('is_active', true)->where('is_international_reference', false)),
+        ]]);
+        $codeSync->update(['delivery_agency_id' => $data['delivery_agency_id'] ?? null]);
+        return back()->with('success', 'Rattachement du livreur à l’agence mis à jour.');
+    }
+
     /**
      * Show all syncs for a specific company
      */

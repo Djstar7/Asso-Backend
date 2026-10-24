@@ -133,6 +133,11 @@
                             @endif
                         </td>
                         <td class="px-4 py-3 text-right whitespace-nowrap">
+                            @adminCan('admin.deliverers.syncs.company')
+                                <a href="{{ route('admin.deliverers.syncs.company', $partner) }}" class="inline-flex items-center gap-1 text-primary-400 hover:text-primary-300 mr-3">
+                                    <i class="fas fa-user-plus"></i> Rattacher les livreurs
+                                </a>
+                            @endadminCan
                             <a href="{{ route('admin.delivery-partners.edit', $partner) }}" class="text-primary-400 hover:text-primary-300 mr-3">
                                 <i class="fas fa-route mr-1"></i> Conditions & trajets
                             </a>

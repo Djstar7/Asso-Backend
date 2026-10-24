@@ -8,6 +8,7 @@
             @foreach(['code' => 'Code', 'name' => 'Nom', 'city' => 'Ville', 'address' => 'Adresse', 'phone' => 'Téléphone'] as $field => $label)
                 <label class="text-sm text-gray-300">{{ $label }}<input name="{{ $field }}" value="{{ $agency->$field }}" required maxlength="{{ ['code'=>40,'name'=>150,'city'=>120,'address'=>255,'phone'=>40][$field] }}" class="{{ $input }}"></label>
             @endforeach
+            @include('admin.delivery_partners._agency_reference_fields', ['reference' => $agency])
             <label class="text-sm text-gray-300"><input type="checkbox" name="is_active" value="1" @checked($agency->is_active)> Agence active</label>
             <button class="px-4 py-2 bg-primary-500 text-white rounded-lg text-sm">Enregistrer l'agence</button>
         </form>
@@ -18,6 +19,7 @@
         @foreach(['code' => 'Code unique (ex. SOLEX-YDE)', 'name' => 'Nom', 'city' => 'Ville', 'address' => 'Adresse', 'phone' => 'Téléphone'] as $field => $label)
             <label class="text-sm text-gray-300">{{ $label }}<input name="{{ $field }}" value="{{ old($field) }}" required maxlength="{{ ['code'=>40,'name'=>150,'city'=>120,'address'=>255,'phone'=>40][$field] }}" class="{{ $input }}"></label>
         @endforeach
+        @include('admin.delivery_partners._agency_reference_fields', ['reference' => null])
         <div class="flex items-end"><button class="px-4 py-2 bg-primary-500 text-white rounded-lg text-sm">Ajouter une agence</button></div>
     </form>
 </div>

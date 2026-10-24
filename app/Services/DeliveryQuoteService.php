@@ -109,6 +109,12 @@ class DeliveryQuoteService
             return $result;
         }
 
+        if ($originCountry === 'CM' && $destCountry !== 'CM' && $cart['missing_weight'] !== []) {
+            $result['reason'] = 'missing_weight';
+            $result['message'] = __('delivery.export.weight_required');
+            return $result;
+        }
+
         $territorial = [];
         $networkIssues = [];
         foreach (app(TerritorialDeliveryService::class)->quotes($cart, $lat, $lng, $destCity, $destCountry, $networkIssues) as $network) {
@@ -176,7 +182,7 @@ class DeliveryQuoteService
      * de livraison (surface de chaque zone urbaine, zones des livreurs), partenaires qui livrent
      * à domicile au point choisi, et agences de sa ville pour l'interurbain.
      */
-    public function coverage(float $lat, float $lng): array
+    public function coverage(float $lat, float $lng, ?string $country = null, ?string $cityHint = null): array
     {
         $radius = self::radiusKm();
         $quarters = [];
@@ -316,8 +322,13 @@ class DeliveryQuoteService
             }
         }
 
+        $country = CountryCode::normalize($country) ?: \App\Support\DeliveryCountryBoundaries::countryAt($lat, $lng);
+        $international = app(InternationalDeliveryMapService::class)->coverage($lat, $lng, $country, $cityHint);
+        $servedBy = array_merge($servedBy, $international['served_by']);
         return [
-            'city' => $city,
+            'country' => $country,
+            'international_areas' => $international['areas'],
+            'city' => $cityHint ?: $city,
             'served' => $servedBy !== [],
             'served_by' => $servedBy,
             'agencies' => array_values($agencies),
@@ -395,7 +406,7 @@ class DeliveryQuoteService
 
         // Ancienne app : seule la zone est envoyée, sans ville → on accepte la zone
         // choisie telle quelle si elle appartient bien au livreur.
-        if (! $routeId && $zoneId && ! $gridId && ! DelivererCompany::whereKey($companyId)->where('territorial_network_enabled', true)->exists()) {
+        if (! $city && ! $country && ! $routeId && $zoneId && ! $gridId && ! DelivererCompany::whereKey($companyId)->where('territorial_network_enabled', true)->exists()) {
             $cart = $this->cart($items);
             $zone = DeliveryZone::with(['activePricelist', 'delivererCompany'])
                 ->where('id', $zoneId)->where('deliverer_company_id', $companyId)->where('is_active', true)->first();
@@ -515,7 +526,7 @@ class DeliveryQuoteService
             $code = $code ?: CountryCode::normalize($parsedCountry);
         }
 
-        if ($lat !== null && $lng !== null) {
+        if ((! $code || $code === 'CM') && $lat !== null && $lng !== null) {
             $locatedGrid = DeliveryCityGrid::where('is_active', true)
                 ->whereHas('company', fn ($q) => $q->where('is_active', true))
                 ->get()
@@ -531,14 +542,14 @@ class DeliveryQuoteService
         // Adresse sans ville reconnue (ex. « Position GPS (5.4821, 10.4235) ») : ville la plus
         // proche de la position choisie sur la carte.
         $known = $destCity && (CityCoordinates::of($destCity) || DeliveryCityGrid::forCity($destCity));
-        if (! $known && $lat !== null && $lng !== null && ($lat != 0 || $lng != 0)) {
+        if ((! $code || $code === 'CM') && ! $known && $lat !== null && $lng !== null && ($lat != 0 || $lng != 0)) {
             if ($nearest = CityCoordinates::nearest($lat, $lng)) {
                 $destCity = $nearest['name'];
                 $code = $code ?: 'CM';
             }
         }
 
-        // Vente de produits : un seul sens, vers le Cameroun.
+        // Les anciennes adresses locales sans pays restent compatibles.
         return [$destCity, $code ?: 'CM'];
     }
 
@@ -857,6 +868,13 @@ class DeliveryQuoteService
         $quotes = [];
         foreach ($routes as $route) {
             $company = $route->company;
+            if ($route->origin_country === 'CM' && $route->destination_country !== 'CM') {
+                $export = $this->exportQuote($route, $cart, $destCity, $lat, $lng);
+                if ($export) {
+                    $quotes[] = $export;
+                }
+                continue;
+            }
             if ($company->max_weight_kg && $cart['weight_kg'] > $company->max_weight_kg) {
                 continue;
             }
@@ -971,6 +989,115 @@ class DeliveryQuoteService
         return $quotes;
     }
 
+    /** Seller → Solex agency → international carrier → recipient, one payable offer. */
+    /** International dispute legs use the actual CM seller origin, including reverse transport. */
+    public function exportDisputeQuotes(array $items, array $stops, bool $reverse): array
+    {
+        $vendor = $reverse ? $stops['dropoff'] : $stops['pickup'];
+        $client = $reverse ? $stops['pickup'] : $stops['dropoff'];
+        $country = CountryCode::normalize($client['country']);
+        $cart = array_replace($this->cart($items), [
+            'origin' => [$vendor['city'], 'CM'], 'origin_address' => $vendor['address'],
+            'origin_lat' => $vendor['latitude'], 'origin_lng' => $vendor['longitude'],
+        ]);
+        $offers = [];
+        foreach (DeliveryRoute::with('company')->where('is_active', true)->where('origin_country', 'CM')
+            ->where('destination_country', $country)->whereNotNull('export_config')
+            ->whereHas('company', fn ($q) => $q->where('is_active', true))->get() as $route) {
+            if (!$route->serves('CM', $vendor['city'], $country, $client['city'])) continue;
+            if ($offer = $this->exportQuote($route, $cart, $client['city'], $client['latitude'], $client['longitude'], $reverse)) {
+                $localHt = (float) (collect($offer['legs'])->first(fn ($leg) => in_array($leg['kind'] ?? '', ['export_collection', 'solex_return'], true))['price'] ?? 0);
+                $localTtc = min($offer['base_price'], $localHt + round($localHt * $offer['breakdown']['vat_rate'] / 100));
+                $offers[] = $offer + ['international_dispute' => true, 'reverse_transport' => $reverse,
+                    'settlement' => [
+                        ['company_id' => $offer['solex_company_id'], 'amount' => $localTtc, 'leg' => 'solex'],
+                        ['company_id' => $offer['company_id'], 'amount' => $offer['base_price'] - $localTtc, 'leg' => 'international'],
+                    ]];
+            }
+        }
+        return ['available' => $offers !== [], 'partners' => $offers, 'weight_kg' => $cart['weight_kg'],
+            'message' => $offers ? null : __('disputes.international_quote_unavailable')];
+    }
+
+    private function exportQuote(DeliveryRoute $route, array $cart, ?string $city, ?float $lat, ?float $lng, bool $reverse = false): ?array
+    {
+        $config = $route->export_config ?? [];
+        $company = $route->company;
+        // A single collection cannot silently cover several sellers or an import hub.
+        if ($cart['wholesale'] || $cart['weight_kg'] <= 0 || $cart['pickup_shop_count'] !== 1 || $cart['missing_weight'] !== []
+            || ($company->max_weight_kg && $cart['weight_kg'] > $company->max_weight_kg)) {
+            return null;
+        }
+        $agency = \App\Models\DeliveryAgency::with('company')->find($config['solex_agency_id'] ?? null);
+        if (! $agency?->is_active || ! $agency->company?->is_active
+            || ! preg_match('/solex/i', $agency->company->name)
+            || ($agency->company->max_weight_kg && $cart['weight_kg'] > $agency->company->max_weight_kg)) {
+            return null;
+        }
+        $scope = $config['coverage_mode'] ?? null;
+        if ($scope !== 'country' && ($scope !== 'polygon'
+            || ! \App\Support\ExportCoverage::contains($config['polygon'] ?? [], $lat, $lng))) {
+            return null;
+        }
+        $transportPricing = $reverse
+            ? ($config['return_pricing'] ?? (($config['provisional_rates'] ?? false) ? $route->pricing_data : []))
+            : $route->pricing_data;
+        if ($reverse && ($config['return_pricing_provisional'] ?? false) && !($config['provisional_rates'] ?? false)) return null;
+        $international = WeightGrid::price($transportPricing ?? [], $cart['weight_kg']);
+        $collectionPricing = $agency->collection_pricing ?? ($config['collection_pricing'] ?? []);
+        $collection = WeightGrid::price($collectionPricing, $cart['weight_kg']);
+        if (! $international || ! $collection) {
+            return null;
+        }
+        $agencySnapshot = $agency->toPickupArray();
+        $collectionOrigin = ['latitude' => $cart['origin_lat'], 'longitude' => $cart['origin_lng'],
+            'city' => $cart['origin'][0], 'address' => $cart['origin_address']];
+        $distance = \App\Support\DeliveryPresenter::distanceBetween($collectionOrigin, $agencySnapshot);
+        $perKm = (float) ($collectionPricing['price_per_km'] ?? 0);
+        if ($perKm > 0 && $distance['distance'] === null) {
+            return null;
+        }
+        $distancePrice = round(($distance['distance'] ?? 0) * $perKm);
+        $collectionBase = $collection['price'];
+        $collection['price'] += $distancePrice;
+        $offer = $this->offer($company, $international['price'] + $collection['price'], $international,
+            $international['range_label'], $cart['weight_kg'], [
+                'international_export' => true,
+                'conditions' => trim(($company->conditions ?? '').' '.(($config['provisional_rates'] ?? false) ? __('delivery.export.provisional') : '')) ?: null,
+                'solex_agency' => $agencySnapshot, 'solex_company_id' => $agency->deliverer_company_id, 'collection_origin' => $collectionOrigin,
+                'price_per_kg' => $international['price_per_kg'] ?? null,
+                'destination_country' => $route->destination_country,
+                'origin_city' => $cart['origin'][0],
+                'delivery_mode' => 'carrier', 'service_type' => 'international',
+                'zone_id' => null, 'zone_name' => null,
+                'route_id' => $route->id, 'route_label' => $route->label(),
+                'city' => $city, 'distance_km' => null, 'lead_time' => $route->lead_time,
+                'service_mode' => DelivererCompany::MODE_DOOR, 'delivery_option' => 'home_delivery',
+                'pricing_type' => 'international_export',
+                'price_grid' => WeightGrid::describe($route->pricing_data ?? []),
+                'sort_group' => 1, 'deliverer' => null,
+                'destination_coverage' => ['mode' => $scope, 'country' => $route->destination_country,
+                    'label' => $config['zone_label'] ?? CountryCode::name($route->destination_country),
+                    'polygon' => $scope === 'polygon' ? $config['polygon'] : null],
+                'legs' => [
+                    ['kind' => 'export_collection', 'label' => __('delivery.export.collection', ['agency' => $agency->name]),
+                        'price' => $collection['price'], 'base_price' => $collectionBase, 'distance_price' => $distancePrice,
+                        'price_per_km' => $perKm, 'distance_km' => $distance['distance'], 'distance_type' => $distance['distance_type'],
+                        'approximate_agency' => $agency->is_provisional || $agency->coordinate_precision === 'city_center'],
+                    ['label' => __('delivery.export.transport', ['carrier' => $company->name, 'destination' => $city ?: CountryCode::name($route->destination_country)]), 'price' => $international['price']],
+                ],
+            ]);
+        if ($reverse) {
+            $offer['route_label'] = CountryCode::name($route->destination_country).' → Cameroun';
+            $offer['legs'] = $offer['breakdown']['legs'] = [
+                ['kind' => 'international_return', 'label' => $company->name.' → '.$agency->name, 'price' => $international['price']],
+                ['kind' => 'solex_return', 'label' => $agency->name.' → vendeur', 'price' => $collection['price'],
+                    'distance_km' => $distance['distance'], 'distance_type' => $distance['distance_type']],
+            ];
+        }
+        return $offer;
+    }
+
     /** Offre complète : tout ce que l'acheteur doit voir avant de valider. */
     private function offer(DelivererCompany $company, float $carrierPrice, ?array $grid, string $rangeLabel, float $weightKg, array $extra): array
     {
@@ -1011,6 +1138,7 @@ class DeliveryQuoteService
                 'weight_kg' => $weightKg,
                 'range_label' => $rangeLabel,
                 'range_price' => $grid['range_price'] ?? $carrierPrice,
+                'price_per_kg' => $grid['price_per_kg'] ?? null,
                 'extra_kg' => $grid['extra_kg'] ?? 0,
                 'extra_per_kg' => $grid['extra_per_kg'] ?? 0,
                 'extra_price' => $grid['extra_price'] ?? 0,

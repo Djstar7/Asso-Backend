@@ -244,7 +244,7 @@ class DeliveryPartnersTest extends TestCase
             ->assertJsonPath('order.delivery.tracking_status', 'reception_confirmed');
     }
 
-    public function test_international_route_must_arrive_in_cameroon(): void
+    public function test_export_route_requires_solex_configuration_and_import_stays_one_way(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
         $dhl = DelivererCompany::create(['name' => 'DHL', 'service_type' => 'international', 'is_active' => true]);
@@ -254,7 +254,7 @@ class DeliveryPartnersTest extends TestCase
             'ranges' => [['min' => 0, 'max' => 5, 'price' => 30000]],
         ];
         $this->actingAs($admin)->post(route('admin.delivery-partners.routes.store', $dhl), $payload)
-            ->assertSessionHasErrors('destination_country');
+            ->assertSessionHasErrors(['solex_agency_id', 'collection_price', 'collection_max_kg', 'coverage_mode']);
 
         $payload = ['origin_country' => 'CN', 'destination_country' => 'CM', 'bidirectional' => '1'] + $payload;
         $this->actingAs($admin)->post(route("admin.delivery-partners.routes.store", $dhl), $payload)->assertSessionHasNoErrors();

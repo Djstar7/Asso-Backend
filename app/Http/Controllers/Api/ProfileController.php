@@ -555,7 +555,7 @@ class ProfileController extends Controller
         // 3. Commandes de sa company (confirmed, pas encore de delivery_person)
         $companyOrders = collect();
         if ($companyIds->isNotEmpty()) {
-            $companyOrders = \App\Models\Order::whereIn('delivery_company_id', $companyIds)
+            $companyOrders = \App\Models\Order::offeredToCourier($user)
                 ->whereNull('delivery_person_id')
                 ->awaitingCourier()
                 ->with(['items.product.primaryImage', 'user', 'deliveryCompany'])

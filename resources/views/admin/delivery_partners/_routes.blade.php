@@ -1,8 +1,8 @@
 <section class="bg-dark-100 border border-dark-200 rounded-xl p-4 md:p-6">
     <div class="flex flex-wrap items-start justify-between gap-3 mb-4">
         <div>
-            <h2 class="text-xl font-semibold text-white">Liaisons interurbaines</h2>
-            <p class="text-sm text-gray-400 mt-1">National : entre chefs-lieux des régions. Régional : entre départements d’une même région.</p>
+            <h2 class="text-xl font-semibold text-white">Trajets nationaux et internationaux</h2>
+            <p class="text-sm text-gray-400 mt-1">Trajets au Cameroun, importations et exportations via Solex puis DHL ou FedEx. Les prix se modifient dans chaque trajet.</p>
         </div>
         <a href="{{ route('admin.delivery-partners.edit', [$partner, 'section' => 'routes', 'add_route' => 1]) }}#route-editor" class="text-sm text-primary-400 hover:underline">+ Ajouter un trajet</a>
     </div>
@@ -22,6 +22,12 @@
             <div class="py-3 flex flex-wrap justify-between items-center gap-3">
                 <div>
                     <p class="text-sm font-medium text-white">{{ $listedRoute->label() }}</p>
+                    @if(($listedRoute->pricing_data['mode'] ?? null) === 'per_kg')
+                        <p class="text-sm text-primary-400">{{ number_format($listedRoute->pricing_data['price_per_kg'], 0, ',', ' ') }} FCFA / kg</p>
+                    @endif
+                    @if($listedRoute->export_config['demo_dataset'] ?? null)
+                        <p class="text-xs text-yellow-400">Données d’essai · tarifs et couverture provisoires</p>
+                    @endif
                     <p class="text-xs text-gray-400 mt-1">{{ ['interregional' => 'National', 'intraregional' => 'Régional'][$listedRoute->network_level] ?? 'Autre trajet' }} · {{ $listedRoute->lead_time ?: 'Délai à renseigner' }} · {{ $listedRoute->is_active ? 'Active' : 'Inactive' }}</p>
                 </div>
                 <a class="text-sm text-primary-400 hover:underline" href="{{ route('admin.delivery-partners.edit', [$partner, 'section' => 'routes', 'network_level' => request('network_level'), 'page' => $routesPage->currentPage(), 'edit_route' => $listedRoute->id]) }}#route-editor">Modifier →</a>

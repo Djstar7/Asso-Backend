@@ -37,10 +37,19 @@
             <div class="flex flex-col gap-2">
                 <form action="{{ route('admin.deliverers.sync-code', $partner) }}" method="POST">
                     @csrf
+                    <label class="block text-sm text-gray-300 mb-2">Agence du code
+                        <select name="delivery_agency_id" class="w-full bg-dark-50 border border-dark-300 rounded px-3 py-2 text-white">
+                            <option value="">Partenaire uniquement (sans agence)</option>
+                            @foreach(\App\Models\DeliveryAgency::where('deliverer_company_id', $partner->id)->where('is_active', true)->where('is_international_reference', false)->orderBy('city')->get() as $codeAgency)
+                                <option value="{{ $codeAgency->id }}">{{ $codeAgency->name }} · {{ $codeAgency->city }}</option>
+                            @endforeach
+                        </select>
+                    </label>
                     <button type="submit" class="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 text-sm w-full">
                         <i class="fas fa-key mr-1"></i> Générer un code de synchronisation
                     </button>
                 </form>
+                <a href="{{ route('admin.deliverers.syncs.company', $partner) }}" class="text-primary-400 text-sm">Rattacher les livreurs existants à une agence</a>
                 <a href="{{ route('admin.deliverers.show', $partner) }}" class="px-4 py-2 bg-dark-50 border border-dark-300 text-gray-300 rounded-lg hover:text-white text-sm text-center">
                     <i class="fas fa-id-card mr-1"></i> Fiche livreur et historique
                 </a>

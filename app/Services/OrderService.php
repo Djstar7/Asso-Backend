@@ -67,13 +67,15 @@ class OrderService
         ?string $deliveryCountry = null,
         ?int $deliveryGridId = null,    // grille urbaine zone à zone (ex. SOLEX Douala)
         ?string $deliveryVehicle = null, // moto, tricycle, 600kg, 1t
-        ?string $deliveryQuarter = null  // quartier de l'acheteur (zone d'arrivée)
+        ?string $deliveryQuarter = null,  // quartier de l'acheteur (zone d'arrivée)
+        ?string $recipientName = null,
+        ?string $deliveryPostalCode = null
     ): Order {
         return DB::transaction(function () use (
             $client, $items, $deliveryCompanyId, $deliveryZoneId, $walletProvider,
             $deliveryRouteId, $deliveryCity, $deliveryCountry, $deliveryGridId, $deliveryVehicle, $deliveryQuarter,
             $deliveryAddress,
-            $deliveryAddressDetails,
+            $deliveryAddressDetails, $recipientName, $deliveryPostalCode,
             $customerPhone,
             $deliveryLatitude,
             $deliveryLongitude,
@@ -214,6 +216,9 @@ class OrderService
                 $deliveryQuarter,
                 $deliveryAddress,
             );
+            if (($quote['international_export'] ?? false) && (! filled($recipientName) || ! filled($deliveryAddress) || ! filled($deliveryCity))) {
+                throw new \Exception(__('delivery.export.recipient_required'));
+            }
             $baseDeliveryPrice = (float) $quote['base_price'];   // part transporteur, TVA comprise
             $assoCommission = (float) $quote['asso_commission'];
             $deliveryFee = (float) $quote['delivery_price'];
@@ -291,6 +296,8 @@ class OrderService
                 'delivery_address' => $deliveryAddress,
                 'delivery_address_details' => $deliveryAddressDetails,
                 'customer_phone' => $customerPhone,
+                'recipient_name' => $recipientName,
+                'delivery_postal_code' => $deliveryPostalCode,
                 // Au moins un produit local (Cameroun) : menu « Commandes locales » du Dashboard.
                 'has_local_products' => collect($orderedProducts)->contains(fn ($p) => $p->is_local_made && ! $p->origin_country),
                 'delivery_latitude' => $deliveryLatitude,
@@ -1215,6 +1222,12 @@ class OrderService
             }
             app(OrderTrackingService::class)->record($locked, 'confirmed', null, null, $actorType, $actorId);
 
+            if ($locked->isInternationalExport()) {
+                $locked = app(AssoShipmentService::class)->advance(
+                    $locked, ['step' => 'export_pickup_requested'], $vendor, 'system'
+                );
+            }
+
             return $locked;
         });
 
@@ -1431,6 +1444,11 @@ class OrderService
     private function deliverySnapshot(array $quote, array $products = []): array
     {
         return [
+            'international_export' => $quote['international_export'] ?? false,
+            'solex_agency' => $quote['solex_agency'] ?? null,
+            'collection_origin' => $quote['collection_origin'] ?? null,
+            'origin_city' => $quote['origin_city'] ?? null,
+            'destination_country' => $quote['destination_country'] ?? null,
             'pricing_type' => $quote['pricing_type'] ?? null,
             'network_level' => $quote['network_level'] ?? null,
             'company_name' => $quote['company_name'],

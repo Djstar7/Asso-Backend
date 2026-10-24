@@ -123,24 +123,26 @@ class DisputeService
     /** L'équipe ASSO prend le dossier. */
     public function markInReview(Dispute $dispute, User $employee): Dispute
     {
-        if ($dispute->status !== Dispute::STATUS_NEW) {
+        return DB::transaction(function () use ($dispute, $employee) {
+            $dispute = Dispute::whereKey($dispute->id)->lockForUpdate()->firstOrFail();
+            if ($dispute->status !== Dispute::STATUS_NEW || $dispute->refunded_at) return $dispute;
+            $dispute->update(['status' => Dispute::STATUS_IN_REVIEW]);
+            $this->event($dispute, 'in_review', __('disputes.events.in_review', [], 'fr'), null, 'admin', $employee->id);
             return $dispute;
-        }
-        $dispute->update(['status' => Dispute::STATUS_IN_REVIEW]);
-        $this->event($dispute, 'in_review', __('disputes.events.in_review', [], 'fr'), null, 'admin', $employee->id);
-
-        return $dispute;
+        });
     }
 
     /** ASSO demande au vendeur ses explications et preuves. */
     public function contactVendor(Dispute $dispute, User $employee, ?string $note): Dispute
     {
-        $this->assertNotDecided($dispute);
-        $dispute->update(['status' => Dispute::STATUS_VENDOR_CONTACTED]);
-        $this->event($dispute, 'vendor_contacted', __('disputes.events.vendor_contacted', [], 'fr'), $note, 'admin', $employee->id);
-        $this->notifySeller($dispute, 'dispute_vendor_contacted', ['number' => $dispute->number]);
-
-        return $dispute;
+        return DB::transaction(function () use ($dispute, $employee, $note) {
+            $dispute = Dispute::whereKey($dispute->id)->lockForUpdate()->firstOrFail();
+            $this->assertNotDecided($dispute);
+            $dispute->update(['status' => Dispute::STATUS_VENDOR_CONTACTED]);
+            $this->event($dispute, 'vendor_contacted', __('disputes.events.vendor_contacted', [], 'fr'), $note, 'admin', $employee->id);
+            DB::afterCommit(fn () => $this->notifySeller($dispute, 'dispute_vendor_contacted', ['number' => $dispute->number]));
+            return $dispute;
+        });
     }
 
     /**
@@ -224,9 +226,8 @@ class DisputeService
                 return $dispute->refresh();
             }
 
-            if ($dispute->isAssoManaged()) {
-                $this->startReplacement($dispute, 'admin', $employee->id);
-            }
+            // All product origins retain the same explicit choice: replacement or return.
+            // Creating/funding a shipment happens only after that choice, including ASSO sales.
 
             $this->notifyClient($dispute, 'dispute_founded', ['number' => $dispute->number]);
             $this->notifySeller($dispute, 'dispute_founded_vendor', ['number' => $dispute->number]);
@@ -245,7 +246,7 @@ class DisputeService
         return DB::transaction(function () use ($dispute, $actorType, $actorId) {
             $locked = Dispute::whereKey($dispute->id)->lockForUpdate()->firstOrFail();
             $prepared = $locked->shipment(DisputeShipment::TYPE_REPLACEMENT);
-            if ($locked->isAssoManaged() && $locked->status === Dispute::STATUS_REPLACEMENT
+            if (($locked->isAssoManaged() || $locked->order->isInternationalExport() || config('disputes.collect_before_replacement', true)) && $locked->status === Dispute::STATUS_REPLACEMENT
                 && $locked->shipment(DisputeShipment::TYPE_COLLECTION)?->isHandedOver()
                 && $prepared?->status === 'awaiting_preparation') {
                 $prepared->update(['status' => 'awaiting_payment']);
@@ -265,7 +266,7 @@ class DisputeService
                 'replacement_count' => $locked->replacement_count + 1,
                 'auto_validate_at' => null,
             ]);
-            $shipment = $this->createShipment($locked, $locked->isAssoManaged() ? DisputeShipment::TYPE_COLLECTION : DisputeShipment::TYPE_REPLACEMENT);
+            $shipment = $this->createShipment($locked, ($locked->isAssoManaged() || $locked->order->isInternationalExport() || config('disputes.collect_before_replacement', true)) ? DisputeShipment::TYPE_COLLECTION : DisputeShipment::TYPE_REPLACEMENT);
             $this->event($locked, 'replacement', __('disputes.events.replacement_authorized', [], 'fr'), null, $actorType, $actorId);
 
             return $shipment;
@@ -289,6 +290,10 @@ class DisputeService
             }
             $collected = $locked->shipment(DisputeShipment::TYPE_COLLECTION)?->isHandedOver()
                 && !$locked->shipment(DisputeShipment::TYPE_REPLACEMENT)?->isPaid();
+            if ($locked->order->isInternationalExport()) {
+                $collected = $locked->shipment(DisputeShipment::TYPE_COLLECTION)?->status === 'confirmed'
+                    && !$locked->shipment(DisputeShipment::TYPE_REPLACEMENT)?->isPaid();
+            }
             if ($afterReplacement && !$this->replacementDelivered($locked) && !$collected) {
                 throw new \Exception(__('disputes.replacement_in_progress'));
             }
@@ -401,6 +406,10 @@ class DisputeService
     public function partnerQuotes(DisputeShipment $shipment): array
     {
         $stops = $this->courseStops($shipment);
+        if ($shipment->isInternational()) {
+            return app(DeliveryQuoteService::class)->exportDisputeQuotes($this->quoteItems($shipment->dispute),
+                $stops, $shipment->type !== DisputeShipment::TYPE_REPLACEMENT);
+        }
         return app(DeliveryQuoteService::class)->quotes(
             $this->quoteItems($shipment->dispute),
             $stops['dropoff']['latitude'], $stops['dropoff']['longitude'],
@@ -414,12 +423,19 @@ class DisputeService
     public function choosePartner(DisputeShipment $shipment, array $choice): DisputeShipment
     {
         return DB::transaction(function () use ($shipment, $choice) {
+            Dispute::whereKey($shipment->dispute_id)->lockForUpdate()->firstOrFail();
             $shipment = DisputeShipment::whereKey($shipment->id)->lockForUpdate()->firstOrFail();
+            if (!$shipment->dispute->isOpen() || $shipment->dispute->refunded_at) throw new \DomainException('Dossier déjà remboursé ou clôturé.');
             if ($shipment->isPaid() || $shipment->payment_reference) {
                 throw new \Exception(__('disputes.shipment_already_paid'));
             }
+            if ($shipment->status === 'awaiting_preparation') throw new \Exception(__('disputes.action_unavailable'));
             $stops = $this->courseStops($shipment);
-            $quote = app(DeliveryQuoteService::class)->quoteFor(
+            $quote = $shipment->isInternational()
+                ? collect($this->partnerQuotes($shipment)['partners'])->first(fn ($offer) =>
+                    $offer['company_id'] === (int) $choice['company_id']
+                    && (!isset($choice['route_id']) || $offer['route_id'] === (int) $choice['route_id']))
+                : app(DeliveryQuoteService::class)->quoteFor(
                 $this->quoteItems($shipment->dispute), (int) $choice['company_id'],
                 isset($choice['zone_id']) ? (int) $choice['zone_id'] : null,
                 isset($choice['route_id']) ? (int) $choice['route_id'] : null,
@@ -429,6 +445,9 @@ class DisputeService
                 $choice['vehicle'] ?? null, $stops['dropoff']['quarter'], $stops['dropoff']['address'],
                 $this->quoteOrigin($stops['pickup']),
             );
+            if (!$quote) {
+                throw new \Exception(__('disputes.international_quote_unavailable'));
+            }
             if (($quote['delivery_option'] ?? null) === 'agency_pickup') {
                 throw new \Exception(__('disputes.door_delivery_required'));
             }
@@ -460,7 +479,9 @@ class DisputeService
     public function initiatePayment(DisputeShipment $shipment, User $vendor, string $mode, ?string $provider = null, ?string $phone = null): DisputeShipment
     {
         $shipment = DB::transaction(function () use ($shipment, $vendor, $mode, $provider, $phone) {
+            Dispute::whereKey($shipment->dispute_id)->lockForUpdate()->firstOrFail();
             $locked = DisputeShipment::whereKey($shipment->id)->lockForUpdate()->firstOrFail();
+            if (!$locked->dispute->isOpen() || $locked->dispute->refunded_at) throw new \DomainException('Dossier déjà remboursé ou clôturé.');
             if ($locked->payer !== 'vendor') {
                 throw new \Exception(__('disputes.action_unavailable'));
             }
@@ -561,11 +582,12 @@ class DisputeService
     public function payByAsso(DisputeShipment $shipment, User $employee): void
     {
         DB::transaction(function () use ($shipment, $employee) {
+            Dispute::whereKey($shipment->dispute_id)->lockForUpdate()->firstOrFail();
             $shipment = DisputeShipment::whereKey($shipment->id)->lockForUpdate()->firstOrFail();
             if ($shipment->isPaid()) {
                 return;
             }
-            if ($shipment->payer !== 'asso' || $shipment->status === 'awaiting_preparation') {
+            if (!$shipment->dispute->isOpen() || $shipment->dispute->refunded_at || $shipment->payer !== 'asso' || $shipment->status === 'awaiting_preparation') {
                 throw new \Exception(__('disputes.action_unavailable'));
             }
             if (!$shipment->deliverer_company_id) {
@@ -583,11 +605,21 @@ class DisputeService
     public function confirmPayment(DisputeShipment $shipment, ?User $employee = null): void
     {
         $paid = DB::transaction(function () use ($shipment) {
+            Dispute::whereKey($shipment->dispute_id)->lockForUpdate()->firstOrFail();
             $locked = DisputeShipment::whereKey($shipment->id)->lockForUpdate()->with('dispute.order')->first();
             if (!$locked || $locked->isPaid() || !$locked->payment_mode) {
                 return null;
             }
             $dispute = $locked->dispute;
+            if (!$dispute->isOpen() || $dispute->receipt_waived_at) {
+                if (in_array($locked->payment_mode, ['kpay_direct', 'stripe_direct'], true) && $dispute->seller_id) {
+                    $this->wallet->credit(User::findOrFail($dispute->seller_id), (float) $locked->price, null,
+                        'Remboursement transport après arbitrage #'.$dispute->number,
+                        ['dispute_shipment_id' => $locked->id, 'refund' => true], 'kpay');
+                    $locked->update(['payment_status' => DisputeShipment::PAYMENT_PAID, 'paid_at' => now(), 'status' => 'cancelled']);
+                }
+                return null;
+            }
             if ($locked->payer === 'asso') {
                 $platform = CommissionService::platformAccount();
                 if (!$platform || !$locked->deliverer_company_id) {
@@ -618,7 +650,17 @@ class DisputeService
             }
 
             // Course du partenaire : Wallet de son compte interne.
-            if ($locked->deliverer_company_id && (float) $locked->carrier_amount > 0) {
+            if ($locked->isInternational()) {
+                $splits = $locked->quote['settlement'] ?? [];
+                if (!$splits || abs(array_sum(array_column($splits, 'amount')) - (float) $locked->carrier_amount) > 0.01) {
+                    throw new \Exception(__('disputes.choose_partner_first'));
+                }
+                foreach ($splits as $split) {
+                    PartnerAccountService::credit((int) $split['company_id'], (float) $split['amount'],
+                        WalletTransaction::label('dispute_course_'.$this->shipmentKind($locked), ['number' => $dispute->number]),
+                        'dispute_shipment', $locked->id, ['dispute_shipment_id' => $locked->id, 'leg' => $split['leg']]);
+                }
+            } elseif ($locked->deliverer_company_id && (float) $locked->carrier_amount > 0) {
                 PartnerAccountService::credit(
                     (int) $locked->deliverer_company_id,
                     (float) $locked->carrier_amount,
@@ -676,22 +718,32 @@ class DisputeService
      */
     private function notifyPartner(DisputeShipment $shipment): void
     {
-        $company = $shipment->company ?? DelivererCompany::find($shipment->deliverer_company_id);
-        if (!$company) {
-            return;
+        if ($shipment->isInternational()) {
+            if (!$shipment->isOpenForCourier()) return;
+            $agency = \App\Models\DeliveryAgency::with('company')->find($shipment->agencyId());
+            if (!$agency?->is_active || !$agency->company?->is_active) return;
+            $company = $agency->company;
+            $recipients = \App\Models\DelivererCodeSync::where('delivery_agency_id', $shipment->agencyId())
+                ->where('company_id', $company?->id)->active()->with('user')->get()->pluck('user')->filter()->unique('id');
+        } else {
+            $company = $shipment->company ?? DelivererCompany::find($shipment->deliverer_company_id);
+            if (!$company) {
+                return;
+            }
+            $recipients = \App\Models\DelivererCodeSync::where('company_id', $company->id)
+                ->active()
+                ->with('user')
+                ->get()
+                ->pluck('user')
+                ->push($company->user_id ? User::find($company->user_id) : null)
+                ->filter()
+                ->unique('id');
         }
-        $recipients = \App\Models\DelivererCodeSync::where('company_id', $company->id)
-            ->active()
-            ->with('user')
-            ->get()
-            ->pluck('user')
-            ->push($company->user_id ? User::find($company->user_id) : null)
-            ->filter()
-            ->unique('id');
 
         $stops = $this->courseStops($shipment);
         $type = $shipment->type !== DisputeShipment::TYPE_REPLACEMENT ? 'dispute_return_course' : 'dispute_replacement_course';
         foreach ($recipients as $user) {
+            if ($shipment->isInternational()) $stops = $this->courseToApi($shipment, $user);
             try {
                 $this->fcm->sendToUser(
                     $user,
@@ -776,10 +828,27 @@ class DisputeService
     public function recordStep(DisputeShipment $shipment, string $step, string $actorType, ?int $actorId, ?string $note = null, ?string $trackingNumber = null, ?UploadedFile $proof = null, ?string $confirmationCode = null): DisputeShipment
     {
         return DB::transaction(function () use ($shipment, $step, $actorType, $actorId, $note, $trackingNumber, $proof, $confirmationCode) {
-            Dispute::whereKey($shipment->dispute_id)->lockForUpdate()->firstOrFail();
+            $activeDispute = Dispute::whereKey($shipment->dispute_id)->lockForUpdate()->firstOrFail();
+            if (!$activeDispute->isOpen() || $activeDispute->receipt_waived_at) {
+                throw new \DomainException('Dossier clôturé par arbitrage ASSO.');
+            }
             $shipment = DisputeShipment::whereKey($shipment->id)->lockForUpdate()->firstOrFail();
+            $international = $shipment->isInternational();
+            $localFinal = $shipment->type === DisputeShipment::TYPE_REPLACEMENT ? 'at_solex' : 'delivered_to_vendor';
             if ($actorType === 'partner' && $shipment->delivery_person_id !== $actorId) {
                 throw new \Exception(__('disputes.course_unavailable'));
+            }
+            if ($international && $actorType === 'partner' && !in_array($step, ['solex_pickup_scheduled', 'solex_collected', $localFinal], true)) {
+                throw new \Exception(__('disputes.step_invalid'));
+            }
+            if ($international && in_array($step, ['picked_up', 'handed_to_carrier'], true)
+                && !filled($trackingNumber ?: $shipment->carrier_tracking_number)) {
+                if (!\App\Support\ExportTestTracking::enabled()) throw new \Exception(__('delivery.export.tracking_required'));
+                $trackingNumber = 'TEST-ASSO-LIT-'.$shipment->id;
+            }
+            if ($international && \App\Support\ExportTestTracking::isTest($trackingNumber ?: $shipment->carrier_tracking_number)
+                && !\App\Support\ExportTestTracking::enabled()) {
+                throw new \Exception(__('delivery.export.test_tracking_disabled'));
             }
             if ($step === $shipment->codeStep() && !$shipment->picked_up_at) {
                 throw new \Exception(__('disputes.step_invalid'));
@@ -787,15 +856,19 @@ class DisputeService
             if (!in_array($step, $shipment->nextSteps(), true)) {
                 throw new \Exception(__('disputes.step_invalid'));
             }
-            if ($actorType === 'vendor' && $step !== 'shipped') {
+            if ($actorType === 'vendor' && ($international
+                ? ($step !== 'confirmed' || $actorId !== $shipment->dispute->seller_id)
+                : $step !== 'shipped')) {
                 throw new \Exception(__('disputes.step_invalid'));
             }
             // « Retour confirmé » suit automatiquement la remise au vendeur.
-            if ($step === 'confirmed' && $actorType !== 'system') {
+            if ($step === 'confirmed' && ($international
+                ? !($actorType === 'system' || $actorType === 'vendor' || ($actorType === 'admin' && $shipment->dispute->isAssoManaged()))
+                : $actorType !== 'system')) {
                 throw new \Exception(__('disputes.step_invalid'));
             }
             // Course créée avant les codes : pas de code à vérifier.
-            if ($step === $shipment->codeStep() && $shipment->confirmation_code !== null
+            if ((!$international && $step === $shipment->codeStep() || $international && ($step === 'delivered_to_vendor' || $actorType === 'partner' && $step === $localFinal)) && $shipment->confirmation_code !== null
                 && !hash_equals((string) $shipment->confirmation_code, trim((string) $confirmationCode))) {
                 throw new \Exception(__('disputes.confirmation_code_incorrect'));
             }
@@ -810,7 +883,7 @@ class DisputeService
             if (in_array($step, ['delivered', 'delivered_to_vendor'], true)) {
                 $updates['delivered_at'] = now();
             }
-            if ($step === $shipment->pickupStep()) {
+            if (!$international && $step === $shipment->pickupStep() || $international && $step === 'solex_collected') {
                 $updates['picked_up_at'] = now();
             }
             $shipment->update($updates);
@@ -835,7 +908,8 @@ class DisputeService
                 } elseif ($step === 'delivered_to_vendor') {
                     $this->notifySeller($dispute, 'dispute_return_delivered', ['number' => $dispute->number]);
 
-                    // La confirmation distingue la collecte pour échange du retour définitif.
+                    // Le code validé vaut réception : aucune seconde confirmation du vendeur.
+                    // Une collecte ouvre la préparation ; seul le retour définitif rembourse.
                     return $this->recordStep($shipment->refresh(), 'confirmed', 'system', null);
                 } elseif ($step === 'confirmed') {
                     if ($shipment->type === DisputeShipment::TYPE_COLLECTION) {
@@ -847,6 +921,14 @@ class DisputeService
                     } else {
                         $this->refund($dispute->refresh(), $actorType, $actorId);
                     }
+                }
+            }
+
+            if ($international && $step === 'at_solex') {
+                $shipment->update(['delivery_person_id' => null, 'accepted_at' => null]);
+                if ($shipment->type !== DisputeShipment::TYPE_REPLACEMENT) {
+                    $shipment->update(['picked_up_at' => null]);
+                    DB::afterCommit(fn () => $this->notifyPartner($shipment->fresh()));
                 }
             }
 
@@ -869,10 +951,12 @@ class DisputeService
         return DisputeShipment::with(['dispute.order.user', 'dispute.item.product.shop.user', 'company'])
             ->where('payment_status', DisputeShipment::PAYMENT_PAID)
             ->where(fn ($q) => $q->where('delivery_person_id', $courier->id)
-                ->orWhere(fn ($open) => $open->whereNull('delivery_person_id')->whereIn('deliverer_company_id', $companyIds)))
+                ->orWhere(fn ($open) => $open->whereNull('delivery_person_id')->whereIn('deliverer_company_id', $companyIds))
+                ->orWhereHas('dispute.order', fn ($q) => $q->where('delivery_breakdown->international_export', true)))
             ->orderBy('paid_at')
             ->get()
             ->filter->isOpenForCourier()
+            ->filter(fn ($s) => !$s->isInternational() || ((!$s->delivery_person_id || $s->delivery_person_id === $courier->id) && $this->isSolexAgencyCourier($s, $courier)))
             ->values();
     }
 
@@ -882,7 +966,7 @@ class DisputeService
         return DB::transaction(function () use ($shipment, $courier) {
             $locked = DisputeShipment::whereKey($shipment->id)->lockForUpdate()->firstOrFail();
             if (!$locked->isOpenForCourier()
-                || !$this->courierCompanyIds($courier)->contains($locked->deliverer_company_id)
+                || !($locked->isInternational() ? $this->isSolexAgencyCourier($locked, $courier) : $this->courierCompanyIds($courier)->contains($locked->deliverer_company_id))
                 || ($locked->delivery_person_id && $locked->delivery_person_id !== $courier->id)) {
                 throw new \Exception(__('disputes.course_unavailable'));
             }
@@ -890,7 +974,10 @@ class DisputeService
                 return $locked;
             }
             $locked->update(['delivery_person_id' => $courier->id, 'accepted_at' => $locked->accepted_at ?? now()]);
-            if ($locked->type !== DisputeShipment::TYPE_REPLACEMENT && $locked->status === 'courier_selected') {
+            if ($locked->isInternational()) {
+                $this->recordStep($locked, 'solex_pickup_scheduled', 'partner', $courier->id);
+                $locked->refresh();
+            } elseif ($locked->type !== DisputeShipment::TYPE_REPLACEMENT && $locked->status === 'courier_selected') {
                 $this->recordStep($locked, 'pickup_scheduled', 'partner', $courier->id);
                 $locked->refresh();
             }
@@ -906,6 +993,7 @@ class DisputeService
         $this->assertCourier($shipment, $courier);
 
         return DB::transaction(function () use ($shipment, $courier) {
+            if ($shipment->isInternational()) return $this->recordStep($shipment, 'solex_collected', 'partner', $courier->id);
             $picked = $this->recordStep($shipment, $shipment->pickupStep(), 'partner', $courier->id);
             return $picked->type === DisputeShipment::TYPE_REPLACEMENT ? $picked
                 : $this->recordStep($picked, 'in_transit', 'partner', $courier->id);
@@ -917,14 +1005,24 @@ class DisputeService
     {
         $this->assertCourier($shipment, $courier);
 
-        return $this->recordStep($shipment, $shipment->codeStep(), 'partner', $courier->id, null, null, null, $code);
+        $step = $shipment->isInternational() && $shipment->type === DisputeShipment::TYPE_REPLACEMENT ? 'at_solex' : $shipment->codeStep();
+        return $this->recordStep($shipment, $step, 'partner', $courier->id, null, null, null, $code);
     }
 
     /** Points de retrait et de remise d'une course, avec les numéros à appeler. */
     public function courseStops(DisputeShipment $shipment): array
     {
         if ($shipment->stops) {
-            return $shipment->stops;
+            $stops = $shipment->stops;
+            if ($shipment->isInternational()) {
+                $vendorKey = $shipment->type === DisputeShipment::TYPE_REPLACEMENT ? 'pickup' : 'dropoff';
+                $stops[$vendorKey]['country'] ??= 'CM';
+                $clientKey = $vendorKey === 'pickup' ? 'dropoff' : 'pickup';
+                $stops[$clientKey]['country'] = $shipment->dispute->order->delivery_breakdown['destination_country']
+                    ?? $shipment->dispute->order->deliveryRoute?->destination_country ?? $stops[$clientKey]['country'];
+                $stops[$clientKey]['city'] ??= $shipment->dispute->order->delivery_breakdown['destination_city'] ?? null;
+            }
+            return $stops;
         }
         $dispute = $shipment->dispute;
         $order = $dispute->order;
@@ -940,8 +1038,12 @@ class DisputeService
             'latitude' => $shop?->latitude !== null ? (float) $shop->latitude : null,
             'longitude' => $shop?->longitude !== null ? (float) $shop->longitude : null,
         ];
+        if ($order?->isInternationalExport()) $shopStop['country'] ??= 'CM';
         [$addressCity] = \App\Support\LocationFormatter::parse($order->delivery_address);
-        $clientStop = ['city' => $order->delivery_city ?: $addressCity, 'country' => \App\Support\CountryCode::normalize($order->delivery_country) ?: 'CM', 'quarter' => $order->delivery_quarter, 'role' => 'client'] + \App\Support\DeliveryPresenter::dropoffFor($order);
+        $clientStop = ['city' => $order->delivery_city ?: ($order->delivery_breakdown['destination_city'] ?? $addressCity),
+            'country' => \App\Support\CountryCode::normalize($order->delivery_breakdown['destination_country'] ?? $order->delivery_country)
+                ?: ($order->isInternationalExport() ? $order->deliveryRoute?->destination_country : 'CM'),
+            'quarter' => $order->delivery_quarter, 'role' => 'client'] + \App\Support\DeliveryPresenter::dropoffFor($order);
 
         return $shipment->type !== DisputeShipment::TYPE_REPLACEMENT
             ? ['pickup' => $clientStop, 'dropoff' => $shopStop]
@@ -952,22 +1054,35 @@ class DisputeService
     public function courseToApi(DisputeShipment $shipment, User $courier): array
     {
         $dispute = $shipment->dispute;
+        $stops = $this->courseStops($shipment);
+        $fee = (float) $shipment->carrier_amount;
+        $companyName = $shipment->company?->name;
+        if ($shipment->isInternational()) {
+            $agency = $shipment->quote['solex_agency'] ?? $dispute->order->delivery_breakdown['solex_agency'] ?? [];
+            $key = $shipment->type === DisputeShipment::TYPE_REPLACEMENT ? 'dropoff' : 'pickup';
+            $stops[$key] = ['role' => 'agency', 'name' => $agency['name'] ?? null, 'phone' => $agency['phone'] ?? null,
+                'address' => $agency['address'] ?? null, 'city' => $agency['city'] ?? null, 'country' => 'CM',
+                'latitude' => $agency['latitude'] ?? null, 'longitude' => $agency['longitude'] ?? null];
+            $fee = (float) (collect($shipment->quote['legs'] ?? [])->first(fn ($leg) => in_array($leg['kind'] ?? '', ['export_collection', 'solex_return'], true))['price'] ?? 0);
+            $companyName = \App\Models\DeliveryAgency::find($shipment->agencyId())?->company?->name;
+        }
 
         return [
             'id' => $shipment->id,
             'type' => $shipment->type,
+            'completion_kind' => $shipment->isInternational() && $shipment->type === DisputeShipment::TYPE_REPLACEMENT ? 'agency' : $shipment->codeHolder(),
             'dispute_number' => $dispute->number,
             'order_number' => $dispute->order?->order_number,
             'product_name' => $dispute->item?->product?->name,
             'quantity' => $dispute->disputedQuantity(),
-            'company_name' => $shipment->company?->name,
-            'commission' => (float) $shipment->carrier_amount,
+            'company_name' => $companyName,
+            'commission' => $fee,
             'status' => $shipment->status,
-            'status_label' => __("disputes.shipment_steps.{$shipment->translationType()}.{$shipment->status}"),
+            'status_label' => $shipment->stepLabel($shipment->status),
             'is_mine' => $shipment->delivery_person_id === $courier->id,
             'picked_up' => $shipment->picked_up_at !== null,
             'paid_at' => $shipment->paid_at?->toIso8601String(),
-        ] + $this->courseStops($shipment);
+        ] + $stops;
     }
 
     private function courierCompanyIds(User $courier): Collection
@@ -976,6 +1091,15 @@ class DisputeService
             ->merge(DelivererCompany::where('user_id', $courier->id)->pluck('id'))
             ->unique()
             ->values();
+    }
+
+    private function isSolexAgencyCourier(DisputeShipment $shipment, User $courier): bool
+    {
+        $agency = \App\Models\DeliveryAgency::with('company')->find($shipment->agencyId());
+        return $agency?->is_active && $agency->company?->is_active
+            && preg_match('/solex/i', $agency->company->name)
+            && \App\Models\DelivererCodeSync::where('delivery_agency_id', $agency->id)
+                ->where('company_id', $agency->deliverer_company_id)->where('user_id', $courier->id)->active()->exists();
     }
 
     private function assertCourier(DisputeShipment $shipment, User $courier): void
@@ -1002,6 +1126,12 @@ class DisputeService
                 return null;
             }
             $order = $locked->order;
+            $finalReturn = $locked->shipment(DisputeShipment::TYPE_RETURN);
+            if (!$locked->receipt_waived_at && $order->isInternationalExport() && ($finalReturn
+                ? $finalReturn->status !== 'confirmed'
+                : $locked->shipment(DisputeShipment::TYPE_COLLECTION)?->status !== 'confirmed')) {
+                throw new \Exception(__('disputes.vendor_receipt_required'));
+            }
             $client = User::find($locked->client_id);
             $amount = $locked->disputedTotal();
             $held = round((float) $locked->held_amount, 2);
@@ -1047,11 +1177,13 @@ class DisputeService
         }
 
         $dispute = $result['dispute'];
-        $this->notifyClient($dispute, 'dispute_refunded', [
-            'number' => $dispute->number,
-            'amount' => number_format($result['amount'], 0, ',', ' '),
-        ]);
-        $this->notifySeller($dispute, 'dispute_refunded_vendor', ['number' => $dispute->number]);
+        DB::afterCommit(function () use ($dispute, $result) {
+            $this->notifyClient($dispute, 'dispute_refunded', [
+                'number' => $dispute->number,
+                'amount' => number_format($result['amount'], 0, ',', ' '),
+            ]);
+            $this->notifySeller($dispute, 'dispute_refunded_vendor', ['number' => $dispute->number]);
+        });
 
         return $result['amount'];
     }
@@ -1246,6 +1378,7 @@ class DisputeService
             'status' => $dispute->status,
             'status_label' => $dispute->refunded_at && !$dispute->closed_at ? __('disputes.refunded_return_pending') : Dispute::statusLabel($dispute->status),
             'asso_managed' => $dispute->isAssoManaged(),
+            'international_export' => $dispute->order->isInternationalExport(),
             'vendor_response_due_at' => $dispute->vendor_response_due_at?->toIso8601String(),
             'vendor_responded_at' => $dispute->vendor_responded_at?->toIso8601String(),
             'refunded_at' => $dispute->refunded_at?->toIso8601String(),
@@ -1256,6 +1389,13 @@ class DisputeService
             'replacement_count' => $dispute->replacement_count,
             'held_amount' => $viewer === 'vendor' ? (float) $dispute->held_amount : null,
             'refund_amount' => $dispute->refund_amount !== null ? (float) $dispute->refund_amount : null,
+            'refund_breakdown' => ['products' => $dispute->refund_amount !== null ? (float) $dispute->refund_amount : 0,
+                'initial_delivery' => 0, 'customs' => 0, 'service' => 0, 'destination' => 'wallet'],
+            'receipts' => \App\Models\DisputeReceipt::whereHas('shipment', fn ($q) => $q->where('dispute_id', $dispute->id))
+                ->get()->map(fn ($r) => ['id' => $r->id, 'shipment_id' => $r->dispute_shipment_id, 'location' => $r->location,
+                    'evidence_id' => $r->dispute_attachment_id, 'evidence_url' => $r->evidence?->url(),
+                    'contest_until' => $r->contest_until->toIso8601String(), 'contested_at' => $r->contested_at?->toIso8601String(),
+                    'accepted_at' => $r->accepted_at?->toIso8601String()])->all(),
             'replacement_control_until' => $dispute->isInReplacementControl() ? $dispute->auto_validate_at->toIso8601String() : null,
             'attachments' => $dispute->attachments->filter(fn ($a) => $a->author_type === 'client' &&
                 $dispute->events->firstWhere('id', $a->dispute_event_id)?->type === 'opened')->map->toApi()->values()->all(),
@@ -1278,7 +1418,7 @@ class DisputeService
         $collection = $dispute->shipment(DisputeShipment::TYPE_COLLECTION);
         $current = $dispute->status === Dispute::STATUS_RETURN ? $return : ($dispute->status === Dispute::STATUS_REPLACEMENT ? $replacement : null);
 
-        if ($collection && !$collection->isHandedOver() && $dispute->status === Dispute::STATUS_REPLACEMENT) {
+        if ($collection && (!$collection->isHandedOver() || $collection->isInternational() && $collection->status === 'delivered_to_vendor') && $dispute->status === Dispute::STATUS_REPLACEMENT) {
             $current = $collection;
         }
         if ($viewer === 'client') {
@@ -1295,12 +1435,15 @@ class DisputeService
             'add_evidence' => $dispute->isOpen(),
             'replace' => $founded && $dispute->replacement_count < Dispute::MAX_REPLACEMENTS,
             'organize_return' => $founded,
-            'pay_shipment' => $current && $current->payer === 'vendor' && !$current->isPaid(),
+            'pay_shipment' => $current && $current->status !== 'awaiting_preparation' && $current->payer === 'vendor' && !$current->isPaid(),
             'pending_shipment_id' => $current && !$current->isPaid() ? $current->id : null,
             'mark_shipped' => $current && $current->type === DisputeShipment::TYPE_REPLACEMENT && in_array('shipped', $current->nextSteps(), true),
             // Le retour est confirmé par le livreur avec le code du vendeur
             // (`return.confirmation_code`), plus par le vendeur lui-même.
-            'confirm_return_received' => false,
+            'prepare_replacement' => $current && $current->status === 'awaiting_preparation',
+            'confirm_return_received' => $current && $current->isInternational() && $current->type !== DisputeShipment::TYPE_REPLACEMENT
+                && $current->status === 'delivered_to_vendor',
+            'receipt_shipment_id' => $current && $current->isInternational() && $current->status === 'delivered_to_vendor' ? $current->id : null,
         ];
     }
 
@@ -1316,7 +1459,7 @@ class DisputeService
             'status' => 'awaiting_payment',
         ]);
         $shipment->update(['stops' => $this->courseStops($shipment)]);
-        if ($payer === 'asso' && $type === DisputeShipment::TYPE_REPLACEMENT && $dispute->shipment(DisputeShipment::TYPE_COLLECTION)) {
+        if (($payer === 'asso' || $dispute->order->isInternationalExport() || config('disputes.collect_before_replacement', true)) && $type === DisputeShipment::TYPE_REPLACEMENT && $dispute->shipment(DisputeShipment::TYPE_COLLECTION)) {
             $shipment->update(['status' => 'awaiting_preparation']);
         }
         if ($payer === 'asso' && $shipment->status !== 'awaiting_preparation') {
@@ -1369,6 +1512,7 @@ class DisputeService
     public function processDeadlines(): void
     {
         Dispute::open()->orderBy('id')->each(function (Dispute $dispute) {
+            try {
             DB::transaction(function () use ($dispute) {
                 $dispute = Dispute::whereKey($dispute->id)->lockForUpdate()->firstOrFail();
                 if (!$dispute->isOpen()) {
@@ -1396,7 +1540,11 @@ class DisputeService
                     $this->startReturn($dispute, 'system', null, __('disputes.replacement_expired'));
                 }
             });
+            } catch (\Throwable $e) {
+                Log::warning('Échéance litige en attente', ['dispute_id' => $dispute->id, 'error' => $e->getMessage()]);
+            }
         });
+        app(DisputeResolutionService::class)->process();
     }
 
     private function replacementDelivered(Dispute $dispute): bool

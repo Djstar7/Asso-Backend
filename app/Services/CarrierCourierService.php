@@ -12,15 +12,21 @@ use Illuminate\Validation\ValidationException;
 /** Missions transporteur, sans nouvel encaissement : le partenaire a déjà été réglé. */
 class CarrierCourierService
 {
-    public const OPEN_STEPS = ['pickup_requested', 'pickup_accepted', 'collected_by_carrier', 'partner_in_transit', 'agency_assigned', 'arrived', 'out_for_delivery'];
+    public const OPEN_STEPS = ['export_pickup_requested', 'pickup_requested', 'pickup_accepted', 'collected_by_carrier', 'partner_in_transit', 'agency_assigned', 'arrived', 'out_for_delivery'];
 
     public static function courierDone(Order $order): bool
     {
-        return $order->status === 'delivered' || ($order->isAgencyPickup() && $order->tracking_status === 'ready_for_pickup');
+        return $order->collection_completed_at !== null || $order->status === 'delivered' || ($order->isAgencyPickup() && $order->tracking_status === 'ready_for_pickup');
     }
 
     public static function dropoff(Order $order): array
     {
+        if ($order->isInternationalExport()) {
+            $agency = $order->delivery_breakdown['solex_agency'] ?? [];
+            return ['name' => $agency['name'] ?? null, 'phone' => $agency['phone'] ?? null,
+                'address' => $agency['address'] ?? null, 'address_details' => null, 'city' => $agency['city'] ?? null,
+                'latitude' => $agency['latitude'] ?? $order->collectionAgency?->latitude, 'longitude' => $agency['longitude'] ?? $order->collectionAgency?->longitude];
+        }
         if ($order->isAgencyPickup() && $order->pickup_agency_snapshot) {
             $agency = $order->pickup_agency_snapshot;
             return ['name' => $agency['name'] ?? null, 'phone' => $agency['phone'] ?? null,
@@ -37,6 +43,26 @@ class CarrierCourierService
         }
         $assigned = $order->delivery_person_id !== null;
         $done = self::courierDone($order);
+        if ($order->isInternationalExport()) {
+            $dropoff = self::dropoff($order);
+            $fee = (float) ($order->delivery_breakdown['legs'][0]['price'] ?? 0);
+            return ['status' => $done ? 'delivered' : ($assigned ? 'shipped' : 'confirmed'),
+                'carrier_managed' => true, 'collection_only' => true,
+                'can_complete' => !$done && $assigned && $order->tracking_status === 'export_collected',
+                'completion_kind' => 'agency', 'tracking_status' => $order->tracking_status,
+                'carrier_steps' => $assigned && !$done && $order->tracking_status === 'export_pickup_requested'
+                    ? [['key' => 'export_collected', 'label' => OrderTrackingService::stepLabel('export_collected')]] : [],
+                'delivery_address' => $dropoff['address'], 'delivery_latitude' => $dropoff['latitude'],
+                'delivery_longitude' => $dropoff['longitude'], 'customer_phone' => $dropoff['phone'], 'customer_name' => $dropoff['name'],
+                'delivered_at' => $order->collection_completed_at?->toIso8601String(),
+                'notes' => __('delivery.export.collection', ['agency' => $dropoff['name']]),
+                'delivery_fee' => $fee, 'commission' => $fee,
+                ...(($order->delivery_breakdown['legs'][0]['distance_km'] ?? null) !== null
+                    ? ['distance' => $order->delivery_breakdown['legs'][0]['distance_km'],
+                        'distance_type' => $order->delivery_breakdown['legs'][0]['distance_type'] ?? 'straight_line'] : []),
+                'delivery_company' => ['id' => $order->collectionAgency?->deliverer_company_id, 'name' => $order->collectionAgency?->company?->name],
+            ];
+        }
         $canComplete = !$done && $assigned && ($order->isAgencyPickup()
             ? $order->tracking_status === 'arrived' : $order->tracking_status === 'out_for_delivery');
         $steps = $assigned && !$done ? array_values(array_intersect(AssoShipmentService::nextSteps($order),
@@ -60,27 +86,35 @@ class CarrierCourierService
                 || $order->delivery_person_id || $order->carrier_courier_requested_at || !$order->deliveryCompany?->is_active) {
                 return null;
             }
+            if ($order->isInternationalExport()) {
+                if ($order->tracking_status !== 'export_pickup_requested') return null;
+                $agency = \App\Models\DeliveryAgency::with('company')->find($order->delivery_breakdown['solex_agency']['id'] ?? null);
+                if (!$agency?->is_active || !$agency->company?->is_active || $agency->is_international_reference
+                    || !preg_match('/solex/i', $agency->company->name)) return null;
+                $order->collection_agency_id = $agency->id;
+            }
             $order->update(['carrier_courier_requested_at' => now(),
-                'carrier_handover_code' => $order->isAgencyPickup() ? Order::generateConfirmationCode() : null]);
+                'carrier_handover_code' => ($order->isAgencyPickup() || $order->isInternationalExport()) ? Order::generateConfirmationCode() : null]);
             return $order;
         });
         if (!$requested) {
             return;
         }
         DB::afterCommit(function () use ($requested) {
-            $syncs = DelivererCodeSync::where('company_id', $requested->delivery_company_id)->active()->where('is_online', true)->with('user')->get()->unique('user_id');
+            $syncs = self::eligibleSyncs($requested, !$requested->isInternationalExport())->with('user')->get()->unique('user_id');
             foreach ($syncs as $sync) {
                 if (!$sync->user) {
                     continue;
                 }
                 try {
                     app(FirebaseMessagingService::class)->sendToUser($sync->user,
-                        $sync->user->localized('notifications.new_delivery_request.title'),
-                        $sync->user->localized('notifications.new_delivery_request.body', [
-                            'order_number' => $requested->order_number, 'address' => $requested->delivery_address,
-                            'fee' => number_format($requested->deliveryPriceShown(), 0, ',', ' '),
+                        $sync->user->localized($requested->isInternationalExport() ? 'notifications.export_collection_request.title' : 'notifications.new_delivery_request.title'),
+                        $sync->user->localized($requested->isInternationalExport() ? 'notifications.export_collection_request.body' : 'notifications.new_delivery_request.body', [
+                            'order_number' => $requested->order_number, 'address' => $requested->isInternationalExport() ? ($requested->delivery_breakdown['solex_agency']['name'] ?? '') : $requested->delivery_address,
+                            'fee' => number_format($requested->isInternationalExport() ? ($requested->delivery_breakdown['legs'][0]['price'] ?? 0) : $requested->deliveryPriceShown(), 0, ',', ' '),
                         ]), ['type' => 'new_delivery_request', 'order_id' => (string) $requested->id,
-                            'order_number' => $requested->order_number, 'company_id' => (string) $requested->delivery_company_id]);
+                            'order_number' => $requested->order_number, 'company_id' => (string) ($requested->collectionAgency?->deliverer_company_id ?? $requested->delivery_company_id),
+                            'agency_id' => (string) $requested->collection_agency_id]);
                 } catch (\Throwable $e) {
                     Log::warning('[CarrierCourier] Notification indisponible', ['order_id' => $requested->id, 'user_id' => $sync->user_id]);
                 }
@@ -100,7 +134,7 @@ class CarrierCourierService
             if ($order->delivery_person_id === $courier->id) {
                 return $order;
             }
-            $active = Order::where('delivery_person_id', $courier->id)->where('status', 'shipped')
+            $active = Order::where('delivery_person_id', $courier->id)->where('status', 'shipped')->whereNull('collection_completed_at')
                 ->where(fn ($q) => $q->whereNull('tracking_status')->orWhere('tracking_status', '!=', 'ready_for_pickup'))->count();
             $this->check($active < \App\Http\Controllers\Api\DeliveryController::MAX_ACTIVE_RUNS, 'delivery.max_active_runs', ['count' => \App\Http\Controllers\Api\DeliveryController::MAX_ACTIVE_RUNS]);
             $order->update(['delivery_person_id' => $courier->id]);
@@ -127,9 +161,9 @@ class CarrierCourierService
             $order = Order::whereKey($order->id)->lockForUpdate()->firstOrFail();
             $this->assertAssigned($order, $courier);
             $this->check(self::presentation($order)['can_complete'], 'shipment.invalid_transition');
-            $expected = $order->isAgencyPickup() ? $order->carrier_handover_code : $order->confirmation_code;
+            $expected = ($order->isAgencyPickup() || $order->isInternationalExport()) ? $order->carrier_handover_code : $order->confirmation_code;
             $this->check($expected !== null && hash_equals((string) $expected, trim($code)), 'delivery.confirmation_code_incorrect');
-            $step = $order->isAgencyPickup() ? 'ready_for_pickup' : 'delivered';
+            $step = $order->isInternationalExport() ? 'export_at_solex' : ($order->isAgencyPickup() ? 'ready_for_pickup' : 'delivered');
             $order = app(AssoShipmentService::class)->advance($order, ['step' => $step], $courier, 'deliverer');
             $order->update(['carrier_handover_code' => null, 'confirmed_by_deliverer_at' => now()]);
             return $order->fresh();
@@ -143,10 +177,18 @@ class CarrierCourierService
             && $order->payment_status === Order::PAYMENT_PAID && $this->synced($order, $courier), 'disputes.course_unavailable');
     }
 
-    private function synced(Order $order, User $courier, bool $online = false): bool
+    public static function eligibleSyncs(Order $order, bool $online = false)
     {
-        return $order->deliveryCompany?->is_active && DelivererCodeSync::where('company_id', $order->delivery_company_id)
-            ->where('user_id', $courier->id)->active()->when($online, fn ($q) => $q->where('is_online', true))->exists();
+        $agency = $order->isInternationalExport() ? $order->collectionAgency : null;
+        return DelivererCodeSync::where('company_id', $agency?->deliverer_company_id ?? $order->delivery_company_id)
+            ->active()->when($online, fn ($q) => $q->where('is_online', true))
+            ->when($order->isInternationalExport(), fn ($q) => $q->where('delivery_agency_id', $order->collection_agency_id ?? -1));
+    }
+
+    public function synced(Order $order, User $courier, bool $online = false): bool
+    {
+        if ($order->isInternationalExport() && (!$order->collectionAgency?->is_active || !$order->collectionAgency?->company?->is_active)) return false;
+        return $order->deliveryCompany?->is_active && self::eligibleSyncs($order, $online)->where('user_id', $courier->id)->exists();
     }
 
     private function check(bool $condition, string $key, array $replace = []): void

@@ -178,12 +178,16 @@ class DelivererController extends Controller
      * Nouveau code de synchronisation (partenaire créé hors formulaire comme SOLEX,
      * code expiré, ou nouveau coursier) : envoyé par email si l'entreprise en a un.
      */
-    public function generateSyncCode(DelivererCompany $deliverer)
+    public function generateSyncCode(Request $request, DelivererCompany $deliverer)
     {
+        $data = $request->validate(['delivery_agency_id' => ['nullable', 'integer',
+            \Illuminate\Validation\Rule::exists('delivery_agencies', 'id')->where('deliverer_company_id', $deliverer->id)
+                ->where(fn ($query) => $query->where('is_active', true)->where('is_international_reference', false)),
+        ]]);
         $code = DelivererSyncCode::generateSyncCode();
         DelivererSyncCode::create([
             'user_id' => null,
-            'company_id' => $deliverer->id,
+            'company_id' => $deliverer->id, 'delivery_agency_id' => $data['delivery_agency_id'] ?? null,
             'sync_code' => $code,
             'sent_via' => 'email',
             'sent_at' => now(),

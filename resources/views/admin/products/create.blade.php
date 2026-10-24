@@ -276,7 +276,7 @@
                                class="w-full px-4 py-2 bg-dark-50 border border-dark-300 rounded-lg focus:ring-2 focus:ring-primary-500 @error('weight') border-red-500 @enderror"
                                placeholder="Ex : 2.5">
                         <p class="mt-1 text-xs text-gray-400">
-                            Poids réel d'une unité, obligatoire pour tout article (local ou importé) : il sert à calculer la livraison (poids × quantité).
+                            Saisie en kilogrammes : 1 = 1 kg, 0,001 = 1 g. Le poids livré est le poids unitaire × la quantité (2 articles de 1 kg = 2 kg).
                         </p>
                         @error('weight')<p class="mt-1 text-sm text-red-400">{{ $message }}</p>@enderror
                     </div>

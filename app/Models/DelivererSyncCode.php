@@ -11,7 +11,7 @@ class DelivererSyncCode extends Model
 {
     protected $fillable = [
         'user_id',
-        'company_id',
+        'company_id', 'delivery_agency_id',
         'sync_code',
         'is_used',
         'sent_via',
@@ -19,6 +19,11 @@ class DelivererSyncCode extends Model
         'expires_at',
         'used_at',
     ];
+
+    public function agency(): BelongsTo
+    {
+        return $this->belongsTo(DeliveryAgency::class, 'delivery_agency_id');
+    }
 
     protected $casts = [
         'is_used' => 'boolean',

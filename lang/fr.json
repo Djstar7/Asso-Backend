@@ -415,7 +415,8 @@
             "title": "Nouvelle livraison assignée",
             "body": "Commande #:order_number — Livraison vers :address:details. Contact: :phone. Frais: :fee FCFA"
         },
-        "new_delivery_request": {
+        "export_collection_request": {"title": "Collecte Solex disponible", "body": "Commande #:order_number — Récupérez le colis chez le vendeur puis déposez-le à :address."},
+    "new_delivery_request": {
             "title": "Nouvelle livraison disponible",
             "body": "Commande #:order_number — Livraison vers :address. Commission: :fee FCFA"
         },
@@ -1107,6 +1108,17 @@
         "not_found_short": "Boutique introuvable"
     },
     "delivery": {
+        "export": {
+            "collection": "Collecte Solex chez le vendeur → :agency",
+            "transport": ":carrier → :destination",
+            "issue_note_required": "Précisez l’incident dans la note.",
+            "tracking_required": "Renseignez le numéro de suivi DHL/FedEx avant la remise.",
+            "carrier_out_for_delivery": "En cours de livraison par :carrier",
+            "test_tracking_disabled": "Le suivi TEST-ASSO est désactivé. Renseignez le vrai numéro de suivi DHL/FedEx.",
+            "recipient_required": "Renseignez le nom du destinataire, son adresse et sa ville.",
+            "weight_required": "Le vendeur doit renseigner le poids des produits pour une expédition internationale.",
+            "provisional": "Tarifs provisoires. Droits et frais de douane éventuels non inclus. Couverture d’essai à confirmer auprès du transporteur."
+        },
     "import_origin_incomplete": "Le point de départ ASSO doit être configuré avant de calculer la livraison.",
     "destination_incomplete": "Complétez votre ville, quartier et adresse.",
 
@@ -1151,6 +1163,7 @@
         "agency_label": "Agence :company",
         "announced_lead_time": "Délai annoncé : :lead_time",
         "quote": {
+            "per_kg": "Par kg (poids réel)",
             "in_city": "Livraison dans :city",
             "flat_rate": "Forfait",
             "weight_category": "Catégorie :category",
@@ -1399,6 +1412,11 @@
     },
     "tracking": {
         "steps": {
+            "export_pickup_requested": "Collecte Solex programmée",
+            "export_collected": "Colis récupéré chez le vendeur par Solex",
+            "export_at_solex": "Colis reçu à l’agence Solex",
+            "shipment_issue": "Incident d’acheminement",
+
             "pickup_requested": "Demande d’enlèvement transmise au partenaire",
             "pickup_accepted": "Enlèvement accepté par le partenaire",
             "collected_by_carrier": "Colis récupéré chez ASSO par le partenaire",
@@ -1423,6 +1441,8 @@
         }
     },
     "disputes": {
+        "delivery_claim_opened": "Réclamation enregistrée. ASSO examinera votre dossier.",
+        "receipt_contested_success": "Contestation enregistrée avec votre justificatif.",
     "invalid_quantity": "La quantité contestée doit être comprise entre 1 et la quantité commandée.",
     "door_delivery_required": "Cette mission nécessite une remise à la boutique ou au domicile, sans retrait en agence.",
     "addresses_required": "Complétez les adresses de collecte et de remise.",
@@ -1447,6 +1467,36 @@
         "replacement_already_used": "Le produit a déjà été remplacé une fois : seul le retour avec remboursement est possible.",
         "replacement_in_progress": "Le remplacement est encore en cours de livraison.",
         "shipment_already_paid": "Cette livraison est déjà payée.",
+        "international_quote_unavailable": "Aucun tarif international disponible. Vérifiez le poids en kg, les coordonnées et le tarif retour du trajet DHL/FedEx.",
+        "vendor_receipt_required": "Le vendeur doit confirmer la réception du produit avant le remboursement.",
+        "international_steps": {
+            "forward": {
+                "awaiting_preparation": "Remplacement à préparer et confirmer par le vendeur",
+                "awaiting_payment": "Paiement Solex et transport international par le vendeur",
+                "courier_selected": "Transport payé — collecte Solex à programmer",
+                "solex_pickup_scheduled": "Collecte Solex programmée chez le vendeur",
+                "solex_collected": "Solex a récupéré le remplacement",
+                "at_solex": "Remplacement reçu à l’agence Solex",
+                "handed_to_carrier": "Remplacement remis à :carrier",
+                "international_in_transit": "Transit international vers le client",
+                "customs": "Dédouanement à destination",
+                "out_for_delivery": ":carrier livre le remplacement au client",
+                "delivered": "Remplacement livré au client"
+            },
+            "reverse": {
+                "awaiting_payment": "Paiement du retour international et Solex par le vendeur",
+                "courier_selected": "Transport retour payé",
+                "pickup_scheduled": "Collecte :carrier programmée chez le client",
+                "picked_up": ":carrier a récupéré le produit chez le client",
+                "international_in_transit": "Transit international vers le Cameroun",
+                "customs": "Dédouanement au Cameroun",
+                "at_solex": "Produit remis à Solex au Cameroun",
+                "solex_pickup_scheduled": "Acheminement Solex vers le vendeur programmé",
+                "solex_collected": "Solex a pris le colis pour le vendeur",
+                "delivered_to_vendor": "Produit remis au vendeur — réception à confirmer",
+                "confirmed": "Réception confirmée par le vendeur"
+            }
+        },
         "choose_partner_first": "Choisissez d'abord un partenaire de livraison.",
         "step_invalid": "Étape de livraison non valide.",
         "already_decided": "ASSO a déjà rendu sa décision sur ce dossier.",

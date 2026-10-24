@@ -115,7 +115,23 @@ class DisputeShipment extends Model
     /** Course que le livreur peut prendre ou mener : payée, pas encore remise. */
     public function isOpenForCourier(): bool
     {
+        if (!$this->dispute?->isOpen() || $this->dispute->receipt_waived_at || $this->status === 'cancelled') return false;
+        if ($this->isInternational()) {
+            return $this->isPaid() && in_array($this->status, $this->type === self::TYPE_REPLACEMENT
+                ? ['courier_selected', 'solex_pickup_scheduled', 'solex_collected']
+                : ['at_solex', 'solex_pickup_scheduled', 'solex_collected'], true);
+        }
         return $this->isPaid() && !$this->isHandedOver();
+    }
+
+    public function isInternational(): bool
+    {
+        return (bool) ($this->quote['international_dispute'] ?? $this->dispute?->order?->isInternationalExport());
+    }
+
+    public function agencyId(): ?int
+    {
+        return $this->quote['solex_agency']['id'] ?? $this->dispute?->order?->delivery_breakdown['solex_agency']['id'] ?? null;
     }
 
     public function translationType(): string
@@ -125,6 +141,34 @@ class DisputeShipment extends Model
 
     public function steps(): array
     {
+        if ($this->isInternational()) {
+            $carrier = $this->company?->name ?? $this->dispute->order->deliveryCompany?->name ?? 'DHL/FedEx';
+            return $this->type === self::TYPE_REPLACEMENT ? [
+                'awaiting_preparation' => 'Remplacement à préparer et confirmer par le vendeur',
+                'awaiting_payment' => 'Paiement Solex et transport international par le vendeur',
+                'courier_selected' => 'Transport payé — collecte Solex à programmer',
+                'solex_pickup_scheduled' => 'Collecte Solex programmée chez le vendeur',
+                'solex_collected' => 'Solex a récupéré le remplacement',
+                'at_solex' => 'Remplacement reçu à l’agence Solex',
+                'handed_to_carrier' => 'Remplacement remis à '.$carrier,
+                'international_in_transit' => 'Transit international vers le client',
+                'customs' => 'Dédouanement à destination',
+                'out_for_delivery' => $carrier.' livre le remplacement au client',
+                'delivered' => 'Remplacement livré au client',
+            ] : [
+                'awaiting_payment' => 'Paiement du retour international et Solex par le vendeur',
+                'courier_selected' => 'Transport retour payé',
+                'pickup_scheduled' => 'Collecte '.$carrier.' programmée chez le client',
+                'picked_up' => $carrier.' a récupéré le produit chez le client',
+                'international_in_transit' => 'Transit international vers le Cameroun',
+                'customs' => 'Dédouanement au Cameroun',
+                'at_solex' => 'Produit remis à Solex au Cameroun',
+                'solex_pickup_scheduled' => 'Acheminement Solex vers le vendeur programmé',
+                'solex_collected' => 'Solex a pris le colis pour le vendeur',
+                'delivered_to_vendor' => 'Produit remis au vendeur',
+                'confirmed' => 'Réception confirmée par code',
+            ];
+        }
         return $this->type !== self::TYPE_REPLACEMENT ? self::RETURN_STEPS :
             ($this->status === 'awaiting_preparation' ? ['awaiting_preparation' => 'Remplacement à préparer'] + self::REPLACEMENT_STEPS : self::REPLACEMENT_STEPS);
     }
@@ -140,13 +184,14 @@ class DisputeShipment extends Model
      */
     public function manualSteps(): array
     {
+        if ($this->isInternational() && $this->dispute->isAssoManaged()) return $this->nextSteps();
         return array_values(array_diff($this->nextSteps(), ['confirmed']));
     }
 
     /** Étapes suivantes que l'équipe ASSO (ou le partenaire) peut enregistrer. */
     public function nextSteps(): array
     {
-        if (!$this->isPaid()) {
+        if (!$this->isPaid() || !$this->dispute?->isOpen() || $this->dispute->receipt_waived_at) {
             return [];
         }
         $keys = array_keys($this->steps());
@@ -161,7 +206,8 @@ class DisputeShipment extends Model
      */
     public function toApi(?string $viewer = null): array
     {
-        $showCode = $viewer !== null && $viewer === $this->codeHolder() && $this->isOpenForCourier();
+        $showCode = $viewer !== null && $viewer === $this->codeHolder() && $this->isOpenForCourier()
+            && (!$this->isInternational() || $this->type !== self::TYPE_REPLACEMENT);
 
         return [
             'id' => $this->id,
@@ -174,8 +220,11 @@ class DisputeShipment extends Model
             'payment_status' => $this->payment_status,
             'payment_mode' => $this->payment_mode,
             'status' => $this->status,
-            'status_label' => isset($this->steps()[$this->status]) ? __("disputes.shipment_steps.{$this->translationType()}.{$this->status}") : $this->status,
-            'steps' => collect($this->steps())->map(fn ($label, $key) => ['key' => $key, 'label' => __("disputes.shipment_steps.{$this->translationType()}.{$key}")])->values()->all(),
+            'status_label' => $this->stepLabel($this->status),
+            'steps' => collect($this->steps())->map(fn ($label, $key) => ['key' => $key, 'label' => $this->stepLabel($key)])->values()->all(),
+            'international' => $this->isInternational(),
+            'route_label' => $this->quote['route_label'] ?? null,
+            'breakdown' => $this->quote['breakdown'] ?? null,
             'carrier_tracking_number' => $this->carrier_tracking_number,
             'proof_url' => $this->proof_path ? media_url($this->proof_path) : null,
             'paid_at' => $this->paid_at?->toIso8601String(),
@@ -187,5 +236,12 @@ class DisputeShipment extends Model
                 'phone' => $this->deliveryPerson->phone,
             ] : null,
         ];
+    }
+
+    public function stepLabel(string $step): string
+    {
+        return $this->isInternational() ? __('disputes.international_steps.'.($this->type === self::TYPE_REPLACEMENT ? 'forward' : 'reverse').'.'.$step,
+            ['carrier' => $this->company?->name ?? $this->dispute->order->deliveryCompany?->name ?? 'DHL/FedEx'])
+            : __("disputes.shipment_steps.{$this->translationType()}.{$step}");
     }
 }

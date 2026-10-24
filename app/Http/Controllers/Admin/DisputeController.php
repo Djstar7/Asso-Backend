@@ -74,7 +74,7 @@ class DisputeController extends Controller
         $replacement = $dispute->shipment(DisputeShipment::TYPE_REPLACEMENT);
         $return = $dispute->shipment(DisputeShipment::TYPE_RETURN);
         $collection = $dispute->shipment(DisputeShipment::TYPE_COLLECTION);
-        $pending = collect([$collection, $return, $replacement])->first(fn ($s) => $s && !$s->isPaid());
+        $pending = collect([$collection, $return, $replacement])->first(fn ($s) => $s && !$s->isPaid() && $s->status !== 'awaiting_preparation');
 
         // Partenaires proposés pour la course en attente de paiement.
         $quotes = null;
@@ -121,12 +121,12 @@ class DisputeController extends Controller
             $validated['decision'] === 'unfounded'
                 ? 'Réclamation non fondée : fonds vendeur débloqués, litige clôturé.'
                 : ($dispute->replacement_count >= Dispute::MAX_REPLACEMENTS
-                    ? 'Réclamation fondée sur le remplacement : retour lancé, le vendeur doit payer la course.'
-                    : 'Réclamation fondée : le vendeur peut remplacer le produit ou organiser le retour.')
+                    ? 'Réclamation fondée sur le remplacement : retour lancé selon le responsable du financement.'
+                    : 'Réclamation fondée : choisissez le remplacement (Cas A) ou le retour et remboursement (Cas B).')
         );
     }
 
-    /** Remplacement (import en gros : ASSO, revendeur, remplace lui-même). */
+    /** Cas A : ASSO lance le remplacement ; le financeur dépend du vendeur du dossier. */
     public function replace(Request $request, Dispute $dispute)
     {
         return $this->run(fn () => $this->disputes->startReplacement($dispute, 'admin', $request->user()->id), 'Remplacement lancé.');

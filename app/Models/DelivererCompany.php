@@ -117,7 +117,7 @@ class DelivererCompany extends Model
 
     public function trackingUrl(?string $number): ?string
     {
-        if (! $number || ! $this->tracking_url_template) {
+        if (! $number || ! $this->tracking_url_template || \App\Support\ExportTestTracking::isTest($number)) {
             return null;
         }
 
@@ -178,6 +178,11 @@ class DelivererCompany extends Model
     /**
      * Get all sync codes for this company
      */
+    public function agencies(): HasMany
+    {
+        return $this->hasMany(DeliveryAgency::class, 'deliverer_company_id');
+    }
+
     public function syncCodes(): HasMany
     {
         return $this->hasMany(DelivererSyncCode::class, 'company_id');

@@ -54,7 +54,7 @@ class DeliveryController extends Controller
         $companyOrders = collect();
         if ($companyIds->isNotEmpty()) {
             $companyOrders = Order::with(['items.product.primaryImage', 'items.product.shop', 'user', 'deliveryCompany'])
-                ->whereIn('delivery_company_id', $companyIds)
+                ->offeredToCourier($user)
                 ->whereNull('delivery_person_id')
                 ->awaitingCourier()
                 ->orderBy('created_at', 'desc')
@@ -116,7 +116,7 @@ class DeliveryController extends Controller
                 // Postgres refuse FOR UPDATE avec un agrégat : on verrouille les
                 // lignes puis on les compte.
                 $activeRuns = Order::where('delivery_person_id', $user->id)
-                    ->where('status', 'shipped')
+                    ->where('status', 'shipped')->whereNull('collection_completed_at')
                     ->where(fn ($q) => $q->whereNull('tracking_status')->orWhere('tracking_status', '!=', 'ready_for_pickup'))
                     ->where('id', '!=', $order->id)
                     ->lockForUpdate()
@@ -376,7 +376,7 @@ class DeliveryController extends Controller
         $orders = Order::with(['items.product.primaryImage', 'user', 'deliveryCompany'])
             ->where('delivery_person_id', $user->id)
             ->courierVisible()
-            ->where('status', 'shipped')->where(fn ($q) => $q->whereNull('tracking_status')->orWhere('tracking_status', '!=', 'ready_for_pickup'))
+            ->where('status', 'shipped')->whereNull('collection_completed_at')->where(fn ($q) => $q->whereNull('tracking_status')->orWhere('tracking_status', '!=', 'ready_for_pickup'))
             ->orderBy('shipped_at', 'desc')
             ->get();
 
@@ -436,6 +436,8 @@ class DeliveryController extends Controller
         $validated = $request->validate([
             'latitude' => 'required|numeric|between:-90,90',
             'longitude' => 'required|numeric|between:-180,180',
+            'country' => 'nullable|string|max:60',
+            'city' => 'nullable|string|max:120',
             'items' => 'sometimes|array|min:1',
             'items.*.product_id' => 'required|integer|exists:products,id',
             'items.*.quantity' => 'required|integer|min:1',
@@ -446,15 +448,15 @@ class DeliveryController extends Controller
         $service = app(\App\Services\DeliveryQuoteService::class);
         $lat = (float) $validated['latitude'];
         $lng = (float) $validated['longitude'];
-        $coverage = $service->coverage($lat, $lng);
+        $coverage = $service->coverage($lat, $lng, $validated['country'] ?? null, $validated['city'] ?? null);
         $coverage['geographically_served'] = $coverage['served'];
         $coverage['geographic_served_by'] = $coverage['served_by'];
         if (!empty($validated['items'])) {
-            $quote = $service->quotes($validated['items'], $lat, $lng, null);
+            $quote = $service->quotes($validated['items'], $lat, $lng, $validated['city'] ?? null, $coverage['country']);
             $home = collect($quote['partners'])->where('delivery_option', 'home_delivery');
             $coverage['served_by'] = $home->map(fn ($p) => [
                 'company_id' => $p['company_id'], 'company_name' => $p['company_name'],
-                'zone_label' => $p['zone_name'], 'vehicles' => array_filter([$p['vehicle_label']]),
+                'zone_label' => $p['zone_name'] ?: ($p['route_label'] ?? null), 'vehicles' => array_filter([$p['vehicle_label']]),
             ])->values()->all();
             $coverage['agencies'] = collect($quote['partners'])->where('delivery_option', 'agency_pickup')
                 ->map(fn ($p) => [
@@ -597,24 +599,27 @@ class DeliveryController extends Controller
     {
         if (!$order->delivery_company_id) return;
 
-        $otherSyncs = \App\Models\DelivererCodeSync::where('company_id', $order->delivery_company_id)
-            ->active()
+        $otherSyncs = \App\Services\CarrierCourierService::eligibleSyncs($order)
             ->where('user_id', '!=', $acceptedBy->id)
             ->with('user')
-            ->get();
+            ->get()->unique('user_id');
 
         foreach ($otherSyncs as $sync) {
             if ($sync->user) {
-                $this->fcmService->sendToUser(
-                    $sync->user,
-                    $sync->user->localized('notifications.delivery_taken.title'),
-                    $sync->user->localized('notifications.delivery_taken.body', ['order_number' => $order->order_number]),
-                    [
-                        'type' => 'delivery_taken',
-                        'order_id' => (string) $order->id,
-                        'order_number' => $order->order_number,
-                    ]
-                );
+                try {
+                    $this->fcmService->sendToUser(
+                        $sync->user,
+                        $sync->user->localized('notifications.delivery_taken.title'),
+                        $sync->user->localized('notifications.delivery_taken.body', ['order_number' => $order->order_number]),
+                        [
+                            'type' => 'delivery_taken',
+                            'order_id' => (string) $order->id,
+                            'order_number' => $order->order_number,
+                        ]
+                    );
+                } catch (\Throwable $e) {
+                    Log::warning('[CarrierCourier] Avis de prise en charge indisponible', ['order_id' => $order->id, 'user_id' => $sync->user_id]);
+                }
             }
         }
 

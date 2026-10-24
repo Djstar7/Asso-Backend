@@ -26,7 +26,7 @@ class DeliveryRoute extends Model
         'destination_country',
         'destination_city',
         'bidirectional',
-        'pricing_data',
+        'pricing_data', 'export_config',
         'asso_commission',
         'lead_time',
         'is_active',
@@ -34,6 +34,7 @@ class DeliveryRoute extends Model
 
     protected $casts = [
         'pricing_data' => 'array',
+        'export_config' => 'array',
         'asso_commission' => 'float',
         'bidirectional' => 'boolean',
         'is_active' => 'boolean',

@@ -12,9 +12,19 @@
         <a href="{{ route('admin.shipments.index') }}" class="text-gray-400 hover:text-primary-500"><i class="fas fa-arrow-left"></i></a>
         <div>
             <h1 class="text-2xl font-bold text-white">Commande #{{ $order->order_number }}</h1>
-            <p class="text-gray-400">{{ $d['company_name'] }} · {{ $d['route_label'] }} · statut : {{ $order->status }}</p>
+            <p class="text-gray-400">{{ $d['company_name'] }} · {{ $d['route_label'] }} · statut : {{ \App\Services\OrderTrackingService::stepLabel($order->status) }}</p>
         </div>
     </div>
+
+    @if($order->isInternationalExport())
+        <div class="mb-6 p-4 bg-blue-900/20 border border-blue-500/30 rounded-xl text-sm text-blue-200">
+            <strong>Suivi international :</strong> {{ \App\Services\OrderTrackingService::stepLabel($order->tracking_status, $order) ?: 'En attente de confirmation' }}.
+            @if($order->payment_status === 'paid' && in_array($order->status, ['confirmed', 'preparing'], true) && in_array($order->tracking_status, [null, 'confirmed', 'preparing'], true))
+                La commande est validée par le vendeur ; aucune collecte Solex n’est encore enregistrée.
+            @endif
+            <p class="mt-1">Les étapes apparaissent dans le suivi client après enregistrement des confirmations par ASSO.</p>
+        </div>
+    @endif
 
     @if($errors->any())
         <div class="mb-6 p-4 bg-red-900/20 border-l-4 border-red-500 rounded">
@@ -33,7 +43,7 @@
                     @forelse($order->trackingEvents as $event)
                         <li class="mb-5 ml-5">
                             <span class="absolute -left-1.5 w-3 h-3 rounded-full bg-primary-500"></span>
-                            <div class="text-white font-medium">{{ $event->label }} @if($event->location)<span class="text-gray-400">— {{ $event->location }}</span>@endif</div>
+                            <div class="text-white font-medium">{{ \App\Services\OrderTrackingService::stepLabel($event->step, $order) ?? $event->label }} @if($event->location)<span class="text-gray-400">— {{ $event->location }}</span>@endif</div>
                             <div class="text-xs text-gray-500">{{ $event->occurred_at->displayTz()->format('d/m/Y H:i') }} · {{ $event->actor_type }}</div>
                             @if($event->note)<div class="text-sm text-gray-300 mt-1">{{ $event->note }}</div>@endif
                         </li>
@@ -54,6 +64,12 @@
                 <div class="flex justify-between"><span>Mode</span><span class="text-white text-right">{{ $d['service_mode_label'] }}</span></div>
                 <div class="flex justify-between"><span>Délai</span><span class="text-white">{{ $d['lead_time'] ?? '—' }}</span></div>
                 <div class="flex justify-between"><span>Poids</span><span class="text-white">{{ $d['weight_kg'] ? rtrim(rtrim(number_format($d['weight_kg'], 3, ',', ''), '0'), ',') . ' kg' : '—' }}</span></div>
+                @if($order->isInternationalExport())
+                    @foreach($b['legs'] ?? [] as $leg)
+                        <div class="flex justify-between gap-3"><span>{{ $leg['label'] }}</span><span class="text-white whitespace-nowrap">{{ $fcfa($leg['price']) }}</span></div>
+                        @if(isset($leg['distance_km']))<p class="text-xs text-gray-400">Collecte : {{ number_format($leg['distance_km'], 2, ',', ' ') }} km à vol d’oiseau (estimation).</p>@endif
+                    @endforeach
+                @endif
                 @if($b)
                     <div class="flex justify-between"><span>{{ $b['range_label'] }}</span><span class="text-white">{{ $fcfa($b['range_price']) }}</span></div>
                     @if($b['extra_kg'] > 0)
@@ -74,7 +90,9 @@
             <div class="bg-dark-100 rounded-xl border border-dark-200 p-6 text-sm text-gray-300 space-y-1">
                 <h2 class="text-lg font-semibold text-white mb-2">Destinataire</h2>
                 <div>{{ $order->user?->name }}</div>
+                <div>{{ $order->recipient_name ?: $order->user?->name }}</div>
                 <div>{{ $order->customer_phone }}</div>
+                @if($order->delivery_postal_code)<div>Code postal : {{ $order->delivery_postal_code }}</div>@endif
                 <div>{{ $order->delivery_address }}</div>
                 @if($order->delivery_address_details)<div class="text-gray-400">{{ $order->delivery_address_details }}</div>@endif
                 <h2 class="text-lg font-semibold text-white mt-4 mb-2">Articles</h2>

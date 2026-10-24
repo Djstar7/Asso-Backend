@@ -29,6 +29,7 @@
 
     @include('admin.wholesale_orders._flash')
     @if(auth()->user()->isAdmin())
+    <a href="{{ route('admin.disputes.resolution.index') }}" class="block mb-4 text-primary-400">Déblocages ASSO, commandes non livrées et avances</a>
     <form method="POST" action="{{ route('admin.disputes.settings') }}" class="flex flex-wrap gap-3 items-end mb-4 text-sm text-gray-300">
         @csrf
         <label>Délai de réponse vendeur (heures)

@@ -10,11 +10,14 @@ use App\Services\PartnerAccountService;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
-/** Tarifs réels uniquement ; relançable sans réécrire les prix ni les envois. */
+/** Initialisation groupée import/export ; tarifs existants et historiques conservés. */
 class InternationalTransportProductionSeeder extends Seeder
 {
     public function run(): void
     {
+        if (app()->environment('production') && \App\Support\ExportTestTracking::enabled()) {
+            throw new \RuntimeException('Définissez EXPORT_TEST_TRACKING_ENABLED=false puis rafraîchissez le cache de configuration avant le déploiement production.');
+        }
         DB::transaction(function () {
             if (! \App\Services\SupportService::user()) {
                 $support = \App\Models\User::firstOrCreate(['email' => \App\Services\SupportService::EMAIL], [
@@ -45,7 +48,10 @@ class InternationalTransportProductionSeeder extends Seeder
             MaritimeHub::where('deliverer_company_id', $partner->id)->where('is_demo', true)->update(['is_active' => false]);
             MaritimeDeparture::where('deliverer_company_id', $partner->id)->where('is_demo', true)
                 ->where('status', MaritimeDeparture::STATUS_OPEN)->update(['status' => MaritimeDeparture::STATUS_CLOSED]);
+
+            // Le serveur peut ne pas avoir reçu les imports Solex/DHL/FedEx précédents.
+            $this->call(DhlFedexProductionSeeder::class);
         });
-        $this->command?->info('5 tarifs initialisés et compte de règlement prêt. Complétez les QG, délais France et départs réels dans /admin/maritime. Les activations existantes sont conservées.');
+        $this->command?->info('Imports SinoCam et exports Solex/DHL/FedEx initialisés ; tarifs DHL/FedEx provisoires au kilo. Complétez les QG, délais France et départs réels dans /admin/maritime. Les activations existantes sont conservées.');
     }
 }

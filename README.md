@@ -341,22 +341,46 @@ et son URL HTTPS réelle dans `APP_URL`. Le filtrage des données de démonstrat
 s'appuie sur cet environnement. Conserver les identifiants de paiement et de base
 de données déjà configurés sur ce serveur ; les fixtures locales n'en fournissent pas.
 
-Depuis le répertoire `Asso-Backend` de la version livrée, appliquer les trois
-migrations de cette rubrique, dans cet ordre (les tables maritimes historiques
-du projet doivent déjà exister) :
+Pour installer **DHL/FedEx et Solex uniquement**, depuis `Asso-Backend`, utiliser
+`EXPORT_TEST_TRACKING_ENABLED=false` en production puis :
 
 ```bash
-php artisan migrate --path=database/migrations/2026_10_21_180000_create_partner_freight_rates.php --force
-php artisan migrate --path=database/migrations/2026_10_21_180100_add_freight_rate_snapshots_to_maritime_departures.php --force
-php artisan migrate --path=database/migrations/2026_10_21_190000_mark_transport_demo_data.php --force
-php artisan transport:configure
+composer deploy:carriers
 ```
 
-Cette commande crée seulement les éléments manquants : **SinoCam Transit & Fret**
-(inactif lors de sa création) et ses trois tarifs Chine → Cameroun. Elle ne crée
-ni adresse fictive, ni départ, ni compte utilisateur, ni crédit de portefeuille.
-Une relance conserve les prix, conditions et activations modifiés dans l'admin.
+Cette entrée vide le cache de configuration, applique les migrations et lance
+`delivery:configure-carriers` (`DhlFedexProductionSeeder`). Elle initialise les
+destinations, agences, tarifs aller/retour au kilo et collecte Solex, sans charger
+les imports SinoCam ni créer de clients, commandes ou paiements de démonstration.
+Les tarifs initiaux restent provisoires et modifiables. Les relances conservent
+les prix et désactivations administrateur. Les fichiers JSON de `database/data`
+doivent accompagner le déploiement. Ce chargement n’établit aucune connexion API
+aux transporteurs. Voir [le guide international](docs/international-export.md).
+
+Pour charger également les imports SinoCam, après installation des
+dépendances Composer, lancer l’initialisation groupée :
+
+```bash
+composer deploy:international
+```
+
+Cette commande vide le cache de configuration, exécute `php artisan migrate --force`, puis
+`php artisan transport:configure`. Elle fonctionne aussi sur un serveur qui n’a
+reçu aucun des imports internationaux précédents : elle prépare les cinq tarifs
+SinoCam Chine/France → Cameroun, le compte de règlement, le réseau Solex,
+les **498 trajets DHL/FedEx vers 249 pays et territoires**, les tarifs provisoires
+au kilo et les repères d’agences. Elle utilise uniquement les fichiers de données
+embarqués dans cette version ; aucun téléchargement n’est effectué sur le serveur.
+
+Une relance conserve les prix, conditions, coordonnées et activations modifiés dans
+l’administration. Le mode de déploiement conserve aussi les désactivations du réseau
+Solex, contrairement à une synchronisation Solex explicite. Les tarifs DHL/FedEx
+restent marqués provisoires jusqu’à leur remplacement ; les repères non sourcés
+restent signalés comme provisoires. Aucun départ fictif ni crédit de portefeuille
+n’est créé. Les seuls comptes provisionnés sont les comptes internes de support et
+de règlement déjà utilisés par le transport ; aucun compte client de démonstration.
 Ne pas exécuter le seeder global pour initialiser uniquement cette rubrique.
+Voir [le guide d’export](docs/international-export.md) pour le contenu et la vérification.
 
 | Offre | Coût partenaire (FCFA) | Prix client (FCFA) | Délai |
 |---|---:|---:|---|
@@ -463,6 +487,15 @@ Un vendeur est signalé par sa boutique en attente de vérification : il n'exist
 pas de circuit d'approbation distinct pour un simple compte vendeur.
 Les paiements non aboutis et les commandes livrées/annulées ne sont pas des tâches
 de cette liste. Les notifications immédiates déjà présentes restent actives.
+
+Pour les litiges produits, une première décision fondée laisse le choix explicite entre
+**Cas A — remplacement** et **Cas B — retour et remboursement**, aussi bien pour
+les achats au Cameroun, les imports Chine → Cameroun et les ventes directes ASSO.
+Aucune course ni aucun financement n’est lancé par cette seule décision. Le choix
+déclenche le parcours prévu : le vendeur finance ses produits ; ASSO finance les
+siens et les imports en gros. Un seul remplacement est autorisé. Un nouveau défaut
+confirmé sur ce remplacement impose ensuite le retour. Les parcours déjà engagés
+conservent leur état et leur financement.
 
 Au déploiement :
 
@@ -600,8 +633,9 @@ php artisan migrate --force
 php artisan db:seed --class=InternationalTransportProductionSeeder --force
 ```
 
-Ce seeder complète le paramétrage précédent (`transport:configure`) avec les
-routes France → Cameroun. Il est relançable : il conserve les tarifs et
+Ce seeder est également appelé par `transport:configure` et
+`composer deploy:international`. Il intègre les routes Chine/France → Cameroun et
+le catalogue d’export Solex/DHL/FedEx ; les imports précédents ne sont pas requis. Il est relançable : il conserve les tarifs et
 activations déjà modifiés dans l’administration, les comptes existants, les
 paiements et les réservations. Aucun crédit de portefeuille n’est créé par le
 seeder. Le compte interne de règlement et, si nécessaire, le compte de messagerie
@@ -624,8 +658,9 @@ Les seuls éléments nettoyés sont les QG et départs **explicitement marqués
 `is_demo` de SinoCam** : QG désactivés et départs encore ouverts fermés. Aucun
 historique n’est supprimé. Un nouveau partenaire reste inactif jusqu’à ce que
 ses QG réels, dates et capacités aient été renseignés dans `/admin/maritime`.
-Les délais France ne sont pas inventés. Les cinq tarifs sont rattachés au
-partenaire SinoCam existant ; aucun second transporteur n’est créé.
+Les délais France ne sont pas inventés. Les cinq tarifs de fret sont rattachés au
+partenaire SinoCam existant. Solex, DHL Express et FedEx sont initialisés séparément
+pour le parcours d’achat et d’export, sans dupliquer SinoCam.
 
 Le client paie ASSO à la réservation. Pour les **nouveaux envois** issus d’un tarif
 Chine → Cameroun avec échéance `arrival`, le fret partenaire est crédité sur son
@@ -655,3 +690,54 @@ Une application mobile reconstruite avec cette version est nécessaire pour
 l’onglet Devis. Les anciens clients ne peuvent pas contourner le devis obligatoire
 pour le maritime Chine → autres pays. Aucun départ, adresse ou capacité réels
 n’est créé automatiquement à partir d’une simple grille de tarifs.
+
+### Résolution des litiges et commandes non livrées
+
+Le menu **Réclamations / Litiges → Déblocages ASSO** ouvre le suivi des échéances,
+les décisions avant livraison et le registre des avances. Les actions financières
+exceptionnelles sont réservées aux administrateurs non techniques ; les droits
+habituels des gestionnaires restent inchangés.
+
+Après livraison, la fiche d'un litige permet :
+
+- d'établir une réception indépendante sur une pièce du dossier examinée par ASSO,
+  avec un délai de contestation vendeur de 48 heures par défaut ;
+- d'arbitrer une contestation ou d'autoriser un remboursement exceptionnel motivé,
+  sans dépendre du code vendeur ni du remboursement préalable d'un fournisseur ;
+- d'avancer un transport depuis la trésorerie ASSO, avec une créance séparée sur le
+  vendeur. Un paiement externe encore en cours doit être réconcilié au préalable.
+
+Les nouveaux échanges locaux collectent aussi le produit défectueux avant la
+préparation du remplacement. La collecte ne rembourse pas le client en Cas A.
+Les courses et paiements tardifs ne peuvent pas relancer une course après un
+arbitrage de remboursement ; un encaissement direct tardif du transport est
+recrédité une seule fois au vendeur.
+
+Avant livraison, `GET/POST /api/v1/orders/{id}/delivery-claim` permet au client
+concerné de consulter ou signaler un problème. Le superviseur détecte également
+les commandes encaissées dépassant les délais configurés. ASSO examine les preuves
+et décide d'un rejet motivé ou d'une annulation avec restitution des sommes
+réellement encaissées, y compris les acomptes et les paiements mixtes Wallet/direct.
+Les justificatifs de ces dossiers sont privés et téléchargeables par un admin.
+
+Les paramètres se règlent dans le même écran : décision et financement 48 h,
+remise au transporteur 48 h, transit local 7 jours, transit international/douane
+45 jours, préparation import 30 jours par défaut. Les échéances déjà enregistrées
+ne sont pas repoussées par une modification de configuration ou une relance.
+Une expiration sans preuve suffisante déclenche une réaffectation et une alerte,
+pas un remboursement sans examen. Les échecs de financement ASSO sont repris par
+le superviseur et restent visibles pour arbitrage si la trésorerie est insuffisante.
+
+Le plafond d'avance automatique vaut **0 FCFA par défaut** : l'avance requiert
+alors une décision manuelle. Un plafond positif autorise uniquement les courses
+avec un devis valide, dans la limite du solde disponible ASSO. Les avances restent
+à régulariser séparément du remboursement client ; aucun prélèvement automatique
+sur les ventes futures n'est effectué.
+
+Mise en service : appliquer les migrations (notamment
+`2026_10_24_210000_add_dispute_resolution_safeguards.php`), puis vérifier que le
+scheduler Laravel exécute `disputes:process` toutes les cinq minutes. Le traitement
+est reprenable et isole les erreurs par dossier. Déployer aussi la version mobile
+pour afficher le signalement avant livraison et la contestation sur justificatifs.
+Le suivi DHL/FedEx reste fondé sur les justificatifs contrôlés et les événements
+réellement disponibles ; cette évolution ne crée pas d'intégration transporteur.

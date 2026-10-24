@@ -20,30 +20,44 @@ class ShipmentController extends Controller
     public function index(Request $request)
     {
         $query = Order::with(['user', 'deliveryCompany'])
-            ->where('delivery_mode', Order::DELIVERY_CARRIER)
-            ->where('payment_status', Order::PAYMENT_PAID);
+            ->where('delivery_mode', Order::DELIVERY_CARRIER);
 
-        $status = $request->input('status', 'in_progress');
+        $scope = $request->input('scope', 'all');
+        if ($scope === 'export') {
+            $query->where('delivery_breakdown->international_export', true);
+        } else {
+            $query->where('payment_status', Order::PAYMENT_PAID);
+        }
+        $statusOptions = [
+            'in_progress' => 'En cours', 'awaiting_seller' => 'En attente du vendeur',
+            'confirmed' => 'Validées · à expédier', 'preparing' => 'En préparation',
+        ] + array_diff_key(OrderTrackingService::STEPS, array_flip(['pending', 'confirmed', 'preparing', 'cancelled', 'delivered'])) + [
+            'shipped' => 'Expédiées (toutes étapes)', 'delivered' => 'Livrées', 'cancelled' => 'Annulées', 'all' => 'Toutes',
+        ];
+        $status = $request->input('status', $scope === 'export' ? 'all' : 'in_progress');
+        if (! array_key_exists($status, $statusOptions)) {
+            $status = 'in_progress';
+        }
         if ($status === 'in_progress') {
             // Dès le paiement : en attente du vendeur, puis préparation, puis chez le transporteur.
             $query->whereIn('status', ['pending', 'confirmed', 'preparing', 'shipped']);
         } elseif ($status === 'awaiting_seller') {
             $query->where('status', 'pending');
-        } elseif (in_array($status, ['arrived_hub', 'pickup_requested', 'pickup_accepted', 'collected_by_carrier', 'partner_in_transit', 'ready_for_pickup'], true)) {
-            $query->where('status', 'shipped')->where('tracking_status', $status);
+        } elseif (array_key_exists($status, OrderTrackingService::STEPS) && ! in_array($status, ['confirmed', 'preparing', 'delivered', 'cancelled'], true)) {
+            $query->where('tracking_status', $status);
         } elseif ($status !== 'all') {
             $query->where('status', $status);
         }
 
         if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(fn ($q) => $q->where('order_number', 'like', "%{$search}%")
-                ->orWhere('carrier_tracking_number', 'like', "%{$search}%"));
+            $search = '%'.mb_strtolower(addcslashes(trim($request->input('search')), '%_\\')).'%';
+            $query->where(fn ($q) => $q->whereRaw('LOWER(order_number) LIKE ?', [$search])
+                ->orWhereRaw('LOWER(carrier_tracking_number) LIKE ?', [$search]));
         }
 
         return view('admin.shipments.index', [
             'orders' => $query->latest()->paginate(20)->withQueryString(),
-            'status' => $status,
+            'status' => $status, 'statusOptions' => $statusOptions, 'scope' => $scope,
         ]);
     }
 

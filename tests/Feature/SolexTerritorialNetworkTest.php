@@ -138,6 +138,7 @@ class SolexTerritorialNetworkTest extends TestCase
         $company = DelivererCompany::where('name', 'SOLEX')->firstOrFail();
         $admin = User::factory()->create(['role' => 'admin']);
         $page = $this->actingAs($admin)->get(route('admin.delivery-partners.edit', $company))->assertOk();
+        $page->assertSee('Rattacher les livreurs aux agences')->assertSee(route('admin.deliverers.syncs.company', $company));
         $html = $page->getContent();
         $this->assertSame(10, substr_count($html, 'data-network-region='));
         $this->assertSame(58, substr_count($html, 'data-network-department='));

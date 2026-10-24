@@ -82,7 +82,10 @@ class DeliveryPartnerController extends Controller
         $partner->load(['deliveryRoutes' => fn ($q) => $q->with('translations')->orderBy('origin_city')->orderBy('destination_city'), 'cityGrids.translations']);
         $hasNetwork = $partner->cityGrids->whereNotNull('department_code')->isNotEmpty();
         $sections = ($hasNetwork ? ['network' => 'Régions et arrondissements'] : ['cities' => 'Grilles urbaines'])
-            + ['routes' => 'Liaisons interurbaines', 'agencies' => 'Agences de retrait', 'settings' => 'Partenaire et paiements'];
+            + ['routes' => 'Trajets et international', 'agencies' => 'Agences de retrait', 'settings' => 'Partenaire et paiements'];
+        if (preg_match('/solex/i', $partner->name)) {
+            $sections = ['collection' => 'Tarifs de collecte Solex'] + $sections;
+        }
         $default = $hasNetwork ? 'network' : ($partner->cityGrids->isNotEmpty() ? 'cities' : 'settings');
         $section = request('section', $default);
         abort_unless(is_string($section) && array_key_exists($section, $sections), 404);
@@ -101,8 +104,10 @@ class DeliveryPartnerController extends Controller
                 $selectedRoute = $partner->deliveryRoutes()->with('translations')->findOrFail(request('edit_route'));
             }
         }
-        if ($section === 'agencies') {
-            $agencies = \App\Models\DeliveryAgency::where('deliverer_company_id', $partner->id)->orderBy('city')->paginate(10)->withQueryString();
+        if (in_array($section, ['agencies', 'collection'], true)) {
+            $agencyQuery = \App\Models\DeliveryAgency::where('deliverer_company_id', $partner->id);
+            if ($section === 'collection') $agencyQuery->orderByRaw('CASE WHEN collection_pricing IS NULL THEN 1 ELSE 0 END');
+            $agencies = $agencyQuery->orderBy('city')->paginate(10)->withQueryString();
         }
 
         return view('admin.delivery_partners.edit', [
@@ -114,6 +119,7 @@ class DeliveryPartnerController extends Controller
             'agencies' => $agencies,
             'walletBalance' => $section === 'settings' ? ($partner->account?->kpayAvailableFor('XAF') ?? 0.0) : 0.0,
             'countries' => CountryCode::NAMES,
+            'solexAgencies' => \App\Models\DeliveryAgency::where('is_active', true)->whereHas('company', fn ($q) => $q->where('is_active', true)->where('name', 'like', '%SOLEX%'))->orderBy('city')->get(),
             'vatRate' => DeliveryQuoteService::vatRate(),
         ]);
     }
@@ -366,7 +372,20 @@ class DeliveryPartnerController extends Controller
             'destination_city' => 'nullable|string|max:120',
             'lead_time' => 'nullable|string|max:60',
             'extra_per_kg' => 'nullable|numeric|min:0',
-            'ranges' => 'required|array|min:1',
+            'solex_agency_id' => 'nullable|integer|exists:delivery_agencies,id',
+            'collection_price' => 'nullable|numeric|min:0',
+            'collection_max_kg' => 'nullable|numeric|min:0.001',
+            'collection_extra_per_kg' => 'nullable|numeric|min:0',
+            'collection_price_per_km' => 'nullable|numeric|min:0|max:100000000',
+            'return_price_per_kg' => 'nullable|numeric|gt:0|max:100000000',
+            'return_max_weight_kg' => 'nullable|numeric|gt:0',
+            'coverage_mode' => 'nullable|in:country,polygon',
+            'zone_label' => 'nullable|string|max:120',
+            'coverage_polygon' => 'nullable|json|max:20000',
+            'pricing_mode' => 'nullable|in:weight_grid,per_kg',
+            'price_per_kg' => 'required_if:pricing_mode,per_kg|nullable|numeric|min:0.001|max:100000000',
+            'max_weight_kg' => 'nullable|numeric|min:0.001|max:100000',
+            'ranges' => 'required_unless:pricing_mode,per_kg|nullable|array|min:1',
             'ranges.*.label' => 'nullable|string|max:60',
             'ranges.*.label_en' => 'nullable|string|max:60',
             'ranges.*.min' => 'nullable|numeric|min:0',
@@ -374,7 +393,7 @@ class DeliveryPartnerController extends Controller
             'ranges.*.price' => 'nullable|numeric|min:0',
         ]);
 
-        $ranges = collect($validated['ranges'])
+        $ranges = collect($validated['ranges'] ?? [])
             ->filter(fn ($r) => isset($r['max'], $r['price']) && $r['max'] !== '' && $r['price'] !== '')
             ->map(fn ($r) => [
                 'min' => (float) ($r['min'] ?? 0),
@@ -387,15 +406,61 @@ class DeliveryPartnerController extends Controller
             ->values()
             ->all();
 
-        if ($ranges === []) {
+        $perKg = ($validated['pricing_mode'] ?? null) === 'per_kg';
+        if (! $perKg && $ranges === []) {
             throw \Illuminate\Validation\ValidationException::withMessages(['ranges' => 'Renseignez au moins une tranche (poids max et prix).']);
         }
 
         $international = $validated['origin_country'] !== $validated['destination_country'];
+        $exportConfig = null;
         if ($international && $validated['destination_country'] !== 'CM') {
-            throw \Illuminate\Validation\ValidationException::withMessages([
-                'destination_country' => "L'international se fait de l'étranger vers le Cameroun : la destination doit être le Cameroun.",
+            if ($validated['origin_country'] !== 'CM') {
+                throw \Illuminate\Validation\ValidationException::withMessages(['origin_country' => 'Le départ doit être au Cameroun pour une exportation via Solex.']);
+            }
+            $export = $request->validate([
+                'solex_agency_id' => 'required|integer|exists:delivery_agencies,id',
+                'collection_price' => 'required|numeric|min:0',
+                'collection_max_kg' => 'required|numeric|min:0.001',
+                'coverage_mode' => 'required|in:country,polygon',
             ]);
+            $agency = \App\Models\DeliveryAgency::with('company')->findOrFail($export['solex_agency_id']);
+            if (! $agency->is_active || ! $agency->company?->is_active || ! preg_match('/solex/i', $agency->company->name)) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['solex_agency_id' => 'Choisissez une agence Solex active.']);
+            }
+            $polygon = json_decode($validated['coverage_polygon'] ?? '[]', true);
+            if ($export['coverage_mode'] === 'polygon') {
+                \Illuminate\Support\Facades\Validator::make(['polygon' => $polygon], [
+                    'polygon' => 'required|array|min:3|max:200',
+                    'polygon.*' => 'required|array|size:2',
+                    'polygon.*.0' => 'required|numeric|between:-90,90',
+                    'polygon.*.1' => 'required|numeric|between:-180,180',
+                ])->validate();
+                $area = 0;
+                foreach ($polygon as $i => $point) {
+                    $next = $polygon[($i + 1) % count($polygon)];
+                    $area += $point[0] * $next[1] - $next[0] * $point[1];
+                }
+                if (abs($area) < 1e-10) {
+                    throw \Illuminate\Validation\ValidationException::withMessages(['coverage_polygon' => 'Dessinez une zone avec une surface non nulle.']);
+                }
+            }
+            $exportConfig = [
+                'provisional_rates' => $request->boolean('provisional_rates'),
+                'solex_agency_id' => $agency->id,
+                'zone_label' => $validated['zone_label'] ?? null,
+                'coverage_mode' => $export['coverage_mode'],
+                'polygon' => $export['coverage_mode'] === 'polygon' ? $polygon : [],
+                'collection_pricing' => [
+                    'ranges' => [['min' => 0, 'max' => (float) $export['collection_max_kg'], 'price' => (float) $export['collection_price']]],
+                    'extra_per_kg' => (float) ($validated['collection_extra_per_kg'] ?? 0),
+                    'price_per_km' => (float) ($validated['collection_price_per_km'] ?? 0),
+                ],
+            ];
+            if (isset($validated['return_price_per_kg'])) {
+                $exportConfig['return_pricing'] = ['mode' => 'per_kg',
+                    'price_per_kg' => (float) $validated['return_price_per_kg'],
+                    'max_weight_kg' => isset($validated['return_max_weight_kg']) ? (float) $validated['return_max_weight_kg'] : null];
+            }
         }
 
         return [
@@ -406,7 +471,12 @@ class DeliveryPartnerController extends Controller
             // « Et vice versa » uniquement à l'intérieur du Cameroun.
             'bidirectional' => ! $international && $request->boolean('bidirectional'),
             'lead_time' => $validated['lead_time'] ?? null,
-            'pricing_data' => [
+            'export_config' => $exportConfig,
+            'pricing_data' => $perKg ? [
+                'mode' => 'per_kg',
+                'price_per_kg' => (float) $validated['price_per_kg'],
+                'max_weight_kg' => isset($validated['max_weight_kg']) ? (float) $validated['max_weight_kg'] : null,
+            ] : [
                 'ranges' => $ranges,
                 'extra_per_kg' => (float) ($validated['extra_per_kg'] ?? 0),
             ],

@@ -188,6 +188,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::put('/{partner}/routes/{route}', [\App\Http\Controllers\Admin\DeliveryPartnerController::class, 'updateRoute'])->name('routes.update');
             Route::delete('/{partner}/routes/{route}', [\App\Http\Controllers\Admin\DeliveryPartnerController::class, 'destroyRoute'])->name('routes.destroy');
             Route::put('/{partner}/city-grids/{grid}', [\App\Http\Controllers\Admin\DeliveryPartnerController::class, 'updateCityGrid'])->name('city-grids.update');
+            Route::post('/{partner}/agencies/{agency}/collection-pricing', [\App\Http\Controllers\Admin\DeliveryAgencyController::class, 'updateCollectionPricing'])->name('agencies.collection-pricing');
             Route::post('/{partner}/city-grids', [\App\Http\Controllers\Admin\DeliveryPartnerController::class, 'storeCityGrid'])->name('city-grids.store');
             Route::delete('/{partner}/city-grids/{grid}', [\App\Http\Controllers\Admin\DeliveryPartnerController::class, 'destroyCityGrid'])->name('city-grids.destroy');
         });
@@ -231,6 +232,18 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/deposit-orders/{order}/close', [\App\Http\Controllers\Admin\DepositOrderController::class, 'close'])->name('deposit-orders.close');
 
         // Réclamations / litiges : analyse, décision ASSO, remplacement, retour et remboursement
+        Route::prefix('disputes/resolution')->name('disputes.resolution.')->controller(\App\Http\Controllers\Admin\DisputeResolutionController::class)->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::post('/settings', 'settings')->name('settings');
+            Route::post('/shipments/{shipment}/receipt', 'receipt')->name('receipt');
+            Route::post('/receipts/{receipt}/accept', 'accept')->name('accept');
+            Route::post('/{dispute}/refund', 'refund')->name('refund');
+            Route::post('/shipments/{shipment}/advance', 'advance')->name('advance');
+            Route::post('/orders/{order}/claim', 'openClaim')->name('open-claim');
+            Route::post('/claims/{claim}/decide', 'decideClaim')->name('decide-claim');
+            Route::get('/claims/{claim}/proof/{index}', 'proof')->where('index', '[0-9]+|decision')->name('proof');
+        });
+
         Route::prefix('disputes')->name('disputes.')->controller(\App\Http\Controllers\Admin\DisputeController::class)->group(function () {
             Route::post('/settings', 'settings')->name('settings');
             Route::get('/', 'index')->name('index');
@@ -256,6 +269,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::prefix('deliverers/syncs')->name('deliverers.syncs.')->group(function () {
             Route::get('/code/{syncCode}', [DelivererSyncManagementController::class, 'showCodeSyncs'])->name('code');
             Route::get('/company/{company}', [DelivererSyncManagementController::class, 'showCompanySyncs'])->name('company');
+            Route::post('/{codeSync}/agency', [DelivererSyncManagementController::class, 'assignAgency'])->name('agency');
             Route::post('/{codeSync}/unsync', [DelivererSyncManagementController::class, 'unsyncUser'])->name('unsync');
             Route::post('/{codeSync}/reactivate', [DelivererSyncManagementController::class, 'reactivateSync'])->name('reactivate');
             Route::post('/{codeSync}/ban', [DelivererSyncManagementController::class, 'banUser'])->name('ban');

@@ -251,6 +251,9 @@ class VendorOrderController extends Controller
         $vendor = $request->user();
         $order = $this->getVendorOrder($vendor, $id);
 
+        if ($order->isInternationalExport()) {
+            return response()->json(['success' => false, 'message' => __('shipment.asso_only')], 422);
+        }
         if (!$order->isCarrierDelivery()) {
             return response()->json(['success' => false, 'message' => __('orders.delivered_by_urban_deliverer')], 422);
         }

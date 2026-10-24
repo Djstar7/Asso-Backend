@@ -120,13 +120,18 @@ class DelivererSyncController extends Controller
             ], 404);
         }
 
+        if ($syncCode->delivery_agency_id && (!$syncCode->agency?->is_active
+            || $syncCode->agency->deliverer_company_id !== $company->id || $syncCode->agency->is_international_reference)) {
+            return response()->json(['success' => false, 'message' => __('delivery.sync.invalid_data')], 422);
+        }
+
         DB::beginTransaction();
         try {
             // Create sync record in deliverer_code_syncs table
             $codeSync = DelivererCodeSync::create([
                 'sync_code_id' => $syncCode->id,
                 'user_id' => $user->id,
-                'company_id' => $company->id,
+                'company_id' => $company->id, 'delivery_agency_id' => $syncCode->delivery_agency_id,
                 'is_active' => true,
                 'is_online' => true,
                 'is_banned' => false,

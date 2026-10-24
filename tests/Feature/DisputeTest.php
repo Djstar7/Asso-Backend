@@ -175,6 +175,7 @@ class DisputeTest extends TestCase
         $dispute = $this->openDispute($this->assoOrder());
         $admin = $this->admin();
         $service->decide($dispute, $admin, Dispute::DECISION_FOUNDED, 'Défaut confirmé');
+        $service->startReplacement($dispute->fresh(), 'admin', $admin->id);
         $shipment = $dispute->fresh()->shipment(DisputeShipment::TYPE_COLLECTION);
         $this->assertSame(['pickup_scheduled'], $shipment->manualSteps());
         $this->actingAs($admin)->post(route('admin.disputes.shipments.step', $shipment),
@@ -276,6 +277,89 @@ class DisputeTest extends TestCase
         $this->assertDatabaseHas('dispute_events', ['dispute_id' => $dispute->id, 'type' => 'decision']);
     }
 
+    public static function productOriginsAndResolutions(): array
+    {
+        $cases = [];
+        foreach (['cameroon_vendor', 'imported_vendor', 'china_wholesale', 'asso_direct'] as $origin) {
+            foreach (['replace', 'return'] as $resolution) {
+                $cases[$origin.'_'.$resolution] = [$origin, $resolution];
+            }
+        }
+        return $cases;
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('productOriginsAndResolutions')]
+    public function test_all_product_origins_offer_both_cases_before_any_shipment_or_debit(string $origin, string $resolution): void
+    {
+        $assoManaged = in_array($origin, ['china_wholesale', 'asso_direct'], true);
+        $order = $assoManaged ? $this->assoOrder() : $this->deliveredOrder();
+        if ($origin === 'china_wholesale') {
+            $order->update(['is_wholesale' => true, 'delivery_mode' => 'carrier',
+                'delivery_breakdown' => ['origin_country' => 'CN', 'destination_country' => 'CM']]);
+        }
+        foreach ($order->items as $item) {
+            $item->product->update(['origin_country' => in_array($origin, ['china_wholesale', 'imported_vendor'], true) ? 'CN' : 'CM',
+                'is_wholesale' => $origin === 'china_wholesale']);
+        }
+        $dispute = $this->openDispute($order);
+        $admin = $this->admin();
+        $this->assertSame($assoManaged, $dispute->isAssoManaged());
+        $before = \App\Models\WalletTransaction::count();
+        $this->actingAs($admin)->post(route('admin.disputes.decide', $dispute), [
+            'decision' => Dispute::DECISION_FOUNDED, 'note' => 'Non-conformité confirmée.',
+        ])->assertSessionHas('success');
+        $dispute->refresh();
+        $this->assertSame(Dispute::STATUS_VENDOR_CONTACTED, $dispute->status);
+        $this->assertNull($dispute->resolution);
+        $this->assertSame(0, $dispute->replacement_count);
+        $this->assertSame(0, $dispute->shipments()->count());
+        $this->assertSame($before, \App\Models\WalletTransaction::count());
+        $this->actingAs($this->seller, 'sanctum')->getJson("/api/v1/vendor/disputes/{$dispute->id}")->assertOk()
+            ->assertJsonPath('dispute.actions.replace', true)->assertJsonPath('dispute.actions.organize_return', true);
+        $this->actingAs($admin)->get(route('admin.disputes.show', $dispute))->assertOk()
+            ->assertSee('Remplacer le produit (Cas A)')->assertSee('Retour et remboursement (Cas B)');
+        $actions = app(DisputeService::class)->actions($dispute, 'vendor');
+        $this->assertTrue($actions['replace']);
+        $this->assertTrue($actions['organize_return']);
+        $this->post(route('admin.disputes.'.$resolution, $dispute))->assertSessionHas('success');
+        $dispute->refresh();
+        $this->assertSame($resolution === 'replace' ? Dispute::STATUS_REPLACEMENT : Dispute::STATUS_RETURN, $dispute->status);
+        $type = $resolution === 'replace'
+            ? DisputeShipment::TYPE_COLLECTION
+            : DisputeShipment::TYPE_RETURN;
+        $shipment = $dispute->shipment($type);
+        $this->assertNotNull($shipment);
+        $this->assertSame($assoManaged ? 'asso' : 'vendor', $shipment->payer);
+        $this->assertSame($assoManaged, $shipment->isPaid());
+        $this->assertSame(1, $dispute->shipments()->count());
+    }
+
+    public function test_admin_can_choose_case_a_or_b_for_a_vendor_dispute_and_replacement_stays_vendor_funded(): void
+    {
+        $dispute = $this->openDispute($this->deliveredOrder());
+        $admin = $this->admin();
+        $this->actingAs($admin)->get(route('admin.disputes.show', $dispute))->assertOk()
+            ->assertDontSee('Remplacer le produit (Cas A)');
+        app(DisputeService::class)->decide($dispute, $admin, Dispute::DECISION_FOUNDED, 'Défaut confirmé.');
+        $this->get(route('admin.disputes.show', $dispute))->assertOk()
+            ->assertSee('Remplacer le produit (Cas A)')->assertSee('Retour et remboursement (Cas B)');
+        $this->post(route('admin.disputes.replace', $dispute))->assertRedirect()->assertSessionHas('success');
+        $dispute->refresh();
+        $this->assertSame(Dispute::STATUS_REPLACEMENT, $dispute->status);
+        $this->assertSame(1, $dispute->replacement_count);
+        $shipment = $dispute->shipment(DisputeShipment::TYPE_COLLECTION);
+        $this->assertNotNull($shipment);
+        $this->assertSame('vendor', $shipment->payer);
+        $this->assertFalse($shipment->isPaid());
+        $this->assertDatabaseHas('dispute_events', ['dispute_id' => $dispute->id,
+            'type' => 'replacement', 'actor_type' => 'admin', 'actor_id' => $admin->id]);
+        $this->post(route('admin.disputes.replace', $dispute))->assertSessionHas('error');
+        $this->assertSame(1, $dispute->shipments()->where('type', DisputeShipment::TYPE_COLLECTION)->count());
+        $this->assertSame(0, $dispute->shipments()->where('type', DisputeShipment::TYPE_REPLACEMENT)->count());
+        $this->get(route('admin.disputes.show', $dispute))->assertOk()
+            ->assertDontSee('Remplacer le produit (Cas A)');
+    }
+
     public function test_seller_cannot_decide_and_replacement_is_allowed_once(): void
     {
         $order = $this->deliveredOrder();
@@ -289,6 +373,7 @@ class DisputeTest extends TestCase
         $this->actingAs($this->seller, 'sanctum')->postJson("/api/v1/vendor/disputes/{$dispute->id}/replace")
             ->assertOk()->assertJsonPath('dispute.status', Dispute::STATUS_REPLACEMENT);
 
+        $this->prepareLocalReplacement($dispute);
         $shipment = $this->priceShipment($dispute->fresh()->shipment(DisputeShipment::TYPE_REPLACEMENT));
         $this->setBalance($this->seller, 2500, 2000);
         $this->actingAs($this->seller, 'sanctum')
@@ -319,7 +404,9 @@ class DisputeTest extends TestCase
         $dispute = $this->openDispute($this->deliveredOrder());
         $service = app(DisputeService::class);
         $service->decide($dispute, $this->admin(), Dispute::DECISION_FOUNDED, 'Défaut confirmé.');
-        $shipment = $this->priceShipment($service->startReplacement($dispute, 'vendor', $this->seller->id));
+        $service->startReplacement($dispute, 'vendor', $this->seller->id);
+        $this->prepareLocalReplacement($dispute);
+        $shipment = $this->priceShipment($dispute->fresh()->shipment(DisputeShipment::TYPE_REPLACEMENT));
         $this->setBalance($this->seller, 2500, 2000);
         $service->initiatePayment($shipment, $this->seller, 'wallet');
         $this->deliverReplacementWithClientCode($dispute);
@@ -394,10 +481,11 @@ class DisputeTest extends TestCase
         \Illuminate\Support\Facades\Mail::assertNotSent(\App\Mail\DisputeStaffAlertMail::class, fn ($mail) => $mail->hasTo($this->seller->email));
 
         $actions = $service->actions($dispute->fresh(), 'vendor');
-        $this->assertFalse($actions['replace']);
-        $this->assertFalse($actions['organize_return']);
+        $this->assertTrue($actions['replace']);
+        $this->assertTrue($actions['organize_return']);
 
-        // Le « vendeur » est ASSO : remplacement lancé et course payée depuis le back-office.
+        // Le « vendeur » est ASSO : choix explicite du remplacement dans le back-office.
+        $service->startReplacement($dispute->fresh(), 'admin', $admin->id);
         $shipment = $dispute->fresh()->shipment(DisputeShipment::TYPE_COLLECTION);
         $this->assertSame('asso', $shipment->payer);
         $this->actingAs($admin)->get('/admin/disputes?status=all&asso_payment=1')->assertOk()->assertSee($dispute->number);
@@ -413,7 +501,9 @@ class DisputeTest extends TestCase
         $dispute = $this->openDispute($this->deliveredOrder());
         $service = app(DisputeService::class);
         $service->decide($dispute, $this->admin(), Dispute::DECISION_FOUNDED, 'Défaut confirmé.');
-        $shipment = $this->priceShipment($service->startReplacement($dispute, 'vendor', $this->seller->id));
+        $service->startReplacement($dispute, 'vendor', $this->seller->id);
+        $this->prepareLocalReplacement($dispute);
+        $shipment = $this->priceShipment($dispute->fresh()->shipment(DisputeShipment::TYPE_REPLACEMENT));
         $this->setBalance($this->seller, 2500, 2000);
         $service->initiatePayment($shipment, $this->seller, 'wallet');
         $service->recordStep($shipment->fresh(), 'shipped', 'vendor', $this->seller->id);
@@ -569,6 +659,184 @@ class DisputeTest extends TestCase
         $this->assertFalse($ids->contains($paid->id));
         $this->assertFalse($ids->contains($sameSeller->id), 'pas la boutique du vendeur en cause');
     }
+    private function internationalDisputeFixture(): array
+    {
+        $order = $this->deliveredOrder();
+        $this->shop->update(['country' => 'CM', 'city' => 'Douala', 'address' => 'Akwa', 'latitude' => 4.09, 'longitude' => 9.79]);
+        foreach ($order->items as $item) $item->product->update(['weight' => '1']);
+        $solex = DelivererCompany::create(['name' => 'SOLEX', 'is_active' => true, 'service_type' => 'intercity']);
+        $agency = \App\Models\DeliveryAgency::create(['deliverer_company_id' => $solex->id, 'code' => 'SLX-LIT-DLA',
+            'name' => 'Solex Douala', 'city' => 'Douala', 'country' => 'CM', 'address' => 'Centre Douala', 'phone' => '237670000001',
+            'latitude' => 4.05, 'longitude' => 9.7, 'is_active' => true,
+            'collection_pricing' => ['ranges' => [['max' => 100, 'price' => 1000]]]]);
+        $this->company->update(['name' => 'DHL Express', 'service_type' => 'international', 'service_mode' => 'door_to_door']);
+        $route = \App\Models\DeliveryRoute::create(['deliverer_company_id' => $this->company->id,
+            'origin_country' => 'CM', 'destination_country' => 'FR', 'is_active' => true,
+            'pricing_data' => ['mode' => 'per_kg', 'price_per_kg' => 8000],
+            'export_config' => ['solex_agency_id' => $agency->id, 'coverage_mode' => 'country',
+                'return_pricing' => ['mode' => 'per_kg', 'price_per_kg' => 5000]]]);
+        $order->update(['delivery_country' => 'FR', 'delivery_city' => 'Tulle', 'delivery_address' => 'Route de la Trémouille, Tulle',
+            'delivery_latitude' => 45.267, 'delivery_longitude' => 1.77, 'delivery_mode' => 'carrier',
+            'delivery_breakdown' => ['international_export' => true, 'solex_agency' => $agency->toPickupArray(),
+                'destination_country' => 'FR', 'destination_city' => 'Tulle', 'company_name' => 'DHL Express']]);
+        $localCourier = User::factory()->create();
+        $code = \App\Models\DelivererSyncCode::create(['company_id' => $solex->id, 'delivery_agency_id' => $agency->id,
+            'sync_code' => \App\Models\DelivererSyncCode::generateSyncCode(), 'expires_at' => now()->addDay()]);
+        \App\Models\DelivererCodeSync::create(['sync_code_id' => $code->id, 'company_id' => $solex->id,
+            'delivery_agency_id' => $agency->id, 'user_id' => $localCourier->id, 'is_active' => true, 'is_online' => true]);
+        $this->setBalance($this->seller, 100000, 2000);
+        return [$this->openDispute($order), $localCourier, $route];
+    }
+
+    private function payInternationalShipment(DisputeShipment $shipment, float $expectedHt): DisputeShipment
+    {
+        $service = app(DisputeService::class);
+        $quotes = $service->partnerQuotes($shipment);
+        $this->assertTrue($quotes['available'], $quotes['message'] ?? 'Pas de devis');
+        $offer = $quotes['partners'][0];
+        $this->assertEquals(1, $offer['breakdown']['weight_kg']);
+        $this->assertEquals($expectedHt, $offer['breakdown']['carrier_price_ht']);
+        $shipment = $service->choosePartner($shipment, array_replace($offer, ['delivery_price' => 1]));
+        $this->assertEquals($offer['delivery_price'], $shipment->price);
+        $before = $this->bal($this->seller);
+        $service->initiatePayment($shipment, $this->seller, 'wallet');
+        $this->assertTrue($shipment->fresh()->isPaid());
+        $this->assertEquals($before - $offer['delivery_price'], $this->bal($this->seller));
+        $credits = \App\Models\WalletTransaction::where('metadata->partner_reference', 'dispute_shipment:'.$shipment->id)->get();
+        $this->assertCount(2, $credits, 'DHL and Solex receive only their own leg');
+        $this->assertEquals($shipment->carrier_amount, $credits->sum('amount'));
+        return $shipment->fresh();
+    }
+
+    private function deliverInternationalReturnToSeller(DisputeShipment $shipment, User $courier, User $admin): DisputeShipment
+    {
+        $service = app(DisputeService::class);
+        foreach (['pickup_scheduled', 'picked_up', 'international_in_transit', 'customs', 'at_solex'] as $step) {
+            $shipment = $service->recordStep($shipment, $step, 'admin', $admin->id, trackingNumber: 'DHL-RETURN-'.$shipment->id);
+        }
+        $this->assertCount(0, $service->courierShipments($this->courier), 'DHL does not receive the Solex mission');
+        $this->assertCount(1, $service->courierShipments($courier));
+        $presentation = $service->courseToApi($shipment, $courier);
+        $this->assertSame('CM', $presentation['pickup']['country']);
+        $this->assertSame('Solex Douala', $presentation['pickup']['name']);
+        $this->assertEquals(1000, $presentation['commission']);
+        $this->assertFalse($presentation['picked_up'], 'DHL collection is not Solex pickup');
+        $service->acceptCourse($shipment, $courier);
+        $service->pickUpCourse($shipment->fresh(), $courier);
+        $before = $this->bal($this->client);
+        $code = $shipment->confirmation_code;
+        $wrongCode = $code === '000000' ? '111111' : '000000';
+        $this->assertThrows(fn () => $service->completeCourse($shipment->fresh(), $courier, $wrongCode), \Exception::class);
+        $this->actingAs($admin)->post(route('admin.disputes.shipments.step', $shipment), ['step' => 'delivered_to_vendor'])->assertSessionHas('error');
+        $this->assertSame('solex_collected', $shipment->fresh()->status);
+        $this->assertEquals($before, $this->bal($this->client));
+        $shipment = $service->completeCourse($shipment->fresh(), $courier, $code);
+        $this->assertThrows(fn () => $service->completeCourse($shipment->fresh(), $courier, $code), \Exception::class);
+        $this->assertSame('confirmed', $shipment->status);
+        $this->assertEquals($shipment->type === DisputeShipment::TYPE_COLLECTION ? 0 : 1100, $this->bal($this->client), 'Code confirms receipt: only a final return refunds');
+        return $shipment;
+    }
+
+    public function test_international_exchange_code_confirms_receipt_without_refund_then_second_return_code_refunds(): void
+    {
+        [$dispute, $courier, $route] = $this->internationalDisputeFixture();
+        $service = app(DisputeService::class);
+        $admin = $this->admin();
+        $service->decide($dispute, $admin, Dispute::DECISION_FOUNDED, 'Défaut confirmé');
+        $collection = $service->startReplacement($dispute, 'vendor', $this->seller->id);
+        $this->assertSame(DisputeShipment::TYPE_COLLECTION, $collection->type);
+        $this->actingAs($admin)->post(route('admin.disputes.shipments.step', $collection), ['step' => 'picked_up'])->assertSessionHas('error');
+        $collection = $this->payInternationalShipment($collection, 6000);
+        $this->assertSame('France → Cameroun', $collection->quote['route_label']);
+        $this->assertCount(0, $service->courierShipments($courier), 'Solex waits for arrival from France');
+        $this->actingAs($this->seller, 'sanctum')->postJson("/api/v1/vendor/disputes/shipments/{$collection->id}/step", ['step' => 'confirmed'])->assertUnprocessable();
+        $collection = $this->deliverInternationalReturnToSeller($collection, $courier, $admin);
+        $this->assertFalse($service->actions($dispute->fresh(), 'vendor')['confirm_return_received']);
+        $this->assertSame(0.0, $this->bal($this->client));
+        $this->actingAs($this->seller, 'sanctum')->postJson("/api/v1/vendor/disputes/shipments/{$collection->id}/step", ['step' => 'confirmed'])->assertUnprocessable();
+        $replacement = $dispute->fresh()->shipment(DisputeShipment::TYPE_REPLACEMENT);
+        $this->assertSame('awaiting_preparation', $replacement->status);
+        $this->assertFalse($service->actions($dispute->fresh(), 'vendor')['pay_shipment']);
+        $this->assertTrue($service->actions($dispute->fresh(), 'vendor')['prepare_replacement']);
+        $service->startReplacement($dispute->fresh(), 'vendor', $this->seller->id);
+        $replacement = $this->payInternationalShipment($replacement->fresh(), 9000);
+        $service->acceptCourse($replacement, $courier);
+        $service->pickUpCourse($replacement->fresh(), $courier);
+        $replacement = $service->completeCourse($replacement->fresh(), $courier, $replacement->confirmation_code);
+        $this->assertSame('at_solex', $replacement->status);
+        $this->assertCount(0, $service->courierShipments($courier));
+        foreach (['handed_to_carrier', 'international_in_transit', 'customs', 'out_for_delivery', 'delivered'] as $step) {
+            $replacement = $service->recordStep($replacement, $step, 'admin', $admin->id, trackingNumber: 'DHL-REPLACEMENT');
+        }
+        $this->assertNull($replacement->toApi('client')['confirmation_code']);
+        $this->assertTrue($service->actions($dispute->fresh(), 'client')['report_replacement']);
+        $service->reportReplacement($dispute->fresh(), $this->client, 'Remplacement également défectueux');
+        $this->assertNull($dispute->fresh()->shipment(DisputeShipment::TYPE_RETURN), 'New issue needs an ASSO decision');
+        $service->decide($dispute->fresh(), $admin, Dispute::DECISION_FOUNDED, 'Second défaut confirmé');
+        $this->assertThrows(fn () => $service->refund($dispute->fresh()), \Exception::class, __('disputes.vendor_receipt_required'));
+        $return = $this->payInternationalShipment($dispute->fresh()->shipment(DisputeShipment::TYPE_RETURN), 6000);
+        $return = $this->deliverInternationalReturnToSeller($return, $courier, $admin);
+        $this->actingAs($this->seller, 'sanctum')->postJson("/api/v1/vendor/disputes/shipments/{$return->id}/step", ['step' => 'confirmed'])->assertUnprocessable();
+        $this->assertSame(1100.0, $this->bal($this->client));
+        $this->assertSame(Dispute::STATUS_REFUNDED, $dispute->fresh()->status);
+        $this->assertSame(0.0, $service->refund($dispute->fresh()));
+        $this->postJson("/api/v1/vendor/disputes/shipments/{$return->id}/step", ['step' => 'confirmed'])->assertUnprocessable();
+        $this->assertSame(1100.0, $this->bal($this->client));
+        $this->assertSame(1, $dispute->fresh()->replacement_count);
+    }
+
+    public function test_international_case_b_uses_reverse_rates_and_refunds_immediately_on_seller_code(): void
+    {
+        [$dispute, $courier, $route] = $this->internationalDisputeFixture();
+        $service = app(DisputeService::class);
+        $admin = $this->admin();
+        $service->decide($dispute, $admin, Dispute::DECISION_FOUNDED, 'Défaut confirmé');
+        $return = $service->startReturn($dispute, 'vendor', $this->seller->id);
+        $config = $route->export_config;
+        unset($config['return_pricing']);
+        $route->update(['export_config' => $config]);
+        $this->assertFalse($service->partnerQuotes($return)['available'], 'A real return tariff is required outside provisional mode');
+        $config['provisional_rates'] = true;
+        $route->update(['export_config' => $config]);
+        $this->assertEquals(9000, $service->partnerQuotes($return)['partners'][0]['breakdown']['carrier_price_ht']);
+        $config['provisional_rates'] = false;
+        $config['return_pricing'] = $route->pricing_data;
+        $config['return_pricing_provisional'] = true;
+        $route->update(['export_config' => $config]);
+        $this->assertFalse($service->partnerQuotes($return)['available'], 'An unconfirmed seeded return rate must not become a real tariff');
+        unset($config['return_pricing_provisional']);
+        $config['return_pricing'] = ['mode' => 'per_kg', 'price_per_kg' => 5000];
+        $route->update(['export_config' => $config]);
+        $return = $this->payInternationalShipment($return, 6000);
+        $paidPrice = $return->price;
+        $config['return_pricing']['price_per_kg'] = 90000;
+        $route->update(['export_config' => $config]);
+        $this->assertSame($paidPrice, $return->fresh()->price);
+        $this->assertThrows(fn () => $service->initiatePayment($return->fresh(), $this->seller, 'wallet'), \Exception::class);
+        $return = $this->deliverInternationalReturnToSeller($return, $courier, $admin);
+        $this->assertSame(0.0, $service->refund($dispute->fresh()));
+        $this->actingAs($admin)->post(route('admin.disputes.shipments.step', $return), ['step' => 'confirmed'])->assertSessionHas('error');
+        $this->actingAs(User::factory()->create(), 'sanctum')->postJson("/api/v1/vendor/disputes/shipments/{$return->id}/step", ['step' => 'confirmed'])->assertNotFound();
+        $this->actingAs($this->seller, 'sanctum')->postJson("/api/v1/vendor/disputes/shipments/{$return->id}/step", ['step' => 'confirmed'])->assertUnprocessable();
+        $this->assertSame(Dispute::STATUS_REFUNDED, $dispute->fresh()->status);
+        $this->assertSame(1100.0, $this->bal($this->client));
+    }
+
+    public function test_migration_corrects_only_untouched_international_replacement_drafts(): void
+    {
+        [$dispute] = $this->internationalDisputeFixture();
+        $stops = ['pickup' => ['role' => 'vendor', 'country' => 'CM'], 'dropoff' => ['role' => 'client', 'country' => 'FR']];
+        $draft = $dispute->shipments()->create(['type' => 'replacement', 'payment_status' => 'pending', 'status' => 'awaiting_payment', 'stops' => $stops]);
+        $paid = $dispute->shipments()->create(['type' => 'replacement', 'payment_status' => 'paid', 'status' => 'courier_selected', 'stops' => $stops]);
+        $migration = require database_path('migrations/2026_10_24_180000_normalize_unpaid_international_dispute_collections.php');
+        $migration->up();
+        $this->assertSame('collection', $draft->fresh()->type);
+        $this->assertSame('FR', $draft->fresh()->stops['pickup']['country']);
+        $this->assertSame('replacement', $paid->fresh()->type);
+        $migration->up();
+        $this->assertSame(2, $dispute->shipments()->count());
+    }
+
     private function assoOrder(): Order
     {
         $this->seller = $this->asso;
@@ -595,6 +863,17 @@ class DisputeTest extends TestCase
             });
         });
         return $order;
+    }
+
+    private function prepareLocalReplacement(Dispute $dispute): void
+    {
+        $service = app(DisputeService::class);
+        $collection = $this->priceShipment($dispute->fresh()->shipment(DisputeShipment::TYPE_COLLECTION));
+        $this->setBalance($this->seller, 3000, 2000);
+        $service->initiatePayment($collection, $this->seller, 'wallet');
+        $this->handOver($collection);
+        $this->assertSame(0.0, $this->bal($this->client));
+        $service->startReplacement($dispute->fresh(), 'vendor', $this->seller->id);
     }
 
     private function handOver(DisputeShipment $shipment): void
@@ -627,6 +906,7 @@ class DisputeTest extends TestCase
         $service = app(DisputeService::class);
         $before = $this->bal($this->asso);
         $service->decide($dispute, $admin, Dispute::DECISION_FOUNDED, 'Défaut confirmé.');
+        $service->startReplacement($dispute->fresh(), 'admin', $admin->id);
         $collection = $dispute->fresh()->shipment(DisputeShipment::TYPE_COLLECTION);
         $this->assertTrue($collection->isPaid(), $collection->funding_error ?? 'Course non payée');
         $this->assertSame($before - 400, $this->bal($this->asso));
@@ -672,7 +952,9 @@ class DisputeTest extends TestCase
         $dispute = $this->openDispute($this->assoOrder());
         $this->setBalance($this->asso, 2000, 2000);
         $service = app(DisputeService::class);
-        $service->decide($dispute, $this->admin(), Dispute::DECISION_FOUNDED, 'Défaut confirmé.');
+        $admin = $this->admin();
+        $service->decide($dispute, $admin, Dispute::DECISION_FOUNDED, 'Défaut confirmé.');
+        $service->startReplacement($dispute->fresh(), 'admin', $admin->id);
         $shipment = $dispute->fresh()->shipment(DisputeShipment::TYPE_COLLECTION);
         $this->assertFalse($shipment->isPaid());
         $this->assertNotEmpty($shipment->funding_error);
@@ -737,12 +1019,357 @@ class DisputeTest extends TestCase
         $service = app(DisputeService::class);
         $admin = $this->admin();
         $service->decide($dispute, $admin, Dispute::DECISION_FOUNDED, 'Défaut confirmé.');
+        $service->startReplacement($dispute->fresh(), 'admin', $admin->id);
         $this->handOver($dispute->fresh()->shipment(DisputeShipment::TYPE_COLLECTION));
         $this->assertNull($service->startReturn($dispute->fresh(), 'admin', $admin->id));
         $this->assertSame(1100.0, $this->bal($this->client));
         $this->assertSame(Dispute::STATUS_REFUNDED, $dispute->fresh()->status);
         $this->assertNotNull($dispute->fresh()->closed_at);
         $this->assertSame(1, $dispute->shipments()->count());
+    }
+
+    private function proof(Dispute $dispute, string $author = 'admin'): \App\Models\DisputeAttachment
+    {
+        return $dispute->attachments()->create(['author_type' => $author,
+            'author_id' => $author === 'vendor' ? $this->seller->id : $this->admin()->id, 'path' => 'verified-return.jpg']);
+    }
+
+    public static function refundOrigins(): array
+    {
+        return ['local' => ['local'], 'import' => ['import'], 'asso' => ['asso'], 'export' => ['export']];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('refundOrigins')]
+    public function test_documented_arbitration_refunds_once_for_every_origin(string $origin): void
+    {
+        $order = $origin === 'asso' || $origin === 'import' ? $this->assoOrder() : $this->deliveredOrder();
+        if ($origin === 'import') $order->update(['is_wholesale' => true]);
+        if ($origin === 'export') $order->update(['delivery_breakdown' => ['international_export' => true]]);
+        $dispute = $this->openDispute($order);
+        $piece = $this->proof($dispute);
+        $admin = $this->admin();
+        $resolution = app(\App\Services\DisputeResolutionService::class);
+        $this->assertSame(1100.0, $resolution->refund($dispute, $admin, $piece->id, 'Refus du vendeur vérifié sur les justificatifs.'));
+        $this->assertSame(0.0, $resolution->refund($dispute, $admin, $piece->id, 'Deuxième appel du même arbitrage documenté.'));
+        $this->assertSame(1100.0, $this->bal($this->client));
+        $this->assertSame(Dispute::STATUS_REFUNDED, $dispute->fresh()->status);
+        $this->assertSame(1, $dispute->events()->where('type', 'administrative_refund')->count());
+        $this->actingAs($admin)->get(route('admin.disputes.show', $dispute))->assertOk();
+    }
+
+    public function test_arbitration_requires_admin_and_evidence_from_this_dispute(): void
+    {
+        $dispute = $this->openDispute($this->deliveredOrder());
+        $piece = $this->proof($dispute);
+        $route = route('admin.disputes.resolution.refund', $dispute);
+        $manager = User::factory()->create(['role' => 'product_manager', 'roles' => ['product_manager'], 'admin_permissions' => ['disputes']]);
+        $this->actingAs($this->admin())->post($route, ['note' => 'Pièce absente du dossier de litige.'])->assertSessionHasErrors('attachment_id');
+        $other = $this->openDispute($this->deliveredOrder());
+        $otherPiece = $this->proof($other);
+        $this->actingAs($this->admin(), 'web')->post($route, ['attachment_id' => $otherPiece->id, 'note' => 'Une pièce provenant d’un autre dossier.'])->assertNotFound();
+        $this->assertNull($dispute->fresh()->refunded_at);
+        $this->actingAs($manager, 'web')->get(route('admin.disputes.resolution.index'))->assertForbidden();
+    }
+
+    private function fundedReturn(bool $collection = false): array
+    {
+        $dispute = $this->openDispute($this->deliveredOrder());
+        $service = app(DisputeService::class);
+        $admin = $this->admin();
+        $service->decide($dispute, $admin, Dispute::DECISION_FOUNDED, 'Défaut confirmé par ASSO.');
+        $shipment = $collection ? $service->startReplacement($dispute->fresh(), 'vendor', $this->seller->id)
+            : $service->startReturn($dispute->fresh(), 'admin', $admin->id);
+        $shipment = $this->priceShipment($shipment);
+        $this->setBalance($this->seller, 3000, 2000);
+        $service->initiatePayment($shipment, $this->seller, 'wallet');
+        return [$dispute->fresh(), $shipment->fresh(), $admin];
+    }
+
+    public function test_independent_receipt_expires_without_seller_code_and_refunds_once(): void
+    {
+        [$dispute, $shipment, $admin] = $this->fundedReturn();
+        $resolution = app(\App\Services\DisputeResolutionService::class);
+        $receipt = $resolution->registerReceipt($shipment, $admin, $this->proof($dispute)->id, 'Agence ASSO Douala', 'Produit identifié et reçu en agence.');
+        $resolution->process();
+        $this->assertNull($dispute->fresh()->refunded_at);
+        $this->travel(49)->hours();
+        $resolution->process();
+        $resolution->process();
+        $this->assertSame(1100.0, $this->bal($this->client));
+        $this->assertNotNull($receipt->fresh()->accepted_at);
+        $this->assertSame('confirmed', $shipment->fresh()->status);
+    }
+
+    public function test_independent_collection_receipt_prepares_exchange_without_refund(): void
+    {
+        [$dispute, $shipment, $admin] = $this->fundedReturn(true);
+        $resolution = app(\App\Services\DisputeResolutionService::class);
+        $receipt = $resolution->registerReceipt($shipment, $admin, $this->proof($dispute)->id, 'Agence Solex', 'Produit défectueux conservé en agence.');
+        $this->travel(49)->hours();
+        $resolution->process();
+        $this->assertSame(0.0, $this->bal($this->client));
+        $this->assertNotNull($receipt->fresh()->accepted_at);
+        $this->assertSame('awaiting_preparation', $dispute->fresh()->shipment('replacement')->status);
+        $this->assertSame(1, $dispute->shipments()->where('type', 'replacement')->count());
+    }
+
+    public function test_contested_receipt_requires_admin_arbitration(): void
+    {
+        [$dispute, $shipment, $admin] = $this->fundedReturn();
+        $resolution = app(\App\Services\DisputeResolutionService::class);
+        $receipt = $resolution->registerReceipt($shipment, $admin, $this->proof($dispute)->id, 'Agence Solex', 'Retour reçu et référence produit contrôlée.');
+        $proof = $this->proof($dispute, 'vendor');
+        $this->actingAs($this->seller, 'sanctum')->postJson('/api/v1/vendor/disputes/receipts/'.$receipt->id.'/contest',
+            ['attachment_id' => $proof->id, 'note' => 'Le numéro de série du produit est différent.'])->assertOk();
+        $this->travel(49)->hours();
+        $resolution->process();
+        $this->assertNull($receipt->fresh()->accepted_at);
+        $this->assertSame(0.0, $this->bal($this->client));
+        $resolution->acceptReceipt($receipt->fresh(), $admin, 'Numéro de série vérifié et contestation examinée.');
+        $this->assertSame(1100.0, $this->bal($this->client));
+    }
+
+    public function test_transport_advance_is_accounted_once_without_seller_balance(): void
+    {
+        $dispute = $this->openDispute($this->deliveredOrder());
+        $admin = $this->admin();
+        $service = app(DisputeService::class);
+        $service->decide($dispute, $admin, Dispute::DECISION_FOUNDED, 'Produit défectueux vérifié.');
+        $shipment = $this->priceShipment($service->startReturn($dispute->fresh(), 'admin', $admin->id));
+        $before = $this->bal($this->seller);
+        $this->setBalance($this->asso, 1000);
+        $resolution = app(\App\Services\DisputeResolutionService::class);
+        $resolution->advanceTransport($shipment, $admin, 'Avance autorisée pour débloquer le retour.');
+        $resolution->advanceTransport($shipment, $admin, 'Reprise du même financement de secours.');
+        $this->assertSame(600.0, $this->bal($this->asso));
+        $this->assertSame($before, $this->bal($this->seller));
+        $this->assertDatabaseCount('dispute_advances', 1);
+        $this->assertDatabaseHas('dispute_advances', ['dispute_shipment_id' => $shipment->id, 'debtor_id' => $this->seller->id, 'amount' => 400]);
+        $this->assertTrue($shipment->fresh()->isPaid());
+    }
+
+    public function test_failed_advance_rolls_back_all_financial_state(): void
+    {
+        $dispute = $this->openDispute($this->deliveredOrder());
+        $admin = $this->admin();
+        $service = app(DisputeService::class);
+        $service->decide($dispute, $admin, Dispute::DECISION_FOUNDED, 'Défaut confirmé par ASSO.');
+        $shipment = $this->priceShipment($service->startReturn($dispute->fresh(), 'admin', $admin->id));
+        $this->setBalance($this->asso, 0);
+        try { app(\App\Services\DisputeResolutionService::class)->advanceTransport($shipment, $admin, 'Avance avec trésorerie insuffisante.'); $this->fail('Should reject insufficient funds'); }
+        catch (\Exception $e) { $this->assertNotEmpty($e->getMessage()); }
+        $this->assertSame('vendor', $shipment->fresh()->payer);
+        $this->assertFalse($shipment->fresh()->isPaid());
+        $this->assertDatabaseCount('dispute_advances', 0);
+    }
+
+    public function test_resolution_deadlines_reassign_without_blind_refund_or_duplicate_escalation(): void
+    {
+        $dispute = $this->openDispute($this->deliveredOrder());
+        $this->admin(); $this->admin();
+        $resolution = app(\App\Services\DisputeResolutionService::class);
+        $resolution->process();
+        $this->travel(49)->hours();
+        $resolution->process();
+        $task = \App\Models\DisputeResolutionTask::where('dispute_id', $dispute->id)->whereNull('completed_at')->firstOrFail();
+        $this->assertSame(1, $task->escalations);
+        $first = $task->assigned_to;
+        $resolution->process();
+        $this->assertSame(1, $task->fresh()->escalations);
+        $this->travel(49)->hours();
+        $resolution->process();
+        $this->assertSame(2, $task->fresh()->escalations);
+        $this->assertNotEquals($first, $task->fresh()->assigned_to);
+        $this->assertNull($dispute->fresh()->refunded_at);
+        $this->actingAs($this->admin())->get(route('admin.disputes.resolution.index'))->assertOk()->assertSee($dispute->number);
+    }
+
+    public function test_late_transport_payment_after_arbitration_is_returned_to_payer_once(): void
+    {
+        $dispute = $this->openDispute($this->deliveredOrder());
+        $admin = $this->admin();
+        $service = app(DisputeService::class);
+        $service->decide($dispute, $admin, Dispute::DECISION_FOUNDED, 'Défaut reconnu par ASSO.');
+        $shipment = $this->priceShipment($service->startReturn($dispute->fresh(), 'admin', $admin->id));
+        $shipment->update(['payment_mode' => 'kpay_direct', 'payment_reference' => 'LATE-RETURN']);
+        $resolution = app(\App\Services\DisputeResolutionService::class);
+        $resolution->refund($dispute, $admin, $this->proof($dispute)->id, 'Refus de retour documenté par le transporteur.');
+        $before = $this->bal($this->seller);
+        $service->confirmPayment($shipment);
+        $service->confirmPayment($shipment);
+        $this->assertSame($before + 500, $this->bal($this->seller));
+        $this->assertSame('cancelled', $shipment->fresh()->status);
+        $this->assertFalse($shipment->fresh()->isOpenForCourier());
+    }
+
+    private function undeliveredOrder(bool $settled = false): Order
+    {
+        $order = $this->deliveredOrder();
+        $order->update(['status' => 'confirmed', 'delivered_at' => null, 'auto_validate_at' => null]);
+        if (!$settled) {
+            // Fixture d’un acompte direct non encore réparti aux bénéficiaires.
+            $order->update(['settled_at' => null, 'vendor_funds_status' => null, 'vendor_funds_holder_id' => null, 'vendor_funds_held_amount' => 0,
+                'total' => 2700, 'payment_method' => 'kpay_direct']);
+        }
+        return $order->fresh();
+    }
+
+    public function test_undelivered_settled_order_refunds_collected_total_once_and_preserves_carrier_recours(): void
+    {
+        $order = $this->undeliveredOrder(true);
+        $resolution = app(\App\Services\DisputeResolutionService::class);
+        $claim = $resolution->openDeliveryClaim($order, $this->client, 'lost', 'Le transporteur confirme la perte du colis.');
+        $this->setBalance($this->asso, 1000);
+        $admin = $this->admin();
+        $this->assertSame(2700.0, $resolution->resolveDeliveryClaim($claim, $admin, 'refund', 'Perte vérifiée après enquête transporteur.', 'claims/carrier-proof.pdf'));
+        $this->assertSame(0.0, $resolution->resolveDeliveryClaim($claim, $admin, 'refund', 'Même décision répétée par le responsable.', 'claims/carrier-proof.pdf'));
+        $this->assertSame(2700.0, $this->bal($this->client));
+        $this->assertSame(0.0, $this->locked($this->seller));
+        $this->assertSame('cancelled', $order->fresh()->status);
+        $this->assertDatabaseHas('dispute_advances', ['order_delivery_claim_id' => $claim->id, 'amount' => 700]);
+    }
+
+    public function test_paid_undelivered_claim_api_checks_ownership_and_delivery_state(): void
+    {
+        $order = $this->undeliveredOrder();
+        $route = '/api/v1/orders/'.$order->id.'/delivery-claim';
+        $this->actingAs($this->seller, 'sanctum')->postJson($route, ['reason' => 'not_received', 'description' => 'Commande jamais reçue par le client.'])->assertNotFound();
+        $this->actingAs($this->client, 'sanctum')->postJson($route, ['reason' => 'not_received', 'description' => 'Commande jamais reçue par le client.'])->assertCreated();
+        $this->postJson($route, ['reason' => 'not_received', 'description' => 'Commande jamais reçue par le client.'])->assertCreated();
+        $this->assertDatabaseCount('order_delivery_claims', 1);
+        $order->update(['status' => 'delivered']);
+        $this->postJson($route, ['reason' => 'not_received', 'description' => 'Commande jamais reçue par le client.'])->assertUnprocessable();
+    }
+
+    public function test_supervisor_detects_paid_orders_that_never_ship_without_refunding_blindly(): void
+    {
+        $order = $this->undeliveredOrder();
+        $order->forceFill(['created_at' => now()->subDays(5), 'confirmed_at' => now()->subDays(5)])->save();
+        app(\App\Services\DisputeResolutionService::class)->process();
+        app(\App\Services\DisputeResolutionService::class)->process();
+        $this->assertDatabaseCount('order_delivery_claims', 1);
+        $this->assertDatabaseCount('dispute_resolution_tasks', 1);
+        $this->assertNull($order->fresh()->refunded_at);
+    }
+
+    public function test_import_deposit_refunds_only_collected_money_and_unlocks_mixed_wallet_balance(): void
+    {
+        $resolution = app(\App\Services\DisputeResolutionService::class);
+        $admin = $this->admin();
+        $order = Order::create(['user_id' => $this->client->id, 'status' => 'pending', 'subtotal' => 2200,
+            'delivery_fee' => 500, 'total' => 2700, 'payment_status' => 'paid', 'payment_method' => 'kpay_direct',
+            'payment_plan' => 'deposit', 'deposit_amount' => 900, 'balance_amount' => 1800,
+            'balance_status' => 'locked', 'is_wholesale' => true, 'delivery_address' => 'Douala']);
+        $claim = $resolution->openDeliveryClaim($order, $this->client, 'not_shipped', 'Fournisseur chinois sans preuve d’expédition.');
+        $this->assertSame(900.0, $resolution->resolveDeliveryClaim($claim, $admin, 'refund', 'Absence d’expédition vérifiée par ASSO.', 'proof.pdf'));
+        $this->assertSame(900.0, $this->bal($this->client));
+
+        $mixed = Order::create(['user_id' => $this->client->id, 'status' => 'confirmed', 'subtotal' => 2200,
+            'delivery_fee' => 500, 'total' => 2700, 'payment_status' => 'paid', 'payment_method' => 'kpay_direct',
+            'payment_plan' => 'deposit', 'deposit_amount' => 900, 'balance_amount' => 1800,
+            'balance_status' => 'paid', 'balance_payment_method' => 'wallet_kpay', 'delivery_address' => 'Douala']);
+        $this->setBalance($this->client, 1800, 1800);
+        $claim = $resolution->openDeliveryClaim($mixed, $this->client, 'not_received', 'Colis non reçu après paiement des deux tranches.');
+        $this->assertSame(2700.0, $resolution->resolveDeliveryClaim($claim, $admin, 'refund', 'Perte confirmée par justificatif transporteur.', 'proof.pdf'));
+        $this->assertSame(2700.0, $this->bal($this->client));
+        $this->assertSame(0.0, $this->locked($this->client));
+    }
+
+    public function test_delivery_claim_cannot_refund_an_order_delivered_during_investigation(): void
+    {
+        $order = $this->undeliveredOrder(true);
+        $resolution = app(\App\Services\DisputeResolutionService::class);
+        $claim = $resolution->openDeliveryClaim($order, $this->client, 'not_received', 'Le colis semble perdu depuis plusieurs jours.');
+        $order->update(['status' => 'delivered', 'delivered_at' => now()]);
+        $this->expectException(\DomainException::class);
+        $resolution->resolveDeliveryClaim($claim, $this->admin(), 'refund', 'Décision sur une situation devenue obsolète.', 'proof.pdf');
+    }
+
+    public function test_stale_admin_actions_and_courier_steps_cannot_reopen_an_arbitrated_dispute(): void
+    {
+        [$dispute, $shipment, $admin] = $this->fundedReturn();
+        $stale = $dispute->fresh();
+        $stale->status = Dispute::STATUS_NEW;
+        $stale->decision = null;
+        app(\App\Services\DisputeResolutionService::class)->refund($dispute, $admin, $this->proof($dispute)->id, 'Refus de réception établi et remboursement autorisé.');
+        app(DisputeService::class)->markInReview($stale, $admin);
+        $this->assertSame(Dispute::STATUS_REFUNDED, $dispute->fresh()->status);
+        $this->assertSame([], $shipment->fresh()->manualSteps());
+        $this->assertThrows(fn () => app(DisputeService::class)->contactVendor($stale, $admin, 'Relance obsolète'), \Exception::class);
+        $this->assertThrows(fn () => app(DisputeService::class)->recordStep($shipment->fresh(), 'pickup_scheduled', 'admin', $admin->id), \Exception::class);
+        $this->assertSame(1100.0, $this->bal($this->client));
+    }
+
+    public function test_automatic_advance_respects_configured_ceiling_and_is_idempotent(): void
+    {
+        $dispute = $this->openDispute($this->deliveredOrder());
+        $admin = $this->admin();
+        $service = app(DisputeService::class);
+        $service->decide($dispute, $admin, Dispute::DECISION_FOUNDED, 'Défaut confirmé par ASSO.');
+        $shipment = $this->priceShipment($service->startReturn($dispute->fresh(), 'admin', $admin->id));
+        $this->setBalance($this->asso, 1000);
+        \App\Models\Setting::set('dispute_automatic_advance_limit', 399, 'integer', 'disputes');
+        $resolution = app(\App\Services\DisputeResolutionService::class);
+        $resolution->process();
+        $this->travel(49)->hours();
+        $resolution->process();
+        $this->assertFalse($shipment->fresh()->isPaid());
+        $this->assertDatabaseCount('dispute_advances', 0);
+        \App\Models\Setting::set('dispute_automatic_advance_limit', 400, 'integer', 'disputes');
+        $this->travel(49)->hours();
+        $resolution->process();
+        $resolution->process();
+        $this->assertTrue($shipment->fresh()->isPaid());
+        $this->assertDatabaseCount('dispute_advances', 1);
+        $this->assertSame(600.0, $this->bal($this->asso));
+    }
+
+    public function test_pending_external_payment_prevents_an_advance(): void
+    {
+        $dispute = $this->openDispute($this->deliveredOrder());
+        $admin = $this->admin();
+        $service = app(DisputeService::class);
+        $service->decide($dispute, $admin, Dispute::DECISION_FOUNDED, 'Défaut confirmé par ASSO.');
+        $shipment = $this->priceShipment($service->startReturn($dispute->fresh(), 'admin', $admin->id));
+        $shipment->update(['payment_mode' => 'kpay_direct', 'payment_reference' => 'PENDING-EXTERNAL']);
+        $this->setBalance($this->asso, 1000);
+        $this->assertThrows(fn () => app(\App\Services\DisputeResolutionService::class)->advanceTransport($shipment, $admin, 'Avance pendant une opération externe en cours.'), \DomainException::class);
+        $this->assertSame(1000.0, $this->bal($this->asso));
+        $this->assertSame('vendor', $shipment->fresh()->payer);
+        $this->assertDatabaseCount('dispute_advances', 0);
+    }
+
+    public function test_international_return_can_be_received_at_authorized_agency_without_vendor_code(): void
+    {
+        [$dispute] = $this->internationalDisputeFixture();
+        $admin = $this->admin();
+        $service = app(DisputeService::class);
+        $service->decide($dispute, $admin, Dispute::DECISION_FOUNDED, 'Défaut confirmé après examen du dossier.');
+        $shipment = $this->payInternationalShipment($service->startReturn($dispute->fresh(), 'admin', $admin->id), 6000);
+        $resolution = app(\App\Services\DisputeResolutionService::class);
+        $receipt = $resolution->registerReceipt($shipment, $admin, $this->proof($dispute)->id, 'Solex Douala', 'Retour international contrôlé et conservé en agence.');
+        $this->travel(49)->hours();
+        $resolution->process();
+        $this->assertNotNull($receipt->fresh()->accepted_at);
+        $this->assertSame('confirmed', $shipment->fresh()->status);
+        $this->assertSame(1100.0, $this->bal($this->client));
+    }
+
+    public function test_delivery_claim_proofs_are_private_and_admin_settings_use_supported_storage_types(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('local');
+        $order = $this->undeliveredOrder();
+        $this->actingAs($this->client, 'sanctum')->post('/api/v1/orders/'.$order->id.'/delivery-claim', [
+            'reason' => 'not_received', 'description' => 'Livraison absente, justificatif de suivi joint.',
+            'photos' => [\Illuminate\Http\UploadedFile::fake()->image('tracking.jpg')],
+        ], ['Accept' => 'application/json'])->assertCreated();
+        $claim = \App\Models\OrderDeliveryClaim::where('order_id', $order->id)->firstOrFail();
+        $this->assertCount(1, $claim->client_proofs);
+        $this->actingAs($this->admin(), 'web')->get(route('admin.disputes.resolution.proof', ['claim' => $claim, 'index' => 0]))->assertOk();
+        $values = array_fill_keys(['review_hours', 'payment_hours', 'receipt_contest_hours', 'local_transit_hours',
+            'international_transit_hours', 'dispatch_hours', 'preparation_hours', 'import_preparation_hours'], 48);
+        $this->post(route('admin.disputes.resolution.settings'), $values + ['automatic_advance_limit' => '5000.50'])->assertSessionHas('success');
+        $this->assertDatabaseHas('settings', ['key' => 'dispute_automatic_advance_limit', 'type' => 'string', 'value' => '5000.50']);
     }
 
 }

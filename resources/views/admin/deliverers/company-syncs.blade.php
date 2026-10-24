@@ -1,6 +1,7 @@
 @extends('admin.layouts.app')
 
 @section('content')
+@php($syncAgencies = $company->agencies()->where('is_active', true)->where('is_international_reference', false)->orderBy('city')->get())
 <div class="p-6">
     <!-- Header -->
     <div class="mb-6">
@@ -10,13 +11,19 @@
                     <i class="fas fa-arrow-left"></i>
                 </a>
                 <div>
-                    <h1 class="text-2xl font-bold text-white">Synchronisations - {{ $company->name }}</h1>
-                    <p class="text-gray-400">Gestion des utilisateurs synchronisés</p>
+                    <h1 class="text-2xl font-bold text-white">Livreurs et agences — {{ $company->name }}</h1>
+                    <p class="text-gray-400">Pour chaque livreur : choisissez son agence, puis cliquez sur « Enregistrer l’agence ».</p>
                 </div>
             </div>
         </div>
     </div>
 
+    @if(session('success'))
+        <div class="mb-4 p-4 bg-green-900/20 border border-green-500/40 text-green-300 rounded-lg">{{ session('success') }}</div>
+    @endif
+    @if($errors->any())
+        <div class="mb-4 p-4 bg-red-900/20 text-red-300 rounded-lg"><ul>@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>
+    @endif
     <!-- Stats Cards -->
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <div class="bg-dark-100 rounded-xl border border-dark-200 p-6">
@@ -80,6 +87,7 @@
                     <tr>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Utilisateur</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Code</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Agence</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Statut</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Synchronisé le</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Actions</th>
@@ -111,6 +119,19 @@
                                 </code>
                             </td>
 
+                            <!-- Agency -->
+                            <td class="px-6 py-4">
+                                <form method="POST" action="{{ route('admin.deliverers.syncs.agency', $sync) }}">
+                                    @csrf
+                                    <select name="delivery_agency_id" class="bg-dark-50 border border-dark-300 rounded px-2 py-1 text-sm text-white">
+                                        <option value="">Sans agence</option>
+                                        @foreach($syncAgencies as $syncAgency)
+                                            <option value="{{ $syncAgency->id }}" @selected($sync->delivery_agency_id === $syncAgency->id)>{{ $syncAgency->name }}</option>
+                                        @endforeach
+                                    </select>
+                                    <button type="submit" class="block px-3 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-lg text-sm mt-2">Enregistrer l’agence</button>
+                                </form>
+                            </td>
                             <!-- Status -->
                             <td class="px-6 py-4 whitespace-nowrap">
                                 @if($sync->is_banned)

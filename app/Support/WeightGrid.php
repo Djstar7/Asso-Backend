@@ -3,9 +3,12 @@
 namespace App\Support;
 
 /**
- * Grille tarifaire au poids réel (kg), commune aux livreurs locaux et aux transporteurs.
+ * Tarification au poids réel (kg), par tranches ou directement au kilo.
  *
- * pricing_data = {
+ * Mode direct : {"mode":"per_kg","price_per_kg":8000,"max_weight_kg":1000}.
+ * Les fractions de kilo sont proportionnelles, sans arrondi au kilo supérieur.
+ *
+ * Mode par tranches : pricing_data = {
  *   "ranges": [{"min": 0, "max": 2, "price": 2500, "label": "Plis & paquets"},
  *              {"min": 2, "max": 10, "price": 4000, "label": "Colis"}],
  *   "extra_per_kg": 150   // au-delà de la dernière tranche, par kg entamé
@@ -16,10 +19,27 @@ class WeightGrid
     /**
      * Prix pour un poids donné, ou null si le colis dépasse la grille (pas de kg supplémentaire).
      *
-     * @return array{price: float, range_label: string, range_price: float, extra_kg: int, extra_per_kg: float, extra_price: float}|null
+     * @return array{price: float, range_label: string, range_price: float, extra_kg: int, extra_per_kg: float, extra_price: float, price_per_kg?: float}|null
      */
     public static function price(array $pricingData, float $weightKg): ?array
     {
+        if (($pricingData['mode'] ?? null) === 'per_kg') {
+            $rate = (float) ($pricingData['price_per_kg'] ?? 0);
+            $max = $pricingData['max_weight_kg'] ?? null;
+            if (! is_finite($weightKg) || $weightKg <= 0 || ! is_finite($rate) || $rate <= 0
+                || ($max !== null && $weightKg > (float) $max)) {
+                return null;
+            }
+
+            return [
+                'price' => round($weightKg * $rate, 2),
+                'range_label' => __('delivery.quote.per_kg'),
+                'range_price' => round($weightKg * $rate, 2),
+                'extra_kg' => 0, 'extra_per_kg' => 0.0, 'extra_price' => 0.0,
+                'price_per_kg' => $rate,
+            ];
+        }
+
         $ranges = collect($pricingData['ranges'] ?? [])
             ->filter(fn ($r) => isset($r['max'], $r['price']))
             ->map(fn ($r) => [
@@ -73,6 +93,10 @@ class WeightGrid
     /** Grille lisible pour l'acheteur : [« Plis & paquets (0 à 2 kg) » => 2500, …]. */
     public static function describe(array $pricingData): array
     {
+        if (($pricingData['mode'] ?? null) === 'per_kg') {
+            return [['label' => __('delivery.quote.per_kg'), 'price' => (float) ($pricingData['price_per_kg'] ?? 0)]];
+        }
+
         return collect($pricingData['ranges'] ?? [])
             ->sortBy(fn ($r) => (float) ($r['max'] ?? 0))
             ->map(fn ($r) => [

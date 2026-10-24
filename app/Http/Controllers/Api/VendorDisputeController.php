@@ -156,7 +156,7 @@ class VendorDisputeController extends Controller
     public function step(Request $request, $shipmentId)
     {
         $validated = $request->validate([
-            'step' => 'required|in:shipped',
+            'step' => 'required|in:shipped,confirmed',
             'note' => 'nullable|string|max:500',
             'carrier_tracking_number' => 'nullable|string|max:100',
         ]);

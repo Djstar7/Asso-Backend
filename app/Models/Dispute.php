@@ -63,11 +63,12 @@ class Dispute extends Model
         'status', 'decision', 'decision_note', 'decided_by', 'decided_at',
         'resolution', 'replacement_count', 'auto_validate_at', 'refunded_at', 'closed_at',
         'client_bank_withdrawal_id', 'vendor_bank_withdrawal_id',
-        'asso_managed', 'vendor_refunded_amount', 'quantity', 'vendor_response_due_at', 'vendor_responded_at',
+        'receipt_waived_at', 'asso_managed', 'vendor_refunded_amount', 'quantity', 'vendor_response_due_at', 'vendor_responded_at',
         'vendor_reminded_at', 'vendor_escalated_at', 'replacement_due_at',
     ];
 
     protected $casts = [
+        'receipt_waived_at' => 'datetime',
         'asso_managed' => 'boolean',
         'vendor_refunded_amount' => 'decimal:2',
         'quantity' => 'integer',

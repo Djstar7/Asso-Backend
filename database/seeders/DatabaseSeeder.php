@@ -31,6 +31,10 @@ class DatabaseSeeder extends Seeder
             SystemUserSeeder::class,
             SupportUserSeeder::class,
             SolexNetworkSeeder::class,
+            InternationalExportSeeder::class,
+            SolexCollectionPricingSeeder::class,
+            InternationalReturnPricingSeeder::class,
+            InternationalCarrierAgenciesSeeder::class,
         ]);
 
         $this->command->info('');

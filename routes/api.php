@@ -265,6 +265,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/orders/{id}/pay-balance', [OrderController::class, 'payBalance']);
         // Fenêtre de contrôle de 48 h après la livraison : conforme, ou réclamation par article.
         Route::post('/orders/{id}/conform', [OrderController::class, 'conform']);
+        Route::get('/orders/{orderId}/delivery-claim', [\App\Http\Controllers\Api\OrderDeliveryClaimController::class, 'show']);
+        Route::post('/orders/{orderId}/delivery-claim', [\App\Http\Controllers\Api\OrderDeliveryClaimController::class, 'store'])->middleware('throttle:20,1');
+        Route::post('/vendor/disputes/receipts/{receipt}/contest', [\App\Http\Controllers\Api\OrderDeliveryClaimController::class, 'contest'])->middleware('throttle:20,1');
         Route::post('/orders/{id}/disputes', [\App\Http\Controllers\Api\DisputeController::class, 'store'])->middleware('throttle:20,1');
 
         // Réclamations / litiges (client)

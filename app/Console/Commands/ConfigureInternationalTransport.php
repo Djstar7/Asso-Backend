@@ -4,7 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\DelivererCompany;
 use App\Models\PartnerFreightRate;
-use Database\Seeders\SinoCamFreightRatesSeeder;
+use Database\Seeders\InternationalTransportProductionSeeder;
 use Database\Seeders\SinoCamTransportDemoSeeder;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Schema;
@@ -22,12 +22,21 @@ class ConfigureInternationalTransport extends Command
 
             return self::FAILURE;
         }
-        if (! Schema::hasTable('partner_freight_rates') || ! Schema::hasColumn('maritime_departures', 'freight_rate_snapshot') || ! Schema::hasColumn('maritime_hubs', 'is_demo') || ! Schema::hasColumn('maritime_departures', 'is_demo')) {
-            $this->error('Appliquez les migrations de transport avant cette commande (voir README).');
-
-            return self::FAILURE;
+        $required = [
+            'partner_freight_rates' => ['public_rate_amount', 'freight_payment_timing'],
+            'maritime_departures' => ['freight_rate_snapshot', 'is_demo'],
+            'maritime_hubs' => ['is_demo'],
+        ];
+        if (! $this->option('demo')) {
+            $required += \App\Support\InternationalCarrierSchema::REQUIRED_COLUMNS;
         }
-        $result = $this->call('db:seed', ['--class' => $this->option('demo') ? SinoCamTransportDemoSeeder::class : SinoCamFreightRatesSeeder::class, '--force' => true]);
+        foreach ($required as $table => $columns) {
+            if (! Schema::hasColumns($table, $columns)) {
+                $this->error('Appliquez toutes les migrations avant cette commande : php artisan migrate --force (table '.$table.').');
+                return self::FAILURE;
+            }
+        }
+        $result = $this->call('db:seed', ['--class' => $this->option('demo') ? SinoCamTransportDemoSeeder::class : InternationalTransportProductionSeeder::class, '--force' => true]);
         if ($result !== self::SUCCESS) {
             return self::FAILURE;
         }
@@ -38,7 +47,14 @@ class ConfigureInternationalTransport extends Command
                 $r->transport_mode, $r->cargo_category, "{$r->rate_amount}/{$r->rate_unit}",
                 "{$r->public_rate_amount}/{$r->rate_unit}", $r->currency, "{$r->transit_days_min}–{$r->transit_days_max} jours",
             ])->all());
-        $this->line("Administration : /admin/maritime/partners/{$partner->id}");
+        $this->line("Administration imports : /admin/maritime/partners/{$partner->id}");
+        if (! $this->option('demo')) {
+            foreach (DelivererCompany::whereIn('name', ['DHL Express', 'FedEx'])->get() as $carrier) {
+                $count = $carrier->deliveryRoutes()->whereNotNull('export_config')->count();
+                $this->line($carrier->name.' : '.$count.' trajets export configurés.');
+            }
+            $this->line('Tarifs provisoires au kilo et repères d’agences : Partenaires logistiques.');
+        }
         $this->line($this->option('demo') ? 'QG et départs [TEST] prêts pour les essais locaux.' : 'Les adresses réelles, dates et capacités se renseignent dans l’administration avant activation.');
 
         return self::SUCCESS;

@@ -14,6 +14,10 @@ use Illuminate\Support\Facades\Log;
 class OrderTrackingService
 {
     public const STEPS = [
+        'export_pickup_requested' => 'Collecte Solex programmée',
+        'export_collected' => 'Colis récupéré chez le vendeur par Solex',
+        'export_at_solex' => 'Colis reçu à l’agence Solex',
+        'shipment_issue' => 'Incident d’acheminement',
         'pending' => 'Commande passée',
         'confirmed' => 'Commande validée par le vendeur',
         'preparing' => 'Colis en préparation',
@@ -38,8 +42,13 @@ class OrderTrackingService
     ];
 
     /** Libellé d'une étape dans la langue de la requête (STEPS reste le libellé enregistré). */
-    public static function stepLabel(?string $step): ?string
+    public static function stepLabel(?string $step, ?Order $order = null): ?string
     {
+        if ($step === 'out_for_delivery' && $order?->isInternationalExport()) {
+            return __('delivery.export.carrier_out_for_delivery', [
+                'carrier' => $order->delivery_breakdown['company_name'] ?? $order->deliveryCompany?->name,
+            ]);
+        }
         return $step !== null && isset(self::STEPS[$step]) ? __("tracking.steps.{$step}") : null;
     }
 
@@ -73,14 +82,16 @@ class OrderTrackingService
     ): OrderTrackingEvent {
         $assignedCarrierCourier = $actorType === 'deliverer' && $actorId !== null
             && $order->carrier_courier_requested_at !== null && $order->delivery_person_id === $actorId
-            && in_array($step, ['pickup_accepted', 'collected_by_carrier', 'partner_in_transit', 'arrived', 'out_for_delivery', 'ready_for_pickup', 'delivered'], true)
-            && \App\Models\DelivererCodeSync::where('user_id', $actorId)->where('company_id', $order->delivery_company_id)->active()->exists();
+            && in_array($step, ['export_collected', 'export_at_solex', 'pickup_accepted', 'collected_by_carrier', 'partner_in_transit', 'arrived', 'out_for_delivery', 'ready_for_pickup', 'delivered'], true)
+            && CarrierCourierService::eligibleSyncs($order)->where('user_id', $actorId)->exists();
+        $automaticCollection = $actorType === 'system' && $order->isInternationalExport()
+            && $step === 'export_pickup_requested';
         if ($order->isCarrierDelivery() && in_array($step, array_merge(
             self::CARRIER_UPDATE_STEPS, [self::IMPORT_HUB_STEP, 'handed_to_carrier'],
             AssoShipmentService::EXTERNAL_STEPS
-        ), true) && $actorType !== 'admin' && !$assignedCarrierCourier) {
+        ), true) && $actorType !== 'admin' && !$assignedCarrierCourier && !$automaticCollection) {
             // Le vendeur peut seulement déclarer le dépôt initial d'un colis national.
-            if ($actorType !== 'vendor' || $step !== 'handed_to_carrier' || $order->is_wholesale) {
+            if ($actorType !== 'vendor' || $step !== 'handed_to_carrier' || $order->is_wholesale || $order->isInternationalExport()) {
                 throw \Illuminate\Validation\ValidationException::withMessages(['step' => __('shipment.asso_only')]);
             }
         }
@@ -146,6 +157,8 @@ class OrderTrackingService
     /** Suivi complet pour l'API (acheteur, vendeur, admin). */
     public static function timeline(Order $order): array
     {
-        return $order->trackingEvents->map->toApi()->values()->all();
+        return $order->trackingEvents->map(fn ($event) => array_replace($event->toApi(), [
+            'label' => self::stepLabel($event->step, $order) ?? $event->label,
+        ]))->values()->all();
     }
 }

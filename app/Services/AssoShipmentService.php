@@ -12,7 +12,7 @@ use Illuminate\Validation\ValidationException;
 /** ASSO enregistre les opérations physiques et les confirmations du transporteur. */
 class AssoShipmentService
 {
-    public const EXTERNAL_STEPS = ['pickup_requested', 'pickup_accepted', 'collected_by_carrier',
+    public const EXTERNAL_STEPS = ['export_pickup_requested', 'export_collected', 'export_at_solex', 'shipment_issue', 'pickup_requested', 'pickup_accepted', 'collected_by_carrier',
         'partner_in_transit', 'arrived', 'ready_for_pickup', 'out_for_delivery', 'delivered', 'collected_at_agency'];
 
     public static function nextSteps(Order $order): array
@@ -20,6 +20,24 @@ class AssoShipmentService
         if (! $order->isCarrierDelivery() || $order->payment_status !== Order::PAYMENT_PAID
             || in_array($order->status, ['pending', 'cancelled', 'delivered'], true)) {
             return [];
+        }
+        if ($order->isInternationalExport()) {
+            $step = $order->tracking_status;
+            if ($step === 'shipment_issue') {
+                $step = $order->trackingEvents()->where('step', '!=', 'shipment_issue')->reorder()->latest('id')->value('step');
+            }
+            $next = match ($step) {
+                'export_pickup_requested' => ['export_collected'],
+                'export_collected' => ['export_at_solex'],
+                'export_at_solex' => ['handed_to_carrier'],
+                'handed_to_carrier' => ['in_transit'],
+                'in_transit' => ['customs', 'arrived'],
+                'customs' => ['arrived'],
+                'arrived' => ['out_for_delivery'],
+                'out_for_delivery' => ['delivered'],
+                default => in_array($step, ['confirmed', 'preparing'], true) || in_array($order->status, ['confirmed', 'preparing'], true) ? ['export_pickup_requested'] : [],
+            };
+            return $next ? array_merge($next, ['shipment_issue']) : [];
         }
         if (in_array($order->status, ['confirmed', 'preparing'], true)) {
             return ['handed_to_carrier'];
@@ -56,7 +74,7 @@ class AssoShipmentService
             $this->check(! in_array($order->tracking_status, ['arrived', 'ready_for_pickup'], true)
                 || ! $order->delivery_agency_id, 'agency.assignment_locked');
             $agency = DeliveryAgency::with('company')->lockForUpdate()->findOrFail($agency->id);
-            $this->check($agency->is_active && $agency->company?->is_active
+            $this->check($agency->is_active && ! $agency->is_international_reference && $agency->company?->is_active
                 && $agency->deliverer_company_id === $order->delivery_company_id, 'agency.wrong_agency');
             $destination = $order->delivery_breakdown['destination_city'] ?? null;
             if (! $destination && ($route = $order->deliveryRoute)) {
@@ -92,7 +110,7 @@ class AssoShipmentService
             }
         }
         if (!$agency && $company && $city) {
-            $choices = DeliveryAgency::where('deliverer_company_id', $company->id)->where('is_active', true)->get()
+            $choices = DeliveryAgency::where('deliverer_company_id', $company->id)->where('is_active', true)->where('is_international_reference', false)->get()
                 ->filter(fn ($a) => CountryCode::sameCity($a->city, $city));
             // Aucune agence arbitraire si plusieurs agences desservent la ville.
             if ($choices->count() === 1) {
@@ -102,11 +120,23 @@ class AssoShipmentService
         $phone = collect([$agency['phone'] ?? null, $company?->phone, $company?->user?->phone])
             ->first(fn ($value) => strlen(preg_replace('/\D/', '', (string) $value)) >= 8);
         $email = $company?->email ?: $company?->user?->email;
+        if ($order->isInternationalExport() && in_array($step, ['export_pickup_requested', 'export_collected', 'export_at_solex'], true)) {
+            $agency = $order->delivery_breakdown['solex_agency'] ?? null;
+            $phone = $agency['phone'] ?? null;
+            $email = null;
+        }
         $name = $agency['name'] ?? $company?->name;
         $contact = implode(' · ', array_filter(array_unique([$name, $phone, $email])));
         $location = $destinationStep && !$order->isAgencyPickup()
             ? ($order->delivery_address ?: $city)
             : ($agency['address'] ?? $shop?->address ?? $city);
+        if ($order->isInternationalExport() && in_array($step, ['export_pickup_requested', 'export_collected'], true)) {
+            $location = $shop?->address ?: $city;
+        }
+        if ($order->isInternationalExport() && in_array($step, ['export_at_solex', 'handed_to_carrier'], true)) {
+            $solex = $order->delivery_breakdown['solex_agency'] ?? [];
+            $location = $solex['address'] ?? $solex['name'] ?? $location;
+        }
         $reference = filled($trackingNumber) ? trim($trackingNumber) : $order->carrier_tracking_number;
 
         return [
@@ -117,6 +147,7 @@ class AssoShipmentService
             'confirmation_contact' => mb_substr($contact, 0, 150),
             'confirmation_reference' => mb_substr($reference ?: 'ASSO:'.$order->order_number.':'.$step, 0, 150),
             'confirmation_channel' => 'platform',
+            'carrier_tracking_number' => \App\Support\ExportTestTracking::numberFor($order),
         ];
     }
 
@@ -126,7 +157,25 @@ class AssoShipmentService
             $order = Order::lockForUpdate()->findOrFail($order->id);
             $step = $data['step'];
             $this->check(in_array($step, self::nextSteps($order), true), 'shipment.invalid_transition');
-            if (in_array($step, self::EXTERNAL_STEPS, true)) {
+            if ($order->isInternationalExport()) {
+                $collectionCourier = $actorType === 'deliverer' && $order->delivery_person_id === $actor->id
+                    && $order->carrier_courier_requested_at && in_array($step, ['export_collected', 'export_at_solex'], true)
+                    && app(CarrierCourierService::class)->synced($order, $actor);
+                $automaticCollection = $actorType === 'system' && $step === 'export_pickup_requested';
+                $this->check($actorType === 'admin' || $collectionCourier || $automaticCollection, 'shipment.asso_only');
+                if ($step === 'shipment_issue') {
+                    $this->check(filled($data['note'] ?? null), 'delivery.export.issue_note_required');
+                }
+                if ($step === 'handed_to_carrier') {
+                    if (!filled($data['carrier_tracking_number'] ?? null)) {
+                        $data['carrier_tracking_number'] = \App\Support\ExportTestTracking::numberFor($order);
+                    }
+                    $this->check(filled($data['carrier_tracking_number'] ?? $order->carrier_tracking_number), 'delivery.export.tracking_required');
+                    $this->check(!\App\Support\ExportTestTracking::isTest($data['carrier_tracking_number'])
+                        || \App\Support\ExportTestTracking::enabled(), 'delivery.export.test_tracking_disabled');
+                }
+            }
+            if (in_array($step, self::EXTERNAL_STEPS, true) || ($order->isInternationalExport() && $step === 'handed_to_carrier')) {
                 $defaults = self::formDefaults($order, $step, $data['carrier_tracking_number'] ?? null);
                 if (!filled($data['confirmation_contact'] ?? null)) {
                     $data['confirmation_contact'] = $defaults['confirmation_contact'];
@@ -146,7 +195,7 @@ class AssoShipmentService
             }
             if ($order->isAgencyPickup() && in_array($step, ['ready_for_pickup', 'collected_at_agency'], true)) {
                 $agency = $order->deliveryAgency()->with('company')->first();
-                $this->check($agency && $agency->is_active && $agency->company?->is_active
+                $this->check($agency && $agency->is_active && ! $agency->is_international_reference && $agency->company?->is_active
                     && $agency->deliverer_company_id === $order->delivery_company_id && $order->pickup_agency_snapshot, 'agency.assignment_required');
             }
             $final = in_array($step, ['delivered', 'collected_at_agency'], true);
@@ -163,10 +212,13 @@ class AssoShipmentService
                     $updates += ['agency_collected_at' => now(), 'agency_collected_by' => $actor->id];
                 }
             }
+            if ($order->isInternationalExport() && $step === 'export_at_solex') {
+                $updates += ['collection_completed_at' => now(), 'carrier_handover_code' => null];
+            }
             $order->update($updates);
             app(OrderTrackingService::class)->record($order, $step,
                 $data['location'] ?? ($order->isAgencyPickup() ? ($order->pickup_agency_snapshot['name'] ?? null) : null),
-                $data['note'] ?? null, $actorType, $actor->id, notifyBuyer: true, confirmation: $data);
+                $data['note'] ?? null, $actorType, $actorType === 'system' ? null : $actor->id, notifyBuyer: true, confirmation: $data);
             if (!$order->carrier_courier_requested_at && in_array($step, CarrierCourierService::OPEN_STEPS, true)) {
                 DB::afterCommit(fn () => app(CarrierCourierService::class)->request($order));
             }

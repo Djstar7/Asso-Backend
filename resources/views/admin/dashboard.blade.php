@@ -4,6 +4,14 @@
 @section('header', 'Dashboard')
 
 @section('content')
+@adminCan('admin.shipments.index')
+<div class="mb-6 p-5 bg-dark-100 border border-dark-200 rounded-xl flex flex-wrap items-center justify-between gap-4">
+    <div><h2 class="text-lg font-semibold text-white">Statuts des commandes et expéditions</h2>
+        <p class="text-sm text-gray-400">Collecte Solex, remise au transporteur, transit, dédouanement et livraison.</p></div>
+    <a href="{{ route('admin.shipments.index') }}" class="px-4 py-2 bg-primary-500 rounded-lg text-white text-sm">Retrouver les commandes et leur suivi</a>
+    <a href="{{ route('admin.shipments.index', ['scope' => 'export', 'status' => 'all']) }}" class="text-primary-400 text-sm">Commandes internationales · Solex → DHL / FedEx</a>
+</div>
+@endadminCan
 <!-- Pending Shops Notifications -->
 @if($pendingShops->count() > 0)
 <div class="mb-8">

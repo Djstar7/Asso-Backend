@@ -3,16 +3,20 @@
 @section('content')
 <div class="p-6">
     <div class="mb-6">
-        <h1 class="text-2xl font-bold text-white">Expéditions transporteur</h1>
+        <h1 class="text-2xl font-bold text-white">{{ $scope === 'export' ? 'Commandes internationales' : 'Expéditions et statuts des commandes' }}</h1>
         <p class="text-gray-400">Commandes confiées à SOLEX, DHL, FedEx… L’équipe ASSO suit l’acheminement et enregistre les confirmations du partenaire jusqu’à la remise au client.</p>
     </div>
 
     <form method="GET" class="flex flex-wrap gap-3 mb-4">
         <select name="status" onchange="this.form.submit()"
                 class="px-3 py-2 bg-dark-100 border border-dark-200 rounded-lg text-white text-sm">
-            @foreach(['in_progress' => 'En cours', 'awaiting_seller' => 'En attente du vendeur', 'arrived_hub' => 'Chez ASSO · à contacter', 'pickup_requested' => 'Enlèvement demandé', 'pickup_accepted' => 'Enlèvement accepté', 'collected_by_carrier' => 'Récupérées par le partenaire', 'partner_in_transit' => 'Acheminement partenaire', 'ready_for_pickup' => 'Disponibles au retrait', 'shipped' => 'Expédiées', 'delivered' => 'Livrées', 'cancelled' => 'Annulées', 'all' => 'Toutes'] as $value => $label)
+            @foreach($statusOptions as $value => $label)
                 <option value="{{ $value }}" @selected($status === $value)>{{ $label }}</option>
             @endforeach
+        </select>
+        <select name="scope" onchange="this.form.submit()" aria-label="Type d’expédition" class="px-3 py-2 bg-dark-100 border border-dark-200 rounded-lg text-white text-sm">
+            <option value="all" @selected($scope === 'all')>Toutes les expéditions</option>
+            <option value="export" @selected($scope === 'export')>International · Solex → DHL / FedEx</option>
         </select>
         <input type="text" name="search" value="{{ request('search') }}" placeholder="N° commande ou n° de suivi"
                class="px-3 py-2 bg-dark-100 border border-dark-200 rounded-lg text-white text-sm">
@@ -26,6 +30,7 @@
                     <th class="px-4 py-3">Commande</th>
                     <th class="px-4 py-3">Acheteur</th>
                     <th class="px-4 py-3">Transporteur / trajet</th>
+                    <th class="px-4 py-3">Paiement</th>
                     <th class="px-4 py-3">Poids</th>
                     <th class="px-4 py-3">N° de suivi</th>
                     <th class="px-4 py-3">Dernière étape</th>
@@ -44,11 +49,18 @@
                             {{ $order->delivery_breakdown['company_name'] ?? $order->deliveryCompany?->name ?? ($order->is_wholesale ? 'Import' : '—') }}
                             <div class="text-xs text-gray-500">{{ $order->delivery_breakdown['route_label'] ?? '' }}</div>
                         </td>
+                        <td class="px-4 py-3">{{ ['paid' => 'Payée', 'pending' => 'En attente', 'failed' => 'Échoué', 'refunded' => 'Remboursée'][$order->payment_status] ?? $order->payment_status }}</td>
                         <td class="px-4 py-3">{{ $order->shipping_weight_kg ? rtrim(rtrim(number_format($order->shipping_weight_kg, 3, ',', ''), '0'), ',') . ' kg' : '—' }}</td>
                         <td class="px-4 py-3 font-mono">{{ $order->carrier_tracking_number ?? '—' }}</td>
                         <td class="px-4 py-3">
-                            @if($order->status === 'pending')
+                            @if($order->payment_status !== 'paid')
+                                <span class="text-yellow-300">Paiement à confirmer</span>
+                            @elseif($order->status === 'pending')
                                 <span class="px-2 py-1 rounded text-xs bg-yellow-900/30 text-yellow-400">En attente de validation du vendeur</span>
+                            @elseif($order->tracking_status && !in_array($order->tracking_status, ['pending', 'confirmed', 'preparing'], true))
+                                {{ \App\Services\OrderTrackingService::stepLabel($order->tracking_status) }}
+                            @elseif($order->isInternationalExport() && in_array($order->status, ['confirmed', 'preparing'], true))
+                                <span class="text-blue-300">À expédier · collecte Solex à programmer</span>
                             @elseif(in_array($order->status, ['confirmed', 'preparing'], true) && !$order->carrier_tracking_number)
                                 <span class="px-2 py-1 rounded text-xs bg-blue-900/30 text-blue-300">Validée : à remettre au transporteur</span>
                             @else
@@ -56,11 +68,11 @@
                             @endif
                         </td>
                         <td class="px-4 py-3 text-right">
-                            <a href="{{ route('admin.shipments.show', $order) }}" class="text-primary-400 hover:text-primary-300"><i class="fas fa-eye mr-1"></i> Suivi</a>
+                            <a href="{{ route('admin.shipments.show', $order) }}" class="text-primary-400 hover:text-primary-300"><i class="fas fa-eye mr-1"></i> Voir le suivi</a>
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="7" class="px-4 py-6 text-center text-gray-500">Aucune expédition.</td></tr>
+                    <tr><td colspan="8" class="px-4 py-6 text-center text-gray-500">Aucune expédition.</td></tr>
                 @endforelse
             </tbody>
         </table>
