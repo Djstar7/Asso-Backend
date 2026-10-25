@@ -65,17 +65,17 @@
                         </div>
                     </div>
                     <!-- Enable/Disable Toggle -->
-                    <label class="relative inline-flex items-center cursor-pointer">
+                    <label class="relative inline-flex items-center cursor-pointer" x-data="{ enabled: {{ old('kpay_enabled', ($kpayEnabled ?? false) ? '1' : '0') == '1' ? 'true' : 'false' }} }">
                         <!-- Champ caché : garantit que kpay_enabled=0 est envoyé quand la case est décochée
                              (aligné sur Stripe), pour désactiver KPay sans perdre ses clés API. -->
                         <input type="hidden" name="kpay_enabled" value="0">
-                        <input type="checkbox" name="kpay_enabled" value="1"
+                        <input type="checkbox" x-model="enabled" name="kpay_enabled" value="1"
                                {{ old('kpay_enabled', ($kpayEnabled ?? false) ? '1' : '0') == '1' ? 'checked' : '' }}
                                class="sr-only peer">
                         <div class="w-16 h-8 bg-dark-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-500/20 rounded-full peer peer-checked:after:translate-x-8 peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[4px] after:bg-white after:rounded-full after:h-7 after:w-7 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-purple-500 peer-checked:to-purple-600 shadow-inner"></div>
                         <span class="ml-3 text-sm font-medium text-gray-300">
-                            <span x-show="$el.previousElementSibling.querySelector('input').checked" class="text-purple-400">Activé</span>
-                            <span x-show="!$el.previousElementSibling.querySelector('input').checked" class="text-gray-500">Désactivé</span>
+                            <span x-show="enabled" class="text-purple-400">Activé</span>
+                            <span x-show="!enabled" class="text-gray-500">Désactivé</span>
                         </span>
                     </label>
                 </div>
@@ -342,15 +342,15 @@
                             <p class="text-gray-400 mt-1">Mobile Money Cameroun — MTN MoMo et Orange Money (XAF)</p>
                         </div>
                     </div>
-                    <label class="relative inline-flex items-center cursor-pointer">
+                    <label class="relative inline-flex items-center cursor-pointer" x-data="{ enabled: {{ old('elgiopay_enabled', ($elgiopayEnabled ?? false) ? '1' : '0') == '1' ? 'true' : 'false' }} }">
                         <input type="hidden" name="elgiopay_enabled" value="0">
-                        <input type="checkbox" name="elgiopay_enabled" value="1"
+                        <input type="checkbox" x-model="enabled" name="elgiopay_enabled" value="1"
                                {{ old('elgiopay_enabled', ($elgiopayEnabled ?? false) ? '1' : '0') == '1' ? 'checked' : '' }}
                                class="sr-only peer">
                         <div class="w-16 h-8 bg-dark-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-orange-500/20 rounded-full peer peer-checked:after:translate-x-8 peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[4px] after:bg-white after:rounded-full after:h-7 after:w-7 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-orange-500 peer-checked:to-orange-600 shadow-inner"></div>
                         <span class="ml-3 text-sm font-medium text-gray-300">
-                            <span x-show="$el.previousElementSibling.querySelector('input').checked" class="text-orange-400">Activé</span>
-                            <span x-show="!$el.previousElementSibling.querySelector('input').checked" class="text-gray-500">Désactivé</span>
+                            <span x-show="enabled" class="text-orange-400">Activé</span>
+                            <span x-show="!enabled" class="text-gray-500">Désactivé</span>
                         </span>
                     </label>
                 </div>

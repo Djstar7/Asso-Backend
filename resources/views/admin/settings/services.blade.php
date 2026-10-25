@@ -152,14 +152,14 @@
                         </div>
                     </div>
                     <!-- Enable/Disable Toggle -->
-                    <label class="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" name="nexaah_enabled" value="1"
+                    <label class="relative inline-flex items-center cursor-pointer" x-data="{ enabled: {{ old('nexaah_enabled', $smsSettings['nexaah_enabled']->value ?? '0') == '1' ? 'true' : 'false' }} }">
+                        <input type="checkbox" x-model="enabled" name="nexaah_enabled" value="1"
                                {{ old('nexaah_enabled', $smsSettings['nexaah_enabled']->value ?? '0') == '1' ? 'checked' : '' }}
                                class="sr-only peer">
                         <div class="w-16 h-8 bg-dark-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-500/20 rounded-full peer peer-checked:after:translate-x-8 peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[4px] after:bg-white after:rounded-full after:h-7 after:w-7 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-purple-500 peer-checked:to-purple-600 shadow-inner"></div>
                         <span class="ml-3 text-sm font-medium text-gray-300">
-                            <span x-show="$el.previousElementSibling.querySelector('input').checked" class="text-purple-400">Activé</span>
-                            <span x-show="!$el.previousElementSibling.querySelector('input').checked" class="text-gray-500">Désactivé</span>
+                            <span x-show="enabled" class="text-purple-400">Activé</span>
+                            <span x-show="!enabled" class="text-gray-500">Désactivé</span>
                         </span>
                     </label>
                 </div>
@@ -318,14 +318,14 @@
                         </div>
                     </div>
                     <!-- Enable/Disable Toggle -->
-                    <label class="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" name="whatsapp_enabled" value="1"
+                    <label class="relative inline-flex items-center cursor-pointer" x-data="{ enabled: {{ old('whatsapp_enabled', $whatsappSettings['whatsapp_enabled']->value ?? '0') == '1' ? 'true' : 'false' }} }">
+                        <input type="checkbox" x-model="enabled" name="whatsapp_enabled" value="1"
                                {{ old('whatsapp_enabled', $whatsappSettings['whatsapp_enabled']->value ?? '0') == '1' ? 'checked' : '' }}
                                class="sr-only peer">
                         <div class="w-16 h-8 bg-dark-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-500/20 rounded-full peer peer-checked:after:translate-x-8 peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[4px] after:bg-white after:rounded-full after:h-7 after:w-7 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-green-500 peer-checked:to-green-600 shadow-inner"></div>
                         <span class="ml-3 text-sm font-medium text-gray-300">
-                            <span x-show="$el.previousElementSibling.querySelector('input').checked" class="text-green-400">Activé</span>
-                            <span x-show="!$el.previousElementSibling.querySelector('input').checked" class="text-gray-500">Désactivé</span>
+                            <span x-show="enabled" class="text-green-400">Activé</span>
+                            <span x-show="!enabled" class="text-gray-500">Désactivé</span>
                         </span>
                     </label>
                 </div>
