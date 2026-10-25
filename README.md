@@ -833,3 +833,12 @@ mémorisation des sections/défilement par compte dans `sessionStorage`.
 Les traductions, routes, filtres actifs, permissions et compteurs sont vérifiés par
 `php artisan test tests/Feature/AdminNavigationTest.php tests/Feature/ProductManagerAccessTest.php tests/Feature/BackofficeGuideTest.php tests/Feature/AdminNotificationsTest.php`.
 Aucune migration n’est requise pour cette réorganisation.
+
+Le sommaire de `/admin/guide` est construit à partir du même menu autorisé :
+ordre des familles, intitulés, chemins et liens vers les écrans restent alignés.
+`GuideController::ARTICLE_IDS` conserve les anciennes ancres des fiches ; les
+compléments sont dans `admin/guide/_menu_articles.blade.php`. Les tests du guide
+vérifient qu’aucune entrée visible ne reste sans fiche et que les gestionnaires
+ne reçoivent pas de sections supplémentaires. L’illustration `navigation.png`
+montre le menu actuel sur des données de démonstration ; les autres captures
+historiques continuent d’illustrer les opérations, avec le chemin actuel dans la fiche.

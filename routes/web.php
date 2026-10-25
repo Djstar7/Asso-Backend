@@ -111,7 +111,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         // Aide & guide : fiches et captures filtrées selon les accès du compte
         Route::get('/guide', [GuideController::class, 'index'])->name('guide');
         Route::get('/guide/img/{file}', [GuideController::class, 'image'])
-            ->where('file', '[A-Za-z0-9_-]+\.webp')->name('guide.image');
+            ->where('file', '[A-Za-z0-9_-]+\.(?:webp|png)')->name('guide.image');
 
         // Gestionnaires du back-office (admin uniquement)
         Route::post('/managers/{manager}/resend-credentials', [\App\Http\Controllers\Admin\ManagerController::class, 'resendCredentials'])->name('managers.resend-credentials');

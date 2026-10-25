@@ -254,6 +254,7 @@ footer.foot img{width:26px;height:26px;border-radius:50%;background:#fff}
 <script>
 const ALLOWED = @json($allowedPages);
 const IS_ADMIN = @json($isAdmin);
+const GUIDE_NAVIGATION = @json($guideNavigation);
 const IMG = @json(url('admin/guide/img')).replace(/\/$/, '') + '/';
 const can = id => ALLOWED.includes(id);
 /* ======================================================================
@@ -287,10 +288,11 @@ const SHOTS = {
     [715,431,503,48,'Mot de passe','Reçu par e-mail à la création du compte.'],
     [715,554,503,49,'Accéder à mon espace','Seules les sections que l’administrateur vous a ouvertes s’affichent ensuite.'],
     [731,624,480,46,'Mot de passe oublié','Demandez à l’administrateur de le réinitialiser : le nouveau vous arrive par e-mail.']]},
-  tour:{img:'dashboard',url:'dashboard',cap:'Les zones fixes, présentes sur toutes les pages.',marks:[
+  tour:{img:'navigation',format:'png',url:'shipments',cap:'La navigation actuelle : recherche, familles repliables et page active.',marks:[
     [12,8,140,48,'Logo ASSO','Un clic ramène à votre page d’accueil du back-office.'],
-    [0,64,256,762,'Menu latéral','Toutes les sections, rangées par familles : Gestion, DIASPO Exchange, Affiliation, Commerciaux, Annonce, Outils, Administration. Il défile.'],
-    [12,88,222,44,'Section ouverte','La section affichée est surlignée en orange.'],
+    [0,64,256,762,'Menu latéral','Le menu actuel est organisé par activité, avec recherche et familles repliables. Suivez le chemin indiqué dans la fiche pour retrouver la rubrique.'],
+    [12,80,232,40,'Rechercher dans le menu','Retrouvez une rubrique sans saisir les accents. Les anciens noms, comme « Commandes internationales », sont également reconnus.'],
+    [35,408,210,40,'Page active','Une seule entrée est sélectionnée. Son groupe s’ouvre automatiquement.'],
     [1378,12,36,36,'Notifications','La pastille indique les éléments en attente (demandes à valider, vérifications…).'],
     [0,830,256,70,'Votre profil','Nom et rôle du compte connecté. L’icône à droite vous déconnecte.']]},
   dashboard:{img:'dashboard',url:'dashboard',cap:'Le Dashboard : l’état de la plateforme en un coup d’œil.',marks:[
@@ -529,7 +531,7 @@ const SHOTS = {
 };
 
 /* Groupes et pages */
-const GROUPS = [
+const ARTICLE_GROUPS = [
  {name:'Bien démarrer', pages:[
   {id:'bienvenue', title:'Bienvenue', render:renderHome},
   {id:'connexion', title:'Se connecter', path:['Navigateur','/admin/login'], lead:'Deux portes d’entrée existent : celle des administrateurs et celle des gestionnaires. Elles mènent au même back-office, mais un gestionnaire ne voit que les sections qui lui ont été ouvertes.', body:()=>`
@@ -543,19 +545,9 @@ const GROUPS = [
   {id:'interface', title:'Découvrir l’interface', path:['Toutes les pages'], lead:'Toutes les pages partagent la même structure : le menu à gauche, le titre de la page en haut, et le contenu au centre.', body:()=>`
    ${fig('tour')}
    <h3>Le menu, famille par famille</h3>
-   ${table(['Famille','Sections','À quoi ça sert'],[
-     ["<b>Vue d’ensemble</b>", "Tableau de bord, statistiques des boutiques", "Suivre l’activité de la plateforme.", ["dashboard", "statistiques"]],
-     ["<b>Commandes</b>", "Commandes ASSO, produits camerounais, gros et acomptes", "Traiter les commandes selon leur parcours.", ["commandes-locales", "commandes-gros", "acompte"]],
-     ["<b>Catalogue et boutiques</b>", "Boutiques, produits, catégories, pays d’importation, forfaits", "Organiser le catalogue et les offres vendeurs.", ["boutiques", "produits", "categories", "pays", "packages"]],
-     ["<b>Livraison et transport</b>", "Suivi des expéditions, livreurs, partenaires, carte", "Suivre les colis et organiser la livraison.", ["expeditions", "livreurs", "partenaires", "carte"]],
-     ["<b>DIASPO et envois</b>", "Identités, avion, partenaires, réservations, devis et assurances", "Gérer les envois et le transport DIASPO.", ["diaspo-verifs", "diaspo-offres"]],
-     ["<b>Immobilier</b>", "Annonces, bailleurs, cabinets, litiges et équipements", "Gérer les locations et les terrains.", ["immobilier", "immo-cabinets"]],
-     ["<b>Finances</b>", "Revenus ASSO, retraits, transactions, comptes de virement", "Suivre les mouvements financiers.", ["revenus", "retrait", "transactions", "iban"]],
-     ["<b>Relation client</b>", "Litiges commandes, assistance, messagerie, surveillance", "Résoudre les problèmes et accompagner les clients.", ["litiges", "support", "messagerie", "echanges"]],
-     ["<b>Marketing et réseau commercial</b>", "Publicités, bannières, annonces, centres d’intérêt, communauté, affiliation et commerciaux", "Animer la plateforme et le réseau commercial.", ["ads", "bannieres", "preferences", "voc", "affiliation", "commerciaux", "commissions"]],
-     ["<b>Administration</b>", "Comptes, accès, paramètres et outils techniques", "Configurer la plateforme et les autorisations.", ["utilisateurs", "gestionnaires", "parametres", "maintenance", "services", "config-paiements", "pages-legales", "documents"]],
-     ["<b>Aide</b>", "Guide d’utilisation", "Retrouver les procédures du back-office.", ["interface"]]
-   ].filter(r=>r[3].some(can)).map(r=>r.slice(0,3)))}
+   ${table(['Famille','Sections'], GUIDE_NAVIGATION.map(group=>[
+     escapeHtml(group.label), group.items.map(item=>escapeHtml(item.label)).join(' · ')
+   ]))}
    <p>Utilisez la recherche en haut du menu pour retrouver une rubrique, même sans saisir les accents. Cliquez sur une famille pour la déplier ou la replier ; la famille de la page consultée s’ouvre automatiquement. Les compteurs restent visibles sur les familles repliées.</p>
    ${note('info','Ce que vous voyez dépend de votre rôle','Un gestionnaire ne voit que les sections cochées pour lui. Si une section décrite ici manque dans votre menu, demandez-la à l’administrateur.')}
    <h3>Des gestes qui reviennent partout</h3>
@@ -613,7 +605,7 @@ const GROUPS = [
    <h3>La fiche boutique</h3>
    ${fig('shop_show')}
    ${note('info','Livraison gratuite','Quand elle est activée sur une boutique ou un produit, le client voit le prix barré de la livraison. Le vendeur finance la course.')}`},
-  {id:'produits', title:'Produits', path:["Menu", "Catalogue et boutiques", "Tous les produits"], lead:'Le catalogue complet, toutes boutiques confondues.', body:()=>`
+  {id:'produits', title:'Produits', path:["Menu", "Catalogue et boutiques", "Tous les produits"], lead:IS_ADMIN?'Le catalogue complet, toutes boutiques confondues.':'Les produits des boutiques ASSO accessibles à votre compte.', body:()=>`
    ${fig('products')}
    <h3>Fiche produit</h3>
    ${fig('product_show')}
@@ -621,7 +613,7 @@ const GROUPS = [
    ${steps(['Cliquez sur '+k('Nouveau Produit')+'.','Choisissez la boutique, puis rédigez le nom et la description en '+k('FR')+' et en '+k('EN')+'.','Classez le produit dans une catégorie et une sous-catégorie.','Indiquez le type, le poids, l’origine, le stock et le statut.','Ajoutez les photos et enregistrez.'])}
    ${fig('product_create')}
    ${note('tip','Masquer plutôt que supprimer',k('Masquer')+' retire le produit de l’application tout en le gardant. Vous pourrez le réafficher plus tard.')}
-   ${note('info','Origine du produit','Laissée sur « importé » par défaut. Choisissez « Produit local » pour un produit fabriqué au Cameroun : il apparaît alors dans les commandes locales.')}`},
+   ${note('info','Origine du produit','Laissée sur « importé » par défaut. Choisissez « Produit local » pour un produit fabriqué au Cameroun : il apparaît alors dans la rubrique « Produits camerounais ».')}`},
   {id:'categories', title:'Catégories', path:["Menu", "Catalogue et boutiques", "Catégories"], lead:'L’arborescence du catalogue : catégories principales et sous-catégories, en français et en anglais.', body:()=>`${fig('categories')}${note('warn','Avant de supprimer','Une catégorie qui contient des produits doit d’abord être vidée : déplacez les produits vers une autre catégorie.')}`},
   {id:'packages', title:'Packages', path:["Menu", "Catalogue et boutiques", "Forfaits vendeurs"], lead:'Les forfaits payants des vendeurs : espace de stockage pour les photos et vidéos, boost de visibilité, certification de la boutique.', body:()=>`${fig('packages')}`},
   {id:'ads', title:'Asso Ads', path:["Menu", "Marketing et réseau commercial", "Publicités ASSO"], lead:'Les produits sponsorisés par les vendeurs : ce qui a été vendu, ce qui a été diffusé, et où ils apparaissent dans l’application.', body:()=>`${fig('ads')}${note('info','Couper la diffusion','Décocher « Diffuser les produits sponsorisés » suspend l’affichage sans annuler les campagnes payées ni consommer leur quota.')}`}
@@ -649,18 +641,18 @@ const GROUPS = [
   {id:'litiges', title:'Réclamations et litiges', path:["Menu", "Relation client", "Litiges commandes"], lead:'Quand un client signale un problème sur un produit reçu, un litige s’ouvre. La part du vendeur est bloquée pendant le traitement.', body:()=>`
    ${fig('disputes')}
    ${steps(['Ouvrez les litiges '+k('Nouveau')+' en premier.','Analysez le motif et les éléments fournis par le client.','Contactez le vendeur.','Choisissez l’issue : remplacement, retour, remboursement ou rejet.','Passez le litige en '+k('Résolu')+' puis '+k('Fermé')+'.'])}
-   ${note('warn','Délai','La part du vendeur est retenue pendant 48 heures après l’ouverture du litige. Traitez les nouveaux litiges chaque jour.')}`}
+   ${note('warn','Délai','Les 48 heures correspondent à la fenêtre de contrôle après livraison. Lorsqu’un litige est ouvert, les fonds concernés restent bloqués pendant son traitement. Suivez les échéances et les actions affichées dans le dossier.')}`}
  ]},
  {name:'Immobilier', pages:[
   {id:'immobilier', title:'Annonces immobilières', path:["Menu", "Immobilier", "Annonces immobilières"], lead:'Les maisons à louer sont publiées par des bailleurs vérifiés ; ASSO relit chaque annonce avant sa mise en ligne. Les terrains sont saisis par ASSO pour ses cabinets partenaires.', body:()=>`
    <h3>Vérifier un bailleur</h3>
-   ${steps(['Ouvrez '+k('Bailleurs')+' : les demandes '+k('En attente')+' sont en tête.','Contrôlez la CNI, la preuve de propriété et la vidéo où le bailleur tient ses documents.','Tout concorde : '+k('Valider le bailleur')+'. Sinon '+k('Refuser')+' avec un motif clair : il le reçoit en notification.'])}
+   ${steps(['Ouvrez '+k('Vérification des bailleurs')+' : les demandes '+k('En attente')+' sont en tête.','Contrôlez la CNI, la preuve de propriété et la vidéo où le bailleur tient ses documents.','Tout concorde : '+k('Valider le bailleur')+'. Sinon '+k('Refuser')+' avec un motif clair : il le reçoit en notification.'])}
    <h3>Relire une annonce</h3>
    ${steps(['Ouvrez les annonces '+k('À relire')+'.','Vérifiez le contrôle avant publication : photo de l’entrée, une photo par pièce, vidéo, loyer.','Jugez la qualité des photos, la cohérence du prix et la description du quartier (route, eau, électricité, sécurité).',k('Publier')+' ou '+k('Refuser')+' avec un motif.'])}
    ${note('info','Argent','Au paiement, la part ASSO (majoration et commission) est encaissée tout de suite et n’est pas remboursable. La part du bailleur est bloquée sur son Wallet jusqu’à la confirmation du locataire ou la fin du délai de visite.')}
    ${note('warn','Modification','Une annonce modifiée par le bailleur repasse en relecture.')}`},
   {id:'immo-cabinets', title:'Cabinets et terrains', path:["Menu", "Immobilier", "Cabinets partenaires"], lead:'Les terrains ne sont pas proposés par les utilisateurs : ASSO crée chaque cabinet partenaire, puis saisit ses terrains.', body:()=>`
-   ${steps(['Créez le cabinet : nom, accroche, spécialités, « Pourquoi nous choisir » (une puce par ligne), logo, bannière, coordonnées.','Ajoutez ses terrains : un par localité, avec un lot par surface proposée et son prix net.','Pour une affiche avec beaucoup de localités, utilisez '+k('Saisie rapide de terrains')+' dans Annonces.','Ajoutez les photos, puis '+k('Publier')+'.'])}
+   ${steps(['Créez le cabinet : nom, accroche, spécialités, « Pourquoi nous choisir » (une puce par ligne), logo, bannière, coordonnées.','Ajoutez ses terrains : un par localité, avec un lot par surface proposée et son prix net.','Pour une affiche avec beaucoup de localités, utilisez '+k('Saisie rapide de terrains')+' dans Annonces immobilières.','Ajoutez les photos, puis '+k('Publier')+'.'])}
    ${note('info','Coordonnées','Le nom du cabinet est toujours affiché. Ses coordonnées ne sont montrées qu’à l’acheteur qui a versé l’acompte.')}`}
  ]},
  {name:'Livraison', pages:[
@@ -685,7 +677,7 @@ const GROUPS = [
   {id:'affiliation', title:'Affiliation', path:["Menu", "Marketing et réseau commercial", "Affiliation : configuration"], lead:'Le programme de parrainage entre utilisateurs.', body:()=>`${fig('affiliate')}`}
  ]},
  {name:'Communication et support', pages:[
-  {id:'bannieres', title:'Bannières et annonces', path:["Menu", "Marketing et réseau commercial", "Bannières"], lead:'Les bannières illustrées de l’accueil de l’application, et les annonces générales envoyées à tous.', body:()=>`${fig('banners')}<p>Les <b>Annonces générales</b> fonctionnent de la même façon : ${k('Nouvelle Annonce')}, rédigez le message, publiez.</p>`},
+  {id:'bannieres', title:'Bannières et annonces', path:["Menu", "Marketing et réseau commercial", "Bannières"], lead:'Les bannières illustrées de l’accueil de l’application, et les annonces générales envoyées à tous.', body:()=>`${fig('banners')}<p>Les communications textuelles disposent de leur propre fiche « Annonces générales » dans la même famille du menu.</p>`},
   {id:'support', title:'Support client', path:["Menu", "Relation client", "Assistance client"], lead:'Les demandes d’aide envoyées par les utilisateurs.', body:()=>`${fig('support')}${note('tip','Priorités','Filtrez par priorité « Urgente » en début de journée.')}`},
   {id:'messagerie', title:'Messagerie', path:["Menu", "Relation client", "Messagerie"], lead:'Les conversations directes entre le support et les utilisateurs.', body:()=>`${fig('messages')}`},
   {id:'echanges', title:'Échanges', path:["Menu", "Relation client", "Surveillance des conversations"], lead:'Le volume des conversations entre acheteurs et vendeurs.', body:()=>`${fig('exchanges')}`}
@@ -701,7 +693,7 @@ const GROUPS = [
   {id:'bonnes-pratiques', title:'Routine quotidienne', path:['Référence'], lead:'Une liste courte pour ne rien laisser attendre.', body:()=>`
    ${table(['Quand','Où','Quoi'],[
     ['Chaque matin','Cloche des notifications','Voir ce qui attend une action.',null],
-    ['Chaque matin','Réclamations / Litiges','Traiter les litiges « Nouveau » : la part vendeur n’est bloquée que 48 h.','litiges'],
+    ['Chaque matin','Litiges commandes','Traiter les litiges « Nouveau » et leurs échéances ; les fonds restent bloqués pendant leur résolution.','litiges'],
     ['Chaque matin','Commandes en gros','Valider ou refuser les commandes « À valider ».','commandes-gros'],
     ['Chaque jour','Commandes avec acompte','Appeler les clients « À contacter ».','acompte'],
     ['Chaque jour','Boutiques','Traiter les demandes de changement d’emplacement.','boutiques'],
@@ -710,11 +702,11 @@ const GROUPS = [
     ['Chaque jour','Support client','Répondre aux tickets urgents.','support'],
     ['Chaque semaine','Comptes de virement','Valider les IBAN en attente.','iban'],
     ['Chaque semaine','Revenus ASSO','Suivre le revenu net et retirer les fonds.','revenus'],
-    ['Chaque semaine','Voice of Customer','Lire les sujets les plus populaires.','voc']
+    ['Chaque semaine','Publications communautaires','Lire les sujets les plus populaires.','voc']
    ].filter(r=>!r[3]||can(r[3])).map(r=>r.slice(0,3)))}`},
   {id:'faq', title:'Questions fréquentes', path:['Référence'], lead:'Les réponses aux questions qui reviennent le plus.', body:()=>`
    ${[
-    [null,'Une section n’apparaît pas dans mon menu ni dans ce guide.','Votre compte n’y a pas accès. Le guide ne montre que les sections ouvertes pour vous : demandez à l’administrateur de l’ajouter dans « Gestionnaires ».'],
+    [null,'Une section n’apparaît pas dans mon menu ni dans ce guide.','Votre compte n’y a pas accès. Le guide ne montre que les sections ouvertes pour vous : demandez à l’administrateur de l’ajouter dans « Gestionnaires et accès ».'],
     [null,'J’ai oublié mon mot de passe de gestionnaire.','L’administrateur le réinitialise. Le nouveau vous est envoyé par e-mail.'],
     [['commandes-locales','commandes-gros','acompte'],'Je ne trouve pas une commande.','Vérifiez l’onglet d’étape sélectionné, cliquez sur '+k('Toutes')+', puis cherchez par numéro ou par téléphone du client.'],
     [['produits'],'Un produit ne doit plus être vendu, mais je veux le garder.','Ouvrez sa fiche et cliquez sur '+k('Masquer')+'.'],
@@ -723,6 +715,26 @@ const GROUPS = [
     [null,'Les captures montrent des données différentes des miennes.','Elles viennent d’un environnement de démonstration. Les numéros, e-mails et clés y ont été masqués.']
    ].filter(f=>!f[0]||f[0].some(can)).map(f=>`<h3>${f[1]}</h3><p>${f[2]}</p>`).join('')}`}
  ]}
+];
+
+@include('admin.guide._menu_articles')
+
+const escapeHtml = value => String(value).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ARTICLE_INDEX = new Map(ARTICLE_GROUPS.flatMap(group=>group.pages).map(page=>[page.id,page]));
+const GROUPS = [
+  {name:'Bien démarrer', pages:['bienvenue','connexion','interface'].map(id=>ARTICLE_INDEX.get(id))},
+  ...GUIDE_NAVIGATION.map(group=>({
+    name:group.label, menuGroup:true,
+    pages:group.items.map(item=>{
+      const article = ARTICLE_INDEX.get(item.article_id) || MENU_ARTICLES[item.id];
+      return {
+        ...(article || {lead:'Retrouvez cette rubrique depuis le menu du back-office.',body:()=>'<p>Les actions disponibles sur cet écran dépendent de vos permissions.</p>'}),
+        id:item.article_id, title:item.label, path:item.path, url:item.id === 'guide' ? null : item.url,
+        keywords:item.keywords || '',
+      };
+    }),
+  })),
+  {name:'Référence',pages:['bonnes-pratiques','faq'].map(id=>ARTICLE_INDEX.get(id))},
 ];
 
 /* ======================================================================
@@ -734,18 +746,18 @@ function fig(key){
   const legend = s.marks.map((m,i)=>`<li data-i="${i}"><span class="n">${i+1}</span><div><strong>${m[4]}</strong><span>${m[5]}</span></div></li>`).join('');
   return `<figure class="shot" data-key="${key}">
     <div class="frame"><div class="chrome"><i></i><i></i><i></i><span>${URL_PREFIX}${s.url}</span></div>
-    <div class="stage" role="button" tabindex="0" aria-label="Agrandir la capture : ${s.cap}"><img src="${IMG}${s.img}.webp" alt="${s.cap}" loading="lazy" width="1440" height="900">${marks}</div></div>
+    <div class="stage" role="button" tabindex="0" aria-label="Agrandir la capture : ${s.cap}"><img src="${IMG}${s.img}.${s.format||'webp'}" alt="${s.cap}" loading="lazy" width="1440" height="900">${marks}</div></div>
     <figcaption>${s.cap} Cliquez pour agrandir.</figcaption>
     <ol class="legend">${legend}</ol></figure>`;
 }
 
 function renderHome(){
-  const cards = GROUPS.slice(1).map(g=>`<a href="#${g.pages[0].id}"><b>${g.name}</b><small>${g.pages.map(p=>p.title).join(' · ')}</small></a>`).join('');
+  const cards = GROUPS.filter(group=>group.menuGroup).map(g=>`<a href="#${g.pages[0].id}"><b>${g.name}</b><small>${g.pages.map(p=>p.title).join(' · ')}</small></a>`).join('');
   return `<div class="hero">
     <div>
       <span class="eyebrow">Guide d’utilisation · Back-office</span>
       <h1>Tout le back-office <em>ASSO</em>, expliqué écran par écran.</h1>
-      <p>${IS_ADMIN?'Vous êtes administrateur : le guide couvre toutes les sections.':'Ce guide est adapté à votre compte : il ne montre que les sections qui vous sont ouvertes.'} Aucune connaissance technique n’est nécessaire : chaque écran est montré tel que vous le verrez, avec des repères numérotés.</p>
+      <p>${IS_ADMIN?'Vous êtes administrateur : le guide couvre toutes les sections.':'Ce guide est adapté à votre compte : il ne montre que les sections qui vous sont ouvertes.'} Les fiches suivent le menu actuel et expliquent les opérations. Des captures annotées illustrent les écrans.</p>
       <div class="meta"><span><b>${document.querySelectorAll ? FLAT.reduce((n,p)=>n+(p.body?(p.body().match(/class="shot"/g)||[]).length:0),0) : 0}</b> captures annotées</span><span><b>${FLAT.length}</b> fiches</span><span>Version d’octobre 2026</span></div>
     </div>
     <img class="logo" src="{{ asset('guide/logo.png') }}" alt="Logo ASSO">
@@ -767,7 +779,7 @@ function renderHome(){
       [pill('g','Gestionnaire'),'Uniquement les sections cochées par l’administrateur.','/admin/gestionnaire/login']])}
     <h3>Les modules</h3>
     <div class="cards">${cards}</div>
-    ${note('info','À propos des captures','Elles ont été prises sur un environnement de démonstration. Les numéros de téléphone, les e-mails personnels et les clés d’accès y sont masqués.')}
+    ${note('info','À propos des captures','Les captures illustrent les opérations sur un environnement de démonstration et peuvent montrer une ancienne disposition du menu. Pour accéder à une rubrique, suivez son chemin actuel au-dessus de la fiche. Les données personnelles et les clés d’accès sont masquées.')}
   </section>`;
 }
 
@@ -782,9 +794,10 @@ FLAT.forEach((p,i)=>{
   const prev = FLAT[i-1], next = FLAT[i+1];
   html += `<section class="doc" id="${p.id}" data-title="${p.title}">
     <p class="group-label">${p.group}</p>
-    <h2>${p.title}</h2>
-    <div class="path">${p.path.map(x=>`<span class="crumb">${x}</span>`).join('<span class="sep">›</span>')}</div>
+    <h2>${escapeHtml(p.title)}</h2>
+    <div class="path">${p.path.map(x=>`<span class="crumb">${escapeHtml(x)}</span>`).join('<span class="sep">›</span>')}</div>
     <p class="lead">${p.lead}</p>
+    ${p.url?`<p><a class="k" href="${escapeHtml(p.url)}" target="_blank" rel="noopener">Ouvrir ${escapeHtml(p.title)} ↗</a></p>`:''}
     ${p.body()}
     <div class="pager">${prev?`<a href="#${prev.id}"><small>Précédent</small><b>${prev.title}</b></a>`:'<span></span>'}${next?`<a class="next" href="#${next.id}"><small>Suivant</small><b>${next.title}</b></a>`:'<span></span>'}</div>
   </section>`;
@@ -812,7 +825,7 @@ function setActive(id){
   nav.querySelectorAll('a').forEach(a=>a.classList.toggle('on',a.dataset.id===id));
   const sec=document.getElementById(id); if(sec) buildToc(sec);
   const a=nav.querySelector(`a[data-id="${id}"]`);
-  if(a){const r=a.getBoundingClientRect(),n=nav.getBoundingClientRect(); if(r.top<n.top+40||r.bottom>n.bottom-40) a.scrollIntoView({block:'center'});}
+  if(a){const r=a.getBoundingClientRect(),n=nav.getBoundingClientRect(); if(r.top<n.top+40) nav.scrollTop-=n.top+40-r.top; else if(r.bottom>n.bottom-40) nav.scrollTop+=r.bottom-n.bottom+40;}
 }
 function onScroll(){
   const y=window.innerHeight*0.25; let id=sections[0].id;
@@ -850,13 +863,13 @@ document.querySelectorAll('figure.shot .stage').forEach(st=>{
 /* Recherche */
 const q=document.getElementById('q'), res=document.getElementById('results');
 const norm=t=>t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
-const INDEX=sections.map(s=>({id:s.id,title:s.dataset.title,group:(s.querySelector('.group-label')||{}).textContent||'',text:norm(s.textContent)}));
+const INDEX=sections.map(s=>({id:s.id,title:s.dataset.title,group:(s.querySelector('.group-label')||{}).textContent||'',text:norm(s.textContent),keywords:norm(FLAT.find(page=>page.id===s.id)?.keywords||'')}));
 let sel=0;
 function search(){
   const v=norm(q.value.trim());
   if(!v){res.hidden=true;return}
   const words=v.split(/\s+/);
-  const hits=INDEX.map(e=>{const t=norm(e.title);let sc=0;for(const w of words){if(t.includes(w))sc+=5;else if(e.text.includes(w))sc+=1;else return null}return{...e,sc}}).filter(Boolean).sort((a,b)=>b.sc-a.sc).slice(0,8);
+  const hits=INDEX.map(e=>{const t=norm(e.title);let sc=0;for(const w of words){if(t.includes(w))sc+=5;else if(e.keywords.includes(w))sc+=3;else if(e.text.includes(w))sc+=1;else return null}return{...e,sc}}).filter(Boolean).sort((a,b)=>b.sc-a.sc).slice(0,8);
   sel=0;
   res.innerHTML=hits.length?hits.map((h,i)=>`<a href="#${h.id}" class="${i===0?'sel':''}">${h.title}<small>${h.group}</small></a>`).join(''):`<div class="none">Aucun résultat pour « ${q.value.replace(/</g,'&lt;')} ». Essayez un mot plus court.</div>`;
   res.hidden=false;
