@@ -1,0 +1,2090 @@
+{
+  "captured_at": "2026-10-25T01:09:15.670100+00:00",
+  "source_revision": "a91a165d58a1458de627e9ad5e90a75a6f1b8fef",
+  "shots": {
+    "login": {
+      "img": "login",
+      "url": "login",
+      "cap": "Écran de connexion des administrateurs.",
+      "marks": [
+        [
+          712,
+          359,
+          510,
+          57,
+          "Adresse e-mail",
+          "Saisissez l’adresse de votre compte de démonstration ; utilisez votre adresse professionnelle pour vous connecter."
+        ],
+        [
+          712,
+          457,
+          510,
+          57,
+          "Mot de passe",
+          "Saisissez votre mot de passe. Aucun mot de passe réel n’est affiché dans cette capture."
+        ],
+        [
+          712,
+          583,
+          510,
+          57,
+          "Se connecter",
+          "Ouvre votre espace selon les droits du compte."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "7a232a0745bd",
+      "heading": "Connexion administrateur"
+    },
+    "manager_login": {
+      "img": "manager_login",
+      "url": "gestionnaire/login",
+      "cap": "Écran de connexion des gestionnaires (couleur verte pour le distinguer).",
+      "marks": [
+        [
+          712,
+          327,
+          510,
+          57,
+          "Adresse e-mail",
+          "Saisissez l’adresse de votre compte de démonstration ; utilisez votre adresse professionnelle pour vous connecter."
+        ],
+        [
+          712,
+          425,
+          510,
+          57,
+          "Mot de passe",
+          "Saisissez votre mot de passe. Aucun mot de passe réel n’est affiché dans cette capture."
+        ],
+        [
+          712,
+          551,
+          510,
+          57,
+          "Se connecter",
+          "Ouvre votre espace selon les droits du compte."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "6a7ccde46e8f",
+      "heading": "Connexion gestionnaire"
+    },
+    "tour": {
+      "img": "navigation",
+      "format": "png",
+      "url": "shipments",
+      "cap": "La navigation actuelle : recherche, familles repliables et page active.",
+      "marks": [
+        [
+          21,
+          8,
+          110,
+          47,
+          "Logo ASSO",
+          "Retour à la page d’accueil autorisée pour le compte."
+        ],
+        [
+          44,
+          88,
+          188,
+          25,
+          "Recherche du menu",
+          "Retrouvez une rubrique, avec ou sans accents, y compris ses anciens noms."
+        ],
+        [
+          32,
+          422,
+          217,
+          47,
+          "Page active",
+          "Une seule entrée est sélectionnée dans sa famille repliable."
+        ],
+        [
+          0,
+          824,
+          259,
+          76,
+          "Compte connecté",
+          "Le nom, le rôle et l’action de déconnexion sont regroupés ici."
+        ]
+      ],
+      "width": 1440,
+      "height": 900,
+      "version": "0a66e478a20f",
+      "heading": "Repères du menu"
+    },
+    "dashboard": {
+      "img": "dashboard",
+      "url": "dashboard",
+      "cap": "Le Dashboard : l’état de la plateforme en un coup d’œil.",
+      "marks": [
+        [
+          32,
+          175,
+          217,
+          47,
+          "Accès dans le menu",
+          "La rubrique actuelle est sélectionnée dans sa famille."
+        ],
+        [
+          277,
+          14,
+          166,
+          35,
+          "Écran consulté",
+          "Le titre identifie la rubrique ouverte. Les actions disponibles dépendent de vos permissions."
+        ],
+        [
+          253,
+          61,
+          1187,
+          96,
+          "Informations et actions",
+          "Cette zone présente les informations et les actions de la rubrique."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "9ba87014d1ff",
+      "heading": "Vue d’ensemble de la plateforme"
+    },
+    "revenue": {
+      "img": "revenue",
+      "url": "revenue",
+      "cap": "Revenus ASSO : ce que la plateforme gagne, service par service.",
+      "marks": [
+        [
+          32,
+          422,
+          217,
+          47,
+          "Accès dans le menu",
+          "La rubrique actuelle est sélectionnée dans sa famille."
+        ],
+        [
+          848,
+          177,
+          97,
+          42,
+          "Retirer",
+          "Ouvre la page de retrait des fonds de la plateforme."
+        ],
+        [
+          946,
+          177,
+          102,
+          42,
+          "Exporter",
+          "Télécharge les chiffres de la période (tableur)."
+        ],
+        [
+          302,
+          428,
+          1092,
+          34,
+          "Évolution journalière",
+          "Chiffre d’affaires, charges et net, jour par jour."
+        ],
+        [
+          302,
+          834,
+          497,
+          34,
+          "Par service",
+          "D’où vient l’argent. Ouvrez une ligne pour voir chaque mouvement."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "0982e8ede5cb",
+      "heading": "Tableau des revenus"
+    },
+    "withdrawal": {
+      "img": "revenue_withdrawal",
+      "url": "revenue/withdrawal",
+      "cap": "Retrait ASSO : un solde par pays et par devise.",
+      "marks": [
+        [
+          32,
+          424,
+          217,
+          47,
+          "Accès dans le menu",
+          "La rubrique actuelle est sélectionnée dans sa famille."
+        ],
+        [
+          277,
+          85,
+          1030,
+          42,
+          "Écran consulté",
+          "Le titre identifie la rubrique ouverte. Les actions disponibles dépendent de vos permissions."
+        ],
+        [
+          277,
+          349,
+          374,
+          250,
+          "Informations et actions",
+          "Cette zone présente les informations et les actions de la rubrique."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "764932549b61",
+      "heading": "Soldes et modes de retrait"
+    },
+    "statistics": {
+      "img": "statistics",
+      "url": "statistics",
+      "cap": "Statistiques boutiques : l’audience et les ventes de toutes les boutiques.",
+      "marks": [
+        [
+          32,
+          217,
+          217,
+          61,
+          "Accès dans le menu",
+          "La rubrique actuelle est sélectionnée dans sa famille."
+        ],
+        [
+          302,
+          656,
+          196,
+          34,
+          "Évolution journalière",
+          "Les courbes jour par jour, à comparer entre elles."
+        ],
+        [
+          277,
+          85,
+          615,
+          42,
+          "Écran consulté",
+          "Le titre identifie la rubrique ouverte. Les actions disponibles dépendent de vos permissions."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "99ac1aa3237e",
+      "heading": "Vue des indicateurs"
+    },
+    "users": {
+      "img": "users",
+      "url": "users",
+      "cap": "La liste des utilisateurs, avec ses filtres.",
+      "marks": [
+        [
+          32,
+          422,
+          217,
+          47,
+          "Accès dans le menu",
+          "La rubrique actuelle est sélectionnée dans sa famille."
+        ],
+        [
+          1208,
+          91,
+          211,
+          54,
+          "Nouvel utilisateur",
+          "Crée un compte client, vendeur ou livreur à la main."
+        ],
+        [
+          277,
+          85,
+          328,
+          38,
+          "Utilisateur",
+          "Nom, initiales et pays."
+        ],
+        [
+          577,
+          194,
+          266,
+          26,
+          "Rôle",
+          "Client, Vendeur ou Livreur, en couleur."
+        ],
+        [
+          302,
+          194,
+          1092,
+          218,
+          "Rechercher et filtrer",
+          "Les champs affichés permettent de retrouver les éléments de cette rubrique."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "a3567e53e848",
+      "heading": "Liste des utilisateurs"
+    },
+    "user_show": {
+      "img": "users_7",
+      "url": "users/7",
+      "cap": "La fiche d’un utilisateur.",
+      "marks": [
+        [
+          32,
+          422,
+          217,
+          47,
+          "Accès dans le menu",
+          "La rubrique actuelle est sélectionnée dans sa famille."
+        ],
+        [
+          1139,
+          93,
+          131,
+          46,
+          "Modifier",
+          "Corrige les informations du compte."
+        ],
+        [
+          1275,
+          93,
+          144,
+          46,
+          "Supprimer",
+          "Supprime le compte. Action définitive : une confirmation est demandée."
+        ],
+        [
+          688,
+          190,
+          706,
+          34,
+          "Informations personnelles",
+          "Identité, contact, pays, date d’inscription."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "4e2cf0e8e970",
+      "heading": "Fiche d’un utilisateur"
+    },
+    "user_create": {
+      "img": "users_create",
+      "url": "users/create",
+      "cap": "Création manuelle d’un compte.",
+      "marks": [
+        [
+          32,
+          422,
+          217,
+          47,
+          "Accès dans le menu",
+          "La rubrique actuelle est sélectionnée dans sa famille."
+        ],
+        [
+          301,
+          385,
+          538,
+          26,
+          "Mot de passe",
+          "8 caractères minimum, saisi deux fois."
+        ],
+        [
+          1028,
+          816,
+          342,
+          46,
+          "Position",
+          "« Ma position » remplit la latitude et la longitude, ou saisissez l’adresse."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "7e1456f8ab88",
+      "heading": "Créer un utilisateur"
+    },
+    "managers": {
+      "img": "managers",
+      "url": "managers",
+      "cap": "Les comptes gestionnaires et leurs accès.",
+      "marks": [
+        [
+          32,
+          422,
+          217,
+          47,
+          "Accès dans le menu",
+          "La rubrique actuelle est sélectionnée dans sa famille."
+        ],
+        [
+          1192,
+          95,
+          227,
+          46,
+          "Nouveau gestionnaire",
+          "Crée un accès limité pour un membre de l’équipe."
+        ],
+        [
+          293,
+          185,
+          1110,
+          48,
+          "Rechercher et filtrer",
+          "Les champs affichés permettent de retrouver les éléments de cette rubrique."
+        ],
+        [
+          277,
+          267,
+          1142,
+          112,
+          "Liste des dossiers",
+          "Consultez les informations affichées et ouvrez une fiche depuis ses actions."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "43ff2275978a",
+      "heading": "Liste des gestionnaires"
+    },
+    "manager_create": {
+      "img": "managers_create",
+      "url": "managers/create",
+      "cap": "Créer un gestionnaire et choisir ce qu’il peut faire.",
+      "marks": [
+        [
+          32,
+          422,
+          217,
+          47,
+          "Accès dans le menu",
+          "La rubrique actuelle est sélectionnée dans sa famille."
+        ],
+        [
+          302,
+          194,
+          1092,
+          34,
+          "Identité",
+          "Prénom, nom, e-mail. L’e-mail sert d’identifiant de connexion."
+        ],
+        [
+          277,
+          85,
+          426,
+          38,
+          "Écran consulté",
+          "Le titre identifie la rubrique ouverte. Les actions disponibles dépendent de vos permissions."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "5c1616692595",
+      "heading": "Identité et droits du gestionnaire"
+    },
+    "preferences": {
+      "img": "preferences",
+      "url": "preferences",
+      "cap": "Les centres d’intérêt choisis par les utilisateurs dans l’application.",
+      "marks": [
+        [
+          32,
+          422,
+          217,
+          47,
+          "Accès dans le menu",
+          "La rubrique actuelle est sélectionnée dans sa famille."
+        ],
+        [
+          301,
+          325,
+          1094,
+          34,
+          "Catégories par popularité",
+          "Chaque carte montre le nombre d’utilisateurs intéressés et qui ils sont."
+        ],
+        [
+          277,
+          85,
+          550,
+          38,
+          "Écran consulté",
+          "Le titre identifie la rubrique ouverte. Les actions disponibles dépendent de vos permissions."
+        ],
+        [
+          277,
+          728,
+          1142,
+          127,
+          "Liste des dossiers",
+          "Consultez les informations affichées et ouvrez une fiche depuis ses actions."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "25feeb70bac9",
+      "heading": "Centres d’intérêt des clients"
+    },
+    "map": {
+      "img": "map",
+      "url": "map",
+      "cap": "Carte des activités : compteurs, filtres et légende.",
+      "marks": [
+        [
+          32,
+          422,
+          217,
+          47,
+          "Accès à la carte",
+          "Ouvrez la carte depuis la famille Livraison et transport."
+        ],
+        [
+          294,
+          326,
+          1108,
+          76,
+          "Recherche et rôle",
+          "Filtrez les comptes par recherche et par rôle."
+        ],
+        [
+          277,
+          85,
+          385,
+          42,
+          "Carte des activités",
+          "Les compteurs et la légende permettent de repérer les types de comptes géolocalisés."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 520,
+      "version": "ac23f0f509a2",
+      "heading": "Carte et filtres géographiques"
+    },
+    "shops": {
+      "img": "shops",
+      "url": "shops",
+      "cap": "La gestion des boutiques.",
+      "marks": [
+        [
+          32,
+          358,
+          217,
+          47,
+          "Accès dans le menu",
+          "La rubrique actuelle est sélectionnée dans sa famille."
+        ],
+        [
+          1204,
+          91,
+          215,
+          54,
+          "Nouvelle boutique",
+          "Crée une boutique pour un vendeur existant."
+        ],
+        [
+          301,
+          275,
+          93,
+          34,
+          "Filtres",
+          "Recherche, statut (active / inactive) et propriétaire."
+        ],
+        [
+          301,
+          329,
+          1094,
+          132,
+          "Rechercher et filtrer",
+          "Les champs affichés permettent de retrouver les éléments de cette rubrique."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "80d8beaaff79",
+      "heading": "Liste des boutiques"
+    },
+    "shop_show": {
+      "img": "shops_2",
+      "url": "shops/2",
+      "cap": "La fiche d’une boutique.",
+      "marks": [
+        [
+          32,
+          358,
+          217,
+          47,
+          "Accès dans le menu",
+          "La rubrique actuelle est sélectionnée dans sa famille."
+        ],
+        [
+          748,
+          769,
+          362,
+          34,
+          "Livraison gratuite",
+          "Activée, les clients ne paient plus la livraison sur toute la boutique : le vendeur la finance."
+        ],
+        [
+          303,
+          85,
+          405,
+          38,
+          "Écran consulté",
+          "Le titre identifie la rubrique ouverte. Les actions disponibles dépendent de vos permissions."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "57b6007181dd",
+      "heading": "Fiche d’une boutique"
+    },
+    "products": {
+      "img": "products",
+      "url": "products",
+      "cap": "Le catalogue de toutes les boutiques.",
+      "marks": [
+        [
+          32,
+          400,
+          217,
+          47,
+          "Accès dans le menu",
+          "La rubrique actuelle est sélectionnée dans sa famille."
+        ],
+        [
+          1227,
+          90,
+          192,
+          52,
+          "Nouveau produit",
+          "Ajoute un produit dans la boutique de votre choix."
+        ],
+        [
+          302,
+          190,
+          1092,
+          104,
+          "Rechercher et filtrer",
+          "Les champs affichés permettent de retrouver les éléments de cette rubrique."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "c325315f18d9",
+      "heading": "Catalogue et filtres des produits"
+    },
+    "product_show": {
+      "img": "products_42",
+      "url": "products/42",
+      "cap": "La fiche d’un produit.",
+      "marks": [
+        [
+          32,
+          400,
+          217,
+          47,
+          "Accès dans le menu",
+          "La rubrique actuelle est sélectionnée dans sa famille."
+        ],
+        [
+          1074,
+          189,
+          321,
+          34,
+          "Tarification",
+          "Prix affiché aux clients."
+        ],
+        [
+          1074,
+          593,
+          321,
+          34,
+          "Stock",
+          "Quantité disponible. Un badge prévient quand le stock est faible."
+        ],
+        [
+          1074,
+          821,
+          321,
+          34,
+          "Livraison gratuite",
+          "Indique qui paie la livraison pour ce produit."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "9b839511791c",
+      "heading": "Fiche d’un produit"
+    },
+    "product_create": {
+      "img": "products_create",
+      "url": "products/create",
+      "cap": "Créer un produit.",
+      "marks": [
+        [
+          32,
+          400,
+          217,
+          47,
+          "Accès dans le menu",
+          "La rubrique actuelle est sélectionnée dans sa famille."
+        ],
+        [
+          301,
+          189,
+          708,
+          34,
+          "Informations de base",
+          "Boutique, nom, description, caractéristiques et informations commerciales."
+        ],
+        [
+          301,
+          807,
+          708,
+          34,
+          "Catégorisation",
+          "Catégorie, puis sous-catégorie."
+        ],
+        [
+          1074,
+          189,
+          321,
+          34,
+          "Configuration",
+          "Type (article ou service), poids unitaire, origine (importé ou local), stock et statut."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "7e3a7cae9f70",
+      "heading": "Formulaire de création d’un produit"
+    },
+    "categories": {
+      "img": "settings_categories",
+      "url": "settings/categories",
+      "cap": "Catégories et sous-catégories du catalogue.",
+      "marks": [
+        [
+          32,
+          422,
+          217,
+          47,
+          "Accès dans le menu",
+          "La rubrique actuelle est sélectionnée dans sa famille."
+        ],
+        [
+          1211,
+          93,
+          208,
+          46,
+          "Nouvelle catégorie",
+          "Ajoute une catégorie principale avec son icône et ses traductions."
+        ],
+        [
+          277,
+          85,
+          576,
+          38,
+          "Catégorie",
+          "Nom FR / EN, délai de livraison par défaut, nombre de sous-catégories et de produits."
+        ],
+        [
+          1296,
+          485,
+          99,
+          38,
+          "Ajouter",
+          "Ajoute une sous-catégorie à cette catégorie."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "193b91f4e330",
+      "heading": "Catégories et sous-catégories"
+    },
+    "packages": {
+      "img": "packages",
+      "url": "packages",
+      "cap": "Les forfaits vendus aux vendeurs.",
+      "marks": [
+        [
+          32,
+          422,
+          217,
+          47,
+          "Accès dans le menu",
+          "La rubrique actuelle est sélectionnée dans sa famille."
+        ],
+        [
+          1220,
+          97,
+          199,
+          46,
+          "Nouveau package",
+          "Crée un forfait (stockage, boost ou certification)."
+        ],
+        [
+          294,
+          346,
+          1108,
+          76,
+          "Rechercher et filtrer",
+          "Les champs affichés permettent de retrouver les éléments de cette rubrique."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "9632cb06657f",
+      "heading": "Liste des forfaits vendeurs"
+    },
+    "ads": {
+      "img": "ads",
+      "url": "ads",
+      "cap": "Asso Ads : les produits sponsorisés.",
+      "marks": [
+        [
+          32,
+          422,
+          217,
+          47,
+          "Accès dans le menu",
+          "La rubrique actuelle est sélectionnée dans sa famille."
+        ],
+        [
+          1192,
+          111,
+          227,
+          44,
+          "Grille tarifaire",
+          "Ouvre les 3 forfaits de sponsoring."
+        ],
+        [
+          302,
+          340,
+          1092,
+          34,
+          "Diffusion",
+          "Activer l’affichage des produits sponsorisés, nombre d’emplacements et positions dans la page. Puis Enregistrer."
+        ],
+        [
+          302,
+          760,
+          112,
+          34,
+          "Campagnes",
+          "Chaque campagne : produit, vendeur, forfait, portée, clics, montant, échéance."
+        ],
+        [
+          927,
+          754,
+          467,
+          46,
+          "Rechercher et filtrer",
+          "Les champs affichés permettent de retrouver les éléments de cette rubrique."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "bd8d95edc281",
+      "heading": "Diffusion et campagnes publicitaires"
+    },
+    "local": {
+      "img": "local-orders",
+      "url": "local-orders",
+      "cap": "Commandes de produits fabriqués au Cameroun.",
+      "marks": [
+        [
+          32,
+          353,
+          217,
+          47,
+          "Accès dans le menu",
+          "La rubrique actuelle est sélectionnée dans sa famille."
+        ],
+        [
+          277,
+          345,
+          1142,
+          44,
+          "Rechercher et filtrer",
+          "Les champs affichés permettent de retrouver les éléments de cette rubrique."
+        ],
+        [
+          277,
+          85,
+          1142,
+          38,
+          "Écran consulté",
+          "Le titre identifie la rubrique ouverte. Les actions disponibles dépendent de vos permissions."
+        ],
+        [
+          278,
+          400,
+          1140,
+          171,
+          "Liste des dossiers",
+          "Consultez les informations affichées et ouvrez une fiche depuis ses actions."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "53904c7d522c",
+      "heading": "Suivi des produits camerounais"
+    },
+    "wholesale": {
+      "img": "wholesale-orders",
+      "url": "wholesale-orders",
+      "cap": "Commandes en gros importées (Chine, Turquie, Dubaï…).",
+      "marks": [
+        [
+          32,
+          395,
+          217,
+          47,
+          "Accès dans le menu",
+          "La rubrique actuelle est sélectionnée dans sa famille."
+        ],
+        [
+          1335,
+          470,
+          67,
+          25,
+          "Gérer",
+          "Ouvre le suivi détaillé de la commande."
+        ],
+        [
+          277,
+          345,
+          1142,
+          46,
+          "Rechercher et filtrer",
+          "Les champs affichés permettent de retrouver les éléments de cette rubrique."
+        ],
+        [
+          278,
+          402,
+          1140,
+          118,
+          "Liste des dossiers",
+          "Consultez les informations affichées et ouvrez une fiche depuis ses actions."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "314d2e6febe9",
+      "heading": "Liste des commandes en gros"
+    },
+    "wholesale_show": {
+      "img": "wholesale-orders_24",
+      "url": "wholesale-orders/24",
+      "cap": "Le suivi d’une commande en gros.",
+      "marks": [
+        [
+          32,
+          395,
+          217,
+          47,
+          "Accès dans le menu",
+          "La rubrique actuelle est sélectionnée dans sa famille."
+        ],
+        [
+          302,
+          304,
+          706,
+          34,
+          "Articles",
+          "Produit, palier de prix, quantité, poids et total."
+        ],
+        [
+          1075,
+          304,
+          319,
+          34,
+          "Montants",
+          "Ce que le client a payé et la répartition entre le vendeur et l’import ASSO."
+        ],
+        [
+          302,
+          348,
+          706,
+          134,
+          "Liste des dossiers",
+          "Consultez les informations affichées et ouvrez une fiche depuis ses actions."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "7bfdb9e34d1a",
+      "heading": "Fiche d’une commande en gros"
+    },
+    "deposit": {
+      "img": "deposit-orders",
+      "url": "deposit-orders",
+      "cap": "Commandes avec acompte : le client paie une partie à la commande, le solde après livraison.",
+      "marks": [
+        [
+          32,
+          415,
+          217,
+          61,
+          "Accès dans le menu",
+          "La rubrique actuelle est sélectionnée dans sa famille."
+        ],
+        [
+          277,
+          281,
+          1142,
+          44,
+          "Rechercher et filtrer",
+          "Les champs affichés permettent de retrouver les éléments de cette rubrique."
+        ],
+        [
+          277,
+          85,
+          1142,
+          38,
+          "Écran consulté",
+          "Le titre identifie la rubrique ouverte. Les actions disponibles dépendent de vos permissions."
+        ],
+        [
+          278,
+          336,
+          1140,
+          110,
+          "Liste des dossiers",
+          "Consultez les informations affichées et ouvrez une fiche depuis ses actions."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "f2095ce0ed7f",
+      "heading": "Liste des commandes avec acompte"
+    },
+    "deposit_show": {
+      "img": "deposit-orders_35",
+      "url": "deposit-orders/35",
+      "cap": "La vérification ASSO d’une commande avec acompte.",
+      "marks": [
+        [
+          32,
+          415,
+          217,
+          61,
+          "Accès dans le menu",
+          "La rubrique actuelle est sélectionnée dans sa famille."
+        ],
+        [
+          1075,
+          214,
+          319,
+          34,
+          "Client",
+          "Coordonnées et mode de livraison."
+        ],
+        [
+          1075,
+          611,
+          319,
+          44,
+          "Client contacté",
+          "Une note interne facultative, puis ce bouton une fois le client joint."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "a99b82ff0017",
+      "heading": "Vérification d’une commande avec acompte"
+    },
+    "disputes": {
+      "img": "disputes",
+      "url": "disputes",
+      "cap": "Réclamations et litiges ouverts par les clients.",
+      "marks": [
+        [
+          32,
+          422,
+          217,
+          47,
+          "Accès dans le menu",
+          "La rubrique actuelle est sélectionnée dans sa famille."
+        ],
+        [
+          277,
+          369,
+          1142,
+          44,
+          "Rechercher et filtrer",
+          "Les champs affichés permettent de retrouver les éléments de cette rubrique."
+        ],
+        [
+          277,
+          85,
+          1142,
+          38,
+          "Écran consulté",
+          "Le titre identifie la rubrique ouverte. Les actions disponibles dépendent de vos permissions."
+        ],
+        [
+          278,
+          424,
+          1140,
+          146,
+          "Liste des dossiers",
+          "Consultez les informations affichées et ouvrez une fiche depuis ses actions."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "77bf056af084",
+      "heading": "Liste des litiges commandes"
+    },
+    "partners": {
+      "img": "delivery-partners",
+      "url": "delivery-partners",
+      "cap": "Partenaires logistiques et réglages de livraison.",
+      "marks": [
+        [
+          32,
+          422,
+          217,
+          47,
+          "Accès dans le menu",
+          "La rubrique actuelle est sélectionnée dans sa famille."
+        ],
+        [
+          1204,
+          93,
+          215,
+          46,
+          "Nouveau partenaire",
+          "Ajoute une société de livraison."
+        ],
+        [
+          302,
+          190,
+          1092,
+          34,
+          "Réglages de livraison",
+          "Rayon d’une zone urbaine, TVA des grilles, poids par défaut d’un article, délai par défaut. Puis Enregistrer."
+        ],
+        [
+          277,
+          85,
+          800,
+          38,
+          "Partenaires",
+          "Services, mode (domicile / agence), zones, trajets, TVA, statut."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "aba1feafe824",
+      "heading": "Partenaires et conditions de livraison"
+    },
+    "deliverers": {
+      "img": "deliverers",
+      "url": "deliverers",
+      "cap": "Les entreprises de livraison.",
+      "marks": [
+        [
+          32,
+          422,
+          217,
+          47,
+          "Accès dans le menu",
+          "La rubrique actuelle est sélectionnée dans sa famille."
+        ],
+        [
+          1195,
+          91,
+          224,
+          54,
+          "Nouvelle entreprise",
+          "Ajoute une entreprise de livraison."
+        ],
+        [
+          302,
+          194,
+          1092,
+          132,
+          "Rechercher et filtrer",
+          "Les champs affichés permettent de retrouver les éléments de cette rubrique."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "165270f3a02a",
+      "heading": "Entreprises de livraison"
+    },
+    "shipments": {
+      "img": "shipments",
+      "url": "shipments",
+      "cap": "Suivi des expéditions et filtre des exports internationaux.",
+      "marks": [
+        [
+          32,
+          422,
+          217,
+          47,
+          "Accès dans le menu",
+          "La rubrique actuelle est sélectionnée dans sa famille."
+        ],
+        [
+          277,
+          217,
+          1142,
+          46,
+          "Rechercher et filtrer",
+          "Les champs affichés permettent de retrouver les éléments de cette rubrique."
+        ],
+        [
+          277,
+          85,
+          1142,
+          38,
+          "Écran consulté",
+          "Le titre identifie la rubrique ouverte. Les actions disponibles dépendent de vos permissions."
+        ],
+        [
+          278,
+          274,
+          1140,
+          232,
+          "Liste des dossiers",
+          "Consultez les informations affichées et ouvrez une fiche depuis ses actions."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "0a66e478a20f",
+      "heading": "Suivi des expéditions"
+    },
+    "countries": {
+      "img": "import-countries",
+      "url": "import-countries",
+      "cap": "Pays importés et livraison des commandes en gros.",
+      "marks": [
+        [
+          32,
+          422,
+          217,
+          47,
+          "Accès dans le menu",
+          "La rubrique actuelle est sélectionnée dans sa famille."
+        ],
+        [
+          302,
+          484,
+          1092,
+          34,
+          "Ajouter un pays",
+          "Code ISO à 2 lettres, nom FR / EN, drapeau et ordre d’affichage."
+        ],
+        [
+          277,
+          85,
+          1142,
+          38,
+          "Écran consulté",
+          "Le titre identifie la rubrique ouverte. Les actions disponibles dépendent de vos permissions."
+        ],
+        [
+          278,
+          726,
+          1140,
+          174,
+          "Liste des dossiers",
+          "Consultez les informations affichées et ouvrez une fiche depuis ses actions."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "2a5e1b32a496",
+      "heading": "Pays et conditions d’importation"
+    },
+    "transactions": {
+      "img": "transactions",
+      "url": "transactions",
+      "cap": "Toutes les transactions de paiement.",
+      "marks": [
+        [
+          32,
+          466,
+          217,
+          47,
+          "Accès dans le menu",
+          "La rubrique actuelle est sélectionnée dans sa famille."
+        ],
+        [
+          302,
+          190,
+          1092,
+          132,
+          "Rechercher et filtrer",
+          "Les champs affichés permettent de retrouver les éléments de cette rubrique."
+        ],
+        [
+          277,
+          85,
+          409,
+          38,
+          "Écran consulté",
+          "Le titre identifie la rubrique ouverte. Les actions disponibles dépendent de vos permissions."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "a392487f4bfc",
+      "heading": "Transactions et filtres financiers"
+    },
+    "stripe": {
+      "img": "stripe_accounts",
+      "url": "stripe/accounts",
+      "cap": "Comptes de virement (IBAN) à valider.",
+      "marks": [
+        [
+          32,
+          508,
+          217,
+          47,
+          "Accès dans le menu",
+          "La rubrique actuelle est sélectionnée dans sa famille."
+        ],
+        [
+          277,
+          85,
+          859,
+          38,
+          "Comptes",
+          "Les IBAN soumis par les vendeurs et les acheteurs, à valider avant tout virement."
+        ],
+        [
+          277,
+          169,
+          1142,
+          86,
+          "Informations et actions",
+          "Cette zone présente les informations et les actions de la rubrique."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "735f38ab2af5",
+      "heading": "Comptes de virement à vérifier"
+    },
+    "payments": {
+      "img": "settings_payments",
+      "url": "settings/payments",
+      "cap": "Configuration des moyens de paiement (clés masquées).",
+      "marks": [
+        [
+          32,
+          415,
+          217,
+          60,
+          "Accès dans le menu",
+          "La rubrique actuelle est sélectionnée dans sa famille."
+        ],
+        [
+          1337,
+          369,
+          89,
+          42,
+          "Tester",
+          "Vérifie que la connexion au prestataire fonctionne."
+        ],
+        [
+          277,
+          14,
+          296,
+          35,
+          "Écran consulté",
+          "Le titre identifie la rubrique ouverte. Les actions disponibles dépendent de vos permissions."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "62de7a195721",
+      "heading": "Configuration des paiements"
+    },
+    "dverif": {
+      "img": "diaspo_verifications",
+      "url": "diaspo/verifications",
+      "cap": "Vérification d’identité des voyageurs DIASPO.",
+      "marks": [
+        [
+          32,
+          415,
+          217,
+          61,
+          "Accès dans le menu",
+          "La rubrique actuelle est sélectionnée dans sa famille."
+        ],
+        [
+          293,
+          185,
+          875,
+          30,
+          "Délai de régularisation",
+          "Nombre de jours laissés à un voyageur non vérifié pour envoyer ses pièces. Puis Enregistrer."
+        ],
+        [
+          277,
+          85,
+          366,
+          38,
+          "Écran consulté",
+          "Le titre identifie la rubrique ouverte. Les actions disponibles dépendent de vos permissions."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "4c9d932ad226",
+      "heading": "Vérifications d’identité DIASPO"
+    },
+    "doffers": {
+      "img": "diaspo_offers",
+      "url": "diaspo/offers",
+      "cap": "Les offres de transport de colis publiées par les voyageurs.",
+      "marks": [
+        [
+          32,
+          422,
+          217,
+          47,
+          "Accès dans le menu",
+          "La rubrique actuelle est sélectionnée dans sa famille."
+        ],
+        [
+          1251,
+          493,
+          90,
+          46,
+          "Voir",
+          "Ouvre l’offre pour l’approuver ou la rejeter."
+        ],
+        [
+          293,
+          333,
+          1110,
+          102,
+          "Rechercher et filtrer",
+          "Les champs affichés permettent de retrouver les éléments de cette rubrique."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "deec119c55b7",
+      "heading": "Offres de transport par avion"
+    },
+    "dposts": {
+      "img": "diaspo_posts",
+      "url": "diaspo/posts",
+      "cap": "Publications communautaires : messages et réactions des utilisateurs.",
+      "marks": [
+        [
+          32,
+          415,
+          217,
+          60,
+          "Accès dans le menu",
+          "La rubrique actuelle est sélectionnée dans sa famille."
+        ],
+        [
+          1251,
+          419,
+          90,
+          46,
+          "Voir",
+          "Ouvre la publication et ses commentaires."
+        ],
+        [
+          293,
+          313,
+          1110,
+          48,
+          "Rechercher et filtrer",
+          "Les champs affichés permettent de retrouver les éléments de cette rubrique."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "8f85b172181f",
+      "heading": "Publications communautaires"
+    },
+    "agents": {
+      "img": "sales_agents",
+      "url": "sales/agents",
+      "cap": "Les commerciaux et leurs codes.",
+      "marks": [
+        [
+          32,
+          563,
+          217,
+          47,
+          "Accès dans le menu",
+          "La rubrique actuelle est sélectionnée dans sa famille."
+        ],
+        [
+          969,
+          95,
+          225,
+          46,
+          "Commissions à payer",
+          "Accès direct aux commissions dues."
+        ],
+        [
+          1199,
+          95,
+          220,
+          46,
+          "Nouveau commercial",
+          "Crée un commercial et son code."
+        ],
+        [
+          1178,
+          697,
+          225,
+          46,
+          "Modalités",
+          "Texte affiché dans l’application pour « Devenir un commercial ASSO »."
+        ],
+        [
+          293,
+          793,
+          1110,
+          48,
+          "Rechercher et filtrer",
+          "Les champs affichés permettent de retrouver les éléments de cette rubrique."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "a4987a4283dd",
+      "heading": "Commerciaux, codes et modalités"
+    },
+    "agent_create": {
+      "img": "sales_agents_create",
+      "url": "sales/agents/create",
+      "cap": "Créer un commercial.",
+      "marks": [
+        [
+          32,
+          563,
+          217,
+          47,
+          "Accès dans le menu",
+          "La rubrique actuelle est sélectionnée dans sa famille."
+        ],
+        [
+          302,
+          382,
+          537,
+          26,
+          "Code commercial",
+          "Laissez vide pour qu’il soit généré automatiquement."
+        ],
+        [
+          857,
+          382,
+          537,
+          26,
+          "Taux particulier",
+          "Remplace le taux par défaut pour ce commercial."
+        ],
+        [
+          1167,
+          810,
+          227,
+          46,
+          "Créer le commercial",
+          "Enregistre la fiche."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "09144f0220c1",
+      "heading": "Créer un commercial"
+    },
+    "agent_comm": {
+      "img": "sales_commissions",
+      "url": "sales/commissions",
+      "cap": "Les commissions des commerciaux.",
+      "marks": [
+        [
+          32,
+          605,
+          217,
+          61,
+          "Accès dans le menu",
+          "La rubrique actuelle est sélectionnée dans sa famille."
+        ],
+        [
+          1275,
+          95,
+          144,
+          46,
+          "Export CSV",
+          "Pour la comptabilité."
+        ],
+        [
+          293,
+          313,
+          1110,
+          100,
+          "Rechercher et filtrer",
+          "Les champs affichés permettent de retrouver les éléments de cette rubrique."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "3d08d93482c8",
+      "heading": "Commissions des commerciaux"
+    },
+    "affiliate": {
+      "img": "affiliate_settings",
+      "url": "affiliate/settings",
+      "cap": "Paramètres du programme d’affiliation.",
+      "marks": [
+        [
+          32,
+          521,
+          217,
+          47,
+          "Accès dans le menu",
+          "La rubrique actuelle est sélectionnée dans sa famille."
+        ],
+        [
+          302,
+          374,
+          706,
+          34,
+          "Paramètres généraux",
+          "Activer l’affiliation, approbation automatique, nombre de niveaux, retrait minimum."
+        ],
+        [
+          302,
+          860,
+          706,
+          34,
+          "Pourcentages",
+          "Commission versée à chaque niveau."
+        ],
+        [
+          1075,
+          374,
+          319,
+          34,
+          "Exemple de calcul",
+          "Montre l’effet de vos réglages sur une vente."
+        ],
+        [
+          1075,
+          735,
+          319,
+          54,
+          "Enregistrer",
+          "Applique la configuration."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "5d555c555a77",
+      "heading": "Configuration de l’affiliation"
+    },
+    "banners": {
+      "img": "banners",
+      "url": "banners",
+      "cap": "Bannières publicitaires de l’application.",
+      "marks": [
+        [
+          32,
+          422,
+          217,
+          47,
+          "Accès dans le menu",
+          "La rubrique actuelle est sélectionnée dans sa famille."
+        ],
+        [
+          1216,
+          93,
+          203,
+          46,
+          "Nouvelle bannière",
+          "Ajoute une image cliquable sur l’accueil de l’application."
+        ],
+        [
+          277,
+          85,
+          429,
+          38,
+          "Bannières",
+          "La liste des bannières créées, ou un message si aucune n’existe."
+        ],
+        [
+          278,
+          166,
+          1140,
+          159,
+          "Liste des dossiers",
+          "Consultez les informations affichées et ouvrez une fiche depuis ses actions."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "7f51d5a92e97",
+      "heading": "Bannières de l’application"
+    },
+    "support": {
+      "img": "support",
+      "url": "support",
+      "cap": "Les tickets du support client.",
+      "marks": [
+        [
+          32,
+          457,
+          217,
+          47,
+          "Accès dans le menu",
+          "La rubrique actuelle est sélectionnée dans sa famille."
+        ],
+        [
+          294,
+          346,
+          1108,
+          76,
+          "Rechercher et filtrer",
+          "Les champs affichés permettent de retrouver les éléments de cette rubrique."
+        ],
+        [
+          277,
+          85,
+          455,
+          42,
+          "Écran consulté",
+          "Le titre identifie la rubrique ouverte. Les actions disponibles dépendent de vos permissions."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "b62e314f2f80",
+      "heading": "Liste des demandes d’assistance"
+    },
+    "messages": {
+      "img": "messages",
+      "url": "messages",
+      "cap": "Messagerie du support.",
+      "marks": [
+        [
+          32,
+          499,
+          217,
+          47,
+          "Accès dans le menu",
+          "La rubrique actuelle est sélectionnée dans sa famille."
+        ],
+        [
+          270,
+          78,
+          121,
+          30,
+          "Conversations",
+          "Une ligne par interlocuteur, la plus récente en haut."
+        ],
+        [
+          277,
+          14,
+          205,
+          35,
+          "Écran consulté",
+          "Le titre identifie la rubrique ouverte. Les actions disponibles dépendent de vos permissions."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "c58857565bc5",
+      "heading": "Conversations du support"
+    },
+    "exchanges": {
+      "img": "exchanges",
+      "url": "exchanges",
+      "cap": "Surveillance des échanges entre utilisateurs.",
+      "marks": [
+        [
+          32,
+          541,
+          217,
+          61,
+          "Accès dans le menu",
+          "La rubrique actuelle est sélectionnée dans sa famille."
+        ],
+        [
+          302,
+          462,
+          1092,
+          34,
+          "Évolution",
+          "Nombre d’échanges sur 30 jours."
+        ],
+        [
+          1291,
+          880,
+          103,
+          20,
+          "Voir tout",
+          "Liste complète des conversations récentes."
+        ],
+        [
+          294,
+          190,
+          1108,
+          76,
+          "Rechercher et filtrer",
+          "Les champs affichés permettent de retrouver les éléments de cette rubrique."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "02391dc49659",
+      "heading": "Surveillance des conversations"
+    },
+    "settings": {
+      "img": "settings",
+      "url": "settings",
+      "cap": "Paramètres généraux de l’application.",
+      "marks": [
+        [
+          32,
+          422,
+          217,
+          47,
+          "Accès dans le menu",
+          "La rubrique actuelle est sélectionnée dans sa famille."
+        ],
+        [
+          278,
+          141,
+          1140,
+          34,
+          "Informations générales",
+          "Nom, logo, slogan et description de l’application."
+        ],
+        [
+          278,
+          747,
+          1140,
+          34,
+          "Contact",
+          "E-mail, téléphone et adresse affichés aux clients."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "5100604c0b6c",
+      "heading": "Paramètres généraux"
+    },
+    "maintenance": {
+      "img": "settings_maintenance",
+      "url": "settings/maintenance",
+      "cap": "Mode maintenance.",
+      "marks": [
+        [
+          32,
+          422,
+          217,
+          47,
+          "Accès dans le menu",
+          "La rubrique actuelle est sélectionnée dans sa famille."
+        ],
+        [
+          299,
+          297,
+          943,
+          30,
+          "Activer",
+          "Bloque l’application pendant une intervention."
+        ],
+        [
+          278,
+          394,
+          1140,
+          26,
+          "Message",
+          "Le texte vu par les utilisateurs."
+        ],
+        [
+          278,
+          622,
+          1140,
+          26,
+          "Heure de fin",
+          "Indique quand le service revient."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "562120bd4834",
+      "heading": "Réglages de maintenance"
+    },
+    "services": {
+      "img": "settings_services",
+      "url": "settings/services",
+      "cap": "Envoi des codes de connexion (OTP).",
+      "marks": [
+        [
+          32,
+          422,
+          217,
+          47,
+          "Accès dans le menu",
+          "La rubrique actuelle est sélectionnée dans sa famille."
+        ],
+        [
+          1193,
+          266,
+          225,
+          46,
+          "Enregistrer le choix",
+          "Applique le canal choisi."
+        ],
+        [
+          277,
+          14,
+          272,
+          35,
+          "Écran consulté",
+          "Le titre identifie la rubrique ouverte. Les actions disponibles dépendent de vos permissions."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "6937144afda1",
+      "heading": "Services d’envoi des codes OTP"
+    },
+    "legal": {
+      "img": "legal-pages",
+      "url": "legal-pages",
+      "cap": "Pages légales affichées dans l’application.",
+      "marks": [
+        [
+          32,
+          441,
+          217,
+          47,
+          "Accès dans le menu",
+          "La rubrique actuelle est sélectionnée dans sa famille."
+        ],
+        [
+          1270,
+          61,
+          170,
+          46,
+          "Nouvelle page",
+          "Ajoute une page (CGU, confidentialité, mentions…)."
+        ],
+        [
+          277,
+          14,
+          268,
+          35,
+          "Écran consulté",
+          "Le titre identifie la rubrique ouverte. Les actions disponibles dépendent de vos permissions."
+        ],
+        [
+          254,
+          126,
+          1186,
+          273,
+          "Liste des dossiers",
+          "Consultez les informations affichées et ouvrez une fiche depuis ses actions."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "04c399462a35",
+      "heading": "Gestion des pages légales"
+    },
+    "documents": {
+      "img": "documents",
+      "url": "documents",
+      "cap": "Documents de l’entreprise.",
+      "marks": [
+        [
+          32,
+          483,
+          217,
+          47,
+          "Accès dans le menu",
+          "La rubrique actuelle est sélectionnée dans sa famille."
+        ],
+        [
+          277,
+          85,
+          295,
+          42,
+          "Document",
+          "Nom, taille, date. Télécharger, modifier, supprimer."
+        ],
+        [
+          294,
+          326,
+          1108,
+          48,
+          "Rechercher et filtrer",
+          "Les champs affichés permettent de retrouver les éléments de cette rubrique."
+        ]
+      ],
+      "format": "png",
+      "width": 1440,
+      "height": 900,
+      "version": "8ffadd987bc3",
+      "heading": "Bibliothèque de documents"
+    }
+  }
+}

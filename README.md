@@ -839,6 +839,10 @@ ordre des familles, intitulés, chemins et liens vers les écrans restent align�
 `GuideController::ARTICLE_IDS` conserve les anciennes ancres des fiches ; les
 compléments sont dans `admin/guide/_menu_articles.blade.php`. Les tests du guide
 vérifient qu’aucune entrée visible ne reste sans fiche et que les gestionnaires
-ne reçoivent pas de sections supplémentaires. L’illustration `navigation.png`
-montre le menu actuel sur des données de démonstration ; les autres captures
-historiques continuent d’illustrer les opérations, avec le chemin actuel dans la fiche.
+ne reçoivent pas de sections supplémentaires. Les 51 captures PNG
+illustrent les écrans actuels sur des données fictives. Le fichier
+`resources/guide/captures.json` conserve leurs dimensions, repères, titres et
+versions de cache. Les anciennes URL WebP servent les nouvelles images PNG.
+Le sommaire « Sur cette page » reprend les procédures et les repères de chaque
+fiche, avec une sélection qui suit le défilement. Les images et leurs coordonnées
+sont vérifiées par `tests/Unit/GuideCapturesTest.php`.

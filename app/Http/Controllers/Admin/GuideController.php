@@ -110,6 +110,7 @@ class GuideController extends Controller
         return view('admin.guide.index', [
             'allowedPages' => array_values(array_unique([...$this->allowedPages($user), ...$menuArticles])),
             'guideNavigation' => $groups,
+            'guideShots' => json_decode(file_get_contents(resource_path('guide/captures.json')), true, 512, JSON_THROW_ON_ERROR)['shots'],
             'isAdmin' => $user->isAdmin(),
             'homeRoute' => $user->adminHomeRoute(),
         ]);
@@ -121,6 +122,11 @@ class GuideController extends Controller
         $extension = strtolower(pathinfo($file, PATHINFO_EXTENSION));
         abort_unless(in_array($extension, ['webp', 'png'], true), 404);
         $path = resource_path('guide/img/'.$name.'.'.$extension);
+        // Legacy guide links now display the refreshed PNG rather than a stale capture.
+        if ($extension === 'webp' && ! is_file($path)) {
+            $extension = 'png';
+            $path = resource_path('guide/img/'.$name.'.png');
+        }
 
         abort_unless(in_array($name, $this->allowedShots($request->user()), true) && is_file($path), 404);
 
