@@ -75,6 +75,7 @@ class ConversationController extends Controller
                     'real_estate_listing' => $conv->realEstateListing?->toConversationApi(),
                     'last_message' => $conv->latestMessage ? [
                         'message' => $conv->latestMessage->message,
+                        'image_path' => $conv->latestMessage->image_path ? media_url($conv->latestMessage->image_path) : null,
                         'sender_id' => $conv->latestMessage->sender_id,
                         'is_read' => $conv->latestMessage->is_read,
                         'created_at' => $conv->latestMessage->created_at->toIso8601String(),
