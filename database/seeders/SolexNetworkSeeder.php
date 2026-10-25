@@ -51,28 +51,34 @@ class SolexNetworkSeeder extends Seeder
                 $agencyZone = collect($zones)->sortBy(fn ($z) => DeliveryCityGrid::distanceKm(
                     $z['center_latitude'], $z['center_longitude'], $department['hub_latitude'], $department['hub_longitude']
                 ))->first()['code'];
+                $legacyAddress = 'Centre-ville de '.$department['hub_city'].' — point exact à confirmer par SOLEX';
+                $previousAddress = $department['hub_city'].' — chef-lieu (département : '.$department['name'].'). Adresse exacte du relais SOLEX à préciser.';
+                $departmentAddress = $department['hub_city'].'-'.$department['name'];
                 DeliveryCityGrid::firstOrCreate([
                     'deliverer_company_id' => $company->id, 'department_code' => $department['code'],
                 ], [
                     'city' => $department['hub_city'], 'country' => 'CM', 'coverage_scope' => 'department', 'zones' => $zones,
                     'agency_zone' => $agencyZone, 'vehicles' => $this->vehicles($zones), 'is_active' => true,
                 ]);
-                // Relais provisoire au centre-ville, remplacé dès que les coordonnées précises sont connues.
+                // Le chef-lieu est un repère de desserte, pas une adresse physique d'agence.
                 $agency = DeliveryAgency::firstOrCreate(['code' => 'SOLEX-'.$department['code']], [
                     'deliverer_company_id' => $company->id, 'name' => 'SOLEX — '.$department['hub_city'],
-                    'city' => $department['hub_city'], 'address' => 'Centre-ville de '.$department['hub_city'].' — point exact à confirmer par SOLEX',
+                    'city' => $department['hub_city'], 'address' => $departmentAddress,
                     'phone' => $company->phone ?: 'À confirmer', 'is_active' => true,
                     'country' => 'CM', 'latitude' => $department['hub_latitude'], 'longitude' => $department['hub_longitude'],
                     'coordinate_precision' => 'city_center', 'is_provisional' => true,
                 ]);
+                if (in_array($agency->address, [$legacyAddress, $previousAddress], true)) {
+                    $agency->update(['address' => $departmentAddress]);
+                }
                 if (($agency->latitude === null || $agency->longitude === null)
-                    && str_contains($agency->address ?? '', 'point exact à confirmer')) {
+                    && $agency->address === $departmentAddress) {
                     $agency->update(['country' => 'CM', 'latitude' => $department['hub_latitude'],
                         'longitude' => $department['hub_longitude'], 'coordinate_precision' => 'city_center', 'is_provisional' => true]);
                 }
                 if (blank($agency->address) || blank($agency->phone)) {
                     $agency->update([
-                        'address' => $agency->address ?: 'Centre-ville de '.$department['hub_city'].' — point exact à confirmer par SOLEX',
+                        'address' => $agency->address ?: $departmentAddress,
                         'phone' => $agency->phone ?: ($company->phone ?: 'À confirmer'),
                         'is_active' => $preserveExistingActivation ? $agency->is_active : true,
                     ]);
@@ -101,6 +107,7 @@ class SolexNetworkSeeder extends Seeder
                     $grid->update(['is_active' => true, 'zones' => $zones, 'vehicles' => $vehicles]);
                 });
                 $company->deliveryRoutes()->whereNotNull('network_key')->update(['is_active' => true]);
+                $company->agencies()->where('code', 'like', 'SOLEX-%')->update(['is_active' => true]);
             }
         });
         $this->command?->info('SOLEX : 10 régions, 58 départements, 360 cercles, 45 liaisons nationales et 158 régionales préparés.');
@@ -108,7 +115,7 @@ class SolexNetworkSeeder extends Seeder
             $this->command?->info('Réseau Solex complété sans réinitialiser les tarifs, centres, rayons ou activations existants.');
             return;
         }
-        $this->command?->info('Mode territorial, 58 départements, 360 cercles et 203 liaisons actifs. Centres, rayons et tarifs conservés. Retrait proposé aux relais de centre-ville ; coordonnées provisoires à préciser.');
+        $this->command?->info('Mode territorial, 58 départements, 360 cercles et 203 liaisons actifs. Centres, rayons et tarifs conservés. Points de desserte aux chefs-lieux ; adresses exactes des relais à préciser.');
     }
 
     private function route(DelivererCompany $company, string $level, array $from, array $to): void

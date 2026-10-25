@@ -17,6 +17,10 @@ commerciaux ne représentent pas des limites administratives officielles.
 
 Les chefs-lieux sont rapprochés par nom de département, les codes de la feuille
 des capitales ayant un ancien format. Les variantes Kadey/Kadei sont normalisées.
+Les adresses des relais SOLEX générés suivent le format `Ville-Département`
+(par exemple `Douala-Wouri`),
+sans inventer une rue ou un bâtiment. Le point GPS reste un repère provisoire ;
+une adresse de dépôt précise peut être renseignée ensuite dans l'administration.
 Les rattachements ambigus (Océan, Mvila, Logone-et-Chari) retiennent respectivement
 Kribi, Ebolowa, Kousseri. Ntui est retenu pour le Mbam-et-Kim ; Monatélé pour la
 Lékié ; Menji pour le Lebialem ; Mundemba pour le Ndian. Lorsque le point du
