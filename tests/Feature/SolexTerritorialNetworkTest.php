@@ -486,7 +486,8 @@ class SolexTerritorialNetworkTest extends TestCase
         $this->assertSame('1t', $truck['base_vehicle']);
         $this->assertSame([], $truck['prices']);
         $agency = DeliveryAgency::where('is_active', true)->firstOrFail();
-        $this->assertStringContainsString('Centre-ville', $agency->address);
+        $department = DeliveryTerritory::where('code', substr($agency->code, strlen('SOLEX-')))->firstOrFail();
+        $this->assertSame($department->metadata['hub_city'].'-'.$department->name, $agency->address);
         $this->assertStringContainsString('confirmer', $agency->phone);
         $vehicles = $grid->vehicles;
         foreach ($vehicles as &$vehicle) {
