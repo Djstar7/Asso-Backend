@@ -1,15 +1,15 @@
 @extends('admin.layouts.app')
 
-@section('title', 'Dashboard')
-@section('header', 'Dashboard')
+@section('title', __('admin_nav.items.dashboard', [], auth()->user()->preferredLocale()))
+@section('header', __('admin_nav.items.dashboard', [], auth()->user()->preferredLocale()))
 
 @section('content')
 @adminCan('admin.shipments.index')
 <div class="mb-6 p-5 bg-dark-100 border border-dark-200 rounded-xl flex flex-wrap items-center justify-between gap-4">
-    <div><h2 class="text-lg font-semibold text-white">Statuts des commandes et expéditions</h2>
-        <p class="text-sm text-gray-400">Collecte Solex, remise au transporteur, transit, dédouanement et livraison.</p></div>
-    <a href="{{ route('admin.shipments.index') }}" class="px-4 py-2 bg-primary-500 rounded-lg text-white text-sm">Retrouver les commandes et leur suivi</a>
-    <a href="{{ route('admin.shipments.index', ['scope' => 'export', 'status' => 'all']) }}" class="text-primary-400 text-sm">Commandes internationales · Solex → DHL / FedEx</a>
+    <div><h2 class="text-lg font-semibold text-white">{{ __('admin_nav.shipments.title', [], auth()->user()->preferredLocale()) }}</h2>
+        <p class="text-sm text-gray-400">{{ __('admin_nav.shipments.description', [], auth()->user()->preferredLocale()) }}</p></div>
+    <a href="{{ route('admin.shipments.index') }}" class="px-4 py-2 bg-primary-500 rounded-lg text-white text-sm">{{ __('admin_nav.shipments.open', [], auth()->user()->preferredLocale()) }}</a>
+    <a href="{{ route('admin.shipments.index', ['scope' => 'export', 'status' => 'all']) }}" class="text-primary-400 text-sm">{{ __('admin_nav.shipments.exports', [], auth()->user()->preferredLocale()) }}</a>
 </div>
 @endadminCan
 <!-- Pending Shops Notifications -->

@@ -65,7 +65,7 @@ class BackofficeGuideTest extends TestCase
         $this->actingAs($manager)->get('/admin/products')
             ->assertOk()
             ->assertSee(route('admin.guide'), false)
-            ->assertSee('Aide & guide', false);
+            ->assertSee('Guide d’utilisation', false);
     }
 
     public function test_guide_requires_a_backoffice_account(): void

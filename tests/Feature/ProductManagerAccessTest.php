@@ -25,9 +25,10 @@ class ProductManagerAccessTest extends TestCase
         ]);
     }
 
-    private function product(string $status = 'active'): Product
+    private function product(string $status = 'active', ?User $vendor = null): Product
     {
-        $vendor = User::factory()->create(['role' => 'vendeur']);
+        // Managers can work only on the platform account's ASSO shops.
+        $vendor ??= \App\Services\CommissionService::platformAccount();
         $shop = Shop::create(['user_id' => $vendor->id, 'name' => 'Boutique', 'slug' => 'boutique-'.uniqid(), 'status' => 'active']);
         $category = Category::create(['name' => 'Mode', 'slug' => 'mode-'.uniqid()]);
 
@@ -181,6 +182,16 @@ class ProductManagerAccessTest extends TestCase
         foreach (['/admin/users', '/admin/shops', '/admin/transactions', '/admin/settings', '/admin/database', '/admin/managers', '/admin/vault'] as $url) {
             $this->actingAs($pm)->get($url)->assertForbidden();
         }
+    }
+
+    public function test_product_manager_cannot_open_or_modify_an_external_sellers_product(): void
+    {
+        $pm = $this->productManager();
+        $seller = User::factory()->create(['role' => 'vendeur']);
+        $product = $this->product('active', $seller);
+        $this->actingAs($pm)->get("/admin/products/{$product->id}")->assertNotFound();
+        $this->patch("/admin/products/{$product->id}/toggle-status")->assertNotFound();
+        $this->assertSame('active', $product->fresh()->status);
     }
 
     public function test_product_manager_sidebar_only_shows_products(): void

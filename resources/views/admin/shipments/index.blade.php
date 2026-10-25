@@ -1,26 +1,38 @@
 @extends('admin.layouts.app')
 
+@section('title', __('admin_nav.shipments.title', [], auth()->user()->preferredLocale()))
+
 @section('content')
+@php($navigationLocale = auth()->user()->preferredLocale())
 <div class="p-6">
     <div class="mb-6">
-        <h1 class="text-2xl font-bold text-white">{{ $scope === 'export' ? 'Commandes internationales' : 'Expéditions et statuts des commandes' }}</h1>
-        <p class="text-gray-400">Commandes confiées à SOLEX, DHL, FedEx… L’équipe ASSO suit l’acheminement et enregistre les confirmations du partenaire jusqu’à la remise au client.</p>
+        <h1 class="text-2xl font-bold text-white">{{ __('admin_nav.shipments.title', [], $navigationLocale) }}</h1>
+        <p class="text-gray-400">{{ __('admin_nav.shipments.description', [], $navigationLocale) }}</p>
     </div>
 
+    <nav class="flex flex-wrap gap-2 mb-4" aria-label="{{ __('admin_nav.shipments.scope', [], $navigationLocale) }}">
+        <a href="{{ route('admin.shipments.index', array_filter(['scope' => 'all', 'status' => $status, 'search' => request('search')])) }}"
+           @if($scope !== 'export') aria-current="page" @endif
+           class="px-3 py-2 rounded-lg text-sm {{ $scope !== 'export' ? 'bg-primary-500 text-white' : 'bg-dark-200 text-gray-300 hover:text-white' }}">{{ __('admin_nav.shipments.all', [], $navigationLocale) }}</a>
+        <a href="{{ route('admin.shipments.index', array_filter(['scope' => 'export', 'status' => $status, 'search' => request('search')])) }}"
+           @if($scope === 'export') aria-current="page" @endif
+           class="px-3 py-2 rounded-lg text-sm {{ $scope === 'export' ? 'bg-primary-500 text-white' : 'bg-dark-200 text-gray-300 hover:text-white' }}">{{ __('admin_nav.shipments.exports', [], $navigationLocale) }}</a>
+    </nav>
+    @if($scope === 'export')
+        <p class="mb-4 text-sm text-gray-400">{{ __('admin_nav.shipments.export_note', [], $navigationLocale) }}</p>
+    @endif
+
     <form method="GET" class="flex flex-wrap gap-3 mb-4">
-        <select name="status" onchange="this.form.submit()"
+        <select name="status" aria-label="{{ __('admin_nav.shipments.status', [], $navigationLocale) }}" onchange="this.form.submit()"
                 class="px-3 py-2 bg-dark-100 border border-dark-200 rounded-lg text-white text-sm">
             @foreach($statusOptions as $value => $label)
                 <option value="{{ $value }}" @selected($status === $value)>{{ $label }}</option>
             @endforeach
         </select>
-        <select name="scope" onchange="this.form.submit()" aria-label="Type d’expédition" class="px-3 py-2 bg-dark-100 border border-dark-200 rounded-lg text-white text-sm">
-            <option value="all" @selected($scope === 'all')>Toutes les expéditions</option>
-            <option value="export" @selected($scope === 'export')>International · Solex → DHL / FedEx</option>
-        </select>
-        <input type="text" name="search" value="{{ request('search') }}" placeholder="N° commande ou n° de suivi"
+        <input type="hidden" name="scope" value="{{ $scope }}">
+        <input type="text" name="search" value="{{ request('search') }}" placeholder="{{ __('admin_nav.shipments.search', [], $navigationLocale) }}" aria-label="{{ __('admin_nav.shipments.search', [], $navigationLocale) }}"
                class="px-3 py-2 bg-dark-100 border border-dark-200 rounded-lg text-white text-sm">
-        <button class="px-4 py-2 bg-primary-500 text-white rounded-lg text-sm"><i class="fas fa-search"></i></button>
+        <button aria-label="{{ __('admin_nav.shipments.filter', [], $navigationLocale) }}" class="px-4 py-2 bg-primary-500 text-white rounded-lg text-sm"><i class="fas fa-search"></i></button>
     </form>
 
     <div class="bg-dark-100 rounded-xl shadow-lg border border-dark-200 overflow-x-auto">
