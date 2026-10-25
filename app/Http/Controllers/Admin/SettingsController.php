@@ -163,7 +163,10 @@ class SettingsController extends Controller
                 }
             }
 
-            return redirect()->route('admin.settings.index')
+            return redirect()->route('admin.settings.index',
+                in_array($request->input('_active_tab'), ['general', 'system', 'commissions', 'account'], true)
+                    ? ['tab' => $request->input('_active_tab')] : []
+            )
                 ->with('success', 'Paramètres mis à jour avec succès');
         } catch (\Exception $e) {
             return redirect()->back()
@@ -469,7 +472,10 @@ class SettingsController extends Controller
             // gateway du formulaire soumis est réécrit).
             $this->updateServiceConfiguration($validated, $form);
 
-            return redirect()->route('admin.settings.payments')
+            return redirect()->route('admin.settings.payments',
+                in_array($request->input('_active_tab'), ['kpay', 'elgiopay', 'direct'], true)
+                    ? ['tab' => $request->input('_active_tab')] : []
+            )
                 ->with('success', 'Paramètres de paiement mis à jour avec succès');
         } catch (\Exception $e) {
             return redirect()->back()
@@ -540,7 +546,10 @@ class SettingsController extends Controller
                 Setting::set($key, $value ?? '', $type, $group);
             }
 
-            return redirect()->route('admin.settings.services')
+            return redirect()->route('admin.settings.services',
+                in_array($request->input('_active_tab'), ['nexaah', 'whatsapp'], true)
+                    ? ['tab' => $request->input('_active_tab')] : []
+            )
                 ->with('success', 'Paramètres des services mis à jour avec succès');
         } catch (\Exception $e) {
             return redirect()->back()

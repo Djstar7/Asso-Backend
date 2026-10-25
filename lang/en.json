@@ -1924,5 +1924,26 @@
             "local_orders": "Local orders, made in Cameroon",
             "fcm_tokens": "FCM, tokens, push notifications, devices"
         }
+    },
+    "admin_confirmation": {
+        "title": "Confirm action",
+        "message": "Are you sure you want to perform this action?",
+        "cancel": "Cancel",
+        "accept": "Confirm"
+    },
+    "admin_flash": {
+        "close": "Dismiss message",
+        "copied": "Code copied!"
+    },
+    "admin_pagination": {
+        "label": "Results navigation",
+        "summary": "Showing :first–:last of :total results",
+        "empty": "No results",
+        "page": "Page :current of :last",
+        "simple_page": "Page :current",
+        "previous": "Previous",
+        "next": "Next",
+        "go_to": "Go to page :page",
+        "current": "Page :page, current page"
     }
 }

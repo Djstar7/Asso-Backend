@@ -846,3 +846,29 @@ versions de cache. Les anciennes URL WebP servent les nouvelles images PNG.
 Le sommaire « Sur cette page » reprend les procédures et les repères de chaque
 fiche, avec une sélection qui suit le défilement. Les images et leurs coordonnées
 sont vérifiées par `tests/Unit/GuideCapturesTest.php`.
+
+
+Les confirmations du navigateur utilisent désormais le dialogue partagé
+`admin.partials.confirmation-modal`. Ajouter `data-confirm="Question"` à un
+formulaire ou à son bouton ; pour une action JavaScript, utiliser
+`customConfirm(message, callback, { source: button })`. Le dialogue conserve
+la validation native du formulaire, le bouton soumis et ses paramètres.
+
+Les messages de session `success` et `error` sont affichés une seule fois par
+`admin.partials.flash-message` : ne pas les répéter dans les pages enfants.
+Un succès disparaît après cinq secondes ; une erreur reste jusqu’à fermeture.
+Les actions JavaScript utilisent `adminFlash.success(message)` ou
+`adminFlash.error(message)`, qui réutilisent le même emplacement.
+
+Le menu révèle le lien courant après restauration de sa position, chargement
+des polices et ouverture sur mobile, tout en laissant le défilement manuel libre.
+Les onglets des paramètres généraux, paiements et services conservent leur état
+par compte et page dans la session du navigateur et dans le paramètre `tab`.
+Les formulaires transmettent `_active_tab` pour rester sur cet onglet après
+l’enregistrement, même lorsque le stockage du navigateur est indisponible.
+
+Les paginateurs Laravel complets et simples utilisent les vues
+`admin.pagination.default` et `admin.pagination.simple` : résumé des résultats,
+page courante, contrôles adaptés au mobile et libellés français/anglais selon
+le compte. Les filtres, noms de paramètres de page et fragments sont conservés.
+Aucune migration ni nouvelle dépendance n’est nécessaire.

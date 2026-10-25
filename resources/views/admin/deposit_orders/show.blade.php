@@ -150,7 +150,7 @@
                     <h2 class="text-lg font-semibold text-white mb-1">Clôturer la commande</h2>
                     <p class="text-xs text-gray-400 mb-3">Acompte encaissé : {{ $fcfa($depositCollected) }}. Ce qui n'est ni rendu au client, ni versé au vendeur ou au livreur reste à ASSO. Irréversible.</p>
                     <form method="POST" action="{{ route('admin.deposit-orders.close', $order) }}" class="space-y-2"
-                          onsubmit="return confirm('Clôturer la commande et répartir l\'acompte ?')">
+                          data-confirm="Clôturer la commande et répartir l'acompte ?">
                         @csrf
                         @foreach([
                             ['refund_amount', 'Rendu au client (Wallet)', old('refund_amount', $depositCollected)],

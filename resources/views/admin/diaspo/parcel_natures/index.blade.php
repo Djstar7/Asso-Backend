@@ -108,7 +108,7 @@
                             </td>
                             <td class="px-4 py-3 text-right whitespace-nowrap">
                                 <button form="nature-{{ $nature->id }}" type="submit" class="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Enregistrer</button>
-                                <form action="{{ route('admin.diaspo.parcel-natures.destroy', $nature) }}" method="POST" class="inline" onsubmit="return confirm('Supprimer cette nature ?')">
+                                <form action="{{ route('admin.diaspo.parcel-natures.destroy', $nature) }}" method="POST" class="inline" data-confirm="Supprimer cette nature ?">
                                     @csrf
                                     @method('DELETE')
                                     <button type="submit" class="px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700"><i class="fas fa-trash"></i></button>

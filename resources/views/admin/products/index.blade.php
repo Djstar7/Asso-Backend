@@ -37,11 +37,6 @@
         </div>
     </div>
 
-    @if(session('success'))
-        <div class="mb-6 p-4 bg-green-900/20 border-l-4 border-green-500 rounded">
-            <p class="text-green-300"><i class="fas fa-check-circle mr-2"></i>{{ session('success') }}</p>
-        </div>
-    @endif
 
     <!-- Filters -->
     <div class="bg-dark-100 rounded-xl shadow-lg p-6 mb-6 border border-dark-200">

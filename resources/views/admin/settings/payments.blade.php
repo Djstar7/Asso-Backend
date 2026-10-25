@@ -7,7 +7,7 @@
 @php
     $mobileMoneyActive = ($elgiopayEnabled ?? false) ? 'elgiopay' : (($kpayEnabled ?? false) ? 'kpay' : null);
 @endphp
-<div class="space-y-6" x-data="{ activePayment: '{{ $mobileMoneyActive ?? 'kpay' }}' }">
+<div class="space-y-6" x-data="adminTabState({ key: 'settings.payments.{{ auth()->id() }}', property: 'activePayment', allowed: ['kpay', 'elgiopay', 'direct'], initial: '{{ $mobileMoneyActive ?? 'kpay' }}', forced: '' })">
     <!-- Prestataire Mobile Money actif (un seul à la fois) -->
     <div class="bg-dark-100 rounded-lg border border-dark-200 px-6 py-3 flex items-center text-sm">
         <i class="fas fa-mobile-alt text-gray-400 mr-2"></i>
@@ -47,6 +47,7 @@
     <!-- KPay Tab -->
     <div x-show="activePayment === 'kpay'" x-cloak>
         <form action="{{ route('admin.settings.payments.update') }}" method="POST">
+                <input type="hidden" name="_active_tab" :value="activePayment">
             @csrf
             @method('PUT')
             <input type="hidden" name="payment_type" value="kpay">
@@ -326,6 +327,7 @@
     <!-- ElgioPay Tab (Mobile Money Cameroun — exclusif avec KPay) -->
     <div x-show="activePayment === 'elgiopay'" x-cloak>
         <form action="{{ route('admin.settings.payments.update') }}" method="POST">
+                <input type="hidden" name="_active_tab" :value="activePayment">
             @csrf
             @method('PUT')
             <input type="hidden" name="_form" value="elgiopay">
@@ -497,6 +499,7 @@
     <!-- Encaissement direct Tab (Stripe carte + minimums par moyen) -->
     <div x-show="activePayment === 'direct'" x-cloak>
         <form action="{{ route('admin.settings.payments.update') }}" method="POST">
+                <input type="hidden" name="_active_tab" :value="activePayment">
             @csrf
             @method('PUT')
             <input type="hidden" name="_form" value="stripe">

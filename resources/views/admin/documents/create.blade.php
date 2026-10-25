@@ -6,11 +6,6 @@
         <div class="bg-dark-100 border border-dark-200 rounded-lg p-6">
             <h1 class="text-2xl font-bold text-white mb-6">Uploader un nouveau document</h1>
 
-            @if(session('error'))
-                <div class="mb-4 p-4 bg-red-500/20 border border-red-500 rounded-lg text-red-400">
-                    {{ session('error') }}
-                </div>
-            @endif
 
             <form action="{{ route('admin.documents.store') }}" method="POST" enctype="multipart/form-data">
                 @csrf

@@ -4,10 +4,11 @@
 @section('header', 'Configuration des Services')
 
 @section('content')
-<div class="space-y-6" x-data="{ activeService: 'nexaah' }">
+<div class="space-y-6" x-data="adminTabState({ key: 'settings.services.{{ auth()->id() }}', property: 'activeService', allowed: ['nexaah', 'whatsapp'], initial: 'nexaah', forced: '' })">
     <!-- Service OTP par défaut -->
     <div class="bg-gradient-to-br from-blue-500/10 to-blue-600/5 rounded-xl shadow-lg border border-blue-500/20 p-6">
         <form action="{{ route('admin.settings.services.update') }}" method="POST">
+                <input type="hidden" name="_active_tab" :value="activeService">
             @csrf
             @method('PUT')
             <input type="hidden" name="service_type" value="otp_default">
@@ -135,6 +136,7 @@
     <!-- Nexaah SMS Tab -->
     <div x-show="activeService === 'nexaah'" x-cloak>
         <form action="{{ route('admin.settings.services.update') }}" method="POST">
+                <input type="hidden" name="_active_tab" :value="activeService">
             @csrf
             @method('PUT')
             <input type="hidden" name="service_type" value="nexaah">
@@ -301,6 +303,7 @@
     <!-- WhatsApp Business Tab -->
     <div x-show="activeService === 'whatsapp'" x-cloak>
         <form action="{{ route('admin.settings.services.update') }}" method="POST">
+                <input type="hidden" name="_active_tab" :value="activeService">
             @csrf
             @method('PUT')
             <input type="hidden" name="service_type" value="whatsapp">

@@ -715,12 +715,7 @@
                 </div>
             @endif
 
-            @if (session('success'))
-                <div class="alert alert-success">
-                    <i class="fas fa-check-circle"></i>
-                    <div>{{ session('success') }}</div>
-                </div>
-            @endif
+            @include('admin.partials.flash-message', ['allowHtml' => false])
 
             <form method="POST" action="{{ route($isManager ? 'admin.manager.login.submit' : 'admin.login.submit') }}">
                 @csrf

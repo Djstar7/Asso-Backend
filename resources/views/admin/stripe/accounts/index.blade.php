@@ -135,7 +135,7 @@
                                 @if($account->stripe_account_status === 'pending')
                                     <div class="flex gap-2">
                                         <form method="POST" action="{{ route('admin.stripe.accounts.approve', $account->id) }}"
-                                              onsubmit="return confirm('Valider le compte de virement de cet utilisateur ?');">
+                                              data-confirm="Valider le compte de virement de cet utilisateur ?">
                                             @csrf
                                             <button type="submit"
                                                     class="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-medium transition-all">

@@ -69,6 +69,7 @@
     </script>
 
     <!-- Alpine.js -->
+    <script src="{{ asset('js/admin-tabs.js') }}"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 
     <!-- Chart.js -->
@@ -294,30 +295,7 @@
 
             <!-- Page Content -->
             <main class="flex-1 overflow-y-auto">
-                <!-- Flash Messages -->
-                @if(session('success'))
-                    <div class="mb-6 bg-green-50 border-l-4 border-green-500 text-green-700 px-4 py-3 rounded-lg flex items-center justify-between shadow-sm" role="alert">
-                        <div class="flex items-center w-full">
-                            <i class="fas fa-check-circle mr-2 text-green-500 flex-shrink-0"></i>
-                            <div class="flex-1">{!! session('success') !!}</div>
-                        </div>
-                        <button onclick="this.parentElement.remove()" class="text-green-700 hover:text-green-900 ml-4 flex-shrink-0">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    </div>
-                @endif
-
-                @if(session('error'))
-                    <div class="mb-6 bg-red-900/20 border-l-4 border-red-500 text-red-400 px-4 py-3 rounded-lg flex items-center justify-between shadow-sm" role="alert">
-                        <div class="flex items-center w-full">
-                            <i class="fas fa-exclamation-circle mr-2 text-red-500 flex-shrink-0"></i>
-                            <div class="flex-1">{!! session('error') !!}</div>
-                        </div>
-                        <button onclick="this.parentElement.remove()" class="text-red-400 hover:text-red-500 ml-4 flex-shrink-0">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    </div>
-                @endif
+                @include('admin.partials.flash-message')
 
                 @yield('content')
             </main>
@@ -331,102 +309,7 @@
         </div>
     </div>
 
-    <!-- ===== Modale de confirmation personnalisée (remplace window.confirm) ===== -->
-    <div id="confirmModal" class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-        <div id="confirmModalBox" class="bg-dark-100 border border-dark-200 rounded-2xl shadow-2xl w-full max-w-md p-6 scale-95 opacity-0 transition-all duration-150">
-            <div class="flex items-start gap-4">
-                <div id="confirmModalIconWrap" class="w-12 h-12 rounded-full bg-red-500/15 text-red-400 flex items-center justify-center flex-shrink-0">
-                    <i id="confirmModalIcon" class="fas fa-triangle-exclamation text-xl"></i>
-                </div>
-                <div class="flex-1 min-w-0">
-                    <h3 id="confirmModalTitle" class="text-lg font-bold text-white mb-1">Confirmer l'action</h3>
-                    <p id="confirmModalMessage" class="text-sm text-gray-300 leading-relaxed"></p>
-                </div>
-            </div>
-            <div class="flex justify-end gap-3 mt-6">
-                <button type="button" id="confirmModalCancel"
-                        class="px-4 py-2.5 rounded-lg bg-dark-200 text-gray-200 hover:bg-dark-300 transition-colors font-medium">
-                    Annuler
-                </button>
-                <button type="button" id="confirmModalOk"
-                        class="px-5 py-2.5 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors font-semibold">
-                    Confirmer
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <script>
-    (function () {
-        const modal   = document.getElementById('confirmModal');
-        const box     = document.getElementById('confirmModalBox');
-        const msgEl   = document.getElementById('confirmModalMessage');
-        const okBtn   = document.getElementById('confirmModalOk');
-        const cancel  = document.getElementById('confirmModalCancel');
-        let onConfirm = null;
-
-        function openModal(message, cb) {
-            msgEl.textContent = message || 'Voulez-vous vraiment effectuer cette action ?';
-            onConfirm = cb;
-            modal.classList.remove('hidden');
-            modal.classList.add('flex');
-            requestAnimationFrame(() => { box.classList.remove('scale-95', 'opacity-0'); });
-            okBtn.focus();
-        }
-        function closeModal() {
-            box.classList.add('scale-95', 'opacity-0');
-            onConfirm = null;
-            setTimeout(() => { modal.classList.add('hidden'); modal.classList.remove('flex'); }, 150);
-        }
-
-        okBtn.addEventListener('click', function () {
-            const cb = onConfirm;
-            closeModal();
-            if (cb) cb();
-        });
-        cancel.addEventListener('click', closeModal);
-        modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
-        document.addEventListener('keydown', function (e) {
-            if (e.key === 'Escape' && !modal.classList.contains('hidden')) closeModal();
-        });
-
-        // API publique : window.customConfirm(message, onOk)
-        window.customConfirm = openModal;
-
-        // 1) Formulaires avec data-confirm : intercepter la soumission
-        document.addEventListener('submit', function (e) {
-            const form = e.target;
-            if (form.matches && form.matches('form[data-confirm]') && form.dataset.confirmed !== '1') {
-                e.preventDefault();
-                openModal(form.getAttribute('data-confirm'), function () {
-                    form.dataset.confirmed = '1';
-                    if (typeof form.requestSubmit === 'function') form.requestSubmit();
-                    else form.submit();
-                });
-            }
-        }, true);
-
-        // 2) Liens et boutons avec data-confirm : intercepter le clic
-        document.addEventListener('click', function (e) {
-            const el = e.target.closest('[data-confirm]');
-            if (!el || el.tagName === 'FORM' || el.dataset.confirmed === '1') return;
-            e.preventDefault();
-            e.stopPropagation();
-            openModal(el.getAttribute('data-confirm'), function () {
-                el.dataset.confirmed = '1';
-                if (el.tagName === 'A' && el.href) {
-                    window.location.href = el.href;
-                } else if (el.tagName === 'BUTTON') {
-                    const f = el.closest('form');
-                    if (f) { (typeof f.requestSubmit === 'function') ? f.requestSubmit(el) : f.submit(); }
-                    else { el.click(); }
-                } else {
-                    el.click();
-                }
-            });
-        }, true);
-    })();
-    </script>
+    @include('admin.partials.confirmation-modal')
 
     <script defer src="{{ asset('js/admin-navigation.js') }}"></script>
 

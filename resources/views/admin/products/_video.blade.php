@@ -333,8 +333,7 @@
             existing = null;
             reset();
         };
-        if (window.customConfirm) window.customConfirm('Retirer la vidéo de ce produit ?', confirmAndRemove);
-        else if (confirm('Retirer la vidéo de ce produit ?')) confirmAndRemove();
+        window.customConfirm('Retirer la vidéo de ce produit ?', confirmAndRemove, { source: btnDelete });
     });
 
     // Enregistrer pendant l'envoi ferait perdre la vidéo : on attend la fin.

@@ -60,7 +60,7 @@
                                     <button type="button" disabled title="Ce QG est utilisé par un départ." class="ml-1 px-3 py-1 bg-gray-600 text-gray-300 rounded cursor-not-allowed">Utilisé</button>
                                 @else
                                     <form action="{{ route('admin.maritime.hubs.destroy', $hub) }}" method="POST" class="inline"
-                                          onsubmit="return confirm('Supprimer définitivement ce QG ? Cette action est irréversible.')">
+                                          data-confirm="Supprimer définitivement ce QG ? Cette action est irréversible.">
                                         @csrf @method('DELETE')
                                         <button type="submit" class="ml-1 px-3 py-1 bg-red-700 text-white rounded hover:bg-red-800">Supprimer</button>
                                     </form>
@@ -248,7 +248,7 @@
                                     <button type="button" disabled title="Ce départ possède des envois." class="ml-1 px-3 py-1 bg-gray-600 text-gray-300 rounded cursor-not-allowed">Utilisé</button>
                                 @else
                                     <form action="{{ route('admin.maritime.departures.destroy', $d) }}" method="POST" class="inline"
-                                          onsubmit="return confirm('Supprimer définitivement ce départ ? Cette action est irréversible.')">
+                                          data-confirm="Supprimer définitivement ce départ ? Cette action est irréversible.">
                                         @csrf @method('DELETE')
                                         <button type="submit" class="ml-1 px-3 py-1 bg-red-700 text-white rounded hover:bg-red-800">Supprimer</button>
                                     </form>

@@ -27,7 +27,7 @@
         </div>
         <div class="flex flex-wrap gap-2">
             <a href="{{ route('admin.sales.agents.edit', $agent) }}" class="px-4 py-2 bg-dark-200 text-white rounded-lg hover:bg-dark-300"><i class="fas fa-edit mr-2"></i>Modifier</a>
-            <form method="POST" action="{{ route('admin.sales.agents.regenerate-code', $agent) }}" onsubmit="return confirm('Générer un nouveau code ? L\'ancien ne sera plus accepté.')">
+            <form method="POST" action="{{ route('admin.sales.agents.regenerate-code', $agent) }}" data-confirm="Générer un nouveau code ? L'ancien ne sera plus accepté.">
                 @csrf
                 <button class="px-4 py-2 bg-dark-200 text-white rounded-lg hover:bg-dark-300"><i class="fas fa-sync mr-2"></i>Nouveau code</button>
             </form>

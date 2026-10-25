@@ -15,23 +15,6 @@
         </a>
     </div>
 
-    @if(session('success'))
-        <div class="mb-6 p-4 bg-green-900/20 border-l-4 border-green-500 rounded-lg">
-            <div class="flex items-center">
-                <i class="fas fa-check-circle text-green-500 mr-3"></i>
-                <p class="text-green-700">{{ session('success') }}</p>
-            </div>
-        </div>
-    @endif
-
-    @if(session('error'))
-        <div class="mb-6 p-4 bg-red-900/20 border-l-4 border-red-500 rounded-lg">
-            <div class="flex items-center">
-                <i class="fas fa-exclamation-circle text-red-500 mr-3"></i>
-                <p class="text-red-400">{{ session('error') }}</p>
-            </div>
-        </div>
-    @endif
 
     <!-- Filters Section -->
     <div class="bg-dark-100 rounded-xl shadow-lg p-6 mb-6 border border-dark-200">
@@ -368,15 +351,7 @@
 <script>
 function copyToClipboard(text) {
     navigator.clipboard.writeText(text).then(function() {
-        // Afficher une notification
-        const notification = document.createElement('div');
-        notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 flex items-center gap-2';
-        notification.innerHTML = '<i class="fas fa-check-circle"></i> Code copié !';
-        document.body.appendChild(notification);
-
-        setTimeout(() => {
-            notification.remove();
-        }, 2000);
+        window.adminFlash.success(@js(__('admin_flash.copied', [], auth()->user()->preferredLocale())));
     }).catch(function(err) {
         console.error('Erreur lors de la copie:', err);
     });

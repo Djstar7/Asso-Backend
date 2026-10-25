@@ -339,9 +339,16 @@
         if (t.dataset.addGroup !== undefined) return addGroup(t.dataset.addGroup);
         if (t.dataset.removeGroup !== undefined) {
             const g = groups[+t.dataset.removeGroup];
-            if (g.values.length && !confirm(`Supprimer l'option « ${g.name} » et ses ${g.values.length} valeur(s) ?`)) return;
-            groups.splice(+t.dataset.removeGroup, 1);
-            return renderGroups();
+            const remove = () => {
+                const index = groups.indexOf(g);
+                if (index < 0) return;
+                groups.splice(index, 1);
+                renderGroups();
+            };
+            if (g.values.length) {
+                return window.customConfirm(`Supprimer l'option « ${g.name} » et ses ${g.values.length} valeur(s) ?`, remove, { source: t });
+            }
+            return remove();
         }
         if (t.dataset.removeValue !== undefined) {
             const [gi, vi] = t.dataset.removeValue.split(':').map(Number);

@@ -60,6 +60,7 @@
         if (!query) {
             searching = false;
             beforeSearch = null;
+            requestAnimationFrame(revealCurrent);
         }
     };
 
@@ -82,19 +83,40 @@
         if (search.value) filter();
     }
 
+    function revealCurrent() {
+        if (searching) return;
+        const current = nav.querySelector('[aria-current="page"]');
+        if (!current || current.hidden) return;
+        const group = current.closest('[data-nav-group]');
+        if (group?.hidden) return;
+        if (group) group.open = true;
+        const bounds = nav.getBoundingClientRect();
+        if (bounds.height <= 0) return;
+        const searchHeight = nav.querySelector('.asso-navigation__search')?.getBoundingClientRect().height || 0;
+        const top = bounds.top + searchHeight + 8;
+        const bottom = bounds.bottom - 8;
+        const item = current.getBoundingClientRect();
+        // Correct only this container. Saved scroll must not hide the active link
+        // under the sticky search field or beneath the bottom of the sidebar.
+        if (item.top < top) nav.scrollTop -= top - item.top;
+        else if (item.bottom > bottom) nav.scrollTop += item.bottom - bottom;
+    }
+    const revealAfterLayout = () => requestAnimationFrame(revealCurrent);
     requestAnimationFrame(() => {
         const savedScroll = read('.scroll');
-        if (typeof savedScroll === 'number' && Number.isFinite(savedScroll)) {
-            nav.scrollTop = savedScroll;
-        } else {
-            const current = nav.querySelector('[aria-current="page"]');
-            if (current) {
-                // Change only this scroll container, never the document or sidebar horizontally.
-                const top = current.getBoundingClientRect().top - nav.getBoundingClientRect().top + nav.scrollTop;
-                nav.scrollTop = Math.max(0, top - nav.clientHeight / 2 + current.offsetHeight / 2);
-            }
-        }
+        if (typeof savedScroll === 'number' && Number.isFinite(savedScroll)) nav.scrollTop = savedScroll;
+        revealCurrent();
+        revealAfterLayout();
     });
+    window.addEventListener('load', revealAfterLayout, { once: true });
+    window.addEventListener('pageshow', revealAfterLayout);
+    window.addEventListener('resize', revealAfterLayout);
+    document.fonts?.ready.then(revealAfterLayout);
+    if (typeof ResizeObserver !== 'undefined') new ResizeObserver(revealAfterLayout).observe(nav);
+    const sidebar = nav.closest('aside');
+    if (sidebar) new MutationObserver(() => {
+        if (sidebar.classList.contains('translate-x-0')) revealAfterLayout();
+    }).observe(sidebar, { attributes: true, attributeFilter: ['class'] });
     const saveScroll = () => write('.scroll', nav.scrollTop);
     nav.addEventListener('scroll', saveScroll, { passive: true });
     window.addEventListener('pagehide', saveScroll);

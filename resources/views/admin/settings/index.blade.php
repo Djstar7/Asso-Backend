@@ -6,7 +6,7 @@
 @section('content')
 <div class="space-y-6">
     <!-- Tabs Navigation -->
-    <div class="bg-dark-100 rounded-lg shadow-sm border border-dark-200" x-data="{ activeTab: new URLSearchParams(window.location.search).get('tab') || '{{ $errors->hasBag('account') || $errors->hasBag('password') ? 'account' : 'general' }}' }">
+    <div class="bg-dark-100 rounded-lg shadow-sm border border-dark-200" x-data="adminTabState({ key: 'settings.index.{{ auth()->id() }}', property: 'activeTab', allowed: ['general', 'system', 'commissions', 'account'], initial: 'general', forced: '{{ $errors->hasBag('account') || $errors->hasBag('password') ? 'account' : '' }}' })">
         <div class="border-b border-dark-200">
             <nav class="flex space-x-4 px-6" aria-label="Tabs">
                 <button @click="activeTab = 'general'"
@@ -36,6 +36,7 @@
         <div x-show="activeTab === 'account'" x-cloak class="p-6 space-y-8">
             @php $me = auth()->user(); @endphp
             <form action="{{ route('admin.settings.account.update') }}" method="POST">
+                <input type="hidden" name="_active_tab" :value="activeTab">
                 @csrf
                 @method('PUT')
                 <h3 class="text-lg font-semibold text-white mb-1">Informations du compte</h3>
@@ -82,6 +83,7 @@
             </form>
 
             <form action="{{ route('admin.settings.account.password') }}" method="POST" class="border-t border-dark-200 pt-6">
+                <input type="hidden" name="_active_tab" :value="activeTab">
                 @csrf
                 @method('PUT')
                 <h3 class="text-lg font-semibold text-white mb-1">Mot de passe</h3>
@@ -123,6 +125,7 @@
         <!-- General Tab -->
         <div x-show="activeTab === 'general'" x-cloak>
             <form action="{{ route('admin.settings.update') }}" method="POST" enctype="multipart/form-data" class="p-6">
+                <input type="hidden" name="_active_tab" :value="activeTab">
                 @csrf
                 @method('PUT')
 
@@ -207,6 +210,7 @@
         <!-- System Tab -->
         <div x-show="activeTab === 'system'" x-cloak>
             <form action="{{ route('admin.settings.update') }}" method="POST" class="p-6">
+                <input type="hidden" name="_active_tab" :value="activeTab">
                 @csrf
                 @method('PUT')
 
@@ -317,6 +321,7 @@
         <div x-show="activeTab === 'commissions'" x-cloak
              x-data="commissionSettings()">
             <form action="{{ route('admin.settings.commissions.update') }}" method="POST" class="p-6">
+                <input type="hidden" name="_active_tab" :value="activeTab">
                 @csrf
                 @method('PUT')
 

@@ -197,9 +197,7 @@
                     markPrimary();
                     renderNew();
                 }).catch(() => showError("La photo n'a pas pu être supprimée."));
-                window.customConfirm
-                    ? window.customConfirm('Supprimer définitivement cette photo ?', doDelete)
-                    : (confirm('Supprimer définitivement cette photo ?') && doDelete());
+                window.customConfirm('Supprimer définitivement cette photo ?', doDelete, { source: btn });
             }
         });
     }

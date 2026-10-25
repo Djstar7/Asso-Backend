@@ -168,7 +168,7 @@
                                 <form action="{{ route('admin.diaspo.posts.destroy', $post->id) }}"
                                       method="POST"
                                       class="inline"
-                                      onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer ce post ?')">
+                                      data-confirm="Êtes-vous sûr de vouloir supprimer ce post ?">
                                     @csrf
                                     @method('DELETE')
                                     <button type="submit" class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all">

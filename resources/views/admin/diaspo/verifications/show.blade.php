@@ -228,7 +228,7 @@
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <!-- Approve Button -->
-                <form action="{{ route('admin.diaspo.verifications.approve', $user->id) }}" method="POST" onsubmit="return confirm('Êtes-vous sûr de vouloir approuver cette vérification ?')">
+                <form action="{{ route('admin.diaspo.verifications.approve', $user->id) }}" method="POST" data-confirm="Êtes-vous sûr de vouloir approuver cette vérification ?">
                     @csrf
                     <button type="submit"
                             class="w-full px-6 py-4 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:shadow-lg transition-all duration-200 shadow-lg hover:shadow-xl flex items-center justify-center gap-3 text-lg font-semibold">

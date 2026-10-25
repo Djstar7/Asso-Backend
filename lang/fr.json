@@ -1924,5 +1924,26 @@
             "local_orders": "Commandes locales, fabrication au Cameroun",
             "fcm_tokens": "FCM, tokens, notifications push, appareils"
         }
+    },
+    "admin_confirmation": {
+        "title": "Confirmer l’action",
+        "message": "Voulez-vous vraiment effectuer cette action ?",
+        "cancel": "Annuler",
+        "accept": "Confirmer"
+    },
+    "admin_flash": {
+        "close": "Fermer le message",
+        "copied": "Code copié !"
+    },
+    "admin_pagination": {
+        "label": "Navigation des résultats",
+        "summary": "Affichage :first–:last sur :total résultats",
+        "empty": "Aucun résultat",
+        "page": "Page :current sur :last",
+        "simple_page": "Page :current",
+        "previous": "Précédent",
+        "next": "Suivant",
+        "go_to": "Aller à la page :page",
+        "current": "Page :page, page actuelle"
     }
 }

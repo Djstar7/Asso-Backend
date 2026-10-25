@@ -15,20 +15,6 @@
         </a>
     </div>
 
-    @if(session('success'))
-        <div class="mb-6 bg-dark-100 rounded-xl shadow-lg border border-green-500/50 overflow-hidden">
-            {!! session('success') !!}
-        </div>
-    @endif
-
-    @if(session('error'))
-        <div class="mb-6 p-4 bg-red-900/20 border-l-4 border-red-500 rounded-lg">
-            <div class="flex items-center">
-                <i class="fas fa-exclamation-circle text-red-500 mr-3"></i>
-                <p class="text-red-400">{{ session('error') }}</p>
-            </div>
-        </div>
-    @endif
 
     <!-- Filters -->
     <div class="bg-dark-100 rounded-xl shadow-lg p-6 mb-6 border border-dark-200">

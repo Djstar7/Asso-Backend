@@ -5,16 +5,7 @@
 
 @section('content')
 <div class="space-y-4">
-    @if (session('success'))
-        <div class="bg-green-500/10 border border-green-500/30 text-green-300 px-4 py-3 rounded-lg">
-            {{ session('success') }}
-        </div>
-    @endif
-    @if (session('error'))
-        <div class="bg-red-500/10 border border-red-500/30 text-red-300 px-4 py-3 rounded-lg">
-            {{ session('error') }}
-        </div>
-    @endif
+
 
     @if (!$support)
         <div class="bg-yellow-500/10 border border-yellow-500/30 text-yellow-300 px-4 py-4 rounded-lg">

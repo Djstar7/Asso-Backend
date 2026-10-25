@@ -18,9 +18,7 @@
         </div>
     </div>
 
-    @if(session('success'))
-        <div class="mb-4 p-4 bg-green-900/20 border border-green-500/40 text-green-300 rounded-lg">{{ session('success') }}</div>
-    @endif
+
     @if($errors->any())
         <div class="mb-4 p-4 bg-red-900/20 text-red-300 rounded-lg"><ul>@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>
     @endif

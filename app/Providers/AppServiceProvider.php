@@ -12,6 +12,7 @@ use App\Observers\ConversationObserver;
 use App\Observers\DeviceTokenObserver;
 use App\Observers\DiaspoOfferObserver;
 use App\Support\Translation\JsonTranslationLoader;
+use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
@@ -36,6 +37,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Paginator::defaultView('admin.pagination.default');
+        Paginator::defaultSimpleView('admin.pagination.simple');
+
         // Register DeviceToken observer for automatic topic subscription
         DeviceToken::observe(DeviceTokenObserver::class);
 

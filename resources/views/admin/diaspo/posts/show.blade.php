@@ -63,7 +63,7 @@
             <form action="{{ route('admin.diaspo.posts.destroy', $post->id) }}"
                   method="POST"
                   class="inline"
-                  onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer ce post et tous ses commentaires ?')">
+                  data-confirm="Êtes-vous sûr de vouloir supprimer ce post et tous ses commentaires ?">
                 @csrf
                 @method('DELETE')
                 <button type="submit" class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all">
@@ -161,7 +161,7 @@
                             <form action="{{ route('admin.diaspo.posts.comments.destroy', [$post->id, $comment->id]) }}"
                                   method="POST"
                                   class="inline"
-                                  onsubmit="return confirm('Supprimer ce commentaire ?')">
+                                  data-confirm="Supprimer ce commentaire ?">
                                 @csrf
                                 @method('DELETE')
                                 <button type="submit" class="text-red-500 hover:text-red-600 transition-colors">
@@ -203,7 +203,7 @@
                                             <form action="{{ route('admin.diaspo.posts.comments.destroy', [$post->id, $reply->id]) }}"
                                                   method="POST"
                                                   class="inline"
-                                                  onsubmit="return confirm('Supprimer cette réponse ?')">
+                                                  data-confirm="Supprimer cette réponse ?">
                                                 @csrf
                                                 @method('DELETE')
                                                 <button type="submit" class="text-red-500 hover:text-red-600 transition-colors text-sm">

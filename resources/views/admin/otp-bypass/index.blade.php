@@ -15,23 +15,6 @@
         </button>
     </div>
 
-    @if(session('success'))
-        <div class="mb-6 p-4 bg-green-900/20 border-l-4 border-green-500 rounded-lg">
-            <div class="flex items-center">
-                <i class="fas fa-check-circle text-green-500 mr-3"></i>
-                <p class="text-green-400">{{ session('success') }}</p>
-            </div>
-        </div>
-    @endif
-
-    @if(session('error'))
-        <div class="mb-6 p-4 bg-red-900/20 border-l-4 border-red-500 rounded-lg">
-            <div class="flex items-center">
-                <i class="fas fa-exclamation-circle text-red-500 mr-3"></i>
-                <p class="text-red-400">{{ session('error') }}</p>
-            </div>
-        </div>
-    @endif
 
     <!-- Info Box -->
     <div class="mb-6 p-4 bg-blue-900/20 border-l-4 border-blue-500 rounded-lg">
@@ -116,7 +99,7 @@
 
                                     <!-- Delete -->
                                     <form action="{{ route('admin.otp-bypass.destroy', $phone->id) }}" method="POST" class="inline"
-                                          onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer ce numéro ?')">
+                                          data-confirm="Êtes-vous sûr de vouloir supprimer ce numéro ?">
                                         @csrf
                                         @method('DELETE')
                                         <button type="submit"

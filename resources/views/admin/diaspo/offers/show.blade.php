@@ -62,7 +62,7 @@
                 <form action="{{ route('admin.diaspo.offers.destroy', $offer->id) }}"
                       method="POST"
                       class="inline"
-                      onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer cette offre ?')">
+                      data-confirm="Êtes-vous sûr de vouloir supprimer cette offre ?">
                     @csrf
                     @method('DELETE')
                     <button type="submit" class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all">

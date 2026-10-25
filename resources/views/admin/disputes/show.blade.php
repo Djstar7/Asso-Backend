@@ -250,7 +250,7 @@
                         <div class="grid grid-cols-2 gap-2">
                             <button name="decision" value="founded" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg">FONDÉE</button>
                             <button name="decision" value="unfounded" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg"
-                                    onclick="return confirm('Réclamation non fondée : les fonds du vendeur seront débloqués et le litige clôturé. Continuer ?')">NON FONDÉE</button>
+                                    data-confirm="Réclamation non fondée : les fonds du vendeur seront débloqués et le litige clôturé. Continuer ?">NON FONDÉE</button>
                         </div>
                         <p class="text-xs text-gray-500">Non fondée : fonds vendeur débloqués, litige clôturé. Fondée : remplacement (une fois) ou retour.</p>
                     </form>
@@ -338,7 +338,7 @@
                                 <p class="text-amber-300 text-xs">IBAN non synchronisé ou pas encore validé : le {{ $beneficiary === 'client' ? 'client' : 'vendeur' }} doit l'ajouter depuis son Wallet, puis il faut le valider dans Comptes de virement.</p>
                             @else
                                 <form method="POST" action="{{ route('admin.disputes.bank-transfer', $dispute) }}"
-                                      onsubmit="return confirm('Virer {{ $fcfa($transfer['amount']) }} sur l\'IBAN de {{ addslashes($who->name) }} ?');">
+                                      data-confirm="Virer {{ $fcfa($transfer['amount']) }} sur l'IBAN de {{ $who->name }} ?">
                                     @csrf
                                     <input type="hidden" name="beneficiary" value="{{ $beneficiary }}">
                                     <button class="w-full px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg"><i class="fas fa-paper-plane mr-1"></i> Virer sur l'IBAN</button>

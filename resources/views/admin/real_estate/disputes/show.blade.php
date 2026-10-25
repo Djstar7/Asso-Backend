@@ -47,10 +47,10 @@
                     @csrf
                     <h2 class="text-white font-semibold">Décision</h2>
                     <textarea name="note" rows="3" placeholder="Explication communiquée aux deux parties" class="w-full px-3 py-2 bg-dark-50 border border-dark-200 rounded-lg text-white"></textarea>
-                    <button name="decision" value="refund" class="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700" onclick="return confirm('Rembourser {{ $fmt($r->owner_amount) }} au locataire ?')">
+                    <button name="decision" value="refund" class="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700" data-confirm="Rembourser {{ $fmt($r->owner_amount) }} à {{ $isLand ? 'l’acheteur' : 'la personne locataire' }} ?">
                         <i class="fas fa-undo mr-2"></i>Rembourser le {{ $isLand ? 'l\'acheteur' : 'locataire' }}
                     </button>
-                    <button name="decision" value="release" class="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700" onclick="return confirm('Débloquer {{ $fmt($r->owner_amount) }} au {{ $isLand ? 'cabinet' : 'bailleur' }} ?')">
+                    <button name="decision" value="release" class="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700" data-confirm="Débloquer {{ $fmt($r->owner_amount) }} au {{ $isLand ? 'cabinet' : 'bailleur' }} ?">
                         <i class="fas fa-unlock mr-2"></i>Débloquer au {{ $isLand ? 'cabinet' : 'bailleur' }}
                     </button>
                 </form>

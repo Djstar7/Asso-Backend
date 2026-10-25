@@ -330,7 +330,7 @@
 
     @if($exists)
         @foreach($listing->media as $m)
-            <form id="del-{{ $m->id }}" method="POST" action="{{ route('admin.real-estate.listings.media.destroy', [$listing, $m]) }}" onsubmit="return confirm('Supprimer ce média ?')">@csrf @method('DELETE')</form>
+            <form id="del-{{ $m->id }}" method="POST" action="{{ route('admin.real-estate.listings.media.destroy', [$listing, $m]) }}" data-confirm="Supprimer ce média ?">@csrf @method('DELETE')</form>
             <form id="cover-{{ $m->id }}" method="POST" action="{{ route('admin.real-estate.listings.media.cover', [$listing, $m]) }}">@csrf</form>
         @endforeach
     @endif
