@@ -29,6 +29,9 @@ class RealEstateNotifyAlerts extends Command
                     if (! $alert->is_active || ! $alert->user) {
                         return;
                     }
+                    if ($alert->last_dispatched_at?->copy()->addHours(config('notifications.real_estate_interval_hours', 24))->isFuture()) {
+                        return;
+                    }
                     $since = $alert->last_notified_at ?? $alert->updated_at;
                     // Une borne exclusive à la seconde évite de perdre une annonce
                     // publiée pendant le traitement avec le même horodatage.
@@ -59,21 +62,21 @@ class RealEstateNotifyAlerts extends Command
                         $result = app(FirebaseMessagingService::class)->sendToUser(
                             $alert->user,
                             $alert->user->localized('notifications.real_estate_alert.title'),
-                            $alert->user->localized('notifications.real_estate_alert.body', ['count' => $matches, 'city' => $alert->city ?: '']),
+                            $alert->user->localized($matches === 1 ? 'notifications.real_estate_alert.body_one' : 'notifications.real_estate_alert.body', ['count' => $matches, 'city' => $alert->city ?: '']),
                             [
                                 'type' => 'real_estate_alert', 'action' => 'open_real_estate',
                                 'property_type' => $alert->type,
                                 'notification_key' => 'immo-alert:'.$alert->id.':'.$since->timestamp.':'.$until->timestamp,
                             ],
                         );
-                        if (!($result['queued'] ?? false) && !($result['duplicate'] ?? false) && (! ($result['success'] ?? false) || (isset($result['success_count']) && $result['success_count'] < 1))) {
+                        if (! ($result['queued'] ?? false) && ! (($result['duplicate'] ?? false) && ($result['delivery_status'] ?? '') !== 'no_device') && (! ($result['success'] ?? false) || (isset($result['success_count']) && $result['success_count'] < 1))) {
                             Log::warning('[IMMO] Alerte à reprendre', ['alert' => $alert->id, 'message' => $result['message'] ?? null]);
 
                             return;
                         }
                         Alert::whereKey($alert->id)->where('pending_until', $until)
                             ->where('last_notified_at', $since)
-                            ->update(['last_notified_at' => $until, 'pending_until' => null]);
+                            ->update(['last_notified_at' => $until, 'pending_until' => null, 'last_dispatched_at' => now()]);
                         $sent++;
                     } catch (\Throwable $e) {
                         Log::warning('[IMMO] Alerte non envoyée', ['alert' => $alert->id, 'error' => $e->getMessage()]);

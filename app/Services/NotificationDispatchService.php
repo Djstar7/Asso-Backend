@@ -111,7 +111,7 @@ class NotificationDispatchService
             $notification = $delivery->notification;
             $user = $notification?->user;
             $device = $delivery->device;
-            if (! $user || ! $device || $device->user_id !== $user->id || ! $device->is_active || ! NotificationPreferences::allows($user, $notification->category)) {
+            if ($notification?->is_read || ! $user || ! $device || $device->user_id !== $user->id || ! $device->is_active || ! NotificationPreferences::allows($user, $notification->category)) {
                 $delivery->update(['status' => 'suppressed', 'next_attempt_at' => null]);
 
                 return ['skip' => true, 'notification_id' => $notification?->id];
@@ -157,7 +157,7 @@ class NotificationDispatchService
             } else {
                 $retry = ($result['retryable'] ?? false) && $current->attempts < config('notifications.max_attempts');
                 $delays = config('notifications.retry_delays_seconds');
-                $delay = $delays[min($current->attempts - 1, count($delays) - 1)];
+                $delay = max($delays[min($current->attempts - 1, count($delays) - 1)], (int) ($result['retry_after_seconds'] ?? 0));
                 $current->update(['status' => $retry ? 'pending' : 'failed', 'error_code' => $result['error_code'] ?? 'UNKNOWN',
                     'next_attempt_at' => $retry ? now()->addSeconds($delay) : null]);
             }

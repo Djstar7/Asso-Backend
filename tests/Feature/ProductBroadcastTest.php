@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Category;
+use App\Models\NotificationDigestItem;
 use App\Models\Package;
 use App\Models\Product;
 use App\Models\Shop;
@@ -25,25 +26,15 @@ class ProductBroadcastTest extends TestCase
 {
     use RefreshDatabase;
 
-    /** @var array<int, array{topic: string, title: string, body: string, data: array}> */
-    private array $topicSends = [];
-
     protected function setUp(): void
     {
         parent::setUp();
 
         Storage::fake('public');
 
-        // Partiel : sendToTopicsLocalized est le vrai, seul sendToTopic est intercepté.
         $this->partialMock(FirebaseMessagingService::class, function ($mock) {
             $mock->shouldReceive('sendToUser')->andReturn([]);
-            $mock->shouldReceive('sendToTopic')->andReturnUsing(
-                function (string $topic, string $title, string $body, array $data = []) {
-                    $this->topicSends[] = compact('topic', 'title', 'body', 'data');
-
-                    return ['success' => true];
-                }
-            );
+            $mock->shouldNotReceive('sendToTopic');
         });
         $this->mock(FcmService::class, function ($mock) {
             $mock->shouldIgnoreMissing();
@@ -56,7 +47,7 @@ class ProductBroadcastTest extends TestCase
         $shop = Shop::create([
             'user_id' => $vendor->id,
             'name' => 'Boutique Test',
-            'slug' => 'boutique-test-' . $vendor->id,
+            'slug' => 'boutique-test-'.$vendor->id,
             'status' => 'active',
             'is_certified' => false,
         ]);
@@ -102,16 +93,14 @@ class ProductBroadcastTest extends TestCase
             'images' => [UploadedFile::fake()->image('sac.jpg')],
         ], ['Accept' => 'application/json'])->assertCreated();
 
-        $this->assertSame(['all_users', 'all_users_fr', 'all_users_en'], array_column($this->topicSends, 'topic'));
-        $send = $this->topicSends[0];
-        $this->assertSame('new_product', $send['data']['type']);
-        $this->assertSame((string) Product::first()->id, $send['data']['product_id']);
-        $this->assertStringContainsString('Sac en cuir', $send['body']);
-        $this->assertSame('Nouveau produit disponible', $send['title']);
-        $this->assertSame('New product available', $this->topicSends[2]['title']);
-        $this->assertSame('Boutique Test has published: Sac en cuir', $this->topicSends[2]['body']);
-        // FCM refuse toute valeur non textuelle dans `data`.
-        $this->assertContainsOnly('string', $send['data']);
+        $item = NotificationDigestItem::sole();
+        $this->assertSame('new_product', $item->data['type']);
+        $this->assertSame((string) Product::first()->id, $item->data['product_id']);
+        $this->assertStringContainsString('Sac en cuir', $item->texts['fr'][1]);
+        $this->assertSame('Nouveau produit disponible', $item->texts['fr'][0]);
+        $this->assertSame('New product available', $item->texts['en'][0]);
+        $this->assertSame('Boutique Test has published: Sac en cuir', $item->texts['en'][1]);
+
     }
 
     public function test_activer_un_sponsoring_l_annonce_a_tous(): void
@@ -149,11 +138,10 @@ class ProductBroadcastTest extends TestCase
             'payment_mode' => 'wallet',
         ])->assertStatus(201);
 
-        $this->assertSame(['all_users', 'all_users_fr', 'all_users_en'], array_column($this->topicSends, 'topic'));
-        $send = $this->topicSends[0];
-        $this->assertSame('sponsored_product', $send['data']['type']);
-        $this->assertSame((string) $product->id, $send['data']['product_id']);
-        $this->assertContainsOnly('string', $send['data']);
+        $item = NotificationDigestItem::where('data->type', 'sponsored_product')->sole();
+        $this->assertSame((string) $product->id, $item->data['product_id']);
+        $this->assertNotEmpty($item->texts['en'][0]);
+
     }
 
     public function test_un_forfait_de_stockage_n_annonce_rien(): void
@@ -180,6 +168,6 @@ class ProductBroadcastTest extends TestCase
             'payment_mode' => 'wallet',
         ])->assertStatus(201);
 
-        $this->assertSame([], $this->topicSends);
+        $this->assertDatabaseCount('notification_digest_items', 0);
     }
 }

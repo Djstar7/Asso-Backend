@@ -2,25 +2,12 @@
 
 namespace App\Services;
 
+use App\Http\Middleware\SetLocale;
 use App\Models\Product;
 use App\Models\ProductBoost;
-use App\Http\Middleware\SetLocale;
 use Illuminate\Support\Facades\Log;
 
-/**
- * Annonce à TOUS les utilisateurs les produits publiés et les produits sponsorisés.
- *
- * Un envoi par topic Firebase (`all_users_fr`, `all_users_en`, plus `all_users`
- * en français pour les anciennes versions de l'app), et non un envoi par token :
- * l'app s'abonne elle-même (connexion, inscription, accueil, mode invité). Les
- * invités, qui n'ont aucun token en base, sont donc touchés eux aussi.
- *
- * Aucune ligne n'est écrite dans `notifications` : ce serait une insertion par
- * utilisateur à chaque publication, pour une annonce qui n'est pas personnelle.
- *
- * Un échec d'envoi est journalisé sans jamais remonter : ni la publication du
- * produit ni l'activation d'une campagne payée ne doivent en dépendre.
- */
+/** Queue product publications and sponsorships in the opted-in daily summary. */
 class ProductBroadcastService
 {
     public const TOPIC = 'all_users';
@@ -33,7 +20,7 @@ class ProductBroadcastService
     public function sponsoredProduct(ProductBoost $boost): void
     {
         $product = $boost->product;
-        if (!$product || $product->status !== 'active') {
+        if (! $product || $product->status !== 'active') {
             // Produit supprimé ou masqué entre l'achat et l'activation : rien à montrer.
             return;
         }
@@ -84,7 +71,7 @@ class ProductBroadcastService
                 'message' => $result['message'] ?? null,
             ]);
         } catch (\Throwable $e) {
-            Log::error("[ProductBroadcast] Échec {$type} produit {$product->id}: " . $e->getMessage());
+            Log::error("[ProductBroadcast] Échec {$type} produit {$product->id}: ".$e->getMessage());
         }
     }
 }

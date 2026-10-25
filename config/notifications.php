@@ -7,4 +7,5 @@ return [
     'delivery_lease_seconds' => 120,
     'digest_timezone' => 'Africa/Douala',
     'digest_time' => '09:00',
+    'real_estate_interval_hours' => 24,
 ];

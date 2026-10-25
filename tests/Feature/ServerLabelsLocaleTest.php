@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\Announcement;
 use App\Models\Dispute;
 use App\Models\DisputeEvent;
 use App\Models\OrderTrackingEvent;
@@ -68,28 +67,16 @@ class ServerLabelsLocaleTest extends TestCase
             ->assertJsonPath('message', 'This sales code does not exist or is no longer active. Check it or leave the field empty.');
     }
 
-    public function test_announcement_goes_out_in_each_language(): void
+    public function test_announcement_keeps_both_languages_in_the_daily_summary(): void
     {
-        $sends = [];
-        $this->partialMock(FirebaseMessagingService::class, function ($mock) use (&$sends) {
-            $mock->shouldReceive('sendToTopic')->andReturnUsing(function (string $topic, string $title, string $body) use (&$sends) {
-                $sends[$topic] = [$title, $body];
-
-                return ['success' => true];
-            });
-        });
-
-        $english = User::factory()->create(['locale' => 'en']);
-        $announcement = Announcement::create(['title' => 'Promo', 'message' => 'Soldes ce week-end', 'channel' => 'push', 'target_type' => 'all', 'status' => 'draft']);
-        $announcement->syncTranslations(['en' => ['message' => 'Sale this weekend']]);
-
+        User::factory()->create(['locale' => 'en']);
         app(FirebaseMessagingService::class)->sendToAllLocalized([
             'fr' => ['Promo', 'Soldes ce week-end'],
             'en' => ['Promo', 'Sale this weekend'],
         ], ['type' => 'announcement']);
-
-        $this->assertSame(['Promo', 'Soldes ce week-end'], $sends['all_users']);
-        $this->assertSame(['Promo', 'Sale this weekend'], $sends['all_users_en']);
-        $this->assertDatabaseHas('notifications', ['user_id' => $english->id, 'body' => 'Sale this weekend']);
+        $item = \App\Models\NotificationDigestItem::sole();
+        $this->assertSame(['Promo', 'Soldes ce week-end'], $item->texts['fr']);
+        $this->assertSame(['Promo', 'Sale this weekend'], $item->texts['en']);
+        $this->assertDatabaseCount('notifications', 0);
     }
 }

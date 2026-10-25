@@ -35,28 +35,13 @@ class FirebaseMessagingService
     }
 
     /**
-     * Annonce à tous dans la langue de chacun : un envoi par topic de langue,
-     * plus le français sur all_users pour les versions de l'app qui ne
-     * connaissent pas encore les topics par langue.
+     * Prépare les textes du résumé quotidien dans chaque langue.
      *
      * @param  array<string, array{0: string, 1: string}>  $texts  langue => [titre, texte]
      */
     public function sendToTopicsLocalized(array $texts, array $data = []): array
     {
-        $fr = $texts['fr'];
-        $results = [self::TOPIC_ALL => $this->sendToTopic(self::TOPIC_ALL, $fr[0], $fr[1], $data)];
-        foreach (SetLocale::SUPPORTED as $locale) {
-            [$title, $body] = $texts[$locale] ?? $fr;
-            $results[self::localeTopic($locale)] = $this->sendToTopic(self::localeTopic($locale), $title, $body, $data);
-        }
-
-        $success = collect($results)->contains(fn ($r) => $r['success'] ?? false);
-
-        return [
-            'success' => $success,
-            'message' => $success ? 'Notification sent to topics' : ($results[self::TOPIC_ALL]['message'] ?? 'Topic send failed'),
-            'results' => $results,
-        ];
+        return app(NotificationDigestService::class)->enqueue($texts, $data);
     }
 
     /**
@@ -67,14 +52,7 @@ class FirebaseMessagingService
      */
     public function sendToAllLocalized(array $texts, array $data = []): array
     {
-        User::query()->select(['id', 'locale'])->chunkById(500, function ($users) use ($texts, $data) {
-            foreach ($users as $user) {
-                [$title, $body] = $texts[$user->locale] ?? $texts['fr'];
-                $this->saveNotificationToDatabase($user->id, $title, $body, $data);
-            }
-        });
-
-        return $this->sendToTopicsLocalized($texts, $data);
+        return app(NotificationDigestService::class)->enqueue($texts, $data);
     }
 
     public function __construct()
@@ -110,6 +88,16 @@ class FirebaseMessagingService
      */
     public function sendToUser(User $user, string|LocalizedText $title, string|LocalizedText $body, array $data = [], ?string $platform = null): array
     {
+        if (NotificationPreferences::category($data['type'] ?? 'system') === 'marketing' && ($data['type'] ?? '') !== 'marketing_digest') {
+            $texts = [];
+            foreach (SetLocale::SUPPORTED as $locale) {
+                $texts[$locale] = [$title instanceof LocalizedText ? $title->render($locale) : $title,
+                    $body instanceof LocalizedText ? $body->render($locale) : $body];
+            }
+
+            return app(NotificationDigestService::class)->enqueue($texts, array_replace($data, ['recipient_ids' => [$user->id]]));
+        }
+
         return app(NotificationDispatchService::class)->send($user, $title, $body, $data, $platform);
     }
 
@@ -140,18 +128,11 @@ class FirebaseMessagingService
 
     /**
      * Envoie une notification à tous les utilisateurs
-     * Utilise le système de topics pour les envois en masse
+     * Regroupe les annonces dans un résumé quotidien respectant les préférences
      */
     public function sendToAll(string $title, string $body, array $data = []): array
     {
-        // Enregistrer la notification pour tous les utilisateurs
-        $allUserIds = User::pluck('id')->toArray();
-        foreach ($allUserIds as $userId) {
-            $this->saveNotificationToDatabase($userId, $title, $body, $data);
-        }
-
-        // Utiliser le topic pour les envois en masse (plus efficace)
-        return $this->sendToTopic('all_users', $title, $body, $data);
+        return app(NotificationDigestService::class)->enqueue(['fr' => [$title, $body], 'en' => [$title, $body]], $data);
     }
 
     /**
@@ -160,42 +141,7 @@ class FirebaseMessagingService
      */
     public function sendToAllByBatch(string $title, string $body, array $data = [], int $batchSize = 500): array
     {
-        $allTokens = DeviceToken::active()->pluck('token')->toArray();
-
-        if (empty($allTokens)) {
-            return [
-                'success' => false,
-                'message' => 'No active device tokens found',
-            ];
-        }
-
-        $totalSuccess = 0;
-        $totalFailure = 0;
-        $batches = array_chunk($allTokens, $batchSize);
-
-        foreach ($batches as $index => $batch) {
-            Log::info('Sending notification batch '.($index + 1).'/'.count($batches));
-
-            $result = $this->sendToTokens($batch, $title, $body, $data);
-
-            if ($result['success']) {
-                $totalSuccess += $result['success_count'] ?? 0;
-                $totalFailure += $result['failure_count'] ?? 0;
-            }
-
-            // Pause courte entre les batchs pour éviter la surcharge
-            if ($index < count($batches) - 1) {
-                usleep(100000); // 100ms
-            }
-        }
-
-        return [
-            'success' => true,
-            'message' => 'Batch notifications sent',
-            'success_count' => $totalSuccess,
-            'failure_count' => $totalFailure,
-            'total_batches' => count($batches),
-        ];
+        return $this->sendToAll($title, $body, $data);
     }
 
     /**
@@ -203,57 +149,12 @@ class FirebaseMessagingService
      */
     public function sendToTopic(string $topic, string $title, string $body, array $data = []): array
     {
-        if (! $this->messaging) {
-            return [
-                'success' => false,
-                'message' => 'Firebase Messaging not initialized',
-            ];
+        if (! in_array($topic, self::announcementTopics(), true)) {
+            return ['success' => false, 'message' => __('notifications.unsupported_topic')];
         }
+        $locale = str_ends_with($topic, '_en') ? 'en' : 'fr';
 
-        try {
-            $message = CloudMessage::withTarget('topic', $topic)
-                ->withNotification(Notification::create($title, $body))
-                ->withData($data)
-                ->withAndroidConfig(
-                    AndroidConfig::fromArray([
-                        'priority' => 'high',
-                        'notification' => [
-                            'sound' => 'default',
-                            'channel_id' => 'high_importance_channel',
-                        ],
-                    ])
-                )
-                ->withApnsConfig(
-                    ApnsConfig::fromArray([
-                        'headers' => [
-                            'apns-priority' => '10',
-                        ],
-                        'payload' => [
-                            'aps' => [
-                                'sound' => 'default',
-                                'badge' => 1,
-                            ],
-                        ],
-                    ])
-                );
-
-            $this->messaging->send($message);
-
-            Log::info("Notification sent to topic: {$topic}");
-
-            return [
-                'success' => true,
-                'message' => 'Notification sent to topic successfully',
-            ];
-        } catch (Exception $e) {
-            Log::error('Error sending notification to topic: '.$e->getMessage());
-
-            return [
-                'success' => false,
-                'message' => 'Failed to send notification to topic',
-                'error' => $e->getMessage(),
-            ];
-        }
+        return app(NotificationDigestService::class)->enqueue([$locale => [$title, $body]], $data);
     }
 
     /**
@@ -274,11 +175,12 @@ class FirebaseMessagingService
                 ->withApnsConfig(ApnsConfig::fromArray($apns));
             $report = $this->messaging->sendMulticast($message, array_values(array_unique($tokens)));
             $successes = $report->successes()->count();
-            $policy = ['error_code' => null, 'retryable' => false];
+            $policy = ['error_code' => null, 'retryable' => false, 'retry_after_seconds' => 0];
             foreach ($report->failures()->getItems() as $failure) {
                 $failurePolicy = FcmFailurePolicy::classify($failure->error());
                 $policy['error_code'] ??= $failurePolicy['error_code'];
                 $policy['retryable'] = $policy['retryable'] || $failurePolicy['retryable'];
+                $policy['retry_after_seconds'] = max($policy['retry_after_seconds'], $failurePolicy['retry_after_seconds']);
                 if ($failurePolicy['invalid_token']) {
                     DeviceToken::where('token', $failure->target()->value())->update(['is_active' => false]);
                 }
@@ -297,7 +199,7 @@ class FirebaseMessagingService
     public function deliveryConfiguration(array $data): array
     {
         $category = $data['category'] ?? NotificationPreferences::category($data['type'] ?? 'system');
-        $quiet = in_array($category, ['marketing', 'real_estate'], true);
+        $quiet = $category === 'marketing' || in_array($data['type'] ?? '', ['real_estate_alert', 'new_real_estate_listing'], true);
         $identity = (string) ($data['notification_id'] ?? $data['notification_key'] ?? hash('sha256', json_encode($data)));
         $notification = ['channel_id' => $quiet ? 'asso_updates_v1' : 'asso_actions_v1',
             'icon' => 'ic_stat_asso', 'color' => '#FF6B35', 'tag' => 'asso_'.hash('sha256', $identity)];

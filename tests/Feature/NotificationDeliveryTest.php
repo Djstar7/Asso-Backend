@@ -167,4 +167,78 @@ class NotificationDeliveryTest extends TestCase
         $this->assertArrayNotHasKey('badge', $apns['payload']['aps']);
         $this->assertSame(64, strlen($apns['headers']['apns-collapse-id']));
     }
+
+    public function test_read_notifications_stop_retrying_and_attempts_are_bounded(): void
+    {
+        config(['notifications.max_attempts' => 2]);
+        $user = User::factory()->create();
+        $this->device($user, 'device');
+        $calls = 0;
+        $service = $this->transport(function ($message, $tokens) use (&$calls) {
+            $calls++;
+
+            return MulticastSendReport::withItems([SendReport::failure(MessageTarget::with('token', $tokens[0]), new ServerUnavailable('Try later'))]);
+        });
+        $service->sendToUser($user, 'Read', 'Read before retry', ['type' => 'order_update']);
+        Notification::sole()->update(['is_read' => true]);
+        $this->travel(61)->seconds();
+        app(NotificationDispatchService::class)->retry();
+        $this->assertSame(1, $calls);
+        $this->assertSame('suppressed', NotificationPushDelivery::sole()->status);
+        $service->sendToUser($user, 'Pending', 'Still unread', ['type' => 'order_update']);
+        $this->travel(61)->seconds();
+        app(NotificationDispatchService::class)->retry();
+        $this->travel(1)->days();
+        app(NotificationDispatchService::class)->retry();
+        $this->assertSame(3, $calls);
+        $this->assertSame('failed', NotificationPushDelivery::latest('id')->first()->status);
+        $this->assertSame(2, NotificationPushDelivery::latest('id')->first()->attempts);
+    }
+
+    public function test_transport_retry_after_is_respected(): void
+    {
+        $user = User::factory()->create();
+        $this->device($user, 'device');
+        $service = $this->transport(fn ($message, $tokens) => MulticastSendReport::withItems([
+            SendReport::failure(MessageTarget::with('token', $tokens[0]),
+                (new ServerUnavailable('Try later'))->withRetryAfter(now()->addMinutes(15)->toDateTimeImmutable()))]));
+        $service->sendToUser($user, 'Commande', 'Informations', ['type' => 'order_update']);
+        $this->assertEqualsWithDelta(900, now()->diffInSeconds(NotificationPushDelivery::sole()->next_attempt_at), 1);
+    }
+
+    public function test_logout_preserves_other_registered_sessions_and_never_deletes_another_accounts_device(): void
+    {
+        $user = User::factory()->create();
+        $other = User::factory()->create();
+        $current = $user->createToken('android');
+        $iphoneSession = $user->createToken('iphone');
+        $this->device($user, 'android')->update(['access_token_id' => $current->accessToken->id]);
+        $iphone = $this->device($user, 'iphone');
+        $iphone->update(['access_token_id' => $iphoneSession->accessToken->id]);
+        $foreign = $this->device($other, 'foreign');
+        $this->withToken($current->plainTextToken)->postJson('/api/v1/auth/logout', ['fcm_token' => 'foreign'])->assertOk();
+        $this->assertDatabaseMissing('device_tokens', ['token' => 'android']);
+        $this->assertModelExists($iphone);
+        $this->assertModelExists($foreign);
+        $this->assertDatabaseHas('personal_access_tokens', ['id' => $iphoneSession->accessToken->id]);
+        $this->assertDatabaseMissing('personal_access_tokens', ['id' => $current->accessToken->id]);
+    }
+
+    public function test_legacy_sender_shares_preferences_and_one_localized_inbox_entry(): void
+    {
+        $user = User::factory()->create(['locale' => 'en']);
+        $user->forceFill(['notification_preferences' => ['enabled' => false]])->save();
+        $this->device($user, 'device');
+        $service = app(\App\Services\FcmService::class);
+        $title = $user->localized('notifications.package_purchase.title');
+        $body = $user->localized('notifications.package_purchase.body', ['package' => 'Pro', 'storage' => '10']);
+        $notification = $service->sendAndStore($user, 'package_purchase', $title, $body);
+        $this->assertSame('suppressed', $notification->push_status);
+        $this->assertSame($title->render('en'), $notification->getRawOriginal('title'));
+        $service->sendAndStore($user, 'package_purchase', $title, $body);
+        $this->assertDatabaseCount('notifications', 1);
+        $this->assertDatabaseCount('notification_push_deliveries', 0);
+        $this->assertFalse($service->sendToToken('unknown', 'Title', 'Body'));
+        $this->assertSame('orders', \App\Services\NotificationPreferences::category('new_order_vendor'));
+    }
 }

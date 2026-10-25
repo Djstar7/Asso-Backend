@@ -394,6 +394,13 @@
         "wallet_insufficient": "Insufficient Wallet balance for this payment. Top up your Wallet or choose another method."
     },
     "notifications": {
+        "unsupported_topic": "This topic cannot enforce user preferences. Select recipients or use the daily summary.",
+        "digest": {
+            "body_one": "One update is waiting for you. Open your summary to explore the announcement.",
+            "queued": "Announcement added to the next daily summary.",
+            "title": "Your ASSO summary",
+            "body": ":count updates are waiting for you. Open your summary to explore the announcements."
+        },
         "preferences_saved": "Notification preferences saved.",
         "delivery": {
             "stored": "Notification saved in ASSO.",
@@ -957,6 +964,7 @@
             "body": ":title in :city. Discover this new listing."
         },
         "real_estate_alert": {
+            "body_one": "One new property matches your criteria in :city.",
             "title": "New properties for you",
             "body": ":count property(ies) match your criteria :city."
         }
@@ -1812,5 +1820,7 @@
         "asso_only": "ASSO staff manage tracking for this carrier.",
         "reception_unavailable": "Receipt can only be confirmed after a recorded handover and full payment.",
         "ready_notification": "Order :order is available at :name, :address, :city. Phone :phone. Present your order reference for collection."
-    }
+    },
+    "devices.token_updated": "Notification device updated.",
+    "devices.token_registered": "Notification device registered."
 }

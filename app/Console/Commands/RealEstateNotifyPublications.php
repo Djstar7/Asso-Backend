@@ -10,7 +10,7 @@ class RealEstateNotifyPublications extends Command
 {
     protected $signature = 'immo:notify-publications';
 
-    protected $description = 'Reprend les notifications de publication immobilière en échec';
+    protected $description = 'Prépare les publications immobilières pour les alertes ciblées';
 
     public function handle(RealEstateBroadcastService $broadcast): int
     {

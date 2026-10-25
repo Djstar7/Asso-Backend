@@ -233,3 +233,5 @@ Artisan::command('carriers:dispatch-pending', function () {
 Schedule::command('carriers:dispatch-pending')->everyFiveMinutes()->withoutOverlapping(15);
 
 Schedule::command('notifications:retry')->everyMinute()->withoutOverlapping(5);
+
+Schedule::command('notifications:send-digests')->dailyAt(config('notifications.digest_time'))->timezone(config('notifications.digest_timezone'))->withoutOverlapping(60);

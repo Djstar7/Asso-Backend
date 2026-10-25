@@ -517,6 +517,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Notifications
         Route::prefix('notifications')->group(function () {
+            Route::get('/digests/{date}', [\App\Http\Controllers\Api\NotificationDigestController::class, 'show']);
             Route::get('/preferences', [\App\Http\Controllers\Api\NotificationPreferenceController::class, 'show']);
             Route::put('/preferences', [\App\Http\Controllers\Api\NotificationPreferenceController::class, 'update']);
             Route::get('/diagnostics', [\App\Http\Controllers\Api\NotificationPreferenceController::class, 'diagnostics']);

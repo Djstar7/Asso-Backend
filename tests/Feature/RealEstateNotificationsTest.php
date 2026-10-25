@@ -50,32 +50,16 @@ class RealEstateNotificationsTest extends TestCase
         $this->assertNull($client->getValue(new FirebaseMessagingService));
     }
 
-    public function test_publication_retries_only_failed_topics_and_is_idempotent(): void
+    public function test_publication_is_marked_once_without_global_pushes(): void
     {
-        $topics = [];
-        $fail = true;
-        $this->mock(FirebaseMessagingService::class, function ($mock) use (&$topics, &$fail) {
-            $mock->shouldReceive('sendToTopic')->andReturnUsing(function ($topic, $title, $body, $data) use (&$topics, &$fail) {
-                $topics[] = $topic;
-                $this->assertSame('open_real_estate', $data['action']);
-                $this->assertSame('land', $data['property_type']);
-                $this->assertContainsOnly('string', $data);
-                $this->assertStringContainsString('Terrain GWODA', $body);
-                $this->assertSame($topic === 'all_users_en' ? 'New property for sale' : 'Nouveau bien à vendre', $title);
-
-                return ['success' => ! ($fail && $topic === 'all_users_en')];
-            });
-        });
+        $this->mock(FirebaseMessagingService::class)->shouldNotReceive('sendToTopic');
         $listing = $this->listing();
-        $service = app(RealEstateBroadcastService::class);
-        $service->send($listing->id);
-        $this->assertNull($listing->fresh()->announced_at);
-        $this->assertSame(['all_users', 'all_users_fr'], $listing->fresh()->announced_topics);
-        $fail = false;
+        app(RealEstateBroadcastService::class)->send($listing->id);
+        $first = $listing->fresh()->announced_at;
+        $this->travel(5)->minutes();
         $this->artisan('immo:notify-publications')->assertSuccessful();
-        $this->artisan('immo:notify-publications')->assertSuccessful();
-        $this->assertNotNull($listing->fresh()->announced_at);
-        $this->assertSame(['all_users', 'all_users_fr', 'all_users_en', 'all_users_en'], $topics);
+        $this->assertTrue($listing->fresh()->announced_at->equalTo($first));
+        $this->assertSame([], $listing->fresh()->announced_topics);
     }
 
     public function test_archived_or_deleted_listing_is_not_announced_on_retry(): void
@@ -100,36 +84,30 @@ class RealEstateNotificationsTest extends TestCase
         $this->travel(1)->seconds();
         $this->mock(FirebaseMessagingService::class)->shouldReceive('sendToUser')->once()
             ->withArgs(function ($user, $title, $body, $data) use ($alert) {
-                return $user->id === $alert->user_id && str_contains((string) $body, '1 bien') && $data['property_type'] === 'land';
+                return $user->id === $alert->user_id && str_contains((string) $body, 'Un nouveau bien') && $data['property_type'] === 'land';
             })->andReturn(['success' => true, 'success_count' => 1]);
         $this->artisan('immo:notify-alerts')->assertSuccessful()->expectsOutput('1 alerte(s) envoyée(s).');
         $this->artisan('immo:notify-alerts')->assertSuccessful()->expectsOutput('0 alerte(s) envoyée(s).');
         $this->assertNull($alert->fresh()->pending_until);
     }
 
-    public function test_failed_alert_keeps_its_window_and_retries_without_duplicate_history(): void
+    public function test_failed_alert_uses_durable_retry_without_duplicate_history(): void
     {
         $alert = $this->alert();
         $this->listing();
-        DeviceToken::withoutEvents(fn () => DeviceToken::create([
-            'user_id' => $alert->user_id, 'token' => 'test-token', 'platform' => 'android', 'is_active' => true,
-        ]));
+        DeviceToken::withoutEvents(fn () => DeviceToken::create(['user_id' => $alert->user_id, 'token' => 'test-token', 'platform' => 'android', 'is_active' => true]));
         $this->travel(1)->seconds();
-        $this->partialMock(FirebaseMessagingService::class)->shouldReceive('sendToTokens')
-            ->once()->andReturn(['success' => true, 'success_count' => 0]);
-        $this->artisan('immo:notify-alerts')->assertSuccessful()->expectsOutput('0 alerte(s) envoyée(s).');
-        $until = $alert->fresh()->pending_until;
-        $since = $alert->fresh()->last_notified_at;
-        $this->assertNotNull($until);
-        $this->assertDatabaseCount('notifications', 1);
-        $this->travel(1)->minutes();
-        $this->partialMock(FirebaseMessagingService::class)->shouldReceive('sendToTokens')
-            ->once()->andReturn(['success' => true, 'success_count' => 1]);
+        $this->partialMock(FirebaseMessagingService::class)->shouldReceive('sendToTokens')->once()
+            ->andReturn(['success' => false, 'success_count' => 0, 'retryable' => true, 'error_code' => 'UNAVAILABLE']);
         $this->artisan('immo:notify-alerts')->assertSuccessful()->expectsOutput('1 alerte(s) envoyée(s).');
-        $this->assertTrue($alert->fresh()->last_notified_at->equalTo($until));
-        $this->assertTrue($since->lessThan($until));
+        $this->assertNull($alert->fresh()->pending_until);
         $this->assertDatabaseCount('notifications', 1);
-        $this->assertSame('real_estate_alert', Notification::sole()->type);
+        $this->travel(61)->seconds();
+        $this->partialMock(FirebaseMessagingService::class)->shouldReceive('sendToTokens')->once()->andReturn(['success' => true, 'success_count' => 1]);
+        $this->artisan('notifications:retry')->assertSuccessful();
+        $this->artisan('immo:notify-alerts')->assertSuccessful()->expectsOutput('0 alerte(s) envoyée(s).');
+        $this->assertDatabaseCount('notifications', 1);
+        $this->assertSame('accepted', Notification::sole()->push_status);
     }
 
     public function test_alert_exception_is_retried_and_newer_listings_are_not_lost(): void
@@ -148,6 +126,8 @@ class RealEstateNotificationsTest extends TestCase
             ->andReturn(['success' => true]);
         $this->artisan('immo:notify-alerts')->assertSuccessful()->expectsOutput('1 alerte(s) envoyée(s).');
         $this->assertTrue($alert->fresh()->last_notified_at->equalTo($pending));
+        $this->artisan('immo:notify-alerts')->assertSuccessful()->expectsOutput('0 alerte(s) envoyée(s).');
+        $this->travel(25)->hours();
         $this->artisan('immo:notify-alerts')->assertSuccessful()->expectsOutput('1 alerte(s) envoyée(s).');
         $this->assertTrue($alert->fresh()->last_notified_at->greaterThan($pending));
     }
@@ -185,6 +165,7 @@ class RealEstateNotificationsTest extends TestCase
             ->andReturn(['success' => true, 'success_count' => 1]);
         $this->artisan('immo:notify-alerts')->assertSuccessful()->expectsOutput('1 alerte(s) envoyée(s).');
         $this->assertNull($alert->fresh()->pending_until);
+        $this->artisan('notifications:retry')->assertSuccessful();
         $this->assertDatabaseCount('notifications', 1);
     }
 

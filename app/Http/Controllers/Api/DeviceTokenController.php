@@ -4,17 +4,14 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\DeviceToken;
-use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
 class DeviceTokenController extends Controller
 {
     /**
      * Enregistrer ou mettre à jour un token FCM pour l'utilisateur authentifié
-     *
-     * @param Request $request
-     * @return JsonResponse
      */
     public function store(Request $request): JsonResponse
     {
@@ -39,11 +36,9 @@ class DeviceTokenController extends Controller
         // téléphone sert à un autre compte (déconnexion / reconnexion), la ligne
         // est réattribuée au nouvel utilisateur au lieu de violer la contrainte
         // d'unicité sur `token`.
-        $deviceToken = DeviceToken::where('token', $request->token)->first();
-        $existed = $deviceToken !== null;
-
         $attributes = [
             'user_id' => $user->id,
+            'access_token_id' => $user->currentAccessToken() instanceof \Laravel\Sanctum\PersonalAccessToken ? $user->currentAccessToken()->getKey() : null,
             'platform' => $request->platform,
             'device_name' => $request->device_name,
             'device_model' => $request->device_model,
@@ -51,26 +46,20 @@ class DeviceTokenController extends Controller
             'last_used_at' => now(),
         ];
 
-        if ($existed) {
-            $deviceToken->update($attributes);
-        } else {
-            $deviceToken = DeviceToken::create($attributes + ['token' => $request->token]);
-        }
+        $deviceToken = DeviceToken::updateOrCreate(['token' => $request->token], $attributes);
+        $existed = ! $deviceToken->wasRecentlyCreated;
 
         return response()->json([
             'success' => true,
             'message' => $existed
-                ? 'Device token updated successfully'
-                : 'Device token registered successfully',
+                ? __('devices.token_updated')
+                : __('devices.token_registered'),
             'data' => $deviceToken,
         ], $existed ? 200 : 201);
     }
 
     /**
      * Obtenir tous les tokens de l'utilisateur authentifié
-     *
-     * @param Request $request
-     * @return JsonResponse
      */
     public function index(Request $request): JsonResponse
     {
@@ -88,10 +77,6 @@ class DeviceTokenController extends Controller
 
     /**
      * Supprimer un token spécifique
-     *
-     * @param Request $request
-     * @param int $id
-     * @return JsonResponse
      */
     public function destroy(Request $request, int $id): JsonResponse
     {
@@ -101,7 +86,7 @@ class DeviceTokenController extends Controller
             ->where('id', $id)
             ->first();
 
-        if (!$deviceToken) {
+        if (! $deviceToken) {
             return response()->json([
                 'success' => false,
                 'message' => __('devices.token_not_found'),
@@ -118,9 +103,6 @@ class DeviceTokenController extends Controller
 
     /**
      * Supprimer un token par sa valeur
-     *
-     * @param Request $request
-     * @return JsonResponse
      */
     public function deleteByToken(Request $request): JsonResponse
     {
@@ -157,10 +139,6 @@ class DeviceTokenController extends Controller
 
     /**
      * Désactiver un token
-     *
-     * @param Request $request
-     * @param int $id
-     * @return JsonResponse
      */
     public function deactivate(Request $request, int $id): JsonResponse
     {
@@ -170,7 +148,7 @@ class DeviceTokenController extends Controller
             ->where('id', $id)
             ->first();
 
-        if (!$deviceToken) {
+        if (! $deviceToken) {
             return response()->json([
                 'success' => false,
                 'message' => __('devices.token_not_found'),
@@ -188,10 +166,6 @@ class DeviceTokenController extends Controller
 
     /**
      * Activer un token
-     *
-     * @param Request $request
-     * @param int $id
-     * @return JsonResponse
      */
     public function activate(Request $request, int $id): JsonResponse
     {
@@ -201,7 +175,7 @@ class DeviceTokenController extends Controller
             ->where('id', $id)
             ->first();
 
-        if (!$deviceToken) {
+        if (! $deviceToken) {
             return response()->json([
                 'success' => false,
                 'message' => __('devices.token_not_found'),

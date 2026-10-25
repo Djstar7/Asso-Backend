@@ -36,7 +36,7 @@ class NotificationPreferences
         if (preg_match('/^(wallet_|payment_|stripe_)/', $type)) {
             return 'payments';
         }
-        if (preg_match('/^(order_|vendor_order_|delivery_|new_delivery_|shipment_|maritime_|agency_)/', $type) || $type === 'vendor_funds_released') {
+        if (preg_match('/^(order$|new_order_|wholesale_order_|order_|vendor_order_|delivery_|new_delivery_|shipment_|maritime_|agency_)/', $type) || $type === 'vendor_funds_released') {
             return 'orders';
         }
         if ($type === 'new_message' || preg_match('/^(chat_|conversation_)/', $type)) {

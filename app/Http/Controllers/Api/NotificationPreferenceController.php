@@ -44,7 +44,7 @@ class NotificationPreferenceController extends Controller
             'latest_registration_at' => $user->deviceTokens()->max('last_used_at'),
             'preferences' => NotificationPreferences::for($user),
             'pending_deliveries' => NotificationPushDelivery::whereHas('notification', fn ($q) => $q->where('user_id', $user->id))->whereIn('status', ['pending', 'sending'])->count(),
-            'latest_error_code' => NotificationPushDelivery::whereHas('notification', fn ($q) => $q->where('user_id', $user->id))->whereNotNull('error_code')->latest('updated_at')->value('error_code'),
+            'latest_error_code' => NotificationPushDelivery::whereHas('notification', fn ($q) => $q->where('user_id', $user->id))->whereIn('status', ['pending', 'failed'])->whereNotNull('error_code')->latest('updated_at')->value('error_code'),
         ]]);
     }
 }

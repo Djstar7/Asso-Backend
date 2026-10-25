@@ -21,6 +21,7 @@ class FcmFailurePolicy
 
         // INVALID_ARGUMENT may describe a malformed payload, not a revoked token.
         return ['error_code' => $code, 'invalid_token' => $code === 'UNREGISTERED',
+            'retry_after_seconds' => method_exists($error, 'retryAfter') && $error->retryAfter() ? max(0, $error->retryAfter()->getTimestamp() - now()->timestamp) : 0,
             'retryable' => in_array($code, ['UNAVAILABLE', 'INTERNAL', 'QUOTA_EXCEEDED', 'THIRD_PARTY_AUTH_ERROR', 'UNAUTHENTICATED', 'NOT_CONFIGURED'], true)];
     }
 }

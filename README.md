@@ -777,3 +777,35 @@ reprise : les appareils déjà servis ne sont pas renvoyés. Les erreurs tempora
 ont des délais progressifs et un nombre de tentatives limité ; seul un token
 explicitement révoqué (`UNREGISTERED`) est désactivé. Les erreurs APNs, de quota,
 d'identifiants ou de contenu ne désactivent pas automatiquement tous les appareils.
+
+Les publications de produits, sponsorings et annonces générales sont regroupées
+par `notifications:send-digests`, chaque jour à 09:00 en heure de Douala. Le résumé
+porte sur la journée locale précédente ; il est unique par compte et par date,
+traduit selon la langue du compte, et ouvre une liste paginée de ses annonces.
+Les envois promotionnels ciblés restent visibles uniquement par leurs destinataires.
+Les invités consultent les annonces dans l'app ; ils ne sont plus abonnés à une
+diffusion générale de chaque publication. Les anciens topics ne sont plus utilisés
+pour contourner les préférences des utilisateurs.
+
+L'immobilier conserve les notifications personnelles de publication, validation,
+réservation et litige. Les nouvelles annonces publiques sont découvertes par les
+alertes de critères enregistrés, au maximum une fois par 24 h par compte. Les lots
+suivants restent à traiter pour le prochain regroupement ; une erreur temporaire
+d'envoi ne recrée pas l'historique. Le périmètre métier reste les logements à louer
+et les terrains à vendre ; aucune catégorie de vente de maison n'est inventée.
+
+Appliquer les trois migrations `2026_10_25_090000_add_notification_delivery_controls`,
+`2026_10_25_100000_add_daily_notification_digests` et
+`2026_10_25_110000_scope_notification_devices_to_sessions`, puis maintenir le scheduler
+et les workers applicatifs. Le transport des reprises n'exige pas une nouvelle queue :
+le scheduler lit les envois persistants. Les horaires, intervalles et limites sont
+configurables dans `config/notifications.php`.
+
+
+Les appareils sont associés à la session Sanctum lors de leur enregistrement.
+La déconnexion supprime les appareils de cette session et le `fcm_token` transmis,
+sans supprimer ceux des autres sessions. Pour les anciens clients qui ne fournissent
+pas leur token, les anciennes inscriptions sans session sont également retirées ;
+la nouvelle application réassocie son appareil à la reprise.
+
+Vérification locale : `php artisan test --filter='Notification|ProductBroadcastTest|StoredTextsLocaleTest|ServerLabelsLocaleTest|TranslationFilesTest'`.

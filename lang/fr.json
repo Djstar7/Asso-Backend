@@ -394,6 +394,13 @@
         "wallet_insufficient": "Solde Wallet insuffisant pour ce paiement. Rechargez votre Wallet ou choisissez un autre moyen."
     },
     "notifications": {
+        "unsupported_topic": "Ce canal ne permet pas de respecter les préférences des utilisateurs. Utilisez un destinataire ou le résumé quotidien.",
+        "digest": {
+            "body_one": "Une nouveauté vous attend. Consultez votre résumé pour découvrir l’annonce.",
+            "queued": "Annonce ajoutée au prochain résumé quotidien.",
+            "title": "Votre résumé ASSO",
+            "body": ":count nouveautés vous attendent. Consultez votre résumé pour découvrir les annonces."
+        },
         "preferences_saved": "Préférences de notifications enregistrées.",
         "delivery": {
             "stored": "Notification enregistrée dans ASSO.",
@@ -957,6 +964,7 @@
             "body": ":title à :city. Découvrez cette nouvelle annonce."
         },
         "real_estate_alert": {
+            "body_one": "Un nouveau bien correspond à vos critères à :city.",
             "title": "Nouveaux biens pour vous",
             "body": ":count bien(s) correspondent à vos critères :city."
         }
@@ -1812,5 +1820,7 @@
         "asso_only": "Le suivi de ce transporteur est renseigné par l’équipe ASSO.",
         "reception_unavailable": "La réception ne peut être confirmée qu’après une remise enregistrée et un paiement intégral.",
         "ready_notification": "Commande :order disponible chez :name, :address, :city. Téléphone :phone. Présentez votre référence de commande pour le retrait."
-    }
+    },
+    "devices.token_updated": "Appareil de notification mis à jour.",
+    "devices.token_registered": "Appareil de notification enregistré."
 }

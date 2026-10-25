@@ -756,15 +756,27 @@ class AuthController extends Controller
 
         Log::info('[AUTH] ========== LOGOUT ==========', [
             'user_id' => $user->id,
-            'phone' => $user->phone
+            'phone' => $user->phone,
         ]);
 
-        // Supprimer tous les device tokens FCM de l'utilisateur
-        $deletedTokensCount = \App\Models\DeviceToken::where('user_id', $user->id)->delete();
+        $validated = $request->validate(['fcm_token' => 'nullable|string|max:255']);
+        $sessionId = $user->currentAccessToken()->getKey();
+        // Keep other signed-in devices reachable. Legacy unassociated registrations
+        // are removed only when the old client cannot identify its own device.
+        $devices = \App\Models\DeviceToken::where('user_id', $user->id);
+        $devices->where(function ($query) use ($sessionId, $validated) {
+            $query->where('access_token_id', $sessionId);
+            if (! empty($validated['fcm_token'])) {
+                $query->orWhere('token', $validated['fcm_token']);
+            } else {
+                $query->orWhereNull('access_token_id');
+            }
+        });
+        $deletedTokensCount = $devices->delete();
 
         Log::info('[AUTH] FCM tokens deleted', [
             'user_id' => $user->id,
-            'count' => $deletedTokensCount
+            'count' => $deletedTokensCount,
         ]);
 
         // Révoquer le token Sanctum actuel
@@ -772,7 +784,7 @@ class AuthController extends Controller
 
         Log::info('[AUTH] Logout successful', [
             'user_id' => $user->id,
-            'fcm_tokens_deleted' => $deletedTokensCount
+            'fcm_tokens_deleted' => $deletedTokensCount,
         ]);
 
         return response()->json([

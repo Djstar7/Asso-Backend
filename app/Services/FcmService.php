@@ -2,125 +2,32 @@
 
 namespace App\Services;
 
-use App\Models\User;
+use App\Models\DeviceToken;
 use App\Models\Notification;
+use App\Models\User;
 use App\Support\Translation\LocalizedText;
-use Illuminate\Support\Facades\Log;
-use Kreait\Firebase\Factory;
-use Kreait\Firebase\Messaging\CloudMessage;
-use Kreait\Firebase\Messaging\Notification as FirebaseNotification;
 
+/** Compatibility facade: all legacy callers share preferences, history and durable delivery. */
 class FcmService
 {
-    protected $messaging;
-
-    public function __construct()
+    public function sendToUser(User $user, string|LocalizedText $title, string|LocalizedText $body, array $data = []): bool
     {
-        try {
-            $serviceAccountPath = storage_path('app/private/firebase/service-account.json');
-
-            if (file_exists($serviceAccountPath)) {
-                $factory = (new Factory)->withServiceAccount($serviceAccountPath);
-                $this->messaging = $factory->createMessaging();
-                Log::info('[FCM] Firebase messaging initialized successfully');
-            } else {
-                Log::warning('[FCM] Service account file not found - FCM notifications disabled');
-                $this->messaging = null;
-            }
-        } catch (\Exception $e) {
-            Log::error('[FCM] Error initializing Firebase messaging', [
-                'error' => $e->getMessage(),
-            ]);
-            $this->messaging = null;
-        }
+        return app(FirebaseMessagingService::class)->sendToUser($user, $title, $body, $data)['success'] ?? false;
     }
 
-    /**
-     * Send push notification to a user
-     */
-    public function sendToUser(User $user, string $title, string $body, array $data = []): bool
-    {
-        if (!$user->fcm_token) {
-            Log::warning('[FCM] User has no FCM token', ['user_id' => $user->id]);
-            return false;
-        }
-
-        return $this->sendToToken($user->fcm_token, $title, $body, $data);
-    }
-
-    /**
-     * Send push notification to a specific FCM token
-     */
+    /** Resolve the registered owner; unknown or inactive tokens must not bypass account preferences. */
     public function sendToToken(string $token, string $title, string $body, array $data = []): bool
     {
-        if ($this->messaging === null) {
-            Log::warning('[FCM] Messaging not initialized - FCM notifications disabled');
-            return false;
-        }
+        $user = DeviceToken::active()->where('token', $token)->first()?->user;
 
-        try {
-            $notification = FirebaseNotification::create($title, $body);
-
-            $message = CloudMessage::withTarget('token', $token)
-                ->withNotification($notification)
-                ->withData(array_merge($data, [
-                    'click_action' => 'FLUTTER_NOTIFICATION_CLICK',
-                ]));
-
-            $this->messaging->send($message);
-
-            Log::info('[FCM] Notification sent successfully', [
-                'title' => $title,
-                'token' => substr($token, 0, 20) . '...',
-            ]);
-
-            return true;
-        } catch (\Exception $e) {
-            Log::error('[FCM] Failed to send notification', [
-                'error' => $e->getMessage(),
-                'title' => $title,
-            ]);
-            return false;
-        }
+        return $user ? $this->sendToUser($user, $title, $body, $data) : false;
     }
 
-    /**
-     * Send push notification and create notification record
-     */
     public function sendAndStore(User $user, string $type, string|LocalizedText $title, string|LocalizedText $body, array $data = []): ?Notification
     {
-        // Create notification record
-        $notification = Notification::create([
-            'user_id' => $user->id,
-            'type' => $type,
-            'title' => (string) $title,
-            'body' => (string) $body,
-            'data' => Notification::withI18n($data, $title, $body),
-            'is_read' => false,
-            'is_sent' => false,
-        ]);
+        $result = app(FirebaseMessagingService::class)->sendToUser($user, $title, $body, array_replace($data, ['type' => $type]));
 
-        // Send FCM push notification only if messaging is initialized
-        if ($this->messaging !== null) {
-            $sent = $this->sendToUser($user, (string) $title, (string) $body, array_merge($data, [
-                'notification_id' => $notification->id,
-            ]));
-
-            // Update notification status
-            if ($sent) {
-                $notification->update([
-                    'is_sent' => true,
-                    'sent_at' => now(),
-                ]);
-            }
-        } else {
-            Log::info('[FCM] Notification created but not sent (FCM not configured)', [
-                'notification_id' => $notification->id,
-                'type' => $type,
-            ]);
-        }
-
-        return $notification;
+        return isset($result['notification_id']) ? Notification::find($result['notification_id']) : null;
     }
 
     /**
@@ -185,7 +92,7 @@ class FcmService
         $orderNumber = $orderData['order_number'] ?? 'N/A';
 
         $event = in_array($orderStatus, ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'], true)
-            ? 'order_status_' . $orderStatus
+            ? 'order_status_'.$orderStatus
             : 'order_status_update';
 
         $title = $user->localized("notifications.{$event}.title");
@@ -193,7 +100,7 @@ class FcmService
 
         return $this->sendAndStore(
             $user,
-            'order_' . $orderStatus,
+            'order_'.$orderStatus,
             $title,
             $body,
             [
