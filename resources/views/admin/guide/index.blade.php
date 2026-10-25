@@ -544,17 +544,19 @@ const GROUPS = [
    ${fig('tour')}
    <h3>Le menu, famille par famille</h3>
    ${table(['Famille','Sections','À quoi ça sert'],[
-     ['<b>Pilotage</b>','Dashboard, Revenus ASSO, Statistiques boutiques','Suivre l’activité et l’argent de la plateforme.',['dashboard','revenus','statistiques']],
-     ['<b>Comptes</b>','Utilisateurs, Préférences, Carte','Les comptes de l’application et leurs centres d’intérêt.',['utilisateurs','preferences','carte']],
-     ['<b>Catalogue</b>','Boutiques, Produits, Catégories, Packages, Asso Ads','Les boutiques, les produits et ce que les vendeurs achètent.',['boutiques','produits','categories','packages','ads']],
-     ['<b>Commandes</b>','Commandes en gros, locales, avec acompte, Réclamations / Litiges','Suivre chaque commande jusqu’au client.',['commandes-locales','commandes-gros','acompte','litiges']],
-     ['<b>Livraison</b>','Livreurs, Partenaires logistiques, Expéditions, Pays importés','Qui livre, à quel prix, et où en sont les colis.',['partenaires','livreurs','expeditions','pays']],
-     ['<b>Paiements</b>','Transactions, Comptes de virement, Paiements','L’argent qui entre et qui sort.',['transactions','iban','config-paiements']],
-     ['<b>DIASPO Exchange</b>','Vérifications, Voice of Customer, Offres','Voyageurs qui transportent des colis, et parole des utilisateurs.',['diaspo-verifs','diaspo-offres','voc']],
-     ['<b>Commerciaux et affiliation</b>','Commerciaux & codes, Commissions, Affiliation','Codes commerciaux, parrainage et leur rémunération.',['commerciaux','commissions','affiliation']],
-     ['<b>Communication</b>','Bannières, Annonces, Support, Messagerie, Échanges','Parler aux utilisateurs et leur répondre.',['bannieres','support','messagerie','echanges']],
-     ['<b>Administration</b>','Gestionnaires, Maintenance, Paramètres, Services, Pages légales, Documents','Réglages de la plateforme.',['gestionnaires','parametres','maintenance','services','pages-legales','documents']]
+     ["<b>Vue d’ensemble</b>", "Tableau de bord, statistiques des boutiques", "Suivre l’activité de la plateforme.", ["dashboard", "statistiques"]],
+     ["<b>Commandes</b>", "Commandes ASSO, produits camerounais, gros et acomptes", "Traiter les commandes selon leur parcours.", ["commandes-locales", "commandes-gros", "acompte"]],
+     ["<b>Catalogue et boutiques</b>", "Boutiques, produits, catégories, pays d’importation, forfaits", "Organiser le catalogue et les offres vendeurs.", ["boutiques", "produits", "categories", "pays", "packages"]],
+     ["<b>Livraison et transport</b>", "Suivi des expéditions, livreurs, partenaires, carte", "Suivre les colis et organiser la livraison.", ["expeditions", "livreurs", "partenaires", "carte"]],
+     ["<b>DIASPO et envois</b>", "Identités, avion, partenaires, réservations, devis et assurances", "Gérer les envois et le transport DIASPO.", ["diaspo-verifs", "diaspo-offres"]],
+     ["<b>Immobilier</b>", "Annonces, bailleurs, cabinets, litiges et équipements", "Gérer les locations et les terrains.", ["immobilier", "immo-cabinets"]],
+     ["<b>Finances</b>", "Revenus ASSO, retraits, transactions, comptes de virement", "Suivre les mouvements financiers.", ["revenus", "retrait", "transactions", "iban"]],
+     ["<b>Relation client</b>", "Litiges commandes, assistance, messagerie, surveillance", "Résoudre les problèmes et accompagner les clients.", ["litiges", "support", "messagerie", "echanges"]],
+     ["<b>Marketing et réseau commercial</b>", "Publicités, bannières, annonces, centres d’intérêt, communauté, affiliation et commerciaux", "Animer la plateforme et le réseau commercial.", ["ads", "bannieres", "preferences", "voc", "affiliation", "commerciaux", "commissions"]],
+     ["<b>Administration</b>", "Comptes, accès, paramètres et outils techniques", "Configurer la plateforme et les autorisations.", ["utilisateurs", "gestionnaires", "parametres", "maintenance", "services", "config-paiements", "pages-legales", "documents"]],
+     ["<b>Aide</b>", "Guide d’utilisation", "Retrouver les procédures du back-office.", ["interface"]]
    ].filter(r=>r[3].some(can)).map(r=>r.slice(0,3)))}
+   <p>Utilisez la recherche en haut du menu pour retrouver une rubrique, même sans saisir les accents. Cliquez sur une famille pour la déplier ou la replier ; la famille de la page consultée s’ouvre automatiquement. Les compteurs restent visibles sur les familles repliées.</p>
    ${note('info','Ce que vous voyez dépend de votre rôle','Un gestionnaire ne voit que les sections cochées pour lui. Si une section décrite ici manque dans votre menu, demandez-la à l’administrateur.')}
    <h3>Des gestes qui reviennent partout</h3>
    <ul>
@@ -566,10 +568,10 @@ const GROUPS = [
    </ul>`}
  ]},
  {name:'Pilotage', pages:[
-  {id:'dashboard', title:'Dashboard', path:['Menu','Dashboard'], lead:'La page d’accueil des administrateurs. Elle résume la plateforme : combien de comptes, combien de produits, et comment l’activité évolue.', body:()=>`
+  {id:'dashboard', title:'Dashboard', path:["Menu", "Vue d’ensemble", "Tableau de bord"], lead:'La page d’accueil des administrateurs. Elle résume la plateforme : combien de comptes, combien de produits, et comment l’activité évolue.', body:()=>`
    ${fig('dashboard')}
    ${note('tip','Routine du matin','Regardez d’abord la cloche des notifications, puis les inscriptions du jour. Une demande en attente apparaît aussi dans la section concernée.')}`},
-  {id:'revenus', title:'Revenus ASSO', path:['Menu','Revenus ASSO'], lead:'Ce que la plateforme gagne réellement : chiffre d’affaires par service, moins les pertes et frais, pour obtenir le revenu net.', body:()=>`
+  {id:'revenus', title:'Revenus ASSO', path:["Menu", "Finances", "Revenus ASSO"], lead:'Ce que la plateforme gagne réellement : chiffre d’affaires par service, moins les pertes et frais, pour obtenir le revenu net.', body:()=>`
    ${fig('revenue')}
    <h3>Lire les indicateurs</h3>
    ${table(['Indicateur','Signification'],[
@@ -579,16 +581,16 @@ const GROUPS = [
      ['CA des produits ASSO','Part vendeur des boutiques détenues par le compte de la plateforme.']
    ])}
    <p>Les montants sont en FCFA. La flèche sous chaque chiffre compare à la période précédente de même durée.</p>`},
-  {id:'retrait', title:'Retirer les fonds ASSO', path:['Revenus ASSO','Retirer'], lead:'Les commissions de la plateforme arrivent sur le portefeuille du compte plateforme. Chaque pays a son propre solde : on le retire vers un opérateur Mobile Money de ce pays, ou par virement bancaire.', body:()=>`
+  {id:'retrait', title:'Retirer les fonds ASSO', path:["Menu", "Finances", "Retraits des fonds ASSO"], lead:'Les commissions de la plateforme arrivent sur le portefeuille du compte plateforme. Chaque pays a son propre solde : on le retire vers un opérateur Mobile Money de ce pays, ou par virement bancaire.', body:()=>`
    ${fig('withdrawal')}
    ${steps(['Choisissez l’onglet '+k('Mobile Money')+' ou '+k('Virement bancaire')+'.','Repérez la carte du pays et vérifiez le solde.','Cliquez sur '+k('Retirer')+', puis indiquez le montant et le numéro qui recevra les fonds.','Le retrait apparaît dans « Derniers retraits ASSO », en bas de page.'])}
    ${note('info','Soldes partagés','Les pays qui utilisent la même devise partagent un solde (par exemple Cameroun et Gabon en XAF). Retirer depuis l’un fait baisser l’autre.')}`},
-  {id:'statistiques', title:'Statistiques boutiques', path:['Menu','Statistiques boutiques'], lead:'L’audience et les ventes de toutes les boutiques réunies, sur la période choisie.', body:()=>`
+  {id:'statistiques', title:'Statistiques boutiques', path:["Menu", "Vue d’ensemble", "Statistiques des boutiques"], lead:'L’audience et les ventes de toutes les boutiques réunies, sur la période choisie.', body:()=>`
    ${fig('statistics')}
    <p>Le <b>taux de conversion</b> rapporte les ventes au nombre de visiteurs uniques. Un taux qui baisse alors que les visites montent signale souvent un problème de prix, de stock ou de photos.</p>`}
  ]},
  {name:'Utilisateurs et accès', pages:[
-  {id:'utilisateurs', title:'Utilisateurs', path:['Menu','Gestion','Utilisateurs'], lead:'Tous les comptes de l’application : clients, vendeurs et livreurs.', body:()=>`
+  {id:'utilisateurs', title:'Utilisateurs', path:["Menu", "Administration", "Utilisateurs"], lead:'Tous les comptes de l’application : clients, vendeurs et livreurs.', body:()=>`
    <h3>Trouver un utilisateur</h3>
    ${fig('users')}
    <h3>Consulter une fiche</h3>
@@ -597,21 +599,21 @@ const GROUPS = [
    ${steps(['Cliquez sur '+k('Nouvel Utilisateur')+'.','Remplissez l’identité, l’e-mail et le mot de passe.','Choisissez le rôle, puis la position si besoin.','Enregistrez. La personne peut se connecter à l’application.'])}
    ${fig('user_create')}
    ${note('bad','Supprimer un compte','La suppression est définitive. Si la personne a des commandes ou une boutique en cours, préférez désactiver sa boutique.')}`},
-  {id:'gestionnaires', title:'Gestionnaires', path:['Menu','Administration','Gestionnaires'], lead:'Donnez accès au back-office à un membre de l’équipe, sans lui ouvrir tout. Vous choisissez section par section.', body:()=>`
+  {id:'gestionnaires', title:'Gestionnaires', path:["Menu", "Administration", "Gestionnaires et accès"], lead:'Donnez accès au back-office à un membre de l’équipe, sans lui ouvrir tout. Vous choisissez section par section.', body:()=>`
    ${fig('managers')}
    ${steps(['Cliquez sur '+k('Nouveau gestionnaire')+'.','Saisissez son identité et son e-mail.','Cochez ses droits sur les produits, puis chaque section qu’il pourra voir.','Enregistrez : il reçoit son mot de passe par e-mail.'])}
    ${fig('manager_create')}
    ${note('tip','Le juste nécessaire','N’ouvrez que les sections utiles au poste. Vous pourrez en ajouter plus tard depuis la liste.')}`},
-  {id:'preferences', title:'Préférences', path:['Menu','Gestion','Préférences'], lead:'Les catégories qui intéressent les utilisateurs, telles qu’ils les ont choisies dans l’application.', body:()=>`${fig('preferences')}<p>Utilisez cette page pour orienter les achats en gros, les bannières et le recrutement de vendeurs.</p>`},
-  {id:'carte', title:'Carte', path:['Menu','Gestion','Carte'], lead:'Où se trouvent vos utilisateurs.', body:()=>`${fig('map')}`}
+  {id:'preferences', title:'Préférences', path:["Menu", "Marketing et réseau commercial", "Centres d’intérêt clients"], lead:'Les catégories qui intéressent les utilisateurs, telles qu’ils les ont choisies dans l’application.', body:()=>`${fig('preferences')}<p>Utilisez cette page pour orienter les achats en gros, les bannières et le recrutement de vendeurs.</p>`},
+  {id:'carte', title:'Carte', path:["Menu", "Livraison et transport", "Carte des activités"], lead:'Où se trouvent vos utilisateurs.', body:()=>`${fig('map')}`}
  ]},
  {name:'Boutiques et catalogue', pages:[
-  {id:'boutiques', title:'Boutiques', path:['Menu','Gestion','Boutiques'], lead:'Chaque vendeur a une boutique. Vous les vérifiez, les modifiez, les désactivez, et traitez leurs demandes de changement d’emplacement.', body:()=>`
+  {id:'boutiques', title:'Boutiques', path:["Menu", "Catalogue et boutiques", "Boutiques"], lead:'Chaque vendeur a une boutique. Vous les vérifiez, les modifiez, les désactivez, et traitez leurs demandes de changement d’emplacement.', body:()=>`
    ${fig('shops')}
    <h3>La fiche boutique</h3>
    ${fig('shop_show')}
    ${note('info','Livraison gratuite','Quand elle est activée sur une boutique ou un produit, le client voit le prix barré de la livraison. Le vendeur finance la course.')}`},
-  {id:'produits', title:'Produits', path:['Menu','Gestion','Produits'], lead:'Le catalogue complet, toutes boutiques confondues.', body:()=>`
+  {id:'produits', title:'Produits', path:["Menu", "Catalogue et boutiques", "Tous les produits"], lead:'Le catalogue complet, toutes boutiques confondues.', body:()=>`
    ${fig('products')}
    <h3>Fiche produit</h3>
    ${fig('product_show')}
@@ -620,12 +622,12 @@ const GROUPS = [
    ${fig('product_create')}
    ${note('tip','Masquer plutôt que supprimer',k('Masquer')+' retire le produit de l’application tout en le gardant. Vous pourrez le réafficher plus tard.')}
    ${note('info','Origine du produit','Laissée sur « importé » par défaut. Choisissez « Produit local » pour un produit fabriqué au Cameroun : il apparaît alors dans les commandes locales.')}`},
-  {id:'categories', title:'Catégories', path:['Menu','Gestion','Catégories'], lead:'L’arborescence du catalogue : catégories principales et sous-catégories, en français et en anglais.', body:()=>`${fig('categories')}${note('warn','Avant de supprimer','Une catégorie qui contient des produits doit d’abord être vidée : déplacez les produits vers une autre catégorie.')}`},
-  {id:'packages', title:'Packages', path:['Menu','Gestion','Packages'], lead:'Les forfaits payants des vendeurs : espace de stockage pour les photos et vidéos, boost de visibilité, certification de la boutique.', body:()=>`${fig('packages')}`},
-  {id:'ads', title:'Asso Ads', path:['Menu','Gestion','Asso Ads'], lead:'Les produits sponsorisés par les vendeurs : ce qui a été vendu, ce qui a été diffusé, et où ils apparaissent dans l’application.', body:()=>`${fig('ads')}${note('info','Couper la diffusion','Décocher « Diffuser les produits sponsorisés » suspend l’affichage sans annuler les campagnes payées ni consommer leur quota.')}`}
+  {id:'categories', title:'Catégories', path:["Menu", "Catalogue et boutiques", "Catégories"], lead:'L’arborescence du catalogue : catégories principales et sous-catégories, en français et en anglais.', body:()=>`${fig('categories')}${note('warn','Avant de supprimer','Une catégorie qui contient des produits doit d’abord être vidée : déplacez les produits vers une autre catégorie.')}`},
+  {id:'packages', title:'Packages', path:["Menu", "Catalogue et boutiques", "Forfaits vendeurs"], lead:'Les forfaits payants des vendeurs : espace de stockage pour les photos et vidéos, boost de visibilité, certification de la boutique.', body:()=>`${fig('packages')}`},
+  {id:'ads', title:'Asso Ads', path:["Menu", "Marketing et réseau commercial", "Publicités ASSO"], lead:'Les produits sponsorisés par les vendeurs : ce qui a été vendu, ce qui a été diffusé, et où ils apparaissent dans l’application.', body:()=>`${fig('ads')}${note('info','Couper la diffusion','Décocher « Diffuser les produits sponsorisés » suspend l’affichage sans annuler les campagnes payées ni consommer leur quota.')}`}
  ]},
  {name:'Commandes', pages:[
-  {id:'commandes-locales', title:'Commandes locales', path:['Menu','Gestion','Commandes locales'], lead:'Les commandes passées auprès des vendeurs locaux, de la confirmation du vendeur jusqu’à la livraison.', body:()=>`${fig('local')}
+  {id:'commandes-locales', title:'Produits camerounais', path:["Menu", "Commandes", "Produits camerounais"], lead:'Les commandes contenant des produits fabriqués au Cameroun, quelle que soit leur destination, de la confirmation à la livraison.', body:()=>`${fig('local')}
    ${table(['Étape','Ce qui se passe'],[
      [pill('y','Paiement en attente'),'Le client n’a pas encore payé.'],
      [pill('o','À confirmer par le vendeur'),'Le vendeur doit accepter la commande.'],
@@ -633,67 +635,67 @@ const GROUPS = [
      [pill('b','En livraison'),'Le colis est en route.'],
      [pill('g','Livrée'),'Le client a reçu sa commande.'],
      [pill('r','Annulée'),'La commande est arrêtée.']])}`},
-  {id:'commandes-gros', title:'Commandes en gros', path:['Menu','Gestion','Commandes en gros'], lead:'Les achats en gros importés : la commande part du pays d’origine, arrive à l’entrepôt de Douala, puis SOLEX la livre au client.', body:()=>`
+  {id:'commandes-gros', title:'Commandes en gros', path:["Menu", "Commandes", "Commandes en gros"], lead:'Les achats en gros importés : la commande part du pays d’origine, arrive à l’entrepôt de Douala, puis SOLEX la livre au client.', body:()=>`
    ${fig('wholesale')}
    <h3>Traiter une commande</h3>
    ${steps(['Ouvrez l’onglet '+k('À valider')+', puis '+k('Gérer')+' sur une commande.','Vérifiez les articles, les quantités et les montants.','Validez, ou refusez en écrivant le motif : il est envoyé au client et la commande est remboursée.','Faites avancer la commande à chaque étape : expédition, arrivée à Douala, livraison SOLEX, livrée.'])}
    ${fig('wholesale_show')}
    ${note('warn','Paiement non confirmé','Tant que le paiement n’est pas confirmé, la commande ne peut pas être validée. Attendez la confirmation avant de contacter le fournisseur.')}`},
-  {id:'acompte', title:'Commandes avec acompte', path:['Menu','Gestion','Commandes avec acompte'], lead:'Le client paie un acompte à la commande et le solde après livraison. ASSO vérifie avec lui que le produit est conforme avant de libérer le solde. Le vendeur est payé après le solde.', body:()=>`
+  {id:'acompte', title:'Commandes avec acompte', path:["Menu", "Commandes", "Commandes avec acompte"], lead:'Le client paie un acompte à la commande et le solde après livraison. ASSO vérifie avec lui que le produit est conforme avant de libérer le solde. Le vendeur est payé après le solde.', body:()=>`
    ${fig('deposit')}
    <h3>La vérification ASSO</h3>
    ${steps(['Ouvrez la commande depuis l’onglet '+k('À contacter')+'.','Appelez le client au moment où le produit lui est présenté (livraison ou retrait).','Tout est conforme : ajoutez si besoin une note, puis '+k('Client contacté')+'.','Un problème : décrivez-le, puis '+k('Signaler un problème')+'. Le solde reste bloqué.'])}
    ${fig('deposit_show')}`},
-  {id:'litiges', title:'Réclamations et litiges', path:['Menu','Gestion','Réclamations / Litiges'], lead:'Quand un client signale un problème sur un produit reçu, un litige s’ouvre. La part du vendeur est bloquée pendant le traitement.', body:()=>`
+  {id:'litiges', title:'Réclamations et litiges', path:["Menu", "Relation client", "Litiges commandes"], lead:'Quand un client signale un problème sur un produit reçu, un litige s’ouvre. La part du vendeur est bloquée pendant le traitement.', body:()=>`
    ${fig('disputes')}
    ${steps(['Ouvrez les litiges '+k('Nouveau')+' en premier.','Analysez le motif et les éléments fournis par le client.','Contactez le vendeur.','Choisissez l’issue : remplacement, retour, remboursement ou rejet.','Passez le litige en '+k('Résolu')+' puis '+k('Fermé')+'.'])}
    ${note('warn','Délai','La part du vendeur est retenue pendant 48 heures après l’ouverture du litige. Traitez les nouveaux litiges chaque jour.')}`}
  ]},
  {name:'Immobilier', pages:[
-  {id:'immobilier', title:'Annonces immobilières', path:['Menu','Immobilier','Annonces'], lead:'Les maisons à louer sont publiées par des bailleurs vérifiés ; ASSO relit chaque annonce avant sa mise en ligne. Les terrains sont saisis par ASSO pour ses cabinets partenaires.', body:()=>`
+  {id:'immobilier', title:'Annonces immobilières', path:["Menu", "Immobilier", "Annonces immobilières"], lead:'Les maisons à louer sont publiées par des bailleurs vérifiés ; ASSO relit chaque annonce avant sa mise en ligne. Les terrains sont saisis par ASSO pour ses cabinets partenaires.', body:()=>`
    <h3>Vérifier un bailleur</h3>
    ${steps(['Ouvrez '+k('Bailleurs')+' : les demandes '+k('En attente')+' sont en tête.','Contrôlez la CNI, la preuve de propriété et la vidéo où le bailleur tient ses documents.','Tout concorde : '+k('Valider le bailleur')+'. Sinon '+k('Refuser')+' avec un motif clair : il le reçoit en notification.'])}
    <h3>Relire une annonce</h3>
    ${steps(['Ouvrez les annonces '+k('À relire')+'.','Vérifiez le contrôle avant publication : photo de l’entrée, une photo par pièce, vidéo, loyer.','Jugez la qualité des photos, la cohérence du prix et la description du quartier (route, eau, électricité, sécurité).',k('Publier')+' ou '+k('Refuser')+' avec un motif.'])}
    ${note('info','Argent','Au paiement, la part ASSO (majoration et commission) est encaissée tout de suite et n’est pas remboursable. La part du bailleur est bloquée sur son Wallet jusqu’à la confirmation du locataire ou la fin du délai de visite.')}
    ${note('warn','Modification','Une annonce modifiée par le bailleur repasse en relecture.')}`},
-  {id:'immo-cabinets', title:'Cabinets et terrains', path:['Menu','Immobilier','Cabinets partenaires'], lead:'Les terrains ne sont pas proposés par les utilisateurs : ASSO crée chaque cabinet partenaire, puis saisit ses terrains.', body:()=>`
+  {id:'immo-cabinets', title:'Cabinets et terrains', path:["Menu", "Immobilier", "Cabinets partenaires"], lead:'Les terrains ne sont pas proposés par les utilisateurs : ASSO crée chaque cabinet partenaire, puis saisit ses terrains.', body:()=>`
    ${steps(['Créez le cabinet : nom, accroche, spécialités, « Pourquoi nous choisir » (une puce par ligne), logo, bannière, coordonnées.','Ajoutez ses terrains : un par localité, avec un lot par surface proposée et son prix net.','Pour une affiche avec beaucoup de localités, utilisez '+k('Saisie rapide de terrains')+' dans Annonces.','Ajoutez les photos, puis '+k('Publier')+'.'])}
    ${note('info','Coordonnées','Le nom du cabinet est toujours affiché. Ses coordonnées ne sont montrées qu’à l’acheteur qui a versé l’acompte.')}`}
  ]},
  {name:'Livraison', pages:[
-  {id:'partenaires', title:'Partenaires logistiques', path:['Menu','Gestion','Partenaires logistiques'], lead:'Les sociétés qui livrent (SOLEX, DHL, FedEx…), leurs tarifs au poids, leurs zones et les réglages communs à toutes les livraisons.', body:()=>`${fig('partners')}${note('info','Délai par défaut','Le délai de livraison est compté en jours ouvrables, hors week-ends. Il s’applique quand le produit n’a pas son propre délai.')}`},
-  {id:'livreurs', title:'Livreurs', path:['Menu','Gestion','Livreurs'], lead:'Les entreprises de livraison inscrites et leurs zones.', body:()=>`${fig('deliverers')}`},
-  {id:'expeditions', title:'Expéditions', path:['Menu','Gestion','Expéditions'], lead:'Les colis confiés à un transporteur, avec leur numéro de suivi.', body:()=>`${fig('shipments')}`},
-  {id:'pays', title:'Pays importés', path:['Menu','Gestion','Pays importés'], lead:'Les pays d’où viennent les produits importés. Vous en ajoutez ou en retirez sans mettre à jour l’application.', body:()=>`${fig('countries')}`}
+  {id:'partenaires', title:'Partenaires logistiques', path:["Menu", "Livraison et transport", "Partenaires logistiques"], lead:'Les sociétés qui livrent (SOLEX, DHL, FedEx…), leurs tarifs au poids, leurs zones et les réglages communs à toutes les livraisons.', body:()=>`${fig('partners')}${note('info','Délai par défaut','Le délai de livraison est compté en jours ouvrables, hors week-ends. Il s’applique quand le produit n’a pas son propre délai.')}`},
+  {id:'livreurs', title:'Livreurs', path:["Menu", "Livraison et transport", "Livreurs"], lead:'Les entreprises de livraison inscrites et leurs zones.', body:()=>`${fig('deliverers')}`},
+  {id:'expeditions', title:'Suivi des expéditions', path:["Menu", "Livraison et transport", "Suivi des expéditions"], lead:'Un seul accès pour le suivi des colis. Le filtre « Exports internationaux » affiche les commandes expédiées à l’étranger ; « Toutes les expéditions » retrouve le périmètre général.', body:()=>`${fig('shipments')}`},
+  {id:'pays', title:'Pays importés', path:["Menu", "Catalogue et boutiques", "Pays d’importation"], lead:'Les pays d’où viennent les produits importés. Vous en ajoutez ou en retirez sans mettre à jour l’application.', body:()=>`${fig('countries')}`}
  ]},
  {name:'Paiements', pages:[
-  {id:'transactions', title:'Transactions', path:['Menu','Gestion','Transactions'], lead:'L’historique de tous les paiements : recharges, retraits, remboursements, bonus.', body:()=>`${fig('transactions')}`},
-  {id:'iban', title:'Comptes de virement', path:['Menu','Administration','Comptes de virement'], lead:'Avant tout virement (retrait d’un vendeur, remboursement d’un litige), l’IBAN doit être validé ici.', body:()=>`${fig('stripe')}${steps(['Ouvrez l’onglet '+k('En attente')+'.','Vérifiez que le titulaire du compte correspond à l’utilisateur.','Validez, ou rejetez en indiquant la raison.'])}`},
-  {id:'config-paiements', title:'Moyens de paiement', path:['Menu','Administration','Paiements'], lead:'Les prestataires qui encaissent les paiements des clients. Page réservée aux administrateurs.', body:()=>`${fig('payments')}${note('bad','Données sensibles','Les clés d’accès donnent la main sur l’argent de la plateforme. Ne les copiez jamais dans un e-mail ou une messagerie. Sur cette capture, elles sont masquées.')}`}
+  {id:'transactions', title:'Transactions', path:["Menu", "Finances", "Transactions"], lead:'L’historique de tous les paiements : recharges, retraits, remboursements, bonus.', body:()=>`${fig('transactions')}`},
+  {id:'iban', title:'Comptes de virement', path:["Menu", "Finances", "Comptes de virement"], lead:'Avant tout virement (retrait d’un vendeur, remboursement d’un litige), l’IBAN doit être validé ici.', body:()=>`${fig('stripe')}${steps(['Ouvrez l’onglet '+k('En attente')+'.','Vérifiez que le titulaire du compte correspond à l’utilisateur.','Validez, ou rejetez en indiquant la raison.'])}`},
+  {id:'config-paiements', title:'Moyens de paiement', path:["Menu", "Administration", "Configuration des paiements"], lead:'Les prestataires qui encaissent les paiements des clients. Page réservée aux administrateurs.', body:()=>`${fig('payments')}${note('bad','Données sensibles','Les clés d’accès donnent la main sur l’argent de la plateforme. Ne les copiez jamais dans un e-mail ou une messagerie. Sur cette capture, elles sont masquées.')}`}
  ]},
  {name:'DIASPO Exchange', pages:[
-  {id:'diaspo-verifs', title:'Vérifications', path:['Menu','DIASPO Exchange','Vérifications'], lead:'Un voyageur peut publier une offre avant d’être vérifié : elle s’affiche avec la mention « Profil non vérifié » et ne peut pas être réservée. Il a un délai pour envoyer sa pièce d’identité.', body:()=>`${fig('dverif')}${steps(['Ouvrez l’onglet '+k('En attente')+'.','Comparez la pièce (CNI ou passeport, recto et verso) avec le profil.','Validez, ou rejetez avec la raison.'])}`},
-  {id:'diaspo-offres', title:'Offres', path:['Menu','DIASPO Exchange','Offres'], lead:'Les trajets publiés par les voyageurs qui proposent de transporter des colis.', body:()=>`${fig('doffers')}`},
-  {id:'voc', title:'Voice of Customer', path:['Menu','DIASPO Exchange','Voice of Customer'], lead:'Les messages publiés par les utilisateurs dans « Ma voix » : questions, problèmes, bonnes expériences.', body:()=>`${fig('dposts')}${note('tip','Écouter','Triez par « Plus populaires » une fois par semaine : les sujets qui reviennent sont vos priorités.')}`}
+  {id:'diaspo-verifs', title:'Vérifications', path:["Menu", "DIASPO et envois", "Vérifications d’identité"], lead:'Un voyageur peut publier une offre avant d’être vérifié : elle s’affiche avec la mention « Profil non vérifié » et ne peut pas être réservée. Il a un délai pour envoyer sa pièce d’identité.', body:()=>`${fig('dverif')}${steps(['Ouvrez l’onglet '+k('En attente')+'.','Comparez la pièce (CNI ou passeport, recto et verso) avec le profil.','Validez, ou rejetez avec la raison.'])}`},
+  {id:'diaspo-offres', title:'Offres', path:["Menu", "DIASPO et envois", "Envois par avion"], lead:'Les trajets publiés par les voyageurs qui proposent de transporter des colis.', body:()=>`${fig('doffers')}`},
+  {id:'voc', title:'Voice of Customer', path:["Menu", "Marketing et réseau commercial", "Publications communautaires"], lead:'Les messages publiés par les utilisateurs dans « Ma voix » : questions, problèmes, bonnes expériences.', body:()=>`${fig('dposts')}${note('tip','Écouter','Triez par « Plus populaires » une fois par semaine : les sujets qui reviennent sont vos priorités.')}`}
  ]},
  {name:'Commerciaux et affiliation', pages:[
-  {id:'commerciaux', title:'Commerciaux et codes', path:['Menu','Commerciaux','Commerciaux & codes'], lead:'Les commerciaux recrutent des vendeurs. Le vendeur saisit leur code en payant son forfait, et le commercial touche une commission.', body:()=>`${fig('agents')}${fig('agent_create')}`},
-  {id:'commissions', title:'Commissions commerciaux', path:['Menu','Commerciaux','Commissions commerciaux'], lead:'Ce qui est dû à chaque commercial. Le montant est fixé au moment où le forfait du vendeur est activé.', body:()=>`${fig('agent_comm')}`},
-  {id:'affiliation', title:'Affiliation', path:['Menu','Affiliation','Configuration'], lead:'Le programme de parrainage entre utilisateurs.', body:()=>`${fig('affiliate')}`}
+  {id:'commerciaux', title:'Commerciaux et codes', path:["Menu", "Marketing et réseau commercial", "Commerciaux et codes"], lead:'Les commerciaux recrutent des vendeurs. Le vendeur saisit leur code en payant son forfait, et le commercial touche une commission.', body:()=>`${fig('agents')}${fig('agent_create')}`},
+  {id:'commissions', title:'Commissions commerciaux', path:["Menu", "Marketing et réseau commercial", "Commissions des commerciaux"], lead:'Ce qui est dû à chaque commercial. Le montant est fixé au moment où le forfait du vendeur est activé.', body:()=>`${fig('agent_comm')}`},
+  {id:'affiliation', title:'Affiliation', path:["Menu", "Marketing et réseau commercial", "Affiliation : configuration"], lead:'Le programme de parrainage entre utilisateurs.', body:()=>`${fig('affiliate')}`}
  ]},
  {name:'Communication et support', pages:[
-  {id:'bannieres', title:'Bannières et annonces', path:['Menu','Annonce'], lead:'Les bannières illustrées de l’accueil de l’application, et les annonces générales envoyées à tous.', body:()=>`${fig('banners')}<p>Les <b>Annonces générales</b> fonctionnent de la même façon : ${k('Nouvelle Annonce')}, rédigez le message, publiez.</p>`},
-  {id:'support', title:'Support client', path:['Menu','Gestion','Support'], lead:'Les demandes d’aide envoyées par les utilisateurs.', body:()=>`${fig('support')}${note('tip','Priorités','Filtrez par priorité « Urgente » en début de journée.')}`},
-  {id:'messagerie', title:'Messagerie', path:['Menu','Gestion','Messagerie'], lead:'Les conversations directes entre le support et les utilisateurs.', body:()=>`${fig('messages')}`},
-  {id:'echanges', title:'Échanges', path:['Menu','Gestion','Échanges'], lead:'Le volume des conversations entre acheteurs et vendeurs.', body:()=>`${fig('exchanges')}`}
+  {id:'bannieres', title:'Bannières et annonces', path:["Menu", "Marketing et réseau commercial", "Bannières"], lead:'Les bannières illustrées de l’accueil de l’application, et les annonces générales envoyées à tous.', body:()=>`${fig('banners')}<p>Les <b>Annonces générales</b> fonctionnent de la même façon : ${k('Nouvelle Annonce')}, rédigez le message, publiez.</p>`},
+  {id:'support', title:'Support client', path:["Menu", "Relation client", "Assistance client"], lead:'Les demandes d’aide envoyées par les utilisateurs.', body:()=>`${fig('support')}${note('tip','Priorités','Filtrez par priorité « Urgente » en début de journée.')}`},
+  {id:'messagerie', title:'Messagerie', path:["Menu", "Relation client", "Messagerie"], lead:'Les conversations directes entre le support et les utilisateurs.', body:()=>`${fig('messages')}`},
+  {id:'echanges', title:'Échanges', path:["Menu", "Relation client", "Surveillance des conversations"], lead:'Le volume des conversations entre acheteurs et vendeurs.', body:()=>`${fig('exchanges')}`}
  ]},
  {name:'Administration', pages:[
-  {id:'parametres', title:'Paramètres', path:['Menu','Administration','Paramètres'], lead:'L’identité de l’application vue par les clients : nom, logo, textes et contacts.', body:()=>`${fig('settings')}`},
+  {id:'parametres', title:'Paramètres', path:["Menu", "Administration", "Paramètres généraux"], lead:'L’identité de l’application vue par les clients : nom, logo, textes et contacts.', body:()=>`${fig('settings')}`},
   {id:'maintenance', title:'Maintenance', path:['Menu','Administration','Maintenance'], lead:'Pour fermer temporairement l’application pendant une intervention.', body:()=>`${fig('maintenance')}${note('bad','À utiliser avec précaution','Tant que le mode est actif, personne ne peut acheter ni vendre. Pensez à le désactiver à la fin.')}`},
-  {id:'services', title:'Services (codes OTP)', path:['Menu','Administration','Services'], lead:'Le code de connexion envoyé aux utilisateurs part par WhatsApp ou par SMS. Vous choisissez le canal ici.', body:()=>`${fig('services')}`},
+  {id:'services', title:'Services (codes OTP)', path:["Menu", "Administration", "Services et intégrations"], lead:'Le code de connexion envoyé aux utilisateurs part par WhatsApp ou par SMS. Vous choisissez le canal ici.', body:()=>`${fig('services')}`},
   {id:'pages-legales', title:'Pages légales', path:['Menu','Administration','Pages légales'], lead:'Les CGU, la politique de confidentialité et les mentions légales visibles dans l’application.', body:()=>`${fig('legal')}`},
-  {id:'documents', title:'Documents', path:['Menu','Outils','Documents'], lead:'Les documents de l’entreprise, rangés par catégories.', body:()=>`${fig('documents')}`}
+  {id:'documents', title:'Documents', path:["Menu", "Administration", "Documents"], lead:'Les documents de l’entreprise, rangés par catégories.', body:()=>`${fig('documents')}`}
  ]},
  {name:'Référence', pages:[
   {id:'bonnes-pratiques', title:'Routine quotidienne', path:['Référence'], lead:'Une liste courte pour ne rien laisser attendre.', body:()=>`

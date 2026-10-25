@@ -809,3 +809,27 @@ pas leur token, les anciennes inscriptions sans session sont également retirée
 la nouvelle application réassocie son appareil à la reprise.
 
 Vérification locale : `php artisan test --filter='Notification|ProductBroadcastTest|StoredTextsLocaleTest|ServerLabelsLocaleTest|TranslationFilesTest'`.
+
+### Navigation du back-office
+
+Le menu est défini dans `config/admin_navigation.php` et construit par
+`App\Support\AdminNavigation`. Ses onze familles regroupent les activités métier.
+Les autorisations restent définies dans `config/admin_access.php` et contrôlées
+par le middleware ; déplacer une entrée ne donne aucune permission supplémentaire.
+Les familles vides sont masquées. Les gestionnaires limités aux boutiques ASSO
+ont un seul accès aux produits ; les administrateurs conservent le catalogue
+complet et sa vue filtrée ASSO.
+
+Les libellés et mots-clés de recherche sont dans le groupe JSON imbriqué
+`admin_nav` de `lang/fr.json` et `lang/en.json`, selon la langue du compte.
+La recherche ignore les accents et reconnaît aussi les anciens termes
+« Commandes internationales », « Commandes locales » et « FCM ».
+Le suivi des expéditions possède un seul lien dans le menu ; le périmètre export
+se choisit sur la page et les anciennes URL `?scope=export` restent valides.
+
+Les sections sont des éléments HTML `details` utilisables au clavier. Le script
+`public/js/admin-navigation.js` ajoute recherche, effacement avec Échap et
+mémorisation des sections/défilement par compte dans `sessionStorage`.
+Les traductions, routes, filtres actifs, permissions et compteurs sont vérifiés par
+`php artisan test tests/Feature/AdminNavigationTest.php tests/Feature/ProductManagerAccessTest.php tests/Feature/BackofficeGuideTest.php tests/Feature/AdminNotificationsTest.php`.
+Aucune migration n’est requise pour cette réorganisation.
