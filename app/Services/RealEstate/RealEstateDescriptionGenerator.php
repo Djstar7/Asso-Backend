@@ -76,7 +76,7 @@ class RealEstateDescriptionGenerator
             $lines[] = $t('extras', ['items' => implode(', ', $extras)]);
         }
 
-        if (! $listing->isLand()) {
+        if ($listing->type === Listing::TYPE_RENT) {
             if ($listing->min_lease_months) {
                 $lines[] = $t('min_lease', ['months' => $listing->min_lease_months]);
             }

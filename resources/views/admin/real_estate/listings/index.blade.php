@@ -18,7 +18,10 @@
                 <i class="fas fa-layer-group mr-2"></i> Saisie rapide de terrains
             </button>
             <a href="{{ route('admin.real-estate.listings.create', ['type' => 'rent']) }}" class="px-4 py-2 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-lg hover:shadow-lg">
-                <i class="fas fa-plus mr-2"></i> Nouvelle maison
+                <i class="fas fa-plus mr-2"></i> Maison à louer
+            </a>
+            <a href="{{ route('admin.real-estate.listings.create', ['type' => 'sale']) }}" class="px-4 py-2 bg-dark-200 text-white rounded-lg hover:bg-dark-50">
+                <i class="fas fa-plus mr-2"></i> Maison à vendre
             </a>
             <a href="{{ route('admin.real-estate.listings.create', ['type' => 'land']) }}" class="px-4 py-2 bg-dark-200 text-white rounded-lg hover:bg-dark-50">
                 <i class="fas fa-plus mr-2"></i> Nouveau terrain
@@ -82,6 +85,7 @@
         <select name="type" class="{{ $in }}">
             <option value="">Maisons et terrains</option>
             <option value="rent" @selected(request('type') === 'rent')>Maisons à louer</option>
+            <option value="sale" @selected(request('type') === 'sale')>Maisons à vendre</option>
             <option value="land" @selected(request('type') === 'land')>Terrains à vendre</option>
         </select>
         <select name="status" class="{{ $in }}">
@@ -145,7 +149,7 @@
                             @endif
                             <div>
                                 <p class="text-white font-medium">{{ $l->title }} @if($l->is_featured)<i class="fas fa-star text-primary-400 ml-1" title="À la une"></i>@endif</p>
-                                <p class="text-xs text-gray-400">{{ $l->reference }} · {{ $l->isLand() ? 'Terrain' : 'Location' }} · {{ $l->city }}{{ $l->district ? ', '.$l->district : '' }}</p>
+                                <p class="text-xs text-gray-400">{{ $l->reference }} · {{ $l->isLand() ? 'Terrain' : ($l->isSale() ? 'Vente' : 'Location') }} · {{ $l->city }}{{ $l->district ? ', '.$l->district : '' }}</p>
                             </div>
                         </div>
                     </td>
@@ -159,7 +163,7 @@
                     </td>
                     <td class="px-4 py-3 text-sm text-gray-300">
                         <span class="text-white font-semibold">{{ number_format($pricing->displayed($l->minNetPrice(), $l->type), 0, ',', ' ') }}</span> FCFA
-                        @if(! $l->isLand())<span class="text-gray-500">/ mois</span>@endif
+                        @if($l->type === 'rent')<span class="text-gray-500">/ mois</span>@endif
                     </td>
                     <td class="px-4 py-3">@include('admin.real_estate._status', ['status' => $l->status])</td>
                     <td class="px-4 py-3 text-right">

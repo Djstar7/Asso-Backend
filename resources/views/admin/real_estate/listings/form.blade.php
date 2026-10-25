@@ -7,7 +7,7 @@
     $card = 'bg-dark-100 rounded-xl shadow-lg border border-dark-200 p-6 mb-6';
     $isLand = $listing->isLand();
     $exists = $listing->exists;
-    $kinds = $isLand ? \App\Models\RealEstate\Listing::LAND_KINDS : \App\Models\RealEstate\Listing::RENT_KINDS;
+    $kinds = array_merge(\App\Models\RealEstate\Listing::RENT_KINDS, \App\Models\RealEstate\Listing::LAND_KINDS);
     $kindLabels = ['house' => 'Maison', 'villa' => 'Villa', 'apartment' => 'Appartement', 'studio' => 'Studio', 'room' => 'Chambre', 'duplex' => 'Duplex', 'residence' => 'Résidence / cité',
         'building_land' => 'Terrain constructible', 'farm_land' => 'Terrain agricole', 'commercial_land' => 'Terrain commercial'];
     $units = old('units', $exists ? $listing->units->map(fn ($u) => $u->only(['id', 'label', 'surface_min', 'surface_max', 'net_price', 'old_net_price', 'capacity', 'kitchen', 'furnished', 'serviced', 'units_total', 'units_available']))->values()->all() : []);
@@ -25,7 +25,7 @@
             </h1>
             @if($exists)
                 <p class="text-gray-400 flex items-center gap-2 mt-1">
-                    {{ $listing->reference }} · {{ $isLand ? 'Terrain à vendre' : 'Maison à louer' }} · @include('admin.real_estate._status', ['status' => $listing->status])
+                    {{ $listing->reference }} · {{ $isLand ? 'Terrain à vendre' : ($listing->isSale() ? 'Maison à vendre' : 'Maison à louer') }} · @include('admin.real_estate._status', ['status' => $listing->status])
                     · {{ $listing->views_count }} vues
                 </p>
             @endif
@@ -105,7 +105,16 @@
     <form method="POST" enctype="multipart/form-data" action="{{ $exists ? route('admin.real-estate.listings.update', $listing) : route('admin.real-estate.listings.store') }}">
         @csrf
         @if($exists) @method('PUT') @endif
-        <input type="hidden" name="type" value="{{ $listing->type }}">
+        <div class="{{ $card }}" x-data="{ category: @js(old('type', $listing->type)) }">
+            <label class="{{ $label }}" for="listing-category">Rubrique de l’annonce</label>
+            <select id="listing-category" name="type" x-model="category" class="{{ $in }}" x-init="$nextTick(() => $el.dispatchEvent(new Event('change')))"
+                @change="const kind = $el.form.elements.property_kind; const land = category === 'land'; for (const option of kind.options) { option.hidden = option.dataset.land !== (land ? '1' : '0'); } if (kind.selectedOptions[0]?.hidden) kind.value = land ? 'building_land' : 'house';">
+                <option value="rent">Maison à louer</option>
+                <option value="sale">Maison à vendre</option>
+                <option value="land">Terrain à vendre</option>
+            </select>
+            <p class="text-sm text-gray-400 mt-2">Choisissez la rubrique puis enregistrez pour reclasser cette offre. Ses photos et sa référence sont conservées.</p>
+        </div>
 
         <div class="{{ $card }}">
             <h2 class="text-lg font-semibold text-white mb-4"><i class="fas fa-info-circle mr-2 text-primary-400"></i>Annonce</h2>
@@ -123,7 +132,7 @@
                 <div>
                     <label class="{{ $label }}">Type de bien</label>
                     <select name="property_kind" required class="{{ $in }}">
-                        @foreach($kinds as $k)<option value="{{ $k }}" @selected($val('property_kind') === $k)>{{ $kindLabels[$k] }}</option>@endforeach
+                        @foreach($kinds as $k)<option value="{{ $k }}" data-land="{{ in_array($k, \App\Models\RealEstate\Listing::LAND_KINDS) ? '1' : '0' }}" @selected($val('property_kind') === $k)>{{ $kindLabels[$k] }}</option>@endforeach
                     </select>
                 </div>
                 <div class="{{ $isLand ? '' : 'md:col-span-2' }}">
@@ -214,8 +223,8 @@
             <div class="{{ $card }}">
                 <h2 class="text-lg font-semibold text-white mb-4"><i class="fas fa-money-bill mr-2 text-primary-400"></i>Conditions et prix</h2>
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div><label class="{{ $label }}">Loyer mensuel de référence (FCFA)</label><input name="net_price" type="number" min="0" value="{{ $val('net_price') }}" class="{{ $in }}"></div>
-                    <div><label class="{{ $label }}">Ancien loyer de référence (barré)</label><input name="old_net_price" type="number" min="0" value="{{ $val('old_net_price') }}" class="{{ $in }}"></div>
+                    <div><label class="{{ $label }}">{{ $listing->isSale() ? 'Prix de vente (FCFA)' : 'Loyer mensuel de référence (FCFA)' }}</label><input name="net_price" type="number" min="0" value="{{ $val('net_price') }}" class="{{ $in }}"></div>
+                    <div><label class="{{ $label }}">Ancien prix (barré)</label><input name="old_net_price" type="number" min="0" value="{{ $val('old_net_price') }}" class="{{ $in }}"></div>
                     <div><label class="{{ $label }}">Durée minimale (mois)</label><input name="min_lease_months" type="number" min="1" value="{{ $val('min_lease_months') }}" class="{{ $in }}"></div>
                     <div><label class="{{ $label }}">Mois d'avance</label><input name="advance_months" type="number" min="1" value="{{ $val('advance_months') }}" class="{{ $in }}"></div>
                     <div><label class="{{ $label }}">Disponible à partir du</label><input name="available_from" type="date" value="{{ optional($listing->available_from)->toDateString() }}" class="{{ $in }}"></div>
@@ -230,7 +239,7 @@
                 <h2 class="text-lg font-semibold text-white"><i class="fas fa-th-large mr-2 text-primary-400"></i>{{ $isLand ? 'Lots de surface' : 'Types de logement' }}</h2>
                 <button type="button" @click="units.push({units_total: 1})" class="px-3 py-1.5 text-sm bg-dark-200 text-white rounded-lg"><i class="fas fa-plus mr-1"></i>Ajouter</button>
             </div>
-            <p class="text-sm text-gray-400 mb-4">{{ $isLand ? 'Une ligne par surface proposée (300 m², 500 m²…), avec son prix net.' : 'Pour une cité ou une résidence : une ligne par type (chambre, studio…). Une maison simple peut rester sans ligne.' }}</p>
+            <p class="text-sm text-gray-400 mb-4">{{ $isLand ? 'Une ligne par surface exacte proposée (300 m², 500 m²…), avec le prix total du lot. Le client voit le prix au m², calculé automatiquement.' : 'Pour une cité ou une résidence : une ligne par type (chambre, studio…). Une maison simple peut rester sans ligne.' }}</p>
             <div class="overflow-x-auto">
                 <table class="min-w-full text-sm">
                     <thead><tr class="text-gray-400 text-left">

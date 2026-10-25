@@ -94,7 +94,14 @@ class ListingEditor
     public function save(Listing $listing, array $data): Listing
     {
         return DB::transaction(function () use ($listing, $data) {
+            if ($listing->exists && isset($data['type']) && $data['type'] !== $listing->type && $listing->reservations()->exists()) {
+                throw ValidationException::withMessages(['type' => 'Cette annonce possède des réservations. Créez une nouvelle annonce pour changer sa catégorie.']);
+            }
             $fields = Arr::except($data, ['amenity_ids', 'units', 'rooms_tour']);
+            if (($fields['type'] ?? $listing->type) !== Listing::TYPE_RENT) {
+                $fields['advance_months'] = null;
+                $fields['min_lease_months'] = null;
+            }
             if (empty($fields['cabinet_id']) && ! $listing->cabinet_id) {
                 $fields['cabinet_id'] = Cabinet::defaultPartner()?->id;
             }

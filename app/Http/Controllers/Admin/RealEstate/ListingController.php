@@ -55,7 +55,7 @@ class ListingController extends Controller
 
     public function create(Request $request)
     {
-        $request->validate(['type' => ['nullable', Rule::in([Listing::TYPE_RENT, Listing::TYPE_LAND])]]);
+        $request->validate(['type' => ['nullable', Rule::in([Listing::TYPE_RENT, Listing::TYPE_SALE, Listing::TYPE_LAND])]]);
         $type = $request->query('type', Listing::TYPE_LAND);
 
         return view('admin.real_estate.listings.form', $this->formData(new Listing([
@@ -70,7 +70,7 @@ class ListingController extends Controller
     public function store(Request $request)
     {
         $request->validate($this->uploadRules());
-        $request->validate(['type' => ['required', Rule::in([Listing::TYPE_RENT, Listing::TYPE_LAND])]]);
+        $request->validate(['type' => ['required', Rule::in([Listing::TYPE_RENT, Listing::TYPE_SALE, Listing::TYPE_LAND])]]);
         $type = $request->input('type');
         $data = $request->validate(ListingEditor::rules($type) + [
             'cabinet_id' => ['required', Rule::exists('real_estate_cabinets', 'id')->where(fn ($query) => $query->where('is_active', true))],
@@ -142,14 +142,17 @@ class ListingController extends Controller
 
         return view('admin.real_estate.listings.form', $this->formData($listing) + [
             'missing' => $this->editor->missingForSubmission($listing),
-            'quote' => $this->pricing->quote($listing, $listing->units->sortBy('net_price')->first()),
+            'quote' => $listing->isSale() ? null : $this->pricing->quote($listing, $listing->units->sortBy('net_price')->first()),
         ]);
     }
 
     public function update(Request $request, Listing $listing)
     {
         $request->validate($this->uploadRules());
-        $rules = ListingEditor::rules($listing->type, true);
+        $request->validate(['type' => ['sometimes', Rule::in([Listing::TYPE_RENT, Listing::TYPE_SALE, Listing::TYPE_LAND])]]);
+        $type = $request->input('type', $listing->type);
+        $rules = ListingEditor::rules($type, true);
+        $rules['type'] = ['sometimes', Rule::in([Listing::TYPE_RENT, Listing::TYPE_SALE, Listing::TYPE_LAND])];
         $cabinetRule = Rule::exists('real_estate_cabinets', 'id')->where(fn ($query) => $query->where('is_active', true));
         $rules['cabinet_id'] = ['required', $cabinetRule];
         $data = $request->validate($rules);

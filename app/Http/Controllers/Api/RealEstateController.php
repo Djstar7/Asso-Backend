@@ -67,11 +67,12 @@ class RealEstateController extends Controller
     public function index(Request $request)
     {
         $data = $request->validate([
-            'type' => 'nullable|in:rent,land',
+            'type' => 'nullable|in:rent,sale,land,house',
             'q' => 'nullable|string|max:100',
             'city' => 'nullable|string|max:100',
             'district' => 'nullable|string|max:100',
             'kind' => 'nullable|string|max:30',
+            'price_basis' => 'nullable|in:total,per_m2',
             'price_min' => 'nullable|integer|min:0',
             'price_max' => 'nullable|integer|min:0',
             'rooms_min' => 'nullable|integer|min:0',
@@ -92,13 +93,17 @@ class RealEstateController extends Controller
         ]);
 
         $type = $data['type'] ?? Listing::TYPE_RENT;
-        $query = Listing::published()->where('type', $type)
+        $query = Listing::published()->whereIn('type', $type === 'house' ? [Listing::TYPE_RENT, Listing::TYPE_SALE] : [$type])
             ->with(['units', 'media', 'tourRooms', 'amenities', 'cabinet']);
 
         $this->applyFilters($query, $data);
 
         // Le prix affiché est le prix de référence, utilisé aussi pour le tri.
         $minNet = 'COALESCE((SELECT MIN(u.net_price) FROM real_estate_units u WHERE u.listing_id = real_estate_listings.id), real_estate_listings.net_price)';
+        if ($type === Listing::TYPE_LAND && ($data['price_basis'] ?? null) === 'per_m2') {
+            $minNet = Listing::landRateSql();
+            $query->orderByRaw("CASE WHEN $minNet IS NULL THEN 1 ELSE 0 END");
+        }
         match ($data['sort'] ?? 'recent') {
             'price_asc' => $query->orderByRaw("$minNet asc"),
             'price_desc' => $query->orderByRaw("$minNet desc"),
@@ -138,6 +143,16 @@ class RealEstateController extends Controller
         }
         if (! empty($data['kind'])) {
             $query->where('property_kind', $data['kind']);
+        }
+        if (($data['type'] ?? null) === Listing::TYPE_LAND && ($data['price_basis'] ?? null) === 'per_m2') {
+            $rate = Listing::landRateSql();
+            if (isset($data['price_min'])) {
+                $query->whereRaw("$rate >= CAST(? AS DECIMAL(20, 4))", [$data['price_min']]);
+            }
+            if (isset($data['price_max'])) {
+                $query->whereRaw("$rate <= CAST(? AS DECIMAL(20, 4))", [$data['price_max']]);
+            }
+            unset($data['price_min'], $data['price_max']);
         }
         if (isset($data['price_min'])) {
             $min = (int) $data['price_min'];
@@ -223,6 +238,7 @@ class RealEstateController extends Controller
             'advance_months' => 'nullable|integer|min:1|max:36',
         ]);
         $listing = Listing::published()->with('units')->findOrFail($id);
+        abort_if($listing->isSale(), 422, 'Contactez ASSO pour cette maison en vente.');
         $unit = isset($data['unit_id']) ? $listing->units->firstWhere('id', $data['unit_id']) : $listing->units->sortBy('net_price')->first();
 
         $quote = $this->pricing->quote($listing, $unit, $data['advance_months'] ?? null);

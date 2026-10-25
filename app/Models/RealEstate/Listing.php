@@ -29,6 +29,8 @@ class Listing extends Model
 
     public const TYPE_LAND = 'land';
 
+    public const TYPE_SALE = 'sale';
+
     public const STATUS_DRAFT = 'draft';
 
     public const STATUS_PENDING = 'pending_review';
@@ -155,6 +157,45 @@ class Listing extends Model
         return $this->type === self::TYPE_LAND;
     }
 
+    public function isSale(): bool
+    {
+        return $this->type === self::TYPE_SALE;
+    }
+
+    /** Exact lot surfaces only: a range does not define a unit price. */
+    public function landUnitRate(?Unit $unit = null, bool $old = false): ?float
+    {
+        if (! $unit && ($this->relationLoaded('units') ? $this->units->isNotEmpty() : $this->units()->exists())) {
+            return null;
+        }
+        $surface = $unit ? $unit->surface_min : $this->surface_m2;
+        if (! $surface || ($unit && $unit->surface_max && $unit->surface_max != $surface)) {
+            return null;
+        }
+        $price = $unit
+            ? ($old ? $unit->old_net_price : $unit->net_price)
+            : ($old ? $this->old_net_price : $this->net_price);
+
+        return $price === null ? null : round($price / $surface, 4);
+    }
+
+    public function landPriceUnit(): ?Unit
+    {
+        $units = $this->relationLoaded('units') ? $this->units : $this->units()->get();
+
+        return $units->filter(fn (Unit $unit) => $this->landUnitRate($unit) !== null)
+            ->sortBy(fn (Unit $unit) => $this->landUnitRate($unit))->first();
+    }
+
+    /** SQL equivalent of landPriceUnit, shared by sorting and price filters. */
+    public static function landRateSql(): string
+    {
+        return '(CASE WHEN EXISTS (SELECT 1 FROM real_estate_units e WHERE e.listing_id = real_estate_listings.id) '
+            .'THEN (SELECT MIN(1.0 * u.net_price / NULLIF(u.surface_min, 0)) FROM real_estate_units u '
+            .'WHERE u.listing_id = real_estate_listings.id AND (u.surface_max IS NULL OR u.surface_max = u.surface_min)) '
+            .'ELSE 1.0 * real_estate_listings.net_price / NULLIF(real_estate_listings.surface_m2, 0) END)';
+    }
+
     /** Le visiteur a-t-il payé une réservation sur cette annonce ? */
     public function isUnlockedFor(?User $user): bool
     {
@@ -254,6 +295,8 @@ class Listing extends Model
             'furnished' => (bool) $this->furnished,
             'land_titled' => (bool) $this->land_titled,
             'serviced' => (bool) ($this->serviced || ($this->relationLoaded('units') && $this->units->contains('serviced', true))),
+            'price_per_m2' => $this->isLand() ? $this->landUnitRate($this->landPriceUnit()) : null,
+            'old_price_per_m2' => $this->isLand() ? $this->landUnitRate($this->landPriceUnit(), true) : null,
             'price' => $pricing->displayed($this->minNetPrice(), $this->type),
             'old_price' => $old ? $pricing->displayed($old, $this->type) : null,
             'price_from' => $this->relationLoaded('units') && $this->units->count() > 1,
@@ -348,6 +391,8 @@ class Listing extends Model
                 'label' => $u->label,
                 'surface_min' => $u->surface_min,
                 'surface_max' => $u->surface_max,
+                'price_per_m2' => $this->isLand() ? $this->landUnitRate($u) : null,
+                'old_price_per_m2' => $this->isLand() ? $this->landUnitRate($u, true) : null,
                 'price' => $pricing->displayed((int) $u->net_price, $this->type),
                 'old_price' => $u->old_net_price ? $pricing->displayed((int) $u->old_net_price, $this->type) : null,
                 'capacity' => $u->capacity,

@@ -51,7 +51,7 @@ class RealEstateReservationService
      */
     public function assertBookable(User $tenant, Listing $listing, ?Unit $unit, array $data): void
     {
-        if ($listing->status !== Listing::STATUS_PUBLISHED) {
+        if ($listing->isSale() || $listing->status !== Listing::STATUS_PUBLISHED) {
             throw new \DomainException(__('real_estate.reservation.not_available'));
         }
         if ($listing->owner_id === $tenant->id || $this->pricing->commissionCabinet($listing)?->user_id === $tenant->id) {
