@@ -42,7 +42,7 @@
         <div class="bg-dark-50 px-6 py-4"><h2 class="text-xl font-bold text-white">Tables</h2></div>
         <table class="w-full"><thead class="bg-dark-50"><tr><th class="px-6 py-3 text-left text-gray-300">Table</th><th class="px-6 py-3 text-left text-gray-300">Lignes</th><th class="px-6 py-3 text-left text-gray-300">Actions</th></tr></thead><tbody>
             @foreach($tables as $table)
-            <tr class="hover:bg-dark-50 border-b border-dark-200"><td class="px-6 py-4 text-white">{{ $table['name'] }}</td><td class="px-6 py-4 text-gray-300">{{ number_format($table['rows']) }}</td><td class="px-6 py-4"><button onclick="quickQuery('{{ $table['name'] }}')" class="px-3 py-1 bg-primary-600 hover:bg-primary-700 text-white text-sm rounded">Interroger</button></td></tr>
+            <tr class="hover:bg-dark-50 border-b border-dark-200"><td class="px-6 py-4 text-white">{{ $table['name'] }}</td><td class="px-6 py-4 text-gray-300">{{ number_format($table['rows']) }}</td><td class="px-6 py-4"><button onclick="quickQuery(@js($table['name']))" class="px-3 py-1 bg-primary-600 hover:bg-primary-700 text-white text-sm rounded">Interroger</button></td></tr>
             @endforeach
         </tbody></table>
     </div>
@@ -53,17 +53,22 @@ document.getElementById('queryForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const query = document.getElementById('queryEditor').value.trim();
     if (!query) return;
-    lastQuery = query;
+    lastQuery = '';
+    const submit = document.querySelector('#queryForm button[type="submit"]');
+    if (submit.disabled) return;
+    submit.disabled = true;
+    document.getElementById('exportBtn').disabled = true;
     document.getElementById('queryResults').classList.add('hidden');
     document.getElementById('queryError').classList.add('hidden');
     try {
         const response = await fetch('{{ route('admin.database.query') }}', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}'},
+            headers: {'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}'},
             body: JSON.stringify({ query_text: query })
         });
         const data = await response.json();
-        if (data.success) {
+        if (response.ok && data.success) {
+            lastQuery = query;
             displayResults(data.results, data.count, data.execution_time);
             document.getElementById('exportBtn').disabled = false;
         } else {
@@ -73,20 +78,45 @@ document.getElementById('queryForm').addEventListener('submit', async (e) => {
     } catch (error) {
         document.getElementById('errorMessage').textContent = 'Erreur réseau';
         document.getElementById('queryError').classList.remove('hidden');
+    } finally {
+        submit.disabled = false;
     }
 });
 function displayResults(results, count, time) {
     document.getElementById('resultCount').textContent = `(${count} lignes)`;
     document.getElementById('executionTime').textContent = `- ${time}ms`;
-    if (results.length === 0) {
-        document.getElementById('resultsHeader').innerHTML = '';
-        document.getElementById('resultsBody').innerHTML = '<tr><td class="px-6 py-8 text-center text-gray-400">Aucun résultat</td></tr>';
-        document.getElementById('queryResults').classList.remove('hidden');
-        return;
+    const head = document.getElementById('resultsHeader');
+    const body = document.getElementById('resultsBody');
+    head.replaceChildren();
+    body.replaceChildren();
+    const columns = Object.keys(results[0] || {});
+    const header = document.createElement('tr');
+    columns.forEach(col => {
+        const cell = document.createElement('th');
+        cell.className = 'px-4 py-3 text-left';
+        cell.textContent = col;
+        header.append(cell);
+    });
+    head.append(header);
+    results.forEach(row => {
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-dark-50';
+        columns.forEach(col => {
+            const cell = document.createElement('td');
+            cell.className = 'px-4 py-3';
+            cell.textContent = row[col] === null ? 'NULL' : String(row[col]);
+            tr.append(cell);
+        });
+        body.append(tr);
+    });
+    if (!results.length) {
+        const row = document.createElement('tr');
+        const cell = document.createElement('td');
+        cell.className = 'px-6 py-8 text-center text-gray-400';
+        cell.textContent = 'Aucun résultat';
+        row.append(cell);
+        body.append(row);
     }
-    const columns = Object.keys(results[0]);
-    document.getElementById('resultsHeader').innerHTML = '<tr>' + columns.map(col => '<th class="px-4 py-3 text-left">' + col + '</th>').join('') + '</tr>';
-    document.getElementById('resultsBody').innerHTML = results.map(row => '<tr class="hover:bg-dark-50">' + columns.map(col => '<td class="px-4 py-3">' + (row[col] !== null ? row[col] : '<span class="text-gray-500">NULL</span>') + '</td>').join('') + '</tr>').join('');
     document.getElementById('queryResults').classList.remove('hidden');
 }
 function quickQuery(tableName) {
@@ -97,7 +127,13 @@ document.getElementById('exportBtn').addEventListener('click', () => {
     const form = document.createElement('form');
     form.method = 'POST';
     form.action = '{{ route('admin.database.export') }}';
-    form.innerHTML = '<input type="hidden" name="_token" value="{{ csrf_token() }}"><input type="hidden" name="query" value="' + lastQuery + '">';
+    for (const [name, value] of Object.entries({_token: @json(csrf_token()), query: lastQuery})) {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = name;
+        input.value = value;
+        form.append(input);
+    }
     document.body.appendChild(form);
     form.submit();
     document.body.removeChild(form);

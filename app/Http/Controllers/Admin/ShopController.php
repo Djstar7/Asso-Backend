@@ -3,15 +3,16 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
 use App\Models\Shop;
-use App\Models\User;
 use App\Models\ShopLocationRequest;
+use App\Models\User;
 use App\Services\FCMService;
+use App\Services\SafeUpload;
 use App\Support\AssoScope;
-use Illuminate\Validation\Rule;
-use Illuminate\Support\Str;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class ShopController extends Controller
 {
@@ -20,20 +21,20 @@ class ShopController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Shop::with(['user', 'products', 'locationRequests' => function($q) {
+        $query = Shop::with(['user', 'products', 'locationRequests' => function ($q) {
             $q->where('status', 'pending')->latest();
         }]);
 
         // Search filter
         if ($request->filled('search')) {
             $search = $request->search;
-            $query->where(function($q) use ($search) {
+            $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%")
-                  ->orWhereHas('user', function($userQuery) use ($search) {
-                      $userQuery->where('first_name', 'like', "%{$search}%")
-                                ->orWhere('last_name', 'like', "%{$search}%");
-                  });
+                    ->orWhere('description', 'like', "%{$search}%")
+                    ->orWhereHas('user', function ($userQuery) use ($search) {
+                        $userQuery->where('first_name', 'like', "%{$search}%")
+                            ->orWhere('last_name', 'like', "%{$search}%");
+                    });
             });
         }
 
@@ -64,6 +65,7 @@ class ShopController extends Controller
     public function create()
     {
         $users = $this->ownerChoices();
+
         return view('admin.shops.create', compact('users'));
     }
 
@@ -86,17 +88,11 @@ class ShopController extends Controller
             'categories.*' => 'string',
         ]);
 
-        $validated['slug'] = Str::slug($validated['name']) . '-' . time();
+        $validated['slug'] = Str::slug($validated['name']).'-'.time();
 
-        // Handle logo upload
-        if ($request->hasFile('logo')) {
-            $logo = $request->file('logo');
-            $logoName = time() . '_' . Str::slug($validated['name']) . '.' . $logo->getClientOriginalExtension();
-            $logo->move(public_path('storage/shops'), $logoName);
-            $validated['logo'] = 'storage/shops/' . $logoName;
-        }
-
-        Shop::create($validated);
+        unset($validated['logo']);
+        $shop = new Shop;
+        SafeUpload::save($shop, $validated, ['logo' => [$request->file('logo'), 'shops', 'storage/']]);
 
         return redirect()->route('admin.shops.index')
             ->with('success', 'Boutique créée avec succès!');
@@ -107,7 +103,7 @@ class ShopController extends Controller
      */
     public function show(Shop $shop)
     {
-        $shop->load(['user', 'products', 'locationRequests' => function($q) {
+        $shop->load(['user', 'products', 'locationRequests' => function ($q) {
             $q->latest();
         }]);
         $statistics = app(\App\Services\ShopStatisticsService::class)->quickCounters($shop);
@@ -151,7 +147,7 @@ class ShopController extends Controller
             'shop_id' => $shop->id,
             'shop_name' => $shop->name,
             'admin_id' => auth()->id(),
-            'request_data' => $request->except(['logo'])
+            'request_data' => $request->except(['logo']),
         ]);
 
         $validated = $request->validate([
@@ -176,7 +172,7 @@ class ShopController extends Controller
         ]);
 
         Log::info('[ADMIN-SHOP-UPDATE] Validation passed', [
-            'validated_fields' => array_keys($validated)
+            'validated_fields' => array_keys($validated),
         ]);
 
         // Toutes les cases décochées : le formulaire n'envoie rien, la boutique n'a plus de catégorie.
@@ -184,7 +180,7 @@ class ShopController extends Controller
         $validated['free_delivery'] = $request->boolean('free_delivery');
 
         // Ville / pays laissés vides : déduits de l'adresse, comme à l'approbation d'un emplacement.
-        if (!empty($validated['address']) && (blank($validated['city'] ?? null) || blank($validated['country'] ?? null))) {
+        if (! empty($validated['address']) && (blank($validated['city'] ?? null) || blank($validated['country'] ?? null))) {
             [$city, $country] = \App\Support\LocationFormatter::parse($validated['address']);
             $validated['city'] = ($validated['city'] ?? null) ?: $city;
             $validated['country'] = ($validated['country'] ?? null) ?: $country;
@@ -192,21 +188,10 @@ class ShopController extends Controller
 
         // Update slug only if name changed
         if ($shop->name !== $validated['name']) {
-            $validated['slug'] = Str::slug($validated['name']) . '-' . time();
+            $validated['slug'] = Str::slug($validated['name']).'-'.time();
         }
 
-        // Handle logo upload
-        if ($request->hasFile('logo')) {
-            // Delete old logo if exists
-            if ($shop->logo && file_exists(public_path($shop->logo))) {
-                unlink(public_path($shop->logo));
-            }
-
-            $logo = $request->file('logo');
-            $logoName = time() . '_' . Str::slug($validated['name']) . '.' . $logo->getClientOriginalExtension();
-            $logo->move(public_path('storage/shops'), $logoName);
-            $validated['logo'] = 'storage/shops/' . $logoName;
-        }
+        unset($validated['logo']);
 
         // Handle verification status
         $previousStatus = $shop->verified_at ? 'verified' : ($shop->rejected_at ? 'rejected' : 'pending');
@@ -214,7 +199,7 @@ class ShopController extends Controller
         Log::info('[ADMIN-SHOP-UPDATE] Handling verification status', [
             'previous_status' => $previousStatus,
             'new_status' => $validated['verification_status'],
-            'rejection_reason' => $validated['rejection_reason'] ?? null
+            'rejection_reason' => $validated['rejection_reason'] ?? null,
         ]);
 
         switch ($validated['verification_status']) {
@@ -229,7 +214,7 @@ class ShopController extends Controller
                 Log::info('[ADMIN-SHOP-UPDATE] Shop verified', [
                     'shop_id' => $shop->id,
                     'verified_by' => auth()->id(),
-                    'verified_at' => now()
+                    'verified_at' => now(),
                 ]);
                 break;
 
@@ -243,7 +228,7 @@ class ShopController extends Controller
                     'shop_id' => $shop->id,
                     'rejected_by' => auth()->id(),
                     'rejected_at' => now(),
-                    'reason' => $validated['rejection_reason']
+                    'reason' => $validated['rejection_reason'],
                 ]);
                 break;
 
@@ -256,7 +241,7 @@ class ShopController extends Controller
                 $validated['rejection_reason'] = null;
 
                 Log::info('[ADMIN-SHOP-UPDATE] Shop status set to pending', [
-                    'shop_id' => $shop->id
+                    'shop_id' => $shop->id,
                 ]);
                 break;
         }
@@ -265,11 +250,11 @@ class ShopController extends Controller
         unset($validated['verification_status']);
 
         try {
-            $shop->update($validated);
+            SafeUpload::save($shop, $validated, ['logo' => [$request->file('logo'), 'shops', 'storage/']]);
 
             Log::info('[ADMIN-SHOP-UPDATE] Shop updated successfully', [
                 'shop_id' => $shop->id,
-                'updated_fields' => array_keys($validated)
+                'updated_fields' => array_keys($validated),
             ]);
 
             return redirect()->route('admin.shops.show', $shop)
@@ -278,12 +263,12 @@ class ShopController extends Controller
             Log::error('[ADMIN-SHOP-UPDATE] Failed to update shop', [
                 'shop_id' => $shop->id,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
 
             return redirect()->back()
                 ->withInput()
-                ->with('error', 'Erreur lors de la mise à jour de la boutique: ' . $e->getMessage());
+                ->with('error', 'La boutique n’a pas pu être enregistrée. Réessayez plus tard.');
         }
     }
 
@@ -373,7 +358,7 @@ class ShopController extends Controller
             ]);
 
             return redirect()->back()
-                ->with('error', 'Erreur lors de l\'approbation de la demande: ' . $e->getMessage());
+                ->with('error', 'Erreur lors de l\'approbation de la demande: '.$e->getMessage());
         }
     }
 
@@ -431,7 +416,7 @@ class ShopController extends Controller
             ]);
 
             return redirect()->back()
-                ->with('error', 'Erreur lors du rejet de la demande: ' . $e->getMessage());
+                ->with('error', 'Erreur lors du rejet de la demande: '.$e->getMessage());
         }
     }
 

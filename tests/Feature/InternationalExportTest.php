@@ -204,7 +204,7 @@ class InternationalExportTest extends TestCase
         $this->assertFalse((bool) $order->is_wholesale);
         $this->actingAs($this->product->user, 'sanctum')->postJson("/api/v1/vendor/orders/{$id}/validate")->assertOk();
         $admin = User::factory()->create(['role' => 'admin']);
-        $this->actingAs($admin)->get(route('admin.dashboard'))->assertOk()->assertSee('Retrouver les commandes et leur suivi');
+        $this->actingAs($admin)->get(route('admin.dashboard'))->assertOk()->assertSee(route('admin.shipments.index'), false);
         $this->get(route('admin.shipments.index', ['scope' => 'export']))->assertOk()
             ->assertSee($order->order_number)->assertSee('Collecte Solex programmée')->assertSee('Voir le suivi');
         $this->get(route('admin.shipments.index', ['scope' => 'export', 'search' => strtolower($order->order_number)]))->assertOk()->assertSee($order->order_number);
@@ -261,6 +261,7 @@ class InternationalExportTest extends TestCase
         $this->mock(FirebaseMessagingService::class, function ($mock) use (&$sent) {
             $mock->shouldReceive('sendToUser')->andReturnUsing(function ($user, $title, $body, $data = []) use (&$sent) {
                 $sent[] = ['user_id' => $user->id, 'type' => $data['type'] ?? null];
+
                 return [];
             });
         });
@@ -272,6 +273,7 @@ class InternationalExportTest extends TestCase
             \App\Models\DelivererCodeSync::create(['sync_code_id' => $code->id, 'company_id' => $code->company_id,
                 'delivery_agency_id' => $agency?->id, 'user_id' => $courier->id,
                 'is_active' => true, 'is_online' => $online, 'is_banned' => $banned]);
+
             return $courier;
         };
         $courier = $sync($this->agency);

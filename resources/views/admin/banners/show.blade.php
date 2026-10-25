@@ -234,7 +234,7 @@
                         <span><i class="fas fa-edit w-4 mr-2 text-primary-400"></i>Modifier</span>
                         <i class="fas fa-chevron-right text-xs"></i>
                     </a>
-                    <button onclick="window.open('{{ media_url($banner->image_path) }}', '_blank')"
+                    <button onclick="window.open(@js(media_url($banner->image_path)), '_blank')"
                             class="w-full flex items-center justify-between px-3 py-2 bg-dark-100/50 hover:bg-dark-100 rounded-lg transition-all text-sm text-gray-300 hover:text-white border border-dark-300">
                         <span><i class="fas fa-download w-4 mr-2 text-primary-400"></i>Télécharger image</span>
                         <i class="fas fa-chevron-right text-xs"></i>

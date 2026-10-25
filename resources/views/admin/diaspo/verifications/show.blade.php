@@ -100,7 +100,7 @@
                         <img src="{{ $frontUrl }}"
                              alt="Document Recto"
                              class="w-full rounded-lg border-2 border-dark-200 hover:border-primary-500 transition-all cursor-pointer"
-                             onclick="openImageModal('{{ $frontUrl }}', 'Recto')">
+                             onclick="openImageModal(@js($frontUrl), 'Recto')">
                         <div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all rounded-lg flex items-center justify-center">
                             <i class="fas fa-search-plus text-white text-3xl opacity-0 group-hover:opacity-100 transition-all"></i>
                         </div>
@@ -126,7 +126,7 @@
                         <img src="{{ $backUrl }}"
                              alt="Document Verso"
                              class="w-full rounded-lg border-2 border-dark-200 hover:border-primary-500 transition-all cursor-pointer"
-                             onclick="openImageModal('{{ $backUrl }}', 'Verso')">
+                             onclick="openImageModal(@js($backUrl), 'Verso')">
                         <div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all rounded-lg flex items-center justify-center">
                             <i class="fas fa-search-plus text-white text-3xl opacity-0 group-hover:opacity-100 transition-all"></i>
                         </div>
@@ -164,7 +164,7 @@
                     @if($url)
                         <img src="{{ $url }}" alt="{{ $doc->label() }}"
                              class="w-full rounded-lg border-2 border-dark-200 hover:border-primary-500 cursor-pointer"
-                             onclick="openImageModal('{{ $url }}', '{{ $doc->label() }}')">
+                             onclick="openImageModal(@js($url), @js($doc->label()))">
                     @endif
                 </div>
             @endforeach

@@ -55,7 +55,7 @@
                             </button>
                         </form>
                         <button type="button"
-                                onclick="showRejectModal({{ $shop->id }}, '{{ $shop->name }}')"
+                                onclick="showRejectModal({{ $shop->id }}, @js($shop->name))"
                                 class="px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg hover:shadow-lg transition-all text-sm font-semibold">
                             <i class="fas fa-times-circle mr-1"></i>
                             Rejeter

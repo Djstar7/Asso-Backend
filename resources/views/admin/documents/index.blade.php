@@ -136,6 +136,7 @@
                                class="flex-1 px-3 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded text-sm text-center transition-colors">
                                 <i class="fas fa-download mr-1"></i>Télécharger
                             </a>
+                            @if(auth()->user()->isAdmin() || (int)$document->uploaded_by === auth()->id())
                             <a href="{{ route('admin.documents.edit', $document) }}" 
                                class="px-3 py-2 bg-dark-300 hover:bg-dark-400 text-white rounded text-sm transition-colors">
                                 <i class="fas fa-edit"></i>
@@ -148,6 +149,7 @@
                                     <i class="fas fa-trash"></i>
                                 </button>
                             </form>
+                            @endif
                         </div>
                     </div>
                 @endforeach

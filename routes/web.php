@@ -104,7 +104,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
     Route::post('/gestionnaire/login', [AuthController::class, 'managerLogin'])->name('manager.login.submit');
 
     // Authenticated routes — accès filtré par rôle / permission (config/admin_access.php)
-    Route::middleware(['auth', 'backoffice'])->group(function () {
+    Route::middleware(['auth', 'backoffice', 'admin.submission'])->group(function () {
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
         Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 

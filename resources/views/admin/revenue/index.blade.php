@@ -119,7 +119,7 @@
                                 <td colspan="3"></td>
                             </tr>
                             @foreach($rows as $row)
-                                <tr class="hover:bg-dark-50/50 cursor-pointer" onclick="window.location='{{ $rowLink($row['key']) }}'">
+                                <tr class="hover:bg-dark-50/50 cursor-pointer" onclick="window.location=@js($rowLink($row['key']))">
                                     <td class="px-4 py-3 pl-8">
                                         <div class="font-medium text-white">{{ $row['label'] }}</div>
                                         <div class="text-xs text-gray-500">{{ $row['help'] }}</div>

@@ -4,9 +4,8 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\WalletTransaction;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use Illuminate\Http\Request;
 
 class TransactionController extends Controller
 {
@@ -15,48 +14,17 @@ class TransactionController extends Controller
      */
     public function index(Request $request)
     {
-        // Filtres - Utilise WalletTransactions (vraies transactions)
-        $query = WalletTransaction::with(['user', 'admin']);
-
-        // Filtre par provider (méthode de paiement)
-        if ($request->filled('payment_method')) {
-            $query->where('provider', $request->payment_method);
-        }
-
-        // Filtre par statut
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
-
-        // Filtre par type (credit, debit, refund, bonus)
-        if ($request->filled('type')) {
-            $query->where('type', $request->type);
-        }
-
-        // Filtre par période
-        $startDate = $request->filled('start_date') ? Carbon::parse($request->start_date)->startOfDay() : null;
-        $endDate = $request->filled('end_date') ? Carbon::parse($request->end_date)->endOfDay() : null;
-
-        if ($startDate && $endDate) {
-            $query->whereBetween('created_at', [$startDate, $endDate]);
-        } elseif ($startDate) {
-            $query->where('created_at', '>=', $startDate);
-        } elseif ($endDate) {
-            $query->where('created_at', '<=', $endDate);
-        }
-
-        // Période de comparaison pour les statistiques
-        $comparisonStartDate = $startDate ? $startDate->copy() : now()->startOfMonth();
-        $comparisonEndDate = $endDate ? $endDate->copy() : now()->endOfMonth();
+        $query = $this->filtered($request);
+        $endDate = $request->filled('end_date') ? Carbon::parse($request->end_date)->endOfDay() : now()->endOfDay();
+        // The chart is bounded independently of the export/filter date range.
+        $chartStartDate = $endDate->copy()->subDays(29)->startOfDay();
+        $chartEndDate = $endDate;
 
         // Pagination
         $transactions = $query->latest()->paginate(20)->withQueryString();
 
         // Statistiques globales - Créer la requête de base
-        $baseStatsQuery = WalletTransaction::query();
-        if ($startDate && $endDate) {
-            $baseStatsQuery->whereBetween('created_at', [$startDate, $endDate]);
-        }
+        $baseStatsQuery = $this->filtered($request);
 
         $stats = [
             // Total des crédits (recharges)
@@ -73,13 +41,13 @@ class TransactionController extends Controller
 
         // Statistiques par provider (méthode de paiement)
         $paymentMethodStats = collect([
-            (object)[
+            (object) [
                 'payment_method' => 'kpay',
                 'label' => 'KPay',
                 'count' => (clone $baseStatsQuery)->completed()->where('provider', 'kpay')->count(),
                 'total' => (clone $baseStatsQuery)->completed()->where('provider', 'kpay')->sum('amount'),
             ],
-            (object)[
+            (object) [
                 'payment_method' => 'paypal',
                 'label' => 'PayPal',
                 'count' => (clone $baseStatsQuery)->completed()->where('provider', 'paypal')->count(),
@@ -88,14 +56,12 @@ class TransactionController extends Controller
         ]);
 
         // Données pour le graphique (revenu par jour des 30 derniers jours)
-        $chartStartDate = $comparisonStartDate->copy()->subDays(29);
-        $chartEndDate = $comparisonEndDate->copy();
 
         $chartData = [];
         $currentDate = $chartStartDate->copy();
 
         while ($currentDate <= $chartEndDate) {
-            $dayRevenue = WalletTransaction::completed()
+            $dayRevenue = (clone $baseStatsQuery)->completed()
                 ->whereDate('created_at', $currentDate)
                 ->whereIn('type', ['credit', 'refund', 'bonus'])
                 ->sum('amount');
@@ -111,12 +77,12 @@ class TransactionController extends Controller
 
         // Données pour le graphique par provider
         $paymentMethodChartData = [
-            'kpay' => WalletTransaction::query()
+            'kpay' => (clone $baseStatsQuery)
                 ->completed()
                 ->where('provider', 'kpay')
                 ->whereBetween('created_at', [$chartStartDate, $chartEndDate])
                 ->sum('amount'),
-            'paypal' => WalletTransaction::query()
+            'paypal' => (clone $baseStatsQuery)
                 ->completed()
                 ->where('provider', 'paypal')
                 ->whereBetween('created_at', [$chartStartDate, $chartEndDate])
@@ -137,39 +103,18 @@ class TransactionController extends Controller
      */
     public function exportExcel(Request $request)
     {
-        $query = WalletTransaction::with(['user', 'admin']);
+        $query = $this->filtered($request);
 
-        // Appliquer les mêmes filtres que l'index
-        if ($request->filled('payment_method')) {
-            $query->where('provider', $request->payment_method);
-        }
-
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
-
-        if ($request->filled('type')) {
-            $query->where('type', $request->type);
-        }
-
-        if ($request->filled('start_date')) {
-            $query->where('created_at', '>=', Carbon::parse($request->start_date)->startOfDay());
-        }
-
-        if ($request->filled('end_date')) {
-            $query->where('created_at', '<=', Carbon::parse($request->end_date)->endOfDay());
-        }
-
-        $transactions = $query->latest()->get();
+        $transactions = $query->latest()->lazy(500);
 
         // Créer le CSV
-        $filename = 'transactions_' . now()->format('Y-m-d_H-i-s') . '.csv';
+        $filename = 'transactions_'.now()->format('Y-m-d_H-i-s').'.csv';
         $headers = [
             'Content-Type' => 'text/csv',
-            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
         ];
 
-        $callback = function() use ($transactions) {
+        $callback = function () use ($transactions) {
             $file = fopen('php://output', 'w');
 
             // En-têtes CSV
@@ -184,7 +129,7 @@ class TransactionController extends Controller
                 'Provider',
                 'Statut',
                 'Description',
-                'Référence externe'
+                'Référence externe',
             ]);
 
             // Données
@@ -193,15 +138,15 @@ class TransactionController extends Controller
                 fputcsv($file, [
                     $transaction->id,
                     $transaction->created_at->format('d/m/Y H:i'),
-                    $transaction->user?->name ?? 'N/A',
+                    $this->csvText($transaction->user?->name ?? 'N/A'),
                     $transaction->type_label,
                     $transaction->amount,
                     $transaction->balance_before,
                     $transaction->balance_after,
                     ucfirst($transaction->provider ?? 'N/A'),
                     ucfirst($transaction->status),
-                    $transaction->description,
-                    $metadata['provider_reference'] ?? 'N/A'
+                    $this->csvText($transaction->description),
+                    $this->csvText($metadata['provider_reference'] ?? 'N/A'),
                 ]);
             }
 
@@ -216,28 +161,7 @@ class TransactionController extends Controller
      */
     public function exportPdf(Request $request)
     {
-        $query = WalletTransaction::with(['user', 'admin']);
-
-        // Appliquer les mêmes filtres que l'index
-        if ($request->filled('payment_method')) {
-            $query->where('provider', $request->payment_method);
-        }
-
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
-
-        if ($request->filled('type')) {
-            $query->where('type', $request->type);
-        }
-
-        if ($request->filled('start_date')) {
-            $query->where('created_at', '>=', Carbon::parse($request->start_date)->startOfDay());
-        }
-
-        if ($request->filled('end_date')) {
-            $query->where('created_at', '<=', Carbon::parse($request->end_date)->endOfDay());
-        }
+        $query = $this->filtered($request);
 
         $transactions = $query->latest()->limit(100)->get(); // Limiter à 100 pour le PDF
 
@@ -259,6 +183,40 @@ class TransactionController extends Controller
     public function show(WalletTransaction $transaction)
     {
         $transaction->load(['user', 'admin']);
+
         return view('admin.transactions.show', compact('transaction'));
+    }
+
+    private function filtered(Request $request): \Illuminate\Database\Eloquent\Builder
+    {
+        $request->validate([
+            'start_date' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:2000-01-01', 'before_or_equal:2100-12-31'],
+            'end_date' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:2000-01-01', 'before_or_equal:2100-12-31'],
+            'payment_method' => ['nullable', 'string', 'max:50'],
+            'status' => ['nullable', 'string', 'max:50'],
+            'type' => ['nullable', 'string', 'max:50'],
+        ]);
+        if ($request->filled('start_date') && $request->filled('end_date') && $request->start_date > $request->end_date) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['end_date' => 'La date de fin doit suivre la date de début.']);
+        }
+        $query = WalletTransaction::with(['user', 'admin']);
+        foreach (['payment_method' => 'provider', 'status' => 'status', 'type' => 'type'] as $field => $column) {
+            if ($request->filled($field)) {
+                $query->where($column, $request->input($field));
+            }
+        }
+        if ($request->filled('start_date')) {
+            $query->where('created_at', '>=', Carbon::parse($request->start_date)->startOfDay());
+        }
+        if ($request->filled('end_date')) {
+            $query->where('created_at', '<=', Carbon::parse($request->end_date)->endOfDay());
+        }
+
+        return $query;
+    }
+
+    private function csvText(?string $text): string
+    {
+        return preg_match('/^[\s]*[=+@-]/u', $text ?? '') ? "'".$text : ($text ?? '');
     }
 }

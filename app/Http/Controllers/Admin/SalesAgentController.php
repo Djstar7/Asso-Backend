@@ -68,7 +68,7 @@ class SalesAgentController extends Controller
         $agent = SalesAgent::create($this->validated($request));
 
         return redirect()->route('admin.sales.agents.show', $agent)
-            ->with('success', "Commercial créé. Son code : <strong>{$agent->code}</strong>");
+            ->with('success', "Commercial créé. Son code : {$agent->code}");
     }
 
     /** Tableau de suivi d'un commercial : indicateurs + historique de ses ventes. */
@@ -128,7 +128,7 @@ class SalesAgentController extends Controller
     {
         $agent->update(['code' => SalesAgent::generateCode()]);
 
-        return back()->with('success', "Nouveau code : <strong>{$agent->code}</strong>");
+        return back()->with('success', "Nouveau code : {$agent->code}");
     }
 
     /** Taux de commission par défaut (%) appliqué aux commerciaux sans taux particulier. */

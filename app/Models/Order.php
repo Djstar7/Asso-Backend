@@ -147,6 +147,7 @@ class Order extends Model
     public function scopeOfferedToCourier($query, User $user)
     {
         $syncs = DelivererCodeSync::where('user_id', $user->id)->active()->where('is_online', true)->get();
+
         return $query->where(fn ($q) => $q
             ->where(fn ($normal) => $normal->whereNull('collection_agency_id')->whereIn('delivery_company_id', $syncs->pluck('company_id')))
             ->orWhere(fn ($collection) => $collection->whereIn('collection_agency_id', $syncs->pluck('delivery_agency_id')->filter())

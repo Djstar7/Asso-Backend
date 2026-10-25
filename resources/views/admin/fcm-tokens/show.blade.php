@@ -131,7 +131,7 @@
                                         <code class="flex-1 px-3 py-2 bg-dark-50 border border-dark-300 rounded text-xs text-gray-300 font-mono break-all">
                                             {{ $token->token }}
                                         </code>
-                                        <button onclick="navigator.clipboard.writeText('{{ $token->token }}')"
+                                        <button onclick="navigator.clipboard.writeText(@js($token->token))"
                                                 class="px-3 py-2 bg-primary-500/20 text-primary-400 rounded hover:bg-primary-500/30 transition-all text-xs">
                                             <i class="fas fa-copy"></i>
                                         </button>

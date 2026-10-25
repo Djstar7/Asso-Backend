@@ -39,7 +39,7 @@
         <span class="text-white font-medium">Glissez vos photos ici ou <span class="text-primary-400 underline">parcourez</span></span>
         <span class="text-xs text-gray-400">Plusieurs photos possibles, en une ou plusieurs fois · JPG, PNG, WEBP · 5 Mo max par photo · 15 photos max</span>
     </label>
-    <input type="file" id="im_input" name="images[]" multiple accept="image/jpeg,image/png,image/webp,image/gif" class="hidden">
+    <input type="file" id="im_input" name="images[]" multiple accept="image/jpeg,image/png,image/webp,image/gif" class="hidden" data-custom-file-upload>
     <p id="im_error" class="hidden mt-2 text-sm text-red-400"></p>
     @error('images')<p class="mt-2 text-sm text-red-400">{{ $message }}</p>@enderror
     @error('images.*')<p class="mt-2 text-sm text-red-400">{{ $message }}</p>@enderror

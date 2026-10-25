@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Banner;
+use App\Services\SafeUpload;
 use App\Support\Translation\ContentLocale;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -43,24 +44,18 @@ class BannerController extends Controller
         ] + ContentLocale::rules(['title' => 'string|max:255', 'description' => 'string']));
 
         try {
-            // Upload de l'image
-            if ($request->hasFile('image')) {
-                $imagePath = $request->file('image')->store('banners', 'public');
-                $validated['image_path'] = $imagePath;
-            }
-
-            // Gestion du statut actif
-            $validated['is_active'] = $request->has('is_active') ? true : false;
-
-            $banner = Banner::create($validated);
+            $validated['is_active'] = $request->boolean('is_active');
+            unset($validated['image']);
+            $banner = new Banner;
+            SafeUpload::save($banner, $validated, ['image_path' => [$request->file('image'), 'banners', '']]);
             $banner->syncTranslations($validated['translations'] ?? null);
 
             return redirect()->route('admin.banners.index')
                 ->with('success', 'Bannière créée avec succès');
         } catch (\Exception $e) {
-            return redirect()->back()
-                ->with('error', 'Erreur lors de la création: ' . $e->getMessage())
-                ->withInput();
+            report($e);
+
+            return back()->withInput()->with('error', 'L’action n’a pas pu être enregistrée. Réessayez plus tard.');
         }
     }
 
@@ -95,29 +90,17 @@ class BannerController extends Controller
         ] + ContentLocale::rules(['title' => 'string|max:255', 'description' => 'string']));
 
         try {
-            // Upload de la nouvelle image si fournie
-            if ($request->hasFile('image')) {
-                // Supprimer l'ancienne image
-                if ($banner->image_path) {
-                    Storage::disk('public')->delete($banner->image_path);
-                }
-
-                $imagePath = $request->file('image')->store('banners', 'public');
-                $validated['image_path'] = $imagePath;
-            }
-
-            // Gestion du statut actif
-            $validated['is_active'] = $request->has('is_active') ? true : false;
-
-            $banner->update($validated);
+            $validated['is_active'] = $request->boolean('is_active');
+            unset($validated['image']);
+            SafeUpload::save($banner, $validated, ['image_path' => [$request->file('image'), 'banners', '']]);
             $banner->syncTranslations($validated['translations'] ?? null);
 
             return redirect()->route('admin.banners.index')
                 ->with('success', 'Bannière mise à jour avec succès');
         } catch (\Exception $e) {
-            return redirect()->back()
-                ->with('error', 'Erreur lors de la mise à jour: ' . $e->getMessage())
-                ->withInput();
+            report($e);
+
+            return back()->withInput()->with('error', 'L’action n’a pas pu être enregistrée. Réessayez plus tard.');
         }
     }
 
@@ -137,8 +120,9 @@ class BannerController extends Controller
             return redirect()->route('admin.banners.index')
                 ->with('success', 'Bannière supprimée avec succès');
         } catch (\Exception $e) {
-            return redirect()->back()
-                ->with('error', 'Erreur lors de la suppression: ' . $e->getMessage());
+            report($e);
+
+            return back()->withInput()->with('error', 'L’action n’a pas pu être enregistrée. Réessayez plus tard.');
         }
     }
 
@@ -148,13 +132,14 @@ class BannerController extends Controller
     public function toggleStatus(Banner $banner)
     {
         try {
-            $banner->update(['is_active' => !$banner->is_active]);
+            $banner->update(['is_active' => ! $banner->is_active]);
 
             return redirect()->route('admin.banners.index')
                 ->with('success', 'Statut mis à jour avec succès');
         } catch (\Exception $e) {
-            return redirect()->back()
-                ->with('error', 'Erreur lors de la mise à jour du statut: ' . $e->getMessage());
+            report($e);
+
+            return back()->withInput()->with('error', 'L’action n’a pas pu être enregistrée. Réessayez plus tard.');
         }
     }
 }

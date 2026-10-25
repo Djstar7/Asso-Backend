@@ -12,7 +12,7 @@
                 </a>
                 <div>
                     <h1 class="text-2xl font-bold text-white">Détails de la Transaction</h1>
-                    <p class="text-gray-400">{{ $transaction->reference }}</p>
+                    <p class="text-gray-400">{{ ('WAL-'.$transaction->id) }}</p>
                 </div>
             </div>
         </div>
@@ -31,17 +31,17 @@
                 <div class="grid grid-cols-2 gap-4">
                     <div class="bg-dark-50 p-4 rounded-lg border border-dark-300">
                         <p class="text-sm text-gray-400 mb-1">Référence</p>
-                        <p class="text-white font-medium">{{ $transaction->reference }}</p>
+                        <p class="text-white font-medium">{{ ('WAL-'.$transaction->id) }}</p>
                     </div>
 
                     <div class="bg-dark-50 p-4 rounded-lg border border-dark-300">
                         <p class="text-sm text-gray-400 mb-1">Transaction ID</p>
-                        <p class="text-white font-medium font-mono text-sm">{{ $transaction->transaction_id }}</p>
+                        <p class="text-white font-medium font-mono text-sm">{{ $transaction->id }}</p>
                     </div>
 
                     <div class="bg-dark-50 p-4 rounded-lg border border-dark-300">
                         <p class="text-sm text-gray-400 mb-1">Référence Externe</p>
-                        <p class="text-white font-medium font-mono text-sm">{{ $transaction->external_reference ?? 'N/A' }}</p>
+                        <p class="text-white font-medium font-mono text-sm">{{ $transaction->metadata['provider_reference'] ?? 'N/A' }}</p>
                     </div>
 
                     <div class="bg-dark-50 p-4 rounded-lg border border-dark-300">
@@ -65,13 +65,13 @@
                     </div>
 
                     <div class="flex items-center justify-between p-4 bg-orange-500/10 rounded-lg border border-orange-500/30">
-                        <span class="text-gray-300">Frais de Transaction</span>
-                        <span class="text-xl font-bold text-orange-400">{{ $transaction->formatted_fees }}</span>
+                        <span class="text-gray-300">Solde avant</span>
+                        <span class="text-xl font-bold text-orange-400">{{ number_format($transaction->balance_before, 0, ',', ' ').' FCFA' }}</span>
                     </div>
 
                     <div class="flex items-center justify-between p-4 bg-green-500/10 rounded-lg border border-green-500/30">
-                        <span class="text-gray-300">Montant Net</span>
-                        <span class="text-2xl font-bold text-green-400">{{ $transaction->formatted_net_amount }}</span>
+                        <span class="text-gray-300">Solde après</span>
+                        <span class="text-2xl font-bold text-green-400">{{ number_format($transaction->balance_after, 0, ',', ' ').' FCFA' }}</span>
                     </div>
                 </div>
             </div>
@@ -87,11 +87,11 @@
                     <div class="bg-dark-50 p-4 rounded-lg border border-dark-300">
                         <p class="text-sm text-gray-400 mb-2">
                             <i class="fas fa-shopping-cart text-blue-500 mr-1"></i>
-                            Acheteur
+                            Utilisateur
                         </p>
-                        @if($transaction->buyer)
-                            <p class="text-white font-medium">{{ $transaction->buyer->first_name }} {{ $transaction->buyer->last_name }}</p>
-                            <p class="text-sm text-gray-400">{{ $transaction->buyer->email }}</p>
+                        @if($transaction->user)
+                            <p class="text-white font-medium">{{ $transaction->user->first_name }} {{ $transaction->user->last_name }}</p>
+                            <p class="text-sm text-gray-400">{{ $transaction->user->email }}</p>
                         @else
                             <p class="text-gray-500 italic">Non disponible</p>
                         @endif
@@ -100,27 +100,16 @@
                     <div class="bg-dark-50 p-4 rounded-lg border border-dark-300">
                         <p class="text-sm text-gray-400 mb-2">
                             <i class="fas fa-store text-green-500 mr-1"></i>
-                            Vendeur
+                            Administrateur
                         </p>
-                        @if($transaction->seller)
-                            <p class="text-white font-medium">{{ $transaction->seller->first_name }} {{ $transaction->seller->last_name }}</p>
-                            <p class="text-sm text-gray-400">{{ $transaction->seller->email }}</p>
+                        @if($transaction->admin)
+                            <p class="text-white font-medium">{{ $transaction->admin->first_name }} {{ $transaction->admin->last_name }}</p>
+                            <p class="text-sm text-gray-400">{{ $transaction->admin->email }}</p>
                         @else
                             <p class="text-gray-500 italic">Non disponible</p>
                         @endif
                     </div>
                 </div>
-
-                @if($transaction->product)
-                    <div class="mt-4 bg-dark-50 p-4 rounded-lg border border-dark-300">
-                        <p class="text-sm text-gray-400 mb-2">
-                            <i class="fas fa-box text-purple-500 mr-1"></i>
-                            Produit
-                        </p>
-                        <p class="text-white font-medium">{{ $transaction->product->name }}</p>
-                        <p class="text-sm text-gray-400">{{ number_format($transaction->product->price, 0, ',', ' ') }} XOF</p>
-                    </div>
-                @endif
             </div>
 
             @if($transaction->description)
@@ -181,10 +170,10 @@
                     Méthode de Paiement
                 </h3>
 
-                <div class="flex items-center justify-center p-4 bg-{{ $transaction->payment_method_color }}-500/10 border border-{{ $transaction->payment_method_color }}-500/30 rounded-lg">
-                    <i class="fab {{ $transaction->payment_method_icon }} text-{{ $transaction->payment_method_color }}-500 text-3xl mr-3"></i>
+                <div class="flex items-center justify-center p-4 bg-{{ 'orange' }}-500/10 border border-{{ 'orange' }}-500/30 rounded-lg">
+                    <i class="fab {{ 'fa-money-bill' }} text-{{ 'orange' }}-500 text-3xl mr-3"></i>
                     <div>
-                        <p class="text-{{ $transaction->payment_method_color }}-300 font-semibold text-lg">{{ $transaction->payment_method_label }}</p>
+                        <p class="text-{{ 'orange' }}-300 font-semibold text-lg">{{ strtoupper($transaction->provider ?? 'N/A') }}</p>
                         <p class="text-xs text-gray-400">Méthode utilisée</p>
                     </div>
                 </div>

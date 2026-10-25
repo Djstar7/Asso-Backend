@@ -231,7 +231,7 @@
                                         <code class="px-3 py-1 bg-primary-500/20 text-primary-300 rounded border border-primary-500/50 font-mono text-sm">
                                             {{ $user->referral_code }}
                                         </code>
-                                        <button onclick="copyToClipboard('{{ $user->referral_code }}')"
+                                        <button onclick="copyToClipboard(@js($user->referral_code))"
                                                 class="text-primary-400 hover:text-primary-300 transition-colors"
                                                 title="Copier">
                                             <i class="fas fa-copy"></i>

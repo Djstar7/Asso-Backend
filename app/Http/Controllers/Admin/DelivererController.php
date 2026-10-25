@@ -3,17 +3,13 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\User;
 use App\Models\DelivererCompany;
-use App\Models\DeliveryZone;
-use App\Models\DeliveryPricelist;
 use App\Models\DelivererSyncCode;
+use App\Services\SafeUpload;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 class DelivererController extends Controller
@@ -23,7 +19,7 @@ class DelivererController extends Controller
         // Récupérer les entreprises de livraison avec leurs relations
         // Les partenaires maritimes n'ont ni coursiers ni code de synchronisation.
         $query = DelivererCompany::where('service_type', '!=', DelivererCompany::SERVICE_MARITIME)
-            ->with(['user', 'deliveryZones', 'cityGrids', 'deliveryRoutes', 'syncCodes' => function($q) {
+            ->with(['user', 'deliveryZones', 'cityGrids', 'deliveryRoutes', 'syncCodes' => function ($q) {
                 $q->latest();
             }]);
 
@@ -31,8 +27,8 @@ class DelivererController extends Controller
             $search = $request->search;
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%")
-                  ->orWhere('phone', 'like', "%{$search}%");
+                    ->orWhere('email', 'like', "%{$search}%")
+                    ->orWhere('phone', 'like', "%{$search}%");
             });
         }
 
@@ -80,8 +76,8 @@ class DelivererController extends Controller
 
             Log::info("✅ Sync code sent via email to {$company->email}: Code={$syncCode}");
         } catch (\Exception $e) {
-            Log::error('❌ Error sending sync code email: ' . $e->getMessage());
-            Log::error('Stack trace: ' . $e->getTraceAsString());
+            Log::error('❌ Error sending sync code email: '.$e->getMessage());
+            Log::error('Stack trace: '.$e->getTraceAsString());
             throw $e; // Re-throw to handle in the calling method
         }
     }
@@ -121,12 +117,12 @@ class DelivererController extends Controller
             'deliveryZones.pricelist',
             'cityGrids',
             'deliveryRoutes',
-            'syncCodes' => function($q) {
+            'syncCodes' => function ($q) {
                 $q->latest();
             },
-            'codeSyncs' => function($q) {
+            'codeSyncs' => function ($q) {
                 $q->with(['user', 'syncCode'])->latest();
-            }
+            },
         ]);
 
         return view('admin.deliverers.show', compact('deliverer'));
@@ -150,25 +146,16 @@ class DelivererController extends Controller
             'company_phone' => 'nullable|string|max:30',
             'company_email' => ['nullable', 'email', Rule::unique('deliverer_companies', 'email')->ignore($deliverer->id)],
             'company_description' => 'nullable|string',
-            'company_logo' => 'nullable|file|mimes:jpeg,png,jpg,gif,svg,webp,ico,bmp,tiff,tif,avif|max:5120',
+            'company_logo' => 'nullable|file|mimes:jpeg,png,jpg,gif,webp,ico,bmp,tiff,tif,avif|max:5120',
         ]);
 
-        $logoPath = $deliverer->logo;
-        if ($request->hasFile('company_logo')) {
-            if ($deliverer->logo) {
-                Storage::disk('public')->delete($deliverer->logo);
-            }
-            $logoPath = $request->file('company_logo')->store('deliverer_companies', 'public');
-        }
-
-        $deliverer->update([
+        SafeUpload::save($deliverer, [
             'name' => $validated['company_name'],
             'phone' => $validated['company_phone'] ?? null,
             'email' => $validated['company_email'] ?? null,
             'description' => $validated['company_description'] ?? null,
-            'logo' => $logoPath,
             'is_active' => $request->boolean('is_active'),
-        ]);
+        ], ['logo' => [$request->file('company_logo'), 'deliverer_companies', '']]);
 
         return redirect()->route('admin.deliverers.show', $deliverer)
             ->with('success', 'Entreprise de livraison mise à jour.');
@@ -200,12 +187,12 @@ class DelivererController extends Controller
                 $this->sendSyncCode($deliverer, $code, 'email');
                 $sent = true;
             } catch (\Exception $e) {
-                Log::error('[DELIVERER_SYNC_CODE] Envoi email échoué: ' . $e->getMessage());
+                Log::error('[DELIVERER_SYNC_CODE] Envoi email échoué: '.$e->getMessage());
             }
         }
 
-        return back()->with('success', "Code de synchronisation : <strong>{$code}</strong> (valable 30 jours)."
-            . ($sent ? " Envoyé à {$deliverer->email}." : ' À communiquer au coursier, qui le saisit dans l\'app ASSO.'));
+        return back()->with('success', "Code de synchronisation : {$code} (valable 30 jours)."
+            .($sent ? " Envoyé à {$deliverer->email}." : ' À communiquer au coursier, qui le saisit dans l\'app ASSO.'));
     }
 
     public function destroy(DelivererCompany $deliverer)

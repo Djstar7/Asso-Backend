@@ -7,10 +7,10 @@ use App\Models\RealEstate\Cabinet;
 use App\Models\RealEstate\Listing;
 use App\Models\Setting;
 use App\Models\User;
+use App\Services\SafeUpload;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 /**
@@ -130,10 +130,7 @@ class CabinetController extends Controller
     {
         foreach (['logo' => 'logo_path', 'banner' => 'banner_path'] as $input => $column) {
             if ($request->hasFile($input)) {
-                if ($cabinet->$column) {
-                    Storage::disk('public')->delete($cabinet->$column);
-                }
-                $cabinet->update([$column => $request->file($input)->store('real_estate/cabinets', 'public')]);
+                SafeUpload::save($cabinet, [], [$column => [$request->file($input), 'real_estate/cabinets', '']]);
             }
         }
     }

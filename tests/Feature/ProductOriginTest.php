@@ -27,8 +27,11 @@ class ProductOriginTest extends TestCase
     use RefreshDatabase;
 
     private User $admin;
+
     private User $vendor;
+
     private Shop $shop;
+
     private Category $category;
 
     protected function setUp(): void
@@ -90,7 +93,7 @@ class ProductOriginTest extends TestCase
         $this->actingAs($this->admin)->get("/admin/products/{$product->id}/edit")
             ->assertOk()
             ->assertSee('Produit importé')
-            ->assertSee('Produit local (fabriqué au Cameroun)')
+            ->assertSee('Produit local')->assertSee('value="local"', false)
             ->assertSee('Grossiste Chine');
     }
 

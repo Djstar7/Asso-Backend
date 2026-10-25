@@ -208,6 +208,8 @@ function previewLogo(event) {
             document.getElementById('logoPreview').classList.remove('hidden');
         }
         reader.readAsDataURL(file);
+    } else {
+        document.getElementById('logoPreview').classList.add('hidden');
     }
 }
 </script>

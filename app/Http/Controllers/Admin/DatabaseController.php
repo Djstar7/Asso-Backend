@@ -29,7 +29,7 @@ class DatabaseController extends Controller
      */
     public function table($tableName)
     {
-        if (!Schema::hasTable($tableName)) {
+        if (! Schema::hasTable($tableName)) {
             abort(404, 'Table introuvable');
         }
 
@@ -53,7 +53,7 @@ class DatabaseController extends Controller
             $query = trim($request->query_text);
 
             // Vérifier que c'est une requête SELECT uniquement (sécurité)
-            if (!preg_match('/^SELECT\s/i', $query)) {
+            if (! preg_match('/^SELECT\s/i', $query)) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Seules les requêtes SELECT sont autorisées pour des raisons de sécurité.',
@@ -71,9 +71,11 @@ class DatabaseController extends Controller
                 'execution_time' => $executionTime,
             ]);
         } catch (\Exception $e) {
+            report($e);
+
             return response()->json([
                 'success' => false,
-                'message' => $e->getMessage(),
+                'message' => 'La requête n’a pas pu être exécutée. Vérifiez sa syntaxe et ses limites.',
             ], 400);
         }
     }
@@ -90,7 +92,7 @@ class DatabaseController extends Controller
         try {
             $query = trim($request->input('query'));
 
-            if (!preg_match('/^SELECT\s/i', $query)) {
+            if (! preg_match('/^SELECT\s/i', $query)) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Seules les requêtes SELECT sont autorisées.',
@@ -106,10 +108,10 @@ class DatabaseController extends Controller
                 ], 400);
             }
 
-            $fileName = 'export_' . date('Y-m-d_His') . '.csv';
+            $fileName = 'export_'.date('Y-m-d_His').'.csv';
             $headers = [
                 'Content-Type' => 'text/csv',
-                'Content-Disposition' => 'attachment; filename="' . $fileName . '"',
+                'Content-Disposition' => 'attachment; filename="'.$fileName.'"',
             ];
 
             $callback = function () use ($results) {
@@ -129,9 +131,11 @@ class DatabaseController extends Controller
 
             return response()->stream($callback, 200, $headers);
         } catch (\Exception $e) {
+            report($e);
+
             return response()->json([
                 'success' => false,
-                'message' => $e->getMessage(),
+                'message' => 'La requête n’a pas pu être exécutée. Vérifiez sa syntaxe et ses limites.',
             ], 400);
         }
     }
@@ -178,7 +182,7 @@ class DatabaseController extends Controller
             $results = DB::select('SHOW TABLES');
 
             foreach ($results as $result) {
-                $tableName = $result->{'Tables_in_' . $databaseName};
+                $tableName = $result->{'Tables_in_'.$databaseName};
                 $rowCount = DB::table($tableName)->count();
                 $tableSize = $this->getTableSize($tableName);
 
@@ -232,7 +236,7 @@ class DatabaseController extends Controller
                 ];
             }, $columns);
         } else {
-            $columns = DB::select('SHOW COLUMNS FROM ' . $tableName);
+            $columns = DB::select('SHOW COLUMNS FROM '.$tableName);
 
             return array_map(function ($column) {
                 return [
@@ -256,7 +260,7 @@ class DatabaseController extends Controller
 
         if ($driver === 'pgsql') {
             $result = DB::select(
-                "SELECT ROUND(pg_total_relation_size(?::regclass) / 1024.0 / 1024.0, 2) AS size_mb",
+                'SELECT ROUND(pg_total_relation_size(?::regclass) / 1024.0 / 1024.0, 2) AS size_mb',
                 [$tableName]
             );
 
@@ -266,12 +270,12 @@ class DatabaseController extends Controller
         // MySQL/MariaDB
         $databaseName = env('DB_DATABASE');
 
-        $result = DB::select("
+        $result = DB::select('
             SELECT
                 ROUND(((data_length + index_length) / 1024 / 1024), 2) AS size_mb
             FROM information_schema.TABLES
             WHERE table_schema = ? AND table_name = ?
-        ", [$databaseName, $tableName]);
+        ', [$databaseName, $tableName]);
 
         return $result[0]->size_mb ?? 0;
     }
@@ -288,20 +292,21 @@ class DatabaseController extends Controller
             if (file_exists($dbPath)) {
                 return round(filesize($dbPath) / 1024 / 1024, 2);
             }
+
             return 0;
         } elseif ($driver === 'pgsql') {
-            $result = DB::select("SELECT ROUND(pg_database_size(current_database()) / 1024.0 / 1024.0, 2) AS size_mb");
+            $result = DB::select('SELECT ROUND(pg_database_size(current_database()) / 1024.0 / 1024.0, 2) AS size_mb');
 
             return $result[0]->size_mb ?? 0;
         } else {
             $databaseName = env('DB_DATABASE');
 
-            $result = DB::select("
+            $result = DB::select('
                 SELECT
                     ROUND(SUM(data_length + index_length) / 1024 / 1024, 2) AS size_mb
                 FROM information_schema.TABLES
                 WHERE table_schema = ?
-            ", [$databaseName]);
+            ', [$databaseName]);
 
             return $result[0]->size_mb ?? 0;
         }

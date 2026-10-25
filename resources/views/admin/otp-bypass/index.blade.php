@@ -91,7 +91,7 @@
                                     </form>
 
                                     <!-- Edit -->
-                                    <button onclick="openEditModal({{ json_encode($phone) }})"
+                                    <button onclick="openEditModal(@js($phone))"
                                             class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm"
                                             title="Modifier">
                                         <i class="fas fa-edit"></i>

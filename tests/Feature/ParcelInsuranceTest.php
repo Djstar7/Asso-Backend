@@ -85,7 +85,7 @@ class ParcelInsuranceTest extends TestCase
         $this->assertArrayNotHasKey('min_insurance_amount', $res->json('data.0'));
     }
 
-    public function test_air_booking_adds_insurance_and_credits_it_to_asso(): void
+    public function test_air_booking_keeps_declared_value_without_billing_insurance(): void
     {
         Http::fake([
             '*/api/v1/payments/init' => Http::response(['id' => 'pay_ins_1', 'status' => 'PENDING'], 200),
@@ -116,9 +116,9 @@ class ParcelInsuranceTest extends TestCase
         ])->assertStatus(201);
         $id = $book->json('booking_id');
 
-        // Fret 55 € (dont 5 € de commission) + assurance 5 % de 500 € = 25 € → 80 €.
-        $this->assertDatabaseHas('diaspo_bookings', ['id' => $id, 'subtotal' => 50, 'commission_amount' => 5, 'insurance_amount' => 25, 'total_price' => 80]);
-        $book->assertJsonPath('data.insurance_amount', 25)->assertJsonPath('data.subtotal', 55);
+        // The current air-booking contract charges freight only, even with parcel details.
+        $this->assertDatabaseHas('diaspo_bookings', ['id' => $id, 'subtotal' => 50, 'commission_amount' => 5, 'insurance_amount' => 0, 'total_price' => 55]);
+        $book->assertJsonPath('data.insurance_amount', 0)->assertJsonPath('data.subtotal', 55);
 
         $this->getJson("/api/v1/diaspo/bookings/{$id}/payment-status")->assertJsonPath('data.status', 'paid');
 
@@ -133,10 +133,10 @@ class ParcelInsuranceTest extends TestCase
             'confirmation_code' => DiaspoBooking::find($id)->confirmation_code,
         ])->assertOk();
 
-        // Voyageur : 50 € → 32 800 ; ASSO : commission 3 280 + assurance 16 400.
+        // Voyageur : 50 € → 32 800 ; ASSO : commission 3 280 uniquement.
         $this->assertEquals(32800, $seller->fresh()->kpayBalanceFor('XAF'));
-        $this->assertEquals(19680, $platform->fresh()->kpayBalanceFor('XAF'));
-        $this->assertDatabaseHas('wallet_transactions', [
+        $this->assertEquals(3280, $platform->fresh()->kpayBalanceFor('XAF'));
+        $this->assertDatabaseMissing('wallet_transactions', [
             'user_id' => $platform->id, 'amount' => 16400, 'description' => "Assurance colis — Diaspo #{$id}",
         ]);
     }
@@ -167,7 +167,7 @@ class ParcelInsuranceTest extends TestCase
         ])->assertStatus(201)->json('booking_id');
 
         // Enregistrée dans la devise de l'offre.
-        $this->assertDatabaseHas('diaspo_bookings', ['id' => $id, 'declared_value' => 500, 'insurance_amount' => 25]);
+        $this->assertDatabaseHas('diaspo_bookings', ['id' => $id, 'declared_value' => 500, 'insurance_amount' => 0]);
     }
 
     public function test_air_booking_paid_with_wallet(): void

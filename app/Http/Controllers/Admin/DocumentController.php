@@ -6,9 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Document;
 use App\Models\DocumentCategory;
 use App\Models\User;
+use App\Services\SafeUpload;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 
 class DocumentController extends Controller
 {
@@ -17,7 +17,7 @@ class DocumentController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Document::with(['category', 'uploader'])->active();
+        $query = Document::with(['category', 'uploader'])->active()->accessibleTo($request->user());
 
         // Filtrage par catégorie
         if ($request->filled('category')) {
@@ -32,9 +32,9 @@ class DocumentController extends Controller
         // Recherche
         if ($request->filled('search')) {
             $query->where(function ($q) use ($request) {
-                $q->where('title', 'like', '%' . $request->search . '%')
-                  ->orWhere('description', 'like', '%' . $request->search . '%')
-                  ->orWhere('file_name', 'like', '%' . $request->search . '%');
+                $q->where('title', 'like', '%'.$request->search.'%')
+                    ->orWhere('description', 'like', '%'.$request->search.'%')
+                    ->orWhere('file_name', 'like', '%'.$request->search.'%');
             });
         }
 
@@ -43,10 +43,10 @@ class DocumentController extends Controller
 
         // Statistiques
         $stats = [
-            'total' => Document::active()->count(),
-            'total_size' => Document::active()->sum('file_size'),
+            'total' => Document::active()->accessibleTo($request->user())->count(),
+            'total_size' => Document::active()->accessibleTo($request->user())->sum('file_size'),
             'categories' => DocumentCategory::active()->count(),
-            'downloads' => Document::active()->sum('download_count'),
+            'downloads' => Document::active()->accessibleTo($request->user())->sum('download_count'),
         ];
 
         return view('admin.documents.index', compact('documents', 'categories', 'stats'));
@@ -68,45 +68,23 @@ class DocumentController extends Controller
      */
     public function store(Request $request)
     {
-        $validated = $request->validate([
-            'title' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'category_id' => 'nullable|exists:document_categories,id',
-            'file' => 'required|file|max:51200', // 50MB max
-            'visibility' => 'required|in:public,private,restricted',
-            'allowed_users' => 'nullable|array',
-            'allowed_users.*' => 'exists:users,id',
-        ]);
-
+        $validated = $this->validated($request, true);
+        $file = $request->file('file');
+        $path = SafeUpload::store($file, 'documents', 'local');
         try {
-            $file = $request->file('file');
-
-            // Stocker le fichier
-            $fileName = time() . '_' . Str::slug(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME)) . '.' . $file->getClientOriginalExtension();
-            $filePath = $file->storeAs('documents', $fileName, 'public');
-
-            // Créer le document
-            $document = Document::create([
-                'title' => $validated['title'],
-                'description' => $validated['description'] ?? null,
-                'category_id' => $validated['category_id'] ?? null,
+            Document::create($validated + [
+                'file_path' => $path, 'file_disk' => 'local',
                 'file_name' => $file->getClientOriginalName(),
-                'file_path' => $filePath,
-                'file_type' => $file->getClientOriginalExtension(),
-                'file_size' => $file->getSize(),
-                'mime_type' => $file->getMimeType(),
-                'uploaded_by' => auth()->id(),
-                'visibility' => $validated['visibility'],
-                'allowed_users' => $validated['allowed_users'] ?? null,
+                'file_type' => strtolower($file->getClientOriginalExtension()),
+                'file_size' => $file->getSize(), 'mime_type' => $file->getMimeType(),
+                'uploaded_by' => $request->user()->id,
             ]);
-
-            return redirect()->route('admin.documents.index')
-                ->with('success', 'Document uploadé avec succès');
-        } catch (\Exception $e) {
-            return redirect()->back()
-                ->with('error', 'Erreur lors de l\'upload: ' . $e->getMessage())
-                ->withInput();
+        } catch (\Throwable $e) {
+            SafeUpload::delete($path, 'local');
+            throw $e;
         }
+
+        return redirect()->route('admin.documents.index')->with('success', 'Document enregistré avec succès.');
     }
 
     /**
@@ -114,9 +92,9 @@ class DocumentController extends Controller
      */
     public function show(Document $document)
     {
-        $document->load(['category', 'uploader']);
+        $this->assertAccess($document);
 
-        return view('admin.documents.show', compact('document'));
+        return redirect()->route('admin.documents.download', $document);
     }
 
     /**
@@ -124,6 +102,7 @@ class DocumentController extends Controller
      */
     public function edit(Document $document)
     {
+        $this->assertAccess($document, true);
         $categories = DocumentCategory::active()->ordered()->get();
         $users = User::where('role', 'admin')->get()->reject->isTechnicalAccount()->values();
 
@@ -135,53 +114,46 @@ class DocumentController extends Controller
      */
     public function update(Request $request, Document $document)
     {
-        $validated = $request->validate([
-            'title' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'category_id' => 'nullable|exists:document_categories,id',
-            'file' => 'nullable|file|max:51200', // 50MB max
-            'visibility' => 'required|in:public,private,restricted',
-            'allowed_users' => 'nullable|array',
-            'allowed_users.*' => 'exists:users,id',
-        ]);
-
-        try {
-            // Si un nouveau fichier est uploadé
-            if ($request->hasFile('file')) {
-                // Supprimer l'ancien fichier
-                if (Storage::disk('public')->exists($document->file_path)) {
-                    Storage::disk('public')->delete($document->file_path);
-                }
-
-                $file = $request->file('file');
-                $fileName = time() . '_' . Str::slug(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME)) . '.' . $file->getClientOriginalExtension();
-                $filePath = $file->storeAs('documents', $fileName, 'public');
-
-                $document->update([
-                    'file_name' => $file->getClientOriginalName(),
-                    'file_path' => $filePath,
-                    'file_type' => $file->getClientOriginalExtension(),
-                    'file_size' => $file->getSize(),
-                    'mime_type' => $file->getMimeType(),
-                ]);
-            }
-
-            // Mettre à jour les autres informations
-            $document->update([
-                'title' => $validated['title'],
-                'description' => $validated['description'] ?? null,
-                'category_id' => $validated['category_id'] ?? null,
-                'visibility' => $validated['visibility'],
-                'allowed_users' => $validated['allowed_users'] ?? null,
-            ]);
-
-            return redirect()->route('admin.documents.index')
-                ->with('success', 'Document mis à jour avec succès');
-        } catch (\Exception $e) {
-            return redirect()->back()
-                ->with('error', 'Erreur lors de la mise à jour: ' . $e->getMessage())
-                ->withInput();
+        $this->assertAccess($document, true);
+        $validated = $this->validated($request);
+        if (! $request->exists('allowed_users')) {
+            $validated['allowed_users'] = $document->allowed_users;
         }
+        $oldPath = $document->file_path;
+        $oldDisk = $document->file_disk ?? 'public';
+        $path = null;
+        try {
+            if ($request->hasFile('file')) {
+                $file = $request->file('file');
+                $path = SafeUpload::store($file, 'documents', 'local');
+                $validated += [
+                    'file_path' => $path, 'file_disk' => 'local',
+                    'file_name' => $file->getClientOriginalName(),
+                    'file_type' => strtolower($file->getClientOriginalExtension()),
+                    'file_size' => $file->getSize(), 'mime_type' => $file->getMimeType(),
+                ];
+            } elseif ($oldDisk === 'public') {
+                $path = $this->copyToPrivate($oldPath);
+                $validated += ['file_path' => $path, 'file_disk' => 'local'];
+            }
+            if ($oldDisk === 'public') {
+                $validated['legacy_public_path'] = $oldPath;
+            }
+            $document->update($validated);
+        } catch (\Throwable $e) {
+            if ($path) {
+                SafeUpload::delete($path, 'local');
+            }
+            throw $e;
+        }
+        if ($path && ! Document::withTrashed()->where('file_disk', $oldDisk)->where('file_path', $oldPath)->exists()) {
+            SafeUpload::delete($oldPath, $oldDisk);
+            if ($oldDisk === 'public' && ! Storage::disk('public')->exists($oldPath)) {
+                Document::withTrashed()->where('legacy_public_path', $oldPath)->update(['legacy_public_path' => null]);
+            }
+        }
+
+        return redirect()->route('admin.documents.index')->with('success', 'Document mis à jour avec succès.');
     }
 
     /**
@@ -189,13 +161,14 @@ class DocumentController extends Controller
      */
     public function download(Document $document)
     {
-        if (!Storage::disk('public')->exists($document->file_path)) {
-            abort(404, 'Fichier introuvable');
-        }
-
+        $this->assertAccess($document);
+        $disk = Storage::disk($document->file_disk ?? 'public');
+        abort_unless($disk->exists($document->file_path), 404, 'Fichier introuvable.');
         $document->incrementDownloadCount();
 
-        return Storage::disk('public')->download($document->file_path, $document->file_name);
+        return $disk->download($document->file_path, $document->file_name, [
+            'Cache-Control' => 'no-store, private', 'X-Content-Type-Options' => 'nosniff',
+        ]);
     }
 
     /**
@@ -203,6 +176,7 @@ class DocumentController extends Controller
      */
     public function archive(Document $document)
     {
+        $this->assertAccess($document, true);
         $document->update(['is_archived' => true]);
 
         return redirect()->back()
@@ -214,6 +188,7 @@ class DocumentController extends Controller
      */
     public function unarchive(Document $document)
     {
+        $this->assertAccess($document, true);
         $document->update(['is_archived' => false]);
 
         return redirect()->back()
@@ -225,14 +200,17 @@ class DocumentController extends Controller
      */
     public function destroy(Document $document)
     {
+        $this->assertAccess($document, true);
         try {
             $document->delete();
 
             return redirect()->route('admin.documents.index')
                 ->with('success', 'Document supprimé avec succès');
         } catch (\Exception $e) {
+            report($e);
+
             return redirect()->back()
-                ->with('error', 'Erreur lors de la suppression: ' . $e->getMessage());
+                ->with('error', 'L’action n’a pas pu être enregistrée. Réessayez plus tard.');
         }
     }
 
@@ -241,7 +219,7 @@ class DocumentController extends Controller
      */
     public function categories()
     {
-        $categories = DocumentCategory::withCount('documents')->ordered()->get();
+        $categories = DocumentCategory::withCount(['documents' => fn ($q) => $q->accessibleTo(request()->user())])->ordered()->get();
 
         return view('admin.documents.categories', compact('categories'));
     }
@@ -265,8 +243,10 @@ class DocumentController extends Controller
             return redirect()->back()
                 ->with('success', 'Catégorie créée avec succès');
         } catch (\Exception $e) {
+            report($e);
+
             return redirect()->back()
-                ->with('error', 'Erreur: ' . $e->getMessage())
+                ->with('error', 'L’action n’a pas pu être enregistrée. Réessayez plus tard.')
                 ->withInput();
         }
     }
@@ -291,8 +271,10 @@ class DocumentController extends Controller
             return redirect()->back()
                 ->with('success', 'Catégorie mise à jour avec succès');
         } catch (\Exception $e) {
+            report($e);
+
             return redirect()->back()
-                ->with('error', 'Erreur: ' . $e->getMessage())
+                ->with('error', 'L’action n’a pas pu être enregistrée. Réessayez plus tard.')
                 ->withInput();
         }
     }
@@ -311,8 +293,37 @@ class DocumentController extends Controller
             return redirect()->back()
                 ->with('success', 'Catégorie supprimée avec succès');
         } catch (\Exception $e) {
+            report($e);
+
             return redirect()->back()
-                ->with('error', 'Erreur: ' . $e->getMessage());
+                ->with('error', 'L’action n’a pas pu être enregistrée. Réessayez plus tard.');
         }
+    }
+
+    private function validated(Request $request, bool $creating = false): array
+    {
+        $extensions = 'pdf,jpg,jpeg,png,gif,webp,txt,csv,doc,docx,xls,xlsx,ppt,pptx,odt,ods,odp,rtf';
+        $data = $request->validate([
+            'title' => 'required|string|max:255', 'description' => 'nullable|string|max:10000',
+            'category_id' => 'nullable|exists:document_categories,id',
+            'file' => [($creating ? 'required' : 'nullable'), 'file', 'max:51200', 'mimes:'.$extensions, 'extensions:'.$extensions],
+            'visibility' => 'required|in:public,private,restricted',
+            'allowed_users' => 'nullable|array|max:500', 'allowed_users.*' => 'integer|exists:users,id',
+        ]);
+        unset($data['file']);
+        $data['allowed_users'] = array_values(array_unique(array_map('intval', $data['allowed_users'] ?? [])));
+
+        return $data;
+    }
+
+    private function assertAccess(Document $document, bool $write = false): void
+    {
+        $user = request()->user();
+        abort_unless($user->isAdmin() || ($write ? (int) $document->uploaded_by === $user->id : $document->canBeAccessedBy($user->id)), 403);
+    }
+
+    private function copyToPrivate(string $path): string
+    {
+        return app(\App\Services\DocumentStorage::class)->copyToPrivate($path);
     }
 }

@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Str;
 
 /**
  * Connexion au back-office. Deux pages partagent la même vue : celle de
@@ -86,6 +88,17 @@ class AuthController extends Controller
         ]);
 
         $credentials = $request->only('email', 'password');
+        // Both portals share the same limits; changing portal must not reset them.
+        $accountKey = 'admin-login:'.hash('sha256', Str::lower($credentials['email']));
+        $ipKey = 'admin-login-ip:'.$request->ip();
+        if (RateLimiter::tooManyAttempts($accountKey, 5) || RateLimiter::tooManyAttempts($ipKey, 30)) {
+            $seconds = max(RateLimiter::availableIn($accountKey), RateLimiter::availableIn($ipKey));
+
+            return response()->view('errors.admin', ['status' => 429, 'message' => "Trop de tentatives. Réessayez dans {$seconds} secondes."], 429)
+                ->header('Retry-After', (string) $seconds);
+        }
+        RateLimiter::hit($accountKey, 60);
+        RateLimiter::hit($ipKey, 60);
 
         if (Auth::attempt($credentials, $request->filled('remember'))) {
             $user = Auth::user();
@@ -112,6 +125,7 @@ class AuthController extends Controller
             }
 
             $request->session()->regenerate();
+            RateLimiter::clear($accountKey);
 
             return redirect()->intended(route($home));
         }

@@ -191,7 +191,7 @@
                                         </form>
 
                                         <!-- Ban -->
-                                        <button onclick="showBanModal({{ $sync->id }}, '{{ $sync->user->first_name }} {{ $sync->user->last_name }}')"
+                                        <button onclick="showBanModal({{ $sync->id }}, @js($sync->user->name))"
                                                 class="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition-colors text-xs">
                                             <i class="fas fa-ban mr-1"></i> Bannir
                                         </button>

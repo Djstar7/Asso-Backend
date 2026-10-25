@@ -33,7 +33,7 @@
             @if($cred->category)<span class="inline-block px-2 py-1 bg-primary-500/20 text-primary-400 rounded text-xs mb-3">{{ $cred->category->name }}</span>@endif
             <div class="space-y-2 mb-4">
                 @if($cred->url)<p class="text-gray-400 text-sm truncate"><i class="fas fa-link mr-2"></i>{{ $cred->url }}</p>@endif
-                <div class="flex items-center gap-2"><input type="password" value="••••••••" readonly id="pwd-{{ $cred->id }}" class="flex-1 px-3 py-2 bg-dark-50 border border-dark-300 rounded text-white text-sm"><button onclick="revealPassword({{ $cred->id }})" class="px-3 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded text-sm"><i class="fas fa-eye"></i></button></div>
+                <div class="flex items-center gap-2"><input type="password" value="••••••••" readonly id="pwd-{{ $cred->id }}" class="flex-1 px-3 py-2 bg-dark-50 border border-dark-300 rounded text-white text-sm"><button onclick="revealPassword({{ $cred->id }}, this)" class="px-3 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded text-sm"><i class="fas fa-eye"></i></button></div>
             </div>
             <div class="flex gap-2 pt-3 border-t border-dark-300"><a href="{{ route('admin.vault.edit', $cred) }}" class="flex-1 px-3 py-2 bg-dark-300 hover:bg-dark-400 text-white rounded text-sm text-center"><i class="fas fa-edit mr-1"></i>Modifier</a><form action="{{ route('admin.vault.destroy', $cred) }}" method="POST" data-confirm="Supprimer ?">@csrf @method('DELETE')<button class="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded text-sm"><i class="fas fa-trash"></i></button></form></div>
         </div>
@@ -44,10 +44,13 @@
     @endif
 </div>
 <script>
-async function revealPassword(id) {
+async function revealPassword(id, btn) {
+    if (btn.disabled) return;
+    btn.disabled = true;
     try {
-        const response = await fetch(`/admin/vault/${id}/reveal`);
+        const response = await fetch(`/admin/vault/${id}/reveal`, {headers: {'Accept': 'application/json'}, cache: 'no-store'});
         const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.message || 'Cette action n’a pas pu aboutir. Rechargez la page si votre session a expiré.');
         if (data.success) {
             const input = document.getElementById('pwd-' + id);
             input.type = 'text';
@@ -55,13 +58,18 @@ async function revealPassword(id) {
             setTimeout(() => { input.type = 'password'; input.value = '••••••••'; }, 5000);
         }
     } catch (error) {
-        alert('Erreur');
+        alert(error.message || 'Erreur de connexion. Réessayez.');
+    } finally {
+        btn.disabled = false;
     }
 }
 async function toggleFavorite(id, btn) {
+    if (btn.disabled) return;
+    btn.disabled = true;
     try {
-        const response = await fetch(`/admin/vault/${id}/toggle-favorite`, { method: 'POST', headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}' } });
+        const response = await fetch(`/admin/vault/${id}/toggle-favorite`, { method: 'POST', headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' } });
         const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.message || 'Cette action n’a pas pu aboutir. Rechargez la page si votre session a expiré.');
         if (data.success) {
             const icon = btn.querySelector('i');
             if (data.is_favorite) {
@@ -71,7 +79,9 @@ async function toggleFavorite(id, btn) {
             }
         }
     } catch (error) {
-        alert('Erreur');
+        alert(error.message || 'Erreur de connexion. Réessayez.');
+    } finally {
+        btn.disabled = false;
     }
 }
 </script>

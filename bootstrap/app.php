@@ -15,6 +15,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->trustProxies(at: '*');
         $middleware->web(append: [
+            \App\Http\Middleware\AdminUploadResponse::class,
             \App\Http\Middleware\CheckMaintenanceMode::class,
         ]);
         $middleware->api(append: [
@@ -22,10 +23,11 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
         $middleware->alias([
             'backoffice' => \App\Http\Middleware\EnsureBackofficeAccess::class,
+            'admin.submission' => \App\Http\Middleware\AdminSubmission::class,
             'api.admin' => \App\Http\Middleware\EnsureApiAdmin::class,
             'content.source' => \App\Http\Middleware\ContentSourceLocale::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        $exceptions->respond([\App\Support\AdminErrorResponse::class, 'render']);
     })->create();

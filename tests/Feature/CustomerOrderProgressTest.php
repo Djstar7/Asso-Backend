@@ -36,7 +36,9 @@ class CustomerOrderProgressTest extends TestCase
             [['service_mode' => DelivererCompany::MODE_AGENCY], null, true],
             [['delivery_option' => 'home_delivery'], null, false],
             [['service_mode' => 'door_to_door'], null, false],
-            [['delivery_option' => 'agency_pickup'], $grid->id, false],
+            // A grid can describe agency coverage; the explicit choice remains authoritative.
+            [['delivery_option' => 'agency_pickup'], $grid->id, true],
+            [['delivery_option' => 'home_delivery'], $grid->id, false],
         ] as [$snapshot, $gridId, $agency]) {
             $order->update(['delivery_breakdown' => $snapshot, 'delivery_city_grid_id' => $gridId]);
             $this->getJson("/api/v1/orders/{$order->id}")->assertOk()

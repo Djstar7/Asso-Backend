@@ -7,7 +7,7 @@
      role="{{ $flashType === 'error' ? 'alert' : 'status' }}" aria-live="{{ $flashType === 'error' ? 'assertive' : 'polite' }}"
      aria-atomic="true" @if(!$flashMessage) hidden @endif>
     <i data-flash-icon class="fas {{ $flashType === 'error' ? 'fa-exclamation-circle' : 'fa-check-circle' }}" aria-hidden="true"></i>
-    <div data-flash-message>@if($allowHtml ?? true){!! $flashMessage !!}@else{{ $flashMessage }}@endif</div>
+    <div data-flash-message>{{ $flashMessage }}</div>
     <button type="button" data-flash-dismiss aria-label="{{ __('admin_flash.close', [], $flashLocale) }}">&times;</button>
 </div>
 <style>

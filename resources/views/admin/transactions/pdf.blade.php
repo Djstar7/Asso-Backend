@@ -203,21 +203,21 @@
 
     <div class="stats">
         <div class="stat-box">
-            <div class="label">Revenu Total</div>
-            <div class="value">{{ number_format($totalRevenue, 0, ',', ' ') }}</div>
-            <div class="currency">XOF</div>
+            <div class="label">Total des crédits</div>
+            <div class="value">{{ number_format($totalCredits, 0, ',', ' ') }}</div>
+            <div class="currency">FCFA</div>
         </div>
 
         <div class="stat-box">
-            <div class="label">Frais Totaux</div>
-            <div class="value">{{ number_format($totalFees, 0, ',', ' ') }}</div>
-            <div class="currency">XOF</div>
+            <div class="label">Total des débits</div>
+            <div class="value">{{ number_format($totalDebits, 0, ',', ' ') }}</div>
+            <div class="currency">FCFA</div>
         </div>
 
         <div class="stat-box">
             <div class="label">Revenu Net</div>
             <div class="value">{{ number_format($netRevenue, 0, ',', ' ') }}</div>
-            <div class="currency">XOF</div>
+            <div class="currency">FCFA</div>
         </div>
 
         <div class="stat-box">
@@ -234,8 +234,8 @@
                 <th>Date</th>
                 <th>Acheteur</th>
                 <th>Montant</th>
-                <th>Frais</th>
-                <th>Net</th>
+                <th>Type</th>
+                <th>Solde après</th>
                 <th>Méthode</th>
                 <th>Statut</th>
             </tr>
@@ -244,16 +244,16 @@
             @foreach($transactions as $transaction)
                 <tr>
                     <td style="font-family: monospace; font-size: 11px;">
-                        <strong>{{ $transaction->reference }}</strong>
+                        <strong>{{ $transaction->id }}</strong>
                     </td>
                     <td>{{ $transaction->created_at->displayTz()->format('d/m/Y H:i') }}</td>
-                    <td>{{ $transaction->buyer?->first_name }} {{ $transaction->buyer?->last_name }}</td>
-                    <td><strong>{{ number_format($transaction->amount, 0, ',', ' ') }} XOF</strong></td>
-                    <td>{{ number_format($transaction->fees, 0, ',', ' ') }} XOF</td>
-                    <td><strong>{{ number_format($transaction->net_amount, 0, ',', ' ') }} XOF</strong></td>
+                    <td>{{ $transaction->user?->name ?? 'Compte supprimé' }}</td>
+                    <td><strong>{{ number_format($transaction->amount, 0, ',', ' ') }} FCFA</strong></td>
+                    <td>{{ $transaction->type_label }}</td>
+                    <td><strong>{{ number_format($transaction->balance_after, 0, ',', ' ') }} FCFA</strong></td>
                     <td>
-                        <span class="badge badge-{{ $transaction->payment_method }}">
-                            {{ $transaction->payment_method_label }}
+                        <span class="badge badge-{{ ($transaction->provider ?? 'unknown') }}">
+                            {{ ($transaction->provider ?? 'N/A') }}
                         </span>
                     </td>
                     <td>

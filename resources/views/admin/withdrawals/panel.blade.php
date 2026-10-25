@@ -95,7 +95,7 @@
                                 <i class="fas fa-arrow-up mr-1"></i>Retirer
                             </button>
 
-                            <form x-show="open" x-cloak x-transition method="POST" action="{{ $routes['mobile'] }}" class="space-y-3 mt-4">
+                            <form x-show="open" x-cloak x-transition method="POST" action="{{ $routes['mobile'] }}" class="space-y-3 mt-4" data-confirm="Confirmer ce retrait Mobile Money ?">
                                 @csrf
                                 <input type="hidden" name="country" value="{{ $country['key'] }}">
                                 @php
@@ -134,7 +134,7 @@
                                     <label class="block text-sm text-gray-300 mb-1">Note (facultatif)</label>
                                     <input type="text" name="notes" maxlength="300" value="{{ $opened ? old('notes') : '' }}" class="{{ $inputClass }}">
                                 </div>
-                                <button type="submit" onclick="this.disabled=true; this.form.submit();"
+                                <button type="submit"
                                         class="w-full px-4 py-2 rounded-lg bg-primary-600 hover:bg-primary-700 text-white font-semibold">
                                     Confirmer le retrait
                                 </button>
@@ -207,7 +207,7 @@
                 @elseif(!$source)
                     <p class="text-sm text-gray-400">Aucun solde convertible vers {{ $bank['currency'] }}.</p>
                 @else
-                    <form method="POST" action="{{ $routes['bank'] }}" class="space-y-3">
+                    <form method="POST" action="{{ $routes['bank'] }}" class="space-y-3" data-confirm="Confirmer ce virement bancaire ?">
                         @csrf
                         <p class="text-sm font-semibold text-gray-200"><i class="fas fa-paper-plane mr-1"></i>Virer sur l'IBAN</p>
                         <input type="hidden" name="currency" value="{{ $source['currency'] }}">
@@ -220,7 +220,7 @@
                             <label class="block text-sm text-gray-300 mb-1">Note (facultatif)</label>
                             <input type="text" name="notes" maxlength="300" class="{{ $inputClass }}">
                         </div>
-                        <button type="submit" onclick="this.disabled=true; this.form.submit();"
+                        <button type="submit"
                                 class="w-full px-4 py-2 rounded-lg bg-primary-600 hover:bg-primary-700 text-white font-semibold">
                             Virer sur l'IBAN
                         </button>

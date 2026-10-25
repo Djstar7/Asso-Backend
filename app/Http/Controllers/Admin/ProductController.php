@@ -16,6 +16,7 @@ use App\Services\ProductVariantService;
 use App\Services\ProductVideoUploadService;
 use App\Support\ImportHub;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -23,6 +24,8 @@ use Illuminate\Validation\ValidationException;
 
 class ProductController extends Controller
 {
+    private array $writtenImages = [];
+
     public function __construct(private readonly ProductVariantService $variantService) {}
 
     /**
@@ -126,8 +129,8 @@ class ProductController extends Controller
             'type' => 'required|in:service,article',
             // 'imported' / 'local' ou code d'un pays grossiste (cf. Product::originAttributes).
             'origin_country' => ['nullable', 'string', function ($attribute, $value, $fail) {
-                if (!in_array($value, [Product::ORIGIN_IMPORTED, Product::ORIGIN_LOCAL], true)
-                    && !ImportCountry::where('code', strtoupper($value))->exists()) {
+                if (! in_array($value, [Product::ORIGIN_IMPORTED, Product::ORIGIN_LOCAL], true)
+                    && ! ImportCountry::where('code', strtoupper($value))->exists()) {
                     $fail('Origine du produit invalide.');
                 }
             }],
@@ -205,20 +208,32 @@ class ProductController extends Controller
         $validated['free_delivery'] = $freeDelivery === (bool) $shop->free_delivery ? null : $freeDelivery;
         $validated['deposit_enabled'] = $request->boolean('deposit_enabled');
 
-        // Create product
-        $product = Product::create($validated);
-        $product->syncTranslations($validated['translations'] ?? null);
+        $this->writtenImages = [];
+        try {
+            $product = DB::transaction(function () use ($validated, $tiers, $variants, $variantOptions, $request) {
+                // Create product
+                $product = Product::create($validated);
+                $product->syncTranslations($validated['translations'] ?? null);
 
-        // Paliers de prix (module GROS)
-        $this->syncPriceTiers($product, $tiers);
-        $this->variantService->sync($product, $variants, $variantOptions);
+                // Paliers de prix (module GROS)
+                $this->syncPriceTiers($product, $tiers);
+                $this->variantService->sync($product, $variants, $variantOptions);
 
-        // Handle images upload
-        if ($request->hasFile('images')) {
-            $this->uploadImages($product, $request->file('images'));
+                // Handle images upload
+                if ($request->hasFile('images')) {
+                    $this->uploadImages($product, $request->file('images'));
+                }
+
+                $this->syncVideo($product, $request);
+
+                return $product;
+            });
+        } catch (\Throwable $exception) {
+            foreach ($this->writtenImages as $path) {
+                File::delete($path);
+            }
+            throw $exception;
         }
-
-        $this->syncVideo($product, $request);
 
         // Publié directement par l'admin : annoncé comme une publication vendeur.
         if ($product->status === 'active') {
@@ -280,8 +295,8 @@ class ProductController extends Controller
             'type' => 'required|in:service,article',
             // 'imported' / 'local' ou code d'un pays grossiste (cf. Product::originAttributes).
             'origin_country' => ['nullable', 'string', function ($attribute, $value, $fail) {
-                if (!in_array($value, [Product::ORIGIN_IMPORTED, Product::ORIGIN_LOCAL], true)
-                    && !ImportCountry::where('code', strtoupper($value))->exists()) {
+                if (! in_array($value, [Product::ORIGIN_IMPORTED, Product::ORIGIN_LOCAL], true)
+                    && ! ImportCountry::where('code', strtoupper($value))->exists()) {
                     $fail('Origine du produit invalide.');
                 }
             }],
@@ -365,20 +380,32 @@ class ProductController extends Controller
             $validated['status'] = $product->status;
         }
 
-        // Update product
-        $product->update($validated);
-        $product->syncTranslations($validated['translations'] ?? null);
+        $this->writtenImages = [];
+        try {
+            $product = DB::transaction(function () use ($product, $validated, $tiers, $variants, $variantOptions, $request) {
+                // Update product
+                $product->update($validated);
+                $product->syncTranslations($validated['translations'] ?? null);
 
-        // Paliers de prix (module GROS) — remplace intégralement l'ancienne liste
-        $this->syncPriceTiers($product, $tiers);
-        $this->variantService->sync($product, $variants, $variantOptions);
+                // Paliers de prix (module GROS) — remplace intégralement l'ancienne liste
+                $this->syncPriceTiers($product, $tiers);
+                $this->variantService->sync($product, $variants, $variantOptions);
 
-        // Handle new images upload
-        if ($request->hasFile('images')) {
-            $this->uploadImages($product, $request->file('images'));
+                // Handle new images upload
+                if ($request->hasFile('images')) {
+                    $this->uploadImages($product, $request->file('images'));
+                }
+
+                $this->syncVideo($product, $request);
+
+                return $product;
+            });
+        } catch (\Throwable $exception) {
+            foreach ($this->writtenImages as $path) {
+                File::delete($path);
+            }
+            throw $exception;
         }
-
-        $this->syncVideo($product, $request);
 
         return redirect()->route('admin.products.index')->with('success', 'Produit mis à jour avec succès!');
     }
@@ -483,13 +510,17 @@ class ProductController extends Controller
      */
     private function uploadImages(Product $product, array $images)
     {
+        if ($product->images()->count() + count($images) > 15) {
+            throw ValidationException::withMessages(['images' => 'Un produit peut contenir au maximum 15 photos.']);
+        }
         $order = $product->images()->max('order') ?? 0;
         $isPrimary = $product->images()->count() === 0;
 
         foreach ($images as $image) {
             $order++;
-            $imageName = time().'_'.$order.'_'.Str::slug($product->name).'.'.$image->getClientOriginalExtension();
+            $imageName = Str::uuid().'.'.$image->getClientOriginalExtension();
             $image->move(public_path('storage/products'), $imageName);
+            $this->writtenImages[] = public_path('storage/products/'.$imageName);
 
             ProductImage::create([
                 'product_id' => $product->id,

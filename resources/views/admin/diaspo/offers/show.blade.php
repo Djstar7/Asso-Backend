@@ -109,7 +109,9 @@
         </div>
 
         @if(!$offer->trashed() && $offer->verification_status === 'pending')
-            @php($identity = $offer->user->diaspo_verification_status ?? 'unverified')
+            @php
+                $identity = $offer->user->diaspo_verification_status ?? 'unverified';
+            @endphp
             <div class="mb-6 p-4 bg-orange-900/20 border-l-4 border-orange-500 rounded">
                 <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
                     <div class="text-sm text-orange-200 space-y-1">
@@ -399,7 +401,7 @@
 <script>
 function showCancelModal(bookingId) {
     const form = document.getElementById('cancelBookingForm');
-    form.action = `{{ route('admin.diaspo.offers.show', $offer->id) }}`.replace('/{{ $offer->id }}', `/{{ $offer->id }}/bookings/${bookingId}/cancel`);
+    form.action = @json(route('admin.diaspo.offers.bookings.cancel', ['offer' => $offer->id, 'booking' => '__BOOKING__'])).replace('__BOOKING__', encodeURIComponent(String(bookingId)));
     document.getElementById('cancelBookingModal').classList.remove('hidden');
 }
 </script>

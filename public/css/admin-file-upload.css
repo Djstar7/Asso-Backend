@@ -1,0 +1,29 @@
+.admin-file-upload { display: block; min-width: 0; width: 100%; margin-top: .35rem; }
+.admin-file-upload__zone { position: relative; display: flex; flex-direction: column; align-items: center; gap: .5rem; padding: 1.5rem 1rem; border: 2px dashed #52525b; border-radius: .75rem; background: #18181b; color: #e4e4e7; text-align: center; transition: border-color .15s, background .15s; }
+.admin-file-upload__zone:hover, .admin-file-upload__zone:focus-within, .admin-file-upload.is-dragging .admin-file-upload__zone { border-color: #ff9266; background: #241c19; }
+.admin-file-upload__zone:focus-within { outline: 2px solid #ff9266; outline-offset: 3px; }
+.admin-file-upload__zone > :not(input) { pointer-events: none; }
+.admin-file-upload__icon { font-size: 1.75rem; color: #ff9266; }
+.admin-file-upload__title { font-size: .875rem; font-weight: 600; }
+.admin-file-upload__browse { color: #ffb199; text-decoration: underline; text-underline-offset: 3px; }
+.admin-file-upload__hint { font-size: .75rem; color: #a1a1aa; overflow-wrap: anywhere; }
+.admin-file-upload input.admin-file-upload__input { position: absolute !important; inset: 0; width: 100% !important; height: 100% !important; opacity: 0; display: block !important; margin: 0; padding: 0; cursor: pointer; }
+.admin-file-upload.is-disabled { opacity: .55; }
+.admin-file-upload.is-disabled input { cursor: not-allowed; }
+.admin-file-upload__files { display: grid; gap: .5rem; margin: .75rem 0 0; padding: 0; list-style: none; }
+.admin-file-upload__files:empty { display: none; }
+.admin-file-upload__file { display: flex; align-items: center; gap: .75rem; padding: .65rem .75rem; background: #18181b; border: 1px solid #3f3f46; border-radius: .5rem; font-size: .8rem; }
+.admin-file-upload__name { min-width: 0; flex: 1; overflow-wrap: anywhere; }
+.admin-file-upload__size { flex-shrink: 0; color: #a1a1aa; font-size: .75rem; }
+.admin-file-upload__remove { flex-shrink: 0; border: 0; padding: .25rem .4rem; border-radius: .25rem; background: transparent; color: #fca5a5; cursor: pointer; font: inherit; }
+.admin-file-upload__remove:hover, .admin-file-upload__remove:focus-visible { background: #3f272a; outline: 2px solid #fca5a5; }
+.admin-file-upload__error { margin-top: .5rem; color: #fca5a5; font-size: .8rem; overflow-wrap: anywhere; }
+.admin-upload-status { margin: 1rem 0; padding: 1rem; border: 1px solid #52525b; border-radius: .75rem; background: #18181b; color: #e4e4e7; font-size: .875rem; overflow-wrap: anywhere; }
+.admin-upload-status[hidden], .admin-upload-status progress[hidden], .admin-file-upload__error[hidden] { display: none; }
+.admin-upload-status.is-error { border-color: #f87171; color: #fca5a5; }
+.admin-upload-status progress { display: block; width: 100%; height: .6rem; margin-top: .75rem; border: 0; border-radius: 1rem; overflow: hidden; accent-color: #ff7344; background: #3f3f46; }
+.admin-upload-status progress::-webkit-progress-bar { background: #3f3f46; }
+.admin-upload-status progress::-webkit-progress-value { background: #ff7344; }
+.admin-upload-status progress::-moz-progress-bar { background: #ff7344; }
+form[aria-busy="true"] .admin-file-upload__remove { visibility: hidden; }
+@media (prefers-reduced-motion: reduce) { .admin-file-upload__zone { transition: none; } }

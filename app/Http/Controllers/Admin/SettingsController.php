@@ -7,10 +7,10 @@ use App\Models\CommissionRange;
 use App\Models\ServiceConfiguration;
 use App\Models\Setting;
 use App\Services\CommissionService;
+use App\Services\SafeUpload;
 use App\Support\Translation\ContentLocale;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 
 class SettingsController extends Controller
 {
@@ -33,6 +33,7 @@ class SettingsController extends Controller
             // P6 : commission des commerciaux (payée par ASSO, pas une majoration).
             'sales_commission_rate' => app(\App\Services\SalesCommissionService::class)->defaultRate(),
         ];
+
         return view('admin.settings.index', compact(
             'generalSettings', 'systemSettings', 'commissionRanges', 'commissionSettings'
         ));
@@ -49,8 +50,8 @@ class SettingsController extends Controller
         $validated = $request->validateWithBag('account', [
             'first_name' => 'required|string|max:100',
             'last_name' => 'nullable|string|max:100',
-            'email' => 'required|email|max:255|unique:users,email,' . $user->id,
-            'current_password' => 'required_unless:email,' . $user->email . '|nullable|current_password',
+            'email' => 'required|email|max:255|unique:users,email,'.$user->id,
+            'current_password' => 'required_unless:email,'.$user->email.'|nullable|current_password',
         ], [
             'first_name.required' => 'Indiquez votre prénom.',
             'email.required' => 'Indiquez votre adresse e-mail.',
@@ -98,11 +99,11 @@ class SettingsController extends Controller
     /**
      * Mettre à jour les paramètres généraux.
      *
-     * @param Request $request
      * @return \Illuminate\Http\RedirectResponse
      */
     public function update(Request $request)
     {
+        $request->validate(['app_logo' => ['nullable', 'image', 'mimes:jpeg,jpg,png,gif,webp', 'max:5120']]);
         try {
             // Déterminer les règles selon les champs envoyés (onglet Général ou Système)
             $rules = [];
@@ -135,8 +136,17 @@ class SettingsController extends Controller
 
             // Gérer l'upload du logo
             if ($request->hasFile('app_logo')) {
-                $validated['app_logo'] = $request->file('app_logo')->store('settings', 'public');
-                Setting::set('app_logo', $validated['app_logo'], 'file', 'general', 'Logo de l\'application');
+                $oldLogo = Setting::get('app_logo');
+                $validated['app_logo'] = SafeUpload::store($request->file('app_logo'), 'settings');
+                try {
+                    Setting::set('app_logo', $validated['app_logo'], 'file', 'general', 'Logo de l\'application');
+                } catch (\Throwable $e) {
+                    SafeUpload::delete($validated['app_logo']);
+                    throw $e;
+                }
+                if ($oldLogo && str_starts_with($oldLogo, 'settings/')) {
+                    SafeUpload::delete($oldLogo);
+                }
             }
 
             // Mettre à jour tous les paramètres
@@ -168,9 +178,13 @@ class SettingsController extends Controller
                     ? ['tab' => $request->input('_active_tab')] : []
             )
                 ->with('success', 'Paramètres mis à jour avec succès');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            throw $e;
         } catch (\Exception $e) {
+            report($e);
+
             return redirect()->back()
-                ->with('error', 'Erreur lors de la mise à jour des paramètres: ' . $e->getMessage())
+                ->with('error', 'Les paramètres n’ont pas pu être enregistrés. Réessayez plus tard.')
                 ->withInput();
         }
     }
@@ -190,7 +204,6 @@ class SettingsController extends Controller
     /**
      * Mettre à jour les paramètres de maintenance.
      *
-     * @param Request $request
      * @return \Illuminate\Http\RedirectResponse
      */
     public function updateMaintenance(Request $request)
@@ -210,7 +223,7 @@ class SettingsController extends Controller
                 ->with('success', 'Paramètres de maintenance mis à jour avec succès');
         } catch (\Exception $e) {
             return redirect()->back()
-                ->with('error', 'Erreur lors de la mise à jour: ' . $e->getMessage())
+                ->with('error', 'Erreur lors de la mise à jour: '.$e->getMessage())
                 ->withInput();
         }
     }
@@ -260,7 +273,7 @@ class SettingsController extends Controller
     {
         $stripe = app(\App\Services\StripeService::class);
 
-        if (!$stripe->isConfigured()) {
+        if (! $stripe->isConfigured()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Clés API Stripe manquantes.',
@@ -268,7 +281,7 @@ class SettingsController extends Controller
         }
 
         $connection = $stripe->testConnection();
-        if (!($connection['success'] ?? false)) {
+        if (! ($connection['success'] ?? false)) {
             return response()->json(['success' => false, 'message' => $connection['message'] ?? 'Connexion Stripe impossible.']);
         }
 
@@ -289,24 +302,24 @@ class SettingsController extends Controller
 
         // Webhooks : un endpoint vers une adresse locale ne recevra jamais rien.
         $endpoints = $stripe->listWebhookEndpoints();
-        $unreachable = array_filter($endpoints, fn ($e) => !$stripe->isPubliclyReachableUrl($e['url']));
-        $hasConnect = !empty(array_filter($endpoints, fn ($e) => $e['connect']));
+        $unreachable = array_filter($endpoints, fn ($e) => ! $stripe->isPubliclyReachableUrl($e['url']));
+        $hasConnect = ! empty(array_filter($endpoints, fn ($e) => $e['connect']));
 
         $checks[] = [
-            'ok' => !empty($endpoints) && $hasConnect && empty($unreachable),
+            'ok' => ! empty($endpoints) && $hasConnect && empty($unreachable),
             'label' => match (true) {
                 empty($endpoints) => 'Aucun endpoint webhook déclaré : les virements resteront « en cours » indéfiniment.',
-                !empty($unreachable) => count($unreachable) . ' endpoint(s) injoignable(s) depuis Internet ('
-                    . implode(', ', array_map(fn ($e) => $e['url'], array_slice($unreachable, 0, 2)))
-                    . ') : aucun événement ne sera livré.',
-                !$hasConnect => 'Aucun endpoint Connect (payout.paid / payout.failed) : les virements ne seront jamais marqués terminés.',
-                default => count($endpoints) . ' endpoint(s) webhook opérationnel(s).',
+                ! empty($unreachable) => count($unreachable).' endpoint(s) injoignable(s) depuis Internet ('
+                    .implode(', ', array_map(fn ($e) => $e['url'], array_slice($unreachable, 0, 2)))
+                    .') : aucun événement ne sera livré.',
+                ! $hasConnect => 'Aucun endpoint Connect (payout.paid / payout.failed) : les virements ne seront jamais marqués terminés.',
+                default => count($endpoints).' endpoint(s) webhook opérationnel(s).',
             },
         ];
 
         $checks[] = [
-            'ok' => !empty($stripe->webhookSecretConnect()),
-            'label' => !empty($stripe->webhookSecretConnect())
+            'ok' => ! empty($stripe->webhookSecretConnect()),
+            'label' => ! empty($stripe->webhookSecretConnect())
                 ? 'Secret de signature Connect configuré.'
                 : 'Secret de signature Connect absent : les événements payout.* seront rejetés.',
         ];
@@ -316,8 +329,8 @@ class SettingsController extends Controller
         foreach (\App\Models\User::whereNotNull('stripe_account_id')
             ->where('stripe_account_status', 'approved')->limit(25)->get() as $vendor) {
             $state = $stripe->accountState($vendor->stripe_account_id);
-            if ($state['exists'] && !$state['ready']) {
-                $blocked[] = trim(($vendor->first_name ?? '') . ' ' . ($vendor->last_name ?? '')) . " (#{$vendor->id})";
+            if ($state['exists'] && ! $state['ready']) {
+                $blocked[] = trim(($vendor->first_name ?? '').' '.($vendor->last_name ?? ''))." (#{$vendor->id})";
             }
         }
 
@@ -325,8 +338,8 @@ class SettingsController extends Controller
             'ok' => empty($blocked),
             'label' => empty($blocked)
                 ? 'Tous les comptes vendeurs validés sont actifs chez Stripe.'
-                : count($blocked) . ' compte(s) validé(s) chez nous mais NON activé(s) par Stripe : '
-                    . implode(', ', array_slice($blocked, 0, 5)) . '.',
+                : count($blocked).' compte(s) validé(s) chez nous mais NON activé(s) par Stripe : '
+                    .implode(', ', array_slice($blocked, 0, 5)).'.',
         ];
 
         return response()->json([
@@ -354,7 +367,8 @@ class SettingsController extends Controller
      */
     public function testKpay()
     {
-        $result = (new \App\Services\KPayService())->testConnection();
+        $result = (new \App\Services\KPayService)->testConnection();
+
         return response()->json($result);
     }
 
@@ -369,7 +383,6 @@ class SettingsController extends Controller
     /**
      * Mettre à jour les paramètres de paiement.
      *
-     * @param Request $request
      * @return \Illuminate\Http\RedirectResponse
      */
     public function updatePayments(Request $request)
@@ -479,7 +492,7 @@ class SettingsController extends Controller
                 ->with('success', 'Paramètres de paiement mis à jour avec succès');
         } catch (\Exception $e) {
             return redirect()->back()
-                ->with('error', 'Erreur lors de la mise à jour: ' . $e->getMessage())
+                ->with('error', 'Erreur lors de la mise à jour: '.$e->getMessage())
                 ->withInput();
         }
     }
@@ -500,7 +513,6 @@ class SettingsController extends Controller
     /**
      * Mettre à jour les paramètres des services.
      *
-     * @param Request $request
      * @return \Illuminate\Http\RedirectResponse
      */
     public function updateServices(Request $request)
@@ -553,7 +565,7 @@ class SettingsController extends Controller
                 ->with('success', 'Paramètres des services mis à jour avec succès');
         } catch (\Exception $e) {
             return redirect()->back()
-                ->with('error', 'Erreur lors de la mise à jour: ' . $e->getMessage())
+                ->with('error', 'Erreur lors de la mise à jour: '.$e->getMessage())
                 ->withInput();
         }
     }
@@ -581,7 +593,7 @@ class SettingsController extends Controller
 
             $ranges = collect($validated['ranges'] ?? [])->sortBy('min_amount')->values();
             // Plages actives qui se chevauchent : le taux appliqué serait ambigu.
-            $active = $ranges->filter(fn ($r) => !empty($r['is_active']))->values();
+            $active = $ranges->filter(fn ($r) => ! empty($r['is_active']))->values();
             for ($i = 1; $i < $active->count(); $i++) {
                 if ((float) $active[$i]['min_amount'] <= (float) $active[$i - 1]['max_amount']) {
                     return redirect()->back()->withInput()->with('error', 'Deux plages actives se chevauchent : chaque prix doit correspondre à une seule plage.');
@@ -604,7 +616,7 @@ class SettingsController extends Controller
                         'min_amount' => $range['min_amount'],
                         'max_amount' => $range['max_amount'],
                         'percentage' => $range['percentage'],
-                        'is_active' => !empty($range['is_active']),
+                        'is_active' => ! empty($range['is_active']),
                     ]);
                 }
             });
@@ -617,7 +629,7 @@ class SettingsController extends Controller
             throw $e;
         } catch (\Exception $e) {
             return redirect()->back()
-                ->with('error', 'Erreur lors de la mise à jour: ' . $e->getMessage())
+                ->with('error', 'Erreur lors de la mise à jour: '.$e->getMessage())
                 ->withInput();
         }
     }
@@ -634,7 +646,7 @@ class SettingsController extends Controller
                 ->with('success', 'Plage de commission supprimée avec succès');
         } catch (\Exception $e) {
             return redirect()->back()
-                ->with('error', 'Erreur lors de la suppression: ' . $e->getMessage());
+                ->with('error', 'Erreur lors de la suppression: '.$e->getMessage());
         }
     }
 
@@ -648,9 +660,8 @@ class SettingsController extends Controller
      * mobile), ni inversement. Les clés absentes/vides sont toujours conservées (on part
      * de la config BRUTE via getRawConfig, indépendante de is_active).
      *
-     * @param array       $validated Données validées du formulaire soumis
-     * @param string|null $form      'kpay' | 'stripe' (autre marqueur = aucun impact service_configs)
-     * @return void
+     * @param  array  $validated  Données validées du formulaire soumis
+     * @param  string|null  $form  'kpay' | 'stripe' (autre marqueur = aucun impact service_configs)
      */
     private function updateServiceConfiguration(array $validated, ?string $form = null): void
     {
@@ -668,23 +679,23 @@ class SettingsController extends Controller
                 'webhook_secret' => '',
             ], $existing);
 
-            if (!empty($validated['kpay_base_url'])) {
+            if (! empty($validated['kpay_base_url'])) {
                 $kpayConfig['base_url'] = $validated['kpay_base_url'];
             }
-            if (!empty($validated['kpay_mode'])) {
+            if (! empty($validated['kpay_mode'])) {
                 $kpayConfig['mode'] = $validated['kpay_mode'];
             }
             // Ne pas écraser une clé existante par une valeur vide (laisser vide = conserver)
-            if (!empty($validated['kpay_api_key'])) {
+            if (! empty($validated['kpay_api_key'])) {
                 $kpayConfig['api_key'] = $validated['kpay_api_key'];
             }
-            if (!empty($validated['kpay_secret_key'])) {
+            if (! empty($validated['kpay_secret_key'])) {
                 $kpayConfig['secret_key'] = $validated['kpay_secret_key'];
             }
-            if (!empty($validated['kpay_webhook_secret'])) {
+            if (! empty($validated['kpay_webhook_secret'])) {
                 $kpayConfig['webhook_secret'] = $validated['kpay_webhook_secret'];
             }
-            if (!empty($validated['kpay_base_currency'])) {
+            if (! empty($validated['kpay_base_currency'])) {
                 $kpayConfig['base_currency'] = strtoupper($validated['kpay_base_currency']);
             }
             if (empty($kpayConfig['base_currency'])) {
@@ -704,7 +715,7 @@ class SettingsController extends Controller
             }
 
             // Clé exchangerate-api.com (conversion de devises) — conservée si laissée vide.
-            if (!empty($validated['exchange_rate_api_key'])) {
+            if (! empty($validated['exchange_rate_api_key'])) {
                 $erExisting = ServiceConfiguration::getRawConfig('exchange_rate') ?? [];
                 ServiceConfiguration::setConfig(
                     'exchange_rate',
@@ -728,13 +739,13 @@ class SettingsController extends Controller
                 'webhook_url' => '',
             ], $existing);
 
-            if (!empty($validated['elgiopay_mode'])) {
+            if (! empty($validated['elgiopay_mode'])) {
                 $config['mode'] = $validated['elgiopay_mode'];
             }
             // Champs vides = valeur existante conservée.
             foreach (['public_key', 'secret_key', 'webhook_secret', 'webhook_url'] as $field) {
-                if (!empty($validated['elgiopay_' . $field])) {
-                    $config[$field] = trim($validated['elgiopay_' . $field]);
+                if (! empty($validated['elgiopay_'.$field])) {
+                    $config[$field] = trim($validated['elgiopay_'.$field]);
                 }
             }
 
@@ -765,24 +776,24 @@ class SettingsController extends Controller
                 'webhook_secret_connect' => '',
             ], $stripeExisting);
 
-            if (!empty($validated['stripe_mode'])) {
+            if (! empty($validated['stripe_mode'])) {
                 $stripeConfig['mode'] = $validated['stripe_mode'];
             }
-            if (!empty($validated['stripe_publishable_key'])) {
+            if (! empty($validated['stripe_publishable_key'])) {
                 $stripeConfig['publishable_key'] = $validated['stripe_publishable_key'];
             }
-            if (!empty($validated['stripe_secret_key'])) {
+            if (! empty($validated['stripe_secret_key'])) {
                 $stripeConfig['secret_key'] = $validated['stripe_secret_key'];
             }
-            if (!empty($validated['stripe_webhook_secret'])) {
+            if (! empty($validated['stripe_webhook_secret'])) {
                 $stripeConfig['webhook_secret'] = $validated['stripe_webhook_secret'];
             }
-            if (!empty($validated['stripe_webhook_secret_connect'])) {
+            if (! empty($validated['stripe_webhook_secret_connect'])) {
                 $stripeConfig['webhook_secret_connect'] = $validated['stripe_webhook_secret_connect'];
             }
 
             // Le mode suit la clé secrète réellement enregistrée (cf. StripeService).
-            if (!empty($stripeConfig['secret_key'])) {
+            if (! empty($stripeConfig['secret_key'])) {
                 $stripeConfig['mode'] = str_starts_with($stripeConfig['secret_key'], 'sk_live_') ? 'live' : 'test';
             }
 

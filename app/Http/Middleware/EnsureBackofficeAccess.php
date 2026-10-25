@@ -30,6 +30,10 @@ class EnsureBackofficeAccess
             $request->session()->invalidate();
             $request->session()->regenerateToken();
 
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Accès non autorisé à l’administration.'], 403);
+            }
+
             return redirect()->route('admin.login')->withErrors(['email' => 'Accès non autorisé.']);
         }
 

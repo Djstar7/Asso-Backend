@@ -79,6 +79,7 @@
 
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="{{ asset('css/admin-file-upload.css') }}">
 
     <style>
         [x-cloak] { display: none !important; }
@@ -296,6 +297,12 @@
             <!-- Page Content -->
             <main class="flex-1 overflow-y-auto">
                 @include('admin.partials.flash-message')
+                @if($errors->any())
+                    <div role="alert" class="m-6 p-4 rounded-lg border border-red-500/50 bg-red-500/10 text-red-300">
+                        <p class="font-semibold">Vérifiez les informations du formulaire.</p>
+                        <ul class="mt-2 list-disc pl-5">@foreach($errors->all() as $message)<li>{{ $message }}</li>@endforeach</ul>
+                    </div>
+                @endif
 
                 @yield('content')
             </main>
@@ -399,6 +406,7 @@
     </script>
 
     <script defer src="{{ asset('js/admin-searchable-select.js') }}"></script>
+    <script defer src="{{ asset('js/admin-file-upload.js') }}"></script>
     @stack('scripts')
 </body>
 </html>

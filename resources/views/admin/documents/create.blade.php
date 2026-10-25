@@ -44,7 +44,7 @@
                     <!-- Fichier -->
                     <div>
                         <label class="block text-gray-300 mb-2">Fichier *</label>
-                        <input type="file" name="file" required
+                        <input type="file" name="file" accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.txt,.csv,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.ods,.odp,.rtf" required
                                class="w-full px-4 py-2 bg-dark-50 border border-dark-300 rounded-lg text-white">
                         @error('file')
                             <p class="mt-1 text-sm text-red-500">{{ $message }}</p>

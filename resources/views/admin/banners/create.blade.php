@@ -185,6 +185,8 @@ function previewImage(event) {
             previewContainer.classList.remove('hidden');
         }
         reader.readAsDataURL(file);
+    } else {
+        previewContainer.classList.add('hidden');
     }
 }
 </script>

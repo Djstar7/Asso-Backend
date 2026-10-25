@@ -52,7 +52,7 @@
                 <span class="text-xs text-gray-400">MP4, MOV, WEBM · l'envoi commence tout de suite</span>
             </label>
             {{-- Sans attribut name : le fichier ne part pas avec le formulaire, seulement par morceaux. --}}
-            <input type="file" id="vm_input" accept="video/*,.mp4,.mov,.m4v,.webm,.3gp,.mkv" class="hidden">
+            <input type="file" id="vm_input" accept="video/*,.mp4,.mov,.m4v,.webm,.3gp,.mkv" class="hidden" data-custom-file-upload>
 
             <div id="vm_state" class="hidden">
                 <div class="flex items-center justify-between gap-3 text-sm">

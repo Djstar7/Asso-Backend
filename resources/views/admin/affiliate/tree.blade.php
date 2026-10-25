@@ -97,6 +97,12 @@
 
 @push('scripts')
 <script>
+    function escapeAffiliateText(value) {
+        const text = document.createElement('span');
+        text.textContent = String(value ?? '');
+        return text.innerHTML;
+    }
+
     function renderTree(nodes, level) {
         if (!nodes || nodes.length === 0) {
             return '<p class="text-gray-400 text-sm text-center py-4">Aucun filleul pour le moment</p>';
@@ -114,22 +120,22 @@
                         <div class="flex items-center justify-between">
                             <div class="flex items-center gap-3">
                                 <div class="w-8 h-8 rounded-full bg-gradient-to-br from-${color}-500 to-${color}-600 flex items-center justify-center text-white text-xs font-bold">
-                                    ${node.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                                    ${escapeAffiliateText(node.name.split(' ').map(n => n[0]).join('').toUpperCase())}
                                 </div>
                                 <div>
-                                    <h5 class="font-medium text-gray-200 text-sm">${node.name}</h5>
-                                    <p class="text-xs text-gray-400">${node.email}</p>
+                                    <h5 class="font-medium text-gray-200 text-sm">${escapeAffiliateText(node.name)}</h5>
+                                    <p class="text-xs text-gray-400">${escapeAffiliateText(node.email)}</p>
                                 </div>
                             </div>
                             <div class="flex items-center gap-2">
                                 <span class="bg-${color}-600 text-white px-2 py-1 rounded text-xs">
-                                    Niveau ${node.level}
+                                    Niveau ${escapeAffiliateText(node.level)}
                                 </span>
                                 <span class="text-xs text-gray-400">
-                                    <i class="fas fa-users mr-1"></i>${node.total_referrals}
+                                    <i class="fas fa-users mr-1"></i>${escapeAffiliateText(node.total_referrals)}
                                 </span>
                                 <span class="text-xs text-green-400 font-medium">
-                                    ${node.total_earned}
+                                    ${escapeAffiliateText(node.total_earned)}
                                 </span>
                             </div>
                         </div>

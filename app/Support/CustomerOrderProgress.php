@@ -43,11 +43,11 @@ class CustomerOrderProgress
     {
         return Order::query()->select('orders.id')
             ->where('delivery_mode', Order::DELIVERY_CARRIER)
-            ->whereNull('delivery_zone_id')->whereNull('delivery_city_grid_id')
             ->where(function ($q) {
                 $q->where('delivery_breakdown->delivery_option', 'agency_pickup')
                     ->orWhere(function ($legacy) {
                         $legacy->whereNull('delivery_breakdown->delivery_option')
+                            ->whereNull('delivery_zone_id')->whereNull('delivery_city_grid_id')
                             ->where(function ($mode) {
                                 $mode->where('delivery_breakdown->service_mode', DelivererCompany::MODE_AGENCY)
                                     ->orWhere(fn ($company) => $company->whereNull('delivery_breakdown->service_mode')

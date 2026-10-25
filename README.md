@@ -268,6 +268,31 @@ public/
 - Hashage sécurisé des mots de passe
 - Stockage sécurisé des credentials
 
+### Déploiement des corrections du back-office (octobre 2026)
+
+Les nouvelles colonnes de suivi des documents et des envois vidéo sont requises
+avec cette version. Exécuter les migrations et le déplacement des anciens
+documents lors du déploiement, avant de rouvrir l'accès au back-office :
+
+```bash
+php artisan migrate --force
+php artisan documents:secure-storage
+```
+
+Les nouveaux documents sont conservés sur le disque `local` privé, y compris
+ceux visibles par tous les membres autorisés du back-office. Leur téléchargement
+passe par le contrôleur et ses permissions. La commande copie les anciens
+fichiers, vérifie leur empreinte SHA-256, met à jour les références, puis retire
+les copies publiques. Elle inclut les documents supprimés logiquement et peut
+être relancée. Un code de sortie non nul signale un fichier absent, une copie
+incomplète ou une ancienne copie publique qui n'a pas pu être supprimée : traiter
+les erreurs signalées avant de considérer les anciens documents comme protégés.
+
+Le disque privé doit être accessible en écriture et ne doit pas être exposé par
+le serveur web. Conserver `APP_DEBUG=false` en production et un cache partagé
+entre les serveurs applicatifs pour les limites de connexion, les verrous
+d'envoi et la détection des soumissions répétées.
+
 ## Tests
 
 ```bash

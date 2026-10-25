@@ -22,7 +22,7 @@ class ProductVideoController extends Controller
     {
         $result = $uploads->receiveChunk($request);
 
-        if (!$result['complete']) {
+        if (! $result['complete']) {
             return response()->json(['success' => true] + $result);
         }
 
@@ -39,6 +39,8 @@ class ProductVideoController extends Controller
      */
     public function show(ProductVideo $video): JsonResponse
     {
+        $this->authorizeVideo($video);
+
         return response()->json(['success' => true, 'video' => $this->present($video)]);
     }
 
@@ -48,6 +50,7 @@ class ProductVideoController extends Controller
      */
     public function destroy(ProductVideo $video): JsonResponse
     {
+        $this->authorizeVideo($video, true);
         $video->delete();
 
         return response()->json(['success' => true]);
@@ -59,6 +62,7 @@ class ProductVideoController extends Controller
      */
     public function media(ProductVideo $video, string $kind)
     {
+        $this->authorizeVideo($video);
         $path = $video->absolutePath($kind);
         abort_unless($path, 404);
 
@@ -82,5 +86,22 @@ class ProductVideoController extends Controller
                 : null,
             'video_url' => $ready ? route('admin.product-videos.media', [$video, 'video']) : null,
         ];
+    }
+
+    private function authorizeVideo(ProductVideo $video, bool $write = false): void
+    {
+        $user = request()->user();
+        if ($user->isAdmin()) {
+            return;
+        }
+        if ($video->product_id === null) {
+            abort_unless((int) $video->uploaded_by === $user->id, 404);
+
+            return;
+        }
+        abort_unless(\App\Models\Product::whereKey($video->product_id)->exists(), 404);
+        if ($write) {
+            abort_unless($user->canAccessAdminRoute('admin.products.update'), 403);
+        }
     }
 }

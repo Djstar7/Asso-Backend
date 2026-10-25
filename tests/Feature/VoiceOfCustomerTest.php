@@ -16,6 +16,7 @@ class VoiceOfCustomerTest extends TestCase
     use RefreshDatabase;
 
     private User $author;
+
     private User $reader;
 
     protected function setUp(): void
@@ -172,6 +173,6 @@ class VoiceOfCustomerTest extends TestCase
             ->assertRedirect();
 
         $this->assertSame(1, Post::find($id)->comments_count);
-        $this->actingAs($admin)->get('/admin/diaspo/posts')->assertOk()->assertSee('Voice of Customer');
+        $this->actingAs($admin)->get('/admin/diaspo/posts')->assertOk()->assertSee('Posts DIASPO');
     }
 }

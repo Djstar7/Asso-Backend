@@ -31,6 +31,11 @@ class Category extends Model
         'delivery_days_max' => 'integer',
     ];
 
+    public function getSvgIconAttribute(?string $value): ?string
+    {
+        return \App\Support\SafeSvg::sanitize($value);
+    }
+
     /**
      * Boot method to auto-generate slug
      */
@@ -45,7 +50,7 @@ class Category extends Model
         });
 
         static::updating(function ($category) {
-            if ($category->isDirty('name') && !$category->isDirty('slug')) {
+            if ($category->isDirty('name') && ! $category->isDirty('slug')) {
                 $category->slug = Str::slug($category->name);
             }
         });

@@ -143,7 +143,7 @@
                                             </button>
                                         </form>
                                         <button type="button"
-                                                onclick="openStripeRejectModal({{ $account->id }}, '{{ addslashes(trim($account->first_name . ' ' . $account->last_name)) }}')"
+                                                onclick="openStripeRejectModal({{ $account->id }}, @js(trim($account->first_name . ' ' . $account->last_name)))"
                                                 class="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-medium transition-all">
                                             <i class="fas fa-times mr-1"></i> Rejeter
                                         </button>

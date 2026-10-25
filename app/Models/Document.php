@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Support\Facades\Storage;
 
 class Document extends Model
 {
@@ -16,6 +15,8 @@ class Document extends Model
         'description',
         'file_name',
         'file_path',
+        'file_disk',
+        'legacy_public_path',
         'file_type',
         'file_size',
         'mime_type',
@@ -54,7 +55,7 @@ class Document extends Model
      */
     public function getFileUrlAttribute()
     {
-        return media_url($this->file_path);
+        return route('admin.documents.download', $this);
     }
 
     /**
@@ -69,7 +70,7 @@ class Document extends Model
             $bytes /= 1024;
         }
 
-        return round($bytes, 2) . ' ' . $units[$i];
+        return round($bytes, 2).' '.$units[$i];
     }
 
     /**
@@ -117,6 +118,17 @@ class Document extends Model
         return $query->where('visibility', 'public');
     }
 
+    public function scopeAccessibleTo($query, User $user)
+    {
+        if ($user->isAdmin()) {
+            return $query;
+        }
+
+        return $query->where(fn ($q) => $q->where('uploaded_by', $user->id)
+            ->orWhere('visibility', 'public')
+            ->orWhere(fn ($restricted) => $restricted->where('visibility', 'restricted')->whereJsonContains('allowed_users', $user->id)));
+    }
+
     /**
      * Supprimer le fichier physique lors de la suppression du document.
      */
@@ -124,10 +136,8 @@ class Document extends Model
     {
         parent::boot();
 
-        static::deleting(function ($document) {
-            if (Storage::exists($document->file_path)) {
-                Storage::delete($document->file_path);
-            }
+        static::forceDeleted(function ($document) {
+            \App\Services\SafeUpload::delete($document->file_path, $document->file_disk ?? 'public');
         });
     }
 }

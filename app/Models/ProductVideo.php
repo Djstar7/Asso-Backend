@@ -22,8 +22,11 @@ use Illuminate\Support\Facades\Storage;
 class ProductVideo extends Model
 {
     public const PENDING = 'pending';
+
     public const PROCESSING = 'processing';
+
     public const READY = 'ready';
+
     public const FAILED = 'failed';
 
     /** Taille maximale acceptée à l'envoi, en Mo. */
@@ -33,6 +36,7 @@ class ProductVideo extends Model
     public const EXTENSIONS = ['mp4', 'mov', 'm4v', 'webm', '3gp', 'mkv'];
 
     protected $fillable = [
+        'upload_id',
         'product_id',
         'uploaded_by',
         'original_path',
@@ -102,7 +106,7 @@ class ProductVideo extends Model
             default => null,
         };
 
-        if (!$relative || !Storage::disk('public')->exists($relative)) {
+        if (! $relative || ! Storage::disk('public')->exists($relative)) {
             return null;
         }
 
@@ -116,7 +120,7 @@ class ProductVideo extends Model
      */
     public function toApi(): ?array
     {
-        if (!$this->isReady()) {
+        if (! $this->isReady()) {
             return null;
         }
 
@@ -135,7 +139,7 @@ class ProductVideo extends Model
     /** Rend au forfait du vendeur l'espace décompté pour cette vidéo. */
     public function refundStorage(): void
     {
-        if ($this->storage_charged_mb <= 0 || !$this->uploaded_by) {
+        if ($this->storage_charged_mb <= 0 || ! $this->uploaded_by) {
             return;
         }
 
