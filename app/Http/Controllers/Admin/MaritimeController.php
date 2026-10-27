@@ -220,15 +220,15 @@ class MaritimeController extends Controller
     // ------------------------------------------------------------------
 
     /**
-     * Départ du partenaire. Tarif au kg, ou au m³ comme le facture le
-     * transporteur : l'expéditeur saisit des kilos, convertis en m³
-     * (1 m³ = 1 000 kg) pour calculer le prix.
+     * Maritime : tarif et capacité saisis en CBM. Le stockage historique
+     * de capacité reste inchangé ; l'aérien utilise un tarif au kilogramme.
      */
     public function storeDeparture(Request $request, DelivererCompany $partner)
     {
         $this->ensureMaritime($partner);
         $profile = $this->prepareFreightRate($request, $partner);
-        $hubIds = $partner->maritimeHubs()->pluck('id')->all();
+        $this->prepareCapacity($request, $profile?->transport_mode ?? 'sea');
+        $hubIds = $partner->maritimeHubs()->where('is_active', true)->pluck('id')->all();
 
         $data = $request->validate([
             'origin_hub_id' => ['required', Rule::in($hubIds)],
@@ -236,12 +236,14 @@ class MaritimeController extends Controller
             'departure_date' => 'required|date|after:today',
             'estimated_arrival_date' => 'nullable|date|after:departure_date',
             'capacity_kg' => 'required|numeric|min:1',
-            'pricing_unit' => 'required|in:cbm,kg',
+            'pricing_unit' => ['required', Rule::in([$profile?->transport_mode === 'air' ? 'kg' : 'cbm'])],
             'price' => 'required|numeric|min:0.01',
+            'public_rate_amount' => 'nullable|numeric|gte:price',
             'currency' => 'required|string|size:3',
             'notes' => 'nullable|string|max:2000',
             'occurrences' => 'nullable|integer|min:1|max:26',
         ], [
+            'pricing_unit.in' => 'Le maritime se configure uniquement en CBM. Le kilogramme est réservé aux tarifs aériens.',
             'origin_hub_id.in' => 'Choisissez un QG de ce partenaire.',
             'destination_hub_id.in' => 'Choisissez un QG de ce partenaire.',
         ]);
@@ -263,7 +265,7 @@ class MaritimeController extends Controller
             'status' => MaritimeDeparture::STATUS_OPEN,
             'notes' => $data['notes'] ?? null,
             'partner_freight_rate_id' => $profile?->id,
-            'freight_rate_snapshot' => $profile?->snapshot(),
+            'freight_rate_snapshot' => $profile?->snapshot() ?? ['transport_mode' => 'sea', 'public_rate_amount' => $request->input('public_rate_amount')],
         ];
 
         $origin = $partner->maritimeHubs()->find($data['origin_hub_id']);
@@ -294,6 +296,7 @@ class MaritimeController extends Controller
             $this->ensureMaritime($departure->company);
             $hasBookings = $departure->bookings()->exists();
             $profile = ! $hasBookings ? $this->prepareFreightRate($request, $departure->company) : null;
+            $this->prepareCapacity($request, $hasBookings ? ($departure->freight_rate_snapshot['transport_mode'] ?? 'sea') : ($profile?->transport_mode ?? 'sea'));
             $data = $request->validate([
                 'status' => ['required', Rule::in(array_keys(MaritimeDeparture::STATUSES))],
                 'capacity_kg' => 'required|numeric|min:1',
@@ -306,27 +309,29 @@ class MaritimeController extends Controller
                 ],
                 'notes' => 'nullable|string|max:2000',
                 ...($hasBookings ? [] : [
-                    'origin_hub_id' => ['required', Rule::in($departure->company->maritimeHubs()->pluck('id')->all())],
-                    'destination_hub_id' => ['required', Rule::in($departure->company->maritimeHubs()->pluck('id')->all()), 'different:origin_hub_id'],
+                    'origin_hub_id' => ['required', Rule::in($departure->company->maritimeHubs()->where('is_active', true)->pluck('id')->all())],
+                    'destination_hub_id' => ['required', Rule::in($departure->company->maritimeHubs()->where('is_active', true)->pluck('id')->all()), 'different:origin_hub_id'],
                     'departure_date' => 'required|date',
-                    'pricing_unit' => 'required|in:cbm,kg',
+                    'pricing_unit' => ['required', Rule::in([$profile?->transport_mode === 'air' ? 'kg' : 'cbm'])],
                     'price' => 'required|numeric|min:0.01',
+                    'public_rate_amount' => 'nullable|numeric|gte:price',
                     'currency' => 'required|string|size:3',
                 ]),
             ], [
-                'origin_hub_id.in' => 'Choisissez un QG de ce partenaire.',
+                'pricing_unit.in' => 'Le maritime se configure uniquement en CBM. Le kilogramme est réservé aux tarifs aériens.',
+            'origin_hub_id.in' => 'Choisissez un QG de ce partenaire.',
                 'destination_hub_id.in' => 'Choisissez un QG de ce partenaire.',
             ]);
 
             // La capacité ne descend pas sous les kilos déjà réservés.
             $booked = (float) $departure->capacity_kg - (float) $departure->remaining_kg;
             if ((float) $data['capacity_kg'] < $booked) {
-                return back()->with('error', "Capacité inférieure aux {$booked} kg déjà réservés.");
+                throw \Illuminate\Validation\ValidationException::withMessages(['capacity_cbm' => 'La capacité ne peut pas être inférieure au volume déjà réservé.']);
             }
 
             $updates = [
                 'status' => $data['status'],
-                'estimated_arrival_date' => $data['estimated_arrival_date'],
+                'estimated_arrival_date' => $data['estimated_arrival_date'] ?? null,
                 'capacity_kg' => $data['capacity_kg'],
                 'remaining_kg' => (float) $data['capacity_kg'] - $booked,
                 'notes' => $data['notes'] ?? null,
@@ -345,7 +350,7 @@ class MaritimeController extends Controller
                         : $data['price'],
                     'currency' => strtoupper($data['currency']),
                     'partner_freight_rate_id' => $profile?->id,
-                    'freight_rate_snapshot' => $profile?->snapshot() ?? $departure->freight_rate_snapshot,
+                    'freight_rate_snapshot' => $profile?->snapshot() ?? array_merge($departure->freight_rate_snapshot ?? [], ['transport_mode' => 'sea', 'public_rate_amount' => $data['public_rate_amount'] ?? null]),
                 ];
             }
 
@@ -353,6 +358,18 @@ class MaritimeController extends Controller
 
             return back()->with('success', 'Départ mis à jour.');
         });
+    }
+
+    /** Les anciens champs kg restent le stockage interne de capacité. */
+    private function prepareCapacity(Request $request, string $mode): void
+    {
+        if ($mode === 'sea' && $request->has('capacity_cbm')) {
+            $request->validate(['capacity_cbm' => 'required|numeric|min:0.001|max:1000000']);
+            $request->merge(['capacity_kg' => round((float) $request->input('capacity_cbm') * MaritimeDeparture::KG_PER_CBM, 2)]);
+        }
+        $request->validate([
+            'origin_hub_id' => 'sometimes|required|different:destination_hub_id',
+        ]);
     }
 
     private function prepareFreightRate(Request $request, DelivererCompany $partner): ?\App\Models\PartnerFreightRate
@@ -374,6 +391,7 @@ class MaritimeController extends Controller
         $request->merge([
             'pricing_unit' => $rate->rate_unit,
             'price' => $rate->rate_amount,
+            'public_rate_amount' => $rate->public_rate_amount,
             'currency' => $rate->currency,
         ]);
         if (! $request->filled('estimated_arrival_date') && $rate->transit_days_max !== null) {

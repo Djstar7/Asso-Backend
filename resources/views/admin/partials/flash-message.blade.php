@@ -1,7 +1,8 @@
 @php
     $flashLocale = auth()->user()?->preferredLocale() ?? 'fr';
-    $flashType = session('error') ? 'error' : 'success';
-    $flashMessage = session('error') ?: session('success');
+    $validationMessages = isset($errors) ? array_unique($errors->all()) : [];
+    $flashType = session('error') || $validationMessages ? 'error' : 'success';
+    $flashMessage = session('error') ?: ($validationMessages ? implode(' ', $validationMessages) : session('success'));
 @endphp
 <div id="adminFlash" class="admin-flash" data-flash-type="{{ $flashType }}"
      role="{{ $flashType === 'error' ? 'alert' : 'status' }}" aria-live="{{ $flashType === 'error' ? 'assertive' : 'polite' }}"

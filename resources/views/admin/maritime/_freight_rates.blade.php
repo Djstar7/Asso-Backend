@@ -10,7 +10,8 @@
                     Ajouter un tarif
                 @endif
             </summary>
-            <form method="POST" action="{{ $rate ? route('admin.maritime.freight-rates.update', [$partner, $rate]) : route('admin.maritime.freight-rates.store', $partner) }}" class="grid grid-cols-1 md:grid-cols-4 gap-3 mt-4">
+            <form method="POST" action="{{ $rate ? route('admin.maritime.freight-rates.update', [$partner, $rate]) : route('admin.maritime.freight-rates.store', $partner) }}" class="grid grid-cols-1 md:grid-cols-4 gap-3 mt-4"
+                  x-data="{ mode: @js($rate?->transport_mode ?? old('transport_mode', 'sea')) }">
                 @csrf
                 @if($rate) @method('PUT') @endif
                 @foreach(['origin_country' => 'Pays de départ', 'destination_country' => "Pays d’arrivée"] as $field => $label)
@@ -21,14 +22,20 @@
                         @error($field)<span class="text-red-400">{{ $message }}</span>@enderror
                     </label>
                 @endforeach
-                @foreach(['transport_mode' => ['Mode', ['sea' => 'Maritime', 'air' => 'Aérien']], 'cargo_category' => ['Catégorie du colis', ['general' => 'Général', 'sensitive' => 'Sensible']], 'rate_unit' => ['Unité de facturation', ['cbm' => 'CBM (m³)', 'kg' => 'Kilogramme']], 'currency' => ['Devise', ['XAF' => 'FCFA (XAF)', 'EUR' => 'EUR', 'USD' => 'USD', 'CNY' => 'CNY', 'CAD' => 'CAD', 'GBP' => 'GBP']], 'freight_payment_timing' => ['Échéance du fret partenaire', ['departure' => 'Au départ', 'arrival' => "À l’arrivée à l’entrepôt"]]] as $field => [$label, $choices])
+                @foreach(['transport_mode' => ['Mode', ['sea' => 'Maritime', 'air' => 'Aérien']], 'cargo_category' => ['Catégorie du colis', ['general' => 'Général', 'sensitive' => 'Sensible']], 'currency' => ['Devise', ['XAF' => 'FCFA (XAF)', 'EUR' => 'EUR', 'USD' => 'USD', 'CNY' => 'CNY', 'CAD' => 'CAD', 'GBP' => 'GBP']], 'freight_payment_timing' => ['Échéance du fret partenaire', ['departure' => 'Au départ', 'arrival' => "À l’arrivée à l’entrepôt"]]] as $field => [$label, $choices])
                     <label class="text-sm text-gray-300">{{ $label }}
-                        <select name="{{ $field }}" required class="{{ $input }}" @disabled($rate && in_array($field, ['transport_mode', 'cargo_category']))>
+                        <select name="{{ $field }}" required class="{{ $input }}"
+                            @if($field === 'transport_mode') x-model="mode" @endif
+                            @disabled($rate && in_array($field, ['transport_mode', 'cargo_category']))>
                             @foreach($choices as $value => $name)<option value="{{ $value }}" @selected(($rate?->$field ?? old($field, array_key_first($choices))) === $value)>{{ $name }}</option>@endforeach
                         </select>
                         @error($field)<span class="text-red-400">{{ $message }}</span>@enderror
                     </label>
                 @endforeach
+                <div class="text-sm text-gray-300">Unité de facturation
+                    <input type="hidden" name="rate_unit" :value="mode === 'sea' ? 'cbm' : 'kg'">
+                    <p class="mt-2" x-text="mode === 'sea' ? 'CBM (m³)' : 'Kilogramme (aérien)'"></p>
+                </div>
                 @foreach(['rate_amount' => 'Coût partenaire par unité', 'transit_days_min' => 'Délai minimum (jours)', 'transit_days_max' => 'Délai maximum (jours)'] as $field => $label)
                     <label class="text-sm text-gray-300">{{ $label }}
                         <input type="number" name="{{ $field }}" min="{{ $field === 'rate_amount' ? '0.01' : '1' }}" step="{{ $field === 'rate_amount' ? '0.01' : '1' }}" value="{{ $rate?->$field ?? old($field) }}" @required($field === 'rate_amount') class="{{ $input }}">

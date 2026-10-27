@@ -33,7 +33,7 @@ class PartnerFreightRatesTest extends TestCase
     {
         return ['origin_hub_id' => $hubs[0]->id, 'destination_hub_id' => $hubs[1]->id,
             'departure_date' => today()->addDays(30)->toDateString(), 'capacity_kg' => 10000,
-            'pricing_unit' => 'kg', 'price' => 1, 'currency' => 'EUR'];
+            'pricing_unit' => 'cbm', 'price' => 1, 'currency' => 'EUR'];
     }
 
     public function test_sea_and_air_rates_keep_partner_costs_separate_from_fixed_public_prices(): void

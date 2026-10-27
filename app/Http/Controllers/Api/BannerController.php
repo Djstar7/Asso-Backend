@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Banner;
-use Illuminate\Http\Request;
 
 class BannerController extends Controller
 {
@@ -13,10 +12,11 @@ class BannerController extends Controller
         $banners = Banner::where('is_active', true)
             ->orderBy('position')
             ->get()
-            ->map(fn($banner) => [
+            ->map(fn ($banner) => [
                 'id' => $banner->id,
                 'title' => $banner->title,
-                'image' => $banner->image ? media_url($banner->image) : null,
+                'subtitle' => $banner->description,
+                'image' => $banner->image_path ? $banner->image_url : null,
                 'link' => $banner->link,
                 'position' => $banner->position,
             ]);

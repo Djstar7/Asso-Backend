@@ -14,17 +14,6 @@
         </a>
     </div>
 
-    @if ($errors->any())
-        <div class="mb-6 p-4 bg-red-900/20 border-l-4 border-red-500 rounded">
-            <p class="font-semibold text-red-400 mb-2"><i class="fas fa-exclamation-circle mr-2"></i>Erreurs de validation:</p>
-            <ul class="list-disc list-inside text-red-300">
-                @foreach ($errors->all() as $error)
-                    <li>{{ $error }}</li>
-                @endforeach
-            </ul>
-        </div>
-    @endif
-
     <form action="{{ route('admin.products.update', $product) }}" method="POST" enctype="multipart/form-data">
         @csrf
         @method('PUT')

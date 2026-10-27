@@ -99,7 +99,7 @@ class MaritimeDeparture extends Model
         return max(0, (int) Setting::get('maritime_booking_cutoff_days', 7));
     }
 
-    /** Départ tarifé au m³ : 1 m³ = 1 000 kg (règle fixée par ASSO). */
+    /** Échelle du stockage historique de capacité ; ne représente pas un poids réel. */
     public const KG_PER_CBM = 1000;
 
     public static function dropoffDaysBefore(): int
@@ -249,12 +249,14 @@ class MaritimeDeparture extends Model
             'is_bookable' => $this->isBookable(),
             'capacity_kg' => (float) $this->capacity_kg,
             'remaining_kg' => (float) $this->remaining_kg,
+            'capacity_cbm' => (float) $this->capacity_kg / self::KG_PER_CBM,
+            'remaining_cbm' => (float) $this->remaining_kg / self::KG_PER_CBM,
             'price_per_kg' => $this->requiresQuote() ? null : $this->publicPricePerKg(),
             // Départ tarifé au m³ : tarif public au m³ et conversion, pour l'affichage.
-            'price_per_cbm' => ! $this->requiresQuote() && $this->isPricedPerCbm()
-                ? (float) ($this->freight_rate_snapshot['public_rate_amount'] ?? round((float) $this->price_per_cbm * (1 + self::commissionRate() / 100), 2))
+            'price_per_cbm' => ! $this->requiresQuote() && ($this->freight_rate_snapshot['transport_mode'] ?? 'sea') === 'sea'
+                ? $this->publicFreightFor(self::KG_PER_CBM)
                 : null,
-            'kg_per_cbm' => $this->isPricedPerCbm() ? (float) $this->kg_per_cbm : null,
+            'kg_per_cbm' => ($this->freight_rate_snapshot['transport_mode'] ?? 'sea') === 'sea' ? self::KG_PER_CBM : null,
             'currency' => $this->currency,
             'status' => $this->status,
             'notes' => $includeMeeting ? $this->notes : null,

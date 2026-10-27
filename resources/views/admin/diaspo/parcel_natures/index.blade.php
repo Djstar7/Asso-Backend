@@ -7,16 +7,6 @@
         <p class="text-gray-400">L'expéditeur choisit la nature de son colis dans cette liste et en déclare la valeur, en avion comme en maritime. Supplément d'assurance = valeur déclarée × taux. Le supplément revient à ASSO ; un sinistre se traite à la main, jusqu'à la valeur déclarée.</p>
     </div>
 
-    @if($errors->any())
-        <div class="mb-6 p-4 bg-red-900/20 border-l-4 border-red-500 rounded">
-            <ul class="text-red-300 text-sm list-disc list-inside">
-                @foreach($errors->all() as $error)
-                    <li>{{ $error }}</li>
-                @endforeach
-            </ul>
-        </div>
-    @endif
-
     <!-- Seuil avion / maritime -->
     <div class="bg-dark-100 rounded-xl shadow-lg border border-dark-200 p-6 mb-6">
         <h2 class="text-lg font-semibold text-white mb-1"><i class="fas fa-balance-scale mr-2 text-primary-400"></i>Seuil avion / maritime</h2>

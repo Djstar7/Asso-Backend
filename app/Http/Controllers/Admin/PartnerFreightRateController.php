@@ -48,7 +48,7 @@ class PartnerFreightRateController extends Controller
             'destination_country' => ['required', 'different:origin_country', Rule::in(array_keys(CountryCode::NAMES))],
             'transport_mode' => 'required|in:sea,air',
             'cargo_category' => 'required|in:general,sensitive',
-            'rate_unit' => 'required|in:cbm,kg',
+            'rate_unit' => ['required', Rule::in([$request->input('transport_mode') === 'air' ? 'kg' : 'cbm'])],
             'rate_amount' => 'required|numeric|min:0.01|max:1000000000000',
             'public_rate_amount' => 'nullable|numeric|gte:rate_amount|max:1000000000000',
             'frequency_days' => 'nullable|integer|min:1|max:365|prohibited_if:origin_country,CN',
@@ -57,6 +57,6 @@ class PartnerFreightRateController extends Controller
             'transit_days_max' => 'nullable|required_with:transit_days_min|integer|gte:transit_days_min|max:730',
             'freight_payment_timing' => 'required|in:departure,arrival',
             'notes' => 'nullable|string|max:3000',
-        ]);
+        ], ['rate_unit.in' => 'Utilisez le CBM pour le maritime et le kilogramme pour l’aérien.']);
     }
 }

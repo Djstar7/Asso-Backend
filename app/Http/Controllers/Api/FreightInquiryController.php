@@ -25,11 +25,14 @@ class FreightInquiryController extends Controller
     {
         $data = $request->validate([
             'destination_country' => ['required', Rule::in(array_diff(array_keys(CountryCode::NAMES), ['CN', 'CM']))],
-            'kg' => 'required|numeric|min:0.5|max:1000000',
-            'volume_cbm' => 'nullable|numeric|gt:0|max:10000',
+            'kg' => 'nullable|numeric|min:0.5|max:1000000',
+            'volume_cbm' => 'required_without:kg|nullable|numeric|min:0.001|max:10000',
             'cargo_category' => 'required|in:general,sensitive',
             'description' => 'required|string|min:5|max:3000',
         ]);
+        if (! isset($data['kg'])) {
+            $data['kg'] = round((float) $data['volume_cbm'] * \App\Models\MaritimeDeparture::KG_PER_CBM, 2);
+        }
         $platform = SupportService::user();
         abort_unless($platform && ! $platform->is($request->user()), 422, 'Le compte ASSO est indisponible.');
         $inquiry = DB::transaction(function () use ($request, $platform, $data) {
@@ -43,7 +46,7 @@ class FreightInquiryController extends Controller
             $conversation ??= Conversation::create(['user1_id' => $ids[0], 'user2_id' => $ids[1]]);
             $inquiry = FreightInquiry::create($data + ['user_id' => $request->user()->id, 'conversation_id' => $conversation->id]);
             $message = Message::create(['conversation_id' => $conversation->id, 'sender_id' => $request->user()->id,
-                'message' => "Demande de devis maritime #{$inquiry->id} — Chine → {$inquiry->destination_country}, {$inquiry->kg} kg, ".($inquiry->volume_cbm ? "{$inquiry->volume_cbm} m³, " : '')."{$inquiry->cargo_category}.\n{$inquiry->description}", 'is_read' => false]);
+                'message' => "Demande de devis maritime #{$inquiry->id} — Chine → {$inquiry->destination_country}, ".($inquiry->volume_cbm ? "{$inquiry->volume_cbm} m³, " : '')."{$inquiry->cargo_category}.\n{$inquiry->description}", 'is_read' => false]);
             $conversation->update(['last_message_at' => now()]);
             \App\Services\FreightInquiryMessaging::notify($message, $platform);
 

@@ -7,7 +7,7 @@
     @foreach($inquiries as $inquiry)
         <article class="bg-dark-100 border border-dark-200 rounded-xl p-4 mb-4">
             <h2 class="text-white font-bold">#{{ $inquiry->id }} · {{ $inquiry->user->name }} · Chine → {{ $inquiry->destination_country }} · {{ $inquiry->status }}</h2>
-            <p>{{ $inquiry->kg }} kg @if($inquiry->volume_cbm) · {{ $inquiry->volume_cbm }} m³ @endif · {{ $inquiry->cargo_category }} · <a class="text-primary-400" href="{{ route('admin.messages.show', $inquiry->conversation_id) }}">Ouvrir la discussion #{{ $inquiry->conversation_id }}</a></p>
+            <p>{{ $inquiry->volume_cbm ?? (float) $inquiry->kg / 1000 }} CBM · {{ $inquiry->cargo_category }} · <a class="text-primary-400" href="{{ route('admin.messages.show', $inquiry->conversation_id) }}">Ouvrir la discussion #{{ $inquiry->conversation_id }}</a></p>
             <p class="my-2 whitespace-pre-line">{{ $inquiry->description }}</p>
             @if($inquiry->freight_amount)<p>Devis : {{ number_format($inquiry->freight_amount, 2, ',', ' ') }} {{ $inquiry->currency }} · Coût partenaire : {{ number_format($inquiry->partner_amount, 2, ',', ' ') }} {{ $inquiry->currency }} · Valable jusqu’au {{ $inquiry->expires_at }}</p>@endif
             @if(in_array($inquiry->status, ['pending', 'quoted']))

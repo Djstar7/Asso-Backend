@@ -128,7 +128,8 @@ class MaritimeController extends Controller
     {
         return [
             'freight_inquiry_id' => 'nullable|integer|min:1',
-            'kg_booked' => 'required|numeric|min:0.5',
+            'kg_booked' => 'required_without:volume_cbm|numeric|min:0.5',
+            'volume_cbm' => 'required_without:kg_booked|numeric|min:0.001|max:1000000',
             'parcels_count' => 'nullable|integer|min:1|max:500',
             'sender_first_name' => 'required|string|max:100',
             'sender_last_name' => 'required|string|max:100',
@@ -155,6 +156,10 @@ class MaritimeController extends Controller
             'required_if' => 'Le champ :attribute est obligatoire pour ce mode de paiement.',
             'max' => ':attribute est trop long (:max caractères maximum).',
             'regex' => ':attribute n\'est pas un numéro valide (ex. +237 6XX XX XX XX).',
+            'volume_cbm.required_without' => 'Indiquez le volume de votre envoi en CBM.',
+            'volume_cbm.numeric' => 'Le volume doit être un nombre en CBM.',
+            'volume_cbm.min' => 'Le volume minimum est de :min CBM.',
+            'volume_cbm.max' => 'Le volume maximum est de :max CBM.',
             'kg_booked.min' => 'Le poids minimum est de :min kg.',
             'kg_booked.numeric' => 'Le poids doit être un nombre.',
             'parcels_count.min' => 'Il faut au moins :min colis.',
@@ -172,6 +177,7 @@ class MaritimeController extends Controller
     private function bookingAttributes(): array
     {
         return [
+            'volume_cbm' => 'volume (CBM)',
             'kg_booked' => 'poids',
             'parcels_count' => 'nombre de colis',
             'sender_first_name' => 'prénom de l\'expéditeur',

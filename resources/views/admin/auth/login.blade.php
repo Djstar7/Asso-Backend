@@ -697,17 +697,6 @@
                 <p>{{ $isManager ? 'Accédez à votre espace de gestion' : "Accédez au panneau d'administration" }}</p>
             </div>
 
-            @if ($errors->any())
-                <div class="alert alert-danger">
-                    <i class="fas fa-exclamation-circle"></i>
-                    <div>
-                        @foreach ($errors->all() as $error)
-                            {{ $error }}
-                        @endforeach
-                    </div>
-                </div>
-            @endif
-
             @if (session('portal_notice'))
                 <div class="alert alert-info">
                     <i class="fas fa-circle-info"></i>

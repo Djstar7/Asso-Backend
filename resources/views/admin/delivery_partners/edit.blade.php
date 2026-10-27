@@ -24,13 +24,6 @@
                class="px-4 py-2 rounded-lg text-sm font-medium border {{ $section === $key ? 'bg-primary-500 border-primary-500 text-white' : 'bg-dark-100 border-dark-300 text-gray-300 hover:border-primary-400' }}">{{ $label }}</a>
         @endforeach
     </nav>
-    @if($errors->any())
-        <div class="mb-5 p-4 bg-red-900/20 border-l-4 border-red-500 rounded">
-            <ul class="text-red-300 text-sm list-disc list-inside">
-                @foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach
-            </ul>
-        </div>
-    @endif
     @switch($section)
         @case('collection')
             @include('admin.delivery_partners._collection_pricing')

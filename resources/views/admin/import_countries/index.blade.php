@@ -9,16 +9,6 @@
     </div>
 
 
-    @if($errors->any())
-        <div class="mb-6 p-4 bg-red-900/20 border-l-4 border-red-500 rounded">
-            <ul class="text-red-300 text-sm list-disc list-inside">
-                @foreach($errors->all() as $error)
-                    <li>{{ $error }}</li>
-                @endforeach
-            </ul>
-        </div>
-    @endif
-
     <!-- Parcours d'une commande en gros : pays d'origine → Douala → SOLEX → client -->
     <div class="bg-dark-100 rounded-xl shadow-lg border border-dark-200 p-6 mb-6">
         <h2 class="text-lg font-semibold text-white mb-1"><i class="fas fa-route mr-2 text-primary-400"></i>Livraison des commandes en gros</h2>

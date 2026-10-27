@@ -112,6 +112,28 @@ class MaritimeBookingTest extends TestCase
         ]);
     }
 
+    public function test_cbm_booking_uses_exact_public_rate_and_reserves_volume(): void
+    {
+        $this->fakeKpay();
+        $departure = $this->departure();
+        $departure->update(['price_per_cbm' => 650, 'kg_per_cbm' => 1000, 'price_per_kg' => 0.65,
+            'freight_rate_snapshot' => ['transport_mode' => 'sea', 'public_rate_amount' => 900]]);
+        Sanctum::actingAs(User::factory()->create());
+        $payload = $this->payload(['volume_cbm' => 0.123, 'insurance_opt_in' => false]);
+        unset($payload['kg_booked']);
+        $response = $this->postJson("/api/v1/maritime/departures/{$departure->id}/book", $payload)
+            ->assertCreated()->assertJsonPath('data.total_price', 110.7);
+        $booking = MaritimeBooking::findOrFail($response->json('booking_id'));
+        $this->assertEquals(0.123, $booking->volume_cbm);
+        $this->assertEquals(79.95, $booking->freight_subtotal);
+        $this->assertEquals(30.75, $booking->commission_amount);
+        $this->assertEquals(377, $departure->fresh()->remaining_kg);
+        $payload['volume_cbm'] = 0.378;
+        $this->postJson("/api/v1/maritime/departures/{$departure->id}/book", $payload)
+            ->assertUnprocessable()->assertJsonValidationErrors('volume_cbm');
+        $this->assertSame(1, MaritimeBooking::count());
+    }
+
     public function test_full_lifecycle_credits_partner_wallet_and_asso(): void
     {
         $this->fakeKpay();
@@ -335,8 +357,8 @@ class MaritimeBookingTest extends TestCase
             'destination_hub_id' => $douala,
             'departure_date' => today()->addDays(40)->toDateString(),
             'estimated_arrival_date' => today()->addDays(45)->toDateString(),
-            'pricing_unit' => 'kg',
-            'price' => 5.5,
+            'pricing_unit' => 'cbm',
+            'price' => 5500,
             'currency' => 'usd',
             'capacity_kg' => 6000,
             'status' => 'closed',
@@ -348,7 +370,7 @@ class MaritimeBookingTest extends TestCase
         $this->assertSame('USD', $departure->currency);
         $this->assertSame('Colis emballés uniquement.', $departure->notes);
         $this->assertEquals(5.5, (float) $departure->price_per_kg);
-        $this->assertNull($departure->price_per_cbm);
+        $this->assertEquals(5500, (float) $departure->price_per_cbm);
 
         $this->delete(route('admin.maritime.hubs.destroy', $douala))
             ->assertSessionHas('error');

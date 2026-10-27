@@ -31,7 +31,7 @@
             <table class="w-full text-sm">
                 <thead class="bg-dark-50">
                     <tr class="text-left text-xs font-semibold text-white uppercase tracking-wider">
-                        <th class="px-4 py-3">#</th><th class="px-4 py-3">Expéditeur</th><th class="px-4 py-3">Trajet</th><th class="px-4 py-3">Kilos</th>
+                        <th class="px-4 py-3">#</th><th class="px-4 py-3">Expéditeur</th><th class="px-4 py-3">Trajet</th><th class="px-4 py-3">Volume / poids</th>
                         <th class="px-4 py-3">Total</th><th class="px-4 py-3">Dépôt avant</th><th class="px-4 py-3">Statut</th><th class="px-4 py-3">Indemnisation</th><th></th>
                     </tr>
                 </thead>
@@ -41,7 +41,7 @@
                             <td class="px-4 py-3">{{ $b->id }}</td>
                             <td class="px-4 py-3"><span class="text-white">{{ $b->senderName() }}</span><br><span class="text-xs">{{ $b->sender_phone }}</span></td>
                             <td class="px-4 py-3">{{ $b->departure->originHub->city }} → {{ $b->departure->destinationHub->city }}<br><span class="text-xs">départ {{ $b->departure->departure_date->format('d/m/Y') }}</span></td>
-                            <td class="px-4 py-3 whitespace-nowrap">{{ (float) $b->kg_booked }} kg · {{ $b->parcels_count }} colis</td>
+                            <td class="px-4 py-3 whitespace-nowrap">{{ ($b->departure->freight_rate_snapshot['transport_mode'] ?? 'sea') === 'sea' ? ((float) $b->volume_cbm ?: (float) $b->kg_booked / 1000) : (float) $b->kg_booked }} {{ ($b->departure->freight_rate_snapshot['transport_mode'] ?? 'sea') === 'sea' ? 'CBM' : 'kg' }} · {{ $b->parcels_count }} colis</td>
                             <td class="px-4 py-3 whitespace-nowrap">{{ number_format((float) $b->total_price, 2, ',', ' ') }} {{ $b->currency }}</td>
                             <td class="px-4 py-3 whitespace-nowrap {{ $b->status === 'paid' && $b->dropoff_deadline->isPast() ? 'text-red-300' : '' }}">{{ $b->dropoff_deadline->format('d/m/Y') }}</td>
                             <td class="px-4 py-3">{{ $statuses[$b->status] ?? $b->status }}</td>

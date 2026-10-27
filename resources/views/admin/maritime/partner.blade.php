@@ -6,6 +6,8 @@
     $btn = 'px-4 py-2 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-lg hover:shadow-lg';
     $hubs = $partner->maritimeHubs;
     $activeHubs = $hubs->where('is_active', true);
+    $formHubs = $activeHubs->map->only(['id', 'country'])->values();
+    $formRates = $freightRates->map->only(['id', 'origin_country', 'destination_country', 'transport_mode', 'rate_unit', 'rate_amount', 'public_rate_amount', 'currency'])->values();
 @endphp
 
 @section('content')
@@ -136,9 +138,11 @@
         @if($activeHubs->count() < 2)
             <p class="text-sm text-yellow-300">Ajoutez au moins deux QG actifs (départ et arrivée) pour ouvrir un départ.</p>
         @else
-            <p class="text-sm text-gray-400 mb-4">L'expéditeur saisit toujours des kilos. Au m³, ses kilos sont convertis en m³ (1 m³ = 1 000 kg) puis multipliés par le tarif, avant que le prix lui soit affiché.</p>
+            <p class="text-sm text-gray-400 mb-4">Maritime : volume et tarif en CBM (m³). Aérien : choisissez un tarif aérien enregistré pour réserver en kilogrammes.</p>
             <form action="{{ route('admin.maritime.departures.store', $partner) }}" method="POST"
-                  x-data="{ rateId: @js(old('partner_freight_rate_id', '')), unit: @js(old('pricing_unit', 'cbm')), price: @js(old('price', '')), kg: {{ \App\Models\MaritimeDeparture::KG_PER_CBM }} }"
+                  x-data="{ rateId: @js(old('partner_freight_rate_id', '')), unit: 'cbm', price: @js(old('price', '')) }"
+                  x-on:freight-unit="unit = $event.detail"
+                  data-freight-departure data-hubs='@json($formHubs)' data-rates='@json($formRates)'
                   class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                 @csrf
                 <div>
@@ -155,19 +159,22 @@
                             <option value="{{ $rate->id }}" @selected(old('partner_freight_rate_id') == $rate->id)>{{ $rate->origin_country }} → {{ $rate->destination_country }} · {{ $rate->transport_mode === 'sea' ? 'Maritime' : 'Aérien' }} · {{ $rate->cargo_category === 'sensitive' ? 'Sensible' : 'Général' }} · {{ number_format($rate->rate_amount, 0, ',', ' ') }} {{ $rate->currency }}/{{ $rate->rate_unit }} · {{ $rate->transit_days_min }}–{{ $rate->transit_days_max }} jours</option>
                         @endforeach
                     </select>
-                    <p class="text-xs text-gray-400 mt-1">Le tarif sélectionné remplace le prix, l'unité et la devise saisis ci-dessous. Sans date d'arrivée, le délai maximum du tarif est utilisé.</p>
+                    <p class="text-xs text-gray-400 mt-1">Le tarif sélectionné fixe le coût partenaire, le prix client et la devise. Sans date d'arrivée, le délai maximum du tarif est utilisé.</p>
+                    <p data-rate-summary class="mt-1 text-sm text-primary-300"></p>
                     @error('partner_freight_rate_id')<p class="text-red-400">{{ $message }}</p>@enderror
                 </div>
                 <div>
                     <label class="block text-sm text-gray-300 mb-1">QG de départ</label>
                     <select name="origin_hub_id" required class="{{ $input }}">
+                        <option value="" @selected(!old('origin_hub_id'))>Choisir un QG</option>
                         @foreach($activeHubs as $hub)<option value="{{ $hub->id }}" @selected(old('origin_hub_id') == $hub->id)>{{ $hub->city }} — {{ $hub->name }}</option>@endforeach
                     </select>
                 </div>
                 <div>
                     <label class="block text-sm text-gray-300 mb-1">QG d'arrivée</label>
                     <select name="destination_hub_id" required class="{{ $input }}">
-                        @foreach($activeHubs as $hub)<option value="{{ $hub->id }}" @selected(old('destination_hub_id', $activeHubs->skip(1)->first()?->id) == $hub->id)>{{ $hub->city }} — {{ $hub->name }}</option>@endforeach
+                        <option value="" @selected(!old('destination_hub_id'))>Choisir un QG</option>
+                        @foreach($activeHubs as $hub)<option value="{{ $hub->id }}" @selected(old('destination_hub_id') == $hub->id)>{{ $hub->city }} — {{ $hub->name }}</option>@endforeach
                     </select>
                 </div>
                 <div>
@@ -183,17 +190,15 @@
                     <label class="block text-sm text-gray-300 mb-1">Tarif du transporteur</label>
                     <div class="flex rounded-lg overflow-hidden border border-dark-200">
                         <label class="flex-1 text-center py-2 cursor-pointer" :class="unit === 'cbm' ? 'bg-primary-600 text-white' : 'bg-dark-50 text-gray-300'">
-                            <input type="radio" name="pricing_unit" value="cbm" x-model="unit" class="hidden">Au m³
+                            <input type="hidden" name="pricing_unit" :value="unit"><span x-text="unit === 'cbm' ? 'CBM (m³)' : 'kg (aérien)'"></span>
                         </label>
-                        <label class="flex-1 text-center py-2 cursor-pointer" :class="unit === 'kg' ? 'bg-primary-600 text-white' : 'bg-dark-50 text-gray-300'">
-                            <input type="radio" name="pricing_unit" value="kg" x-model="unit" class="hidden">Au kg
-                        </label>
+
                     </div>
                 </div>
                 <div class="flex gap-2">
                     <div class="flex-1">
                         <label class="block text-sm text-gray-300 mb-1" x-text="unit === 'cbm' ? 'Prix pour 1 m³' : 'Prix pour 1 kg'"></label>
-                        <input type="number" step="0.01" min="0.01" name="price" x-model="price" :required="!rateId" class="{{ $input }}">
+                        <input type="number" step="0.01" min="0.01" name="price" x-model="price" :disabled="!!rateId" :required="!rateId" class="{{ $input }}">
                     </div>
                     <div class="w-24">
                         <label class="block text-sm text-gray-300 mb-1">Devise</label>
@@ -201,13 +206,14 @@
                     </div>
                 </div>
                 <div>
-                    <label class="block text-sm text-gray-300 mb-1">Capacité (kg)</label>
-                    <input type="number" step="0.5" min="1" name="capacity_kg" required value="{{ old('capacity_kg') }}" class="{{ $input }}">
+                    <label class="block text-sm text-gray-300 mb-1"><span x-text="unit === 'cbm' ? 'Capacité (CBM)' : 'Capacité (kg)'"></span></label>
+                    <input type="number" :step="unit === 'cbm' ? '0.001' : '0.5'" :min="unit === 'cbm' ? '0.001' : '1'" :name="unit === 'cbm' ? 'capacity_cbm' : 'capacity_kg'" required value="{{ old('capacity_cbm', old('capacity_kg')) }}" class="{{ $input }}">
                 </div>
 
-                <p class="md:col-span-4 text-sm text-gray-400" x-show="unit === 'cbm' && price > 0 && kg > 0">
-                    Soit <span class="text-white" x-text="(price / kg).toFixed(2)"></span> par kg pour le transporteur, avant la commission ASSO ({{ $settings['commission_rate'] }} %) et l'assurance.
-                </p>
+                <label class="text-sm text-gray-300" x-show="!rateId">Prix client par unité (facultatif)
+                    <input type="number" name="public_rate_amount" min="0.01" step="0.01" :disabled="!!rateId" value="{{ old('public_rate_amount') }}" class="{{ $input }}">
+                    <span class="text-xs text-gray-400">Ex. Chine → Cameroun : partenaire 650 EUR/CBM, client 900 EUR/CBM, marge ASSO 250 EUR/CBM.</span>
+                </label>
 
                 <div class="md:col-span-3">
                     <label class="block text-sm text-gray-300 mb-1">Notes pour l'expéditeur (facultatif)</label>
@@ -224,7 +230,7 @@
         <div class="overflow-x-auto">
             <table class="w-full text-sm">
                 <thead class="bg-dark-50 text-left text-xs font-semibold text-white uppercase tracking-wider">
-                    <tr><th class="px-4 py-3">Départ</th><th class="px-4 py-3">Trajet</th><th class="px-4 py-3">Clôture / dépôt</th><th class="px-4 py-3">Kilos libres</th><th class="px-4 py-3">Tarif</th><th class="px-4 py-3">Envois</th><th class="px-4 py-3">Statut et capacité</th><th class="px-4 py-3">Actions</th></tr>
+                    <tr><th class="px-4 py-3">Départ</th><th class="px-4 py-3">Trajet</th><th class="px-4 py-3">Clôture / dépôt</th><th class="px-4 py-3">Capacité libre</th><th class="px-4 py-3">Tarif</th><th class="px-4 py-3">Envois</th><th class="px-4 py-3">Statut et capacité</th><th class="px-4 py-3">Actions</th></tr>
                 </thead>
                 <tbody class="divide-y divide-dark-200 text-gray-300">
                     @forelse($departures as $d)
@@ -232,13 +238,13 @@
                             <td class="px-4 py-3 whitespace-nowrap text-white font-semibold">{{ $d->departure_date->format('d/m/Y') }}</td>
                             <td class="px-4 py-3">{{ $d->originHub->city }} → {{ $d->destinationHub->city }}</td>
                             <td class="px-4 py-3 whitespace-nowrap text-xs">jusqu'au {{ $d->bookingClosesOn()->format('d/m') }}<br>dépôt avant le {{ $d->dropoffDeadline()->format('d/m') }}</td>
-                            <td class="px-4 py-3 whitespace-nowrap">{{ (float) $d->remaining_kg }} / {{ (float) $d->capacity_kg }} kg</td>
+                            <td class="px-4 py-3 whitespace-nowrap">{{ ($d->freight_rate_snapshot['transport_mode'] ?? 'sea') === 'sea' ? (float) $d->remaining_kg / 1000 : (float) $d->remaining_kg }} / {{ ($d->freight_rate_snapshot['transport_mode'] ?? 'sea') === 'sea' ? (float) $d->capacity_kg / 1000 : (float) $d->capacity_kg }} {{ ($d->freight_rate_snapshot['transport_mode'] ?? 'sea') === 'sea' ? 'CBM' : 'kg' }}</td>
                             <td class="px-4 py-3 whitespace-nowrap">@include('admin.maritime._price', ['d' => $d])</td>
                             <td class="px-4 py-3"><a href="{{ route('admin.maritime.bookings.index', ['departure' => $d->id]) }}" class="text-primary-400 underline">{{ $d->paid_bookings_count }}</a></td>
                             <td class="px-4 py-3">
                                 <span>{{ \App\Models\MaritimeDeparture::STATUSES[$d->status] ?? $d->status }}</span>
                                 <div class="mt-1 text-xs text-gray-400">
-                                    Capacité : {{ (float) $d->capacity_kg }} kg
+                                    Capacité : {{ ($d->freight_rate_snapshot['transport_mode'] ?? 'sea') === 'sea' ? (float) $d->capacity_kg / 1000 : (float) $d->capacity_kg }} {{ ($d->freight_rate_snapshot['transport_mode'] ?? 'sea') === 'sea' ? 'CBM' : 'kg' }}
                                     @if($d->estimated_arrival_date) · arrivée {{ $d->estimated_arrival_date->format('d/m/Y') }}@endif
                                 </div>
                             </td>
@@ -265,11 +271,21 @@
             @php($hasBookings = $d->bookings_count > 0)
             <dialog id="departure-edit-{{ $d->id }}" class="w-11/12 max-w-3xl rounded-xl border border-dark-200 bg-dark-100 p-0 text-white shadow-2xl backdrop:bg-black/70">
                 <form action="{{ route('admin.maritime.departures.update', $d) }}" method="POST"
-                      x-data="{ unit: @js($d->isPricedPerCbm() ? 'cbm' : 'kg') }"
+                      x-data="{ rateId: @js((string) ($d->partner_freight_rate_id ?? '')), unit: @js(($d->freight_rate_snapshot['transport_mode'] ?? 'sea') === 'sea' ? 'cbm' : 'kg') }"
+                      x-on:freight-unit="unit = $event.detail"
+                      @if(!$hasBookings) data-freight-departure data-hubs='@json($formHubs)' data-rates='@json($formRates)' @endif
                       class="p-6">
                     @csrf @method('PUT')
-                        @if($d->partner_freight_rate_id && !$hasBookings)
-                            <input type="hidden" name="partner_freight_rate_id" value="{{ $d->partner_freight_rate_id }}">
+                        @if(!$hasBookings)
+                            <label class="block mb-4 text-sm">Tarif enregistré (facultatif)
+                                <select name="partner_freight_rate_id" x-model="rateId" class="{{ $input }}">
+                                    <option value="">Saisie manuelle maritime</option>
+                                    @foreach($freightRates->where('is_active', true) as $rate)
+                                        <option value="{{ $rate->id }}" @selected($d->partner_freight_rate_id === $rate->id)>{{ $rate->origin_country }} → {{ $rate->destination_country }} · {{ $rate->transport_mode === 'sea' ? 'Maritime' : 'Aérien' }} · {{ $rate->cargo_category }} · {{ $rate->rate_amount }} {{ $rate->currency }}/{{ $rate->rate_unit }}</option>
+                                    @endforeach
+                                </select>
+                                <p data-rate-summary class="mt-1 text-sm text-primary-300"></p>
+                            </label>
                         @endif
                     <div class="mb-5 flex items-start justify-between gap-4">
                         <div>
@@ -278,7 +294,7 @@
                                 @if($hasBookings)
                                     Des envois sont déjà liés : le trajet, la date et le tarif sont protégés pour préserver leurs réservations.
                                 @else
-                                    Modifiez les informations du départ. Les kilos déjà réservés sont conservés.
+                                    Modifiez les informations du départ. Les réservations existantes sont conservées.
                                 @endif
                             </p>
                         </div>
@@ -305,26 +321,29 @@
                             <legend>Tarif du transporteur</legend>
                             <div class="mt-1 flex overflow-hidden rounded-lg border border-dark-200">
                                 <label class="flex-1 cursor-pointer py-2 text-center" :class="unit === 'cbm' ? 'bg-primary-600 text-white' : 'bg-dark-50 text-gray-300'">
-                                    <input type="radio" name="pricing_unit" value="cbm" x-model="unit" class="hidden">Au m³
+                                    <input type="hidden" name="pricing_unit" :value="unit"><span x-text="unit === 'cbm' ? 'CBM (m³)' : 'kg (aérien)'"></span>
                                 </label>
-                                <label class="flex-1 cursor-pointer py-2 text-center" :class="unit === 'kg' ? 'bg-primary-600 text-white' : 'bg-dark-50 text-gray-300'">
-                                    <input type="radio" name="pricing_unit" value="kg" x-model="unit" class="hidden">Au kg
-                                </label>
+
                             </div>
                         </fieldset>
                         <div class="flex items-end gap-2">
                             <label class="flex-1 text-sm text-gray-300"><span x-text="unit === 'cbm' ? 'Prix pour 1 m³' : 'Prix pour 1 kg'"></span>
                                 <input type="number" step="0.01" min="0.01" name="price"
-                                       value="{{ $d->isPricedPerCbm() ? (float) $d->price_per_cbm : (float) $d->price_per_kg }}"
+                                       value="{{ ($d->freight_rate_snapshot['transport_mode'] ?? 'sea') === 'sea' ? $d->partnerFreightFor(1000) : (float) $d->price_per_kg }}"
                                        required @disabled($hasBookings) class="{{ $input }} mt-1">
                             </label>
                             <label class="w-28 text-sm text-gray-300">Devise
                                 <input name="currency" maxlength="3" value="{{ $d->currency }}" required @disabled($hasBookings) class="{{ $input }} mt-1 uppercase">
                             </label>
                         </div>
-                        <label class="text-sm text-gray-300">Capacité (kg)
-                            <input type="number" step="0.5" min="1" name="capacity_kg" value="{{ (float) $d->capacity_kg }}" required class="{{ $input }} mt-1">
+                        <label class="text-sm text-gray-300"><span x-text="unit === 'cbm' ? 'Capacité (CBM)' : 'Capacité (kg)'"></span>
+                            <input type="number" :step="unit === 'cbm' ? '0.001' : '0.5'" :min="unit === 'cbm' ? '0.001' : '1'" :name="unit === 'cbm' ? 'capacity_cbm' : 'capacity_kg'" value="{{ ($d->freight_rate_snapshot['transport_mode'] ?? 'sea') === 'sea' ? (float) $d->capacity_kg / 1000 : (float) $d->capacity_kg }}" required class="{{ $input }} mt-1">
                         </label>
+                        @if(!$hasBookings)
+                            <label class="text-sm text-gray-300" x-show="!rateId">Prix client par unité (facultatif)
+                                <input type="number" name="public_rate_amount" min="0.01" step="0.01" :disabled="!!rateId" value="{{ $d->freight_rate_snapshot['public_rate_amount'] ?? '' }}" class="{{ $input }}">
+                            </label>
+                        @endif
                         <label class="text-sm text-gray-300 md:col-span-2">Notes pour l'expéditeur
                             <textarea name="notes" rows="2" class="{{ $input }} mt-1">{{ $d->notes }}</textarea>
                         </label>
@@ -379,4 +398,5 @@
         </form>
     </div>
 </div>
+<script src="{{ asset('js/maritime-departure-form.js') }}" defer></script>
 @endsection

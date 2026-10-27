@@ -37,17 +37,6 @@
         </div>
     </div>
 
-    @if($errors->any())
-        <div class="mb-6 p-4 bg-red-500/15 border border-red-500/50 rounded-xl">
-            <p class="text-red-300 font-semibold mb-2"><i class="fas fa-exclamation-triangle mr-1"></i>Le formulaire contient des erreurs :</p>
-            <ul class="list-disc list-inside text-sm text-red-300 space-y-1">
-                @foreach($errors->all() as $error)
-                    <li>{{ $error }}</li>
-                @endforeach
-            </ul>
-        </div>
-    @endif
-
     <form action="{{ route('admin.shops.update', $shop) }}" method="POST" enctype="multipart/form-data" class="space-y-6">
         @csrf
         @method('PUT')

@@ -5,9 +5,6 @@
 <form method="POST" action="{{ $routes['iban'] }}" class="space-y-3">
     @csrf
     <p class="text-sm font-semibold text-gray-200"><i class="fas fa-sync mr-1"></i>Synchroniser l'IBAN</p>
-    @if($errors->any())
-        <div class="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-sm text-red-300">{{ $errors->first() }}</div>
-    @endif
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div>
             <label class="block text-sm text-gray-300 mb-1">Pays</label>

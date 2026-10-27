@@ -23,8 +23,8 @@ class SinoCamFreightRatesSeeder extends Seeder
                 throw new \RuntimeException('Le nom SinoCam Transit & Fret appartient déjà à un partenaire d’un autre type.');
             }
             foreach ([
-                ['sea', 'general', 'cbm', 330000, 450000, 45, 55],
-                ['sea', 'sensitive', 'cbm', 390000, 500000, 45, 55],
+                ['sea', 'general', 'cbm', 650, 900, 45, 55],
+                ['sea', 'sensitive', 'cbm', 650, 900, 45, 55],
                 ['air', 'general', 'kg', 12000, 20000, 10, 14],
             ] as [$mode, $category, $unit, $amount, $publicAmount, $min, $max]) {
                 PartnerFreightRate::firstOrCreate([
@@ -32,7 +32,7 @@ class SinoCamFreightRatesSeeder extends Seeder
                     'origin_country' => 'CN', 'destination_country' => 'CM',
                     'transport_mode' => $mode, 'cargo_category' => $category,
                 ], [
-                    'rate_unit' => $unit, 'rate_amount' => $amount, 'public_rate_amount' => $publicAmount, 'frequency_days' => null, 'currency' => 'XAF',
+                    'rate_unit' => $unit, 'rate_amount' => $amount, 'public_rate_amount' => $publicAmount, 'frequency_days' => null, 'currency' => $mode === 'sea' ? 'EUR' : 'XAF',
                     'transit_days_min' => $min, 'transit_days_max' => $max,
                     'freight_payment_timing' => 'arrival', 'is_active' => true,
                     'notes' => 'Fret partenaire payable à l’arrivée à l’entrepôt au Cameroun, selon les informations du 20/10/2026. Encaissement et reversement ASSO selon le circuit existant.',

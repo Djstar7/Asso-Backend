@@ -42,7 +42,7 @@ class FreightInquiryController extends Controller
                 && ($departure->freight_rate_snapshot['transport_mode'] ?? 'sea') === 'sea'
                 && ($departure->freight_rate_snapshot['cargo_category'] ?? 'general') === $inquiry->cargo_category
                 && (float) $departure->remaining_kg >= $inquiry->kg,
-                422, 'Choisissez un départ maritime actif correspondant au pays, à la catégorie et au poids demandés.');
+                422, 'Choisissez un départ maritime actif correspondant au pays, à la catégorie et au volume demandé.');
             $partner = $departure->partnerFreightFor($inquiry->kg);
             abort_unless((float) $data['freight_amount'] >= $partner, 422, 'Le prix client doit couvrir le coût partenaire.');
             $inquiry->update($data + ['partner_amount' => $partner, 'currency' => $departure->currency, 'status' => 'quoted', 'departure_snapshot' => $departure->quoteIdentity()]);
@@ -50,7 +50,7 @@ class FreightInquiryController extends Controller
             $senderId = $conversation->user1_id === $inquiry->user_id ? $conversation->user2_id : $conversation->user1_id;
             $message = Message::create(['conversation_id' => $inquiry->conversation_id, 'sender_id' => $senderId,
                 'is_system' => true, 'is_read' => false,
-                'message' => "Devis maritime #{$inquiry->id} : {$inquiry->freight_amount} {$inquiry->currency} pour {$inquiry->kg} kg (fret hors assurance facultative). Valable jusqu’au {$inquiry->expires_at->toIso8601String()}. Acceptez le devis dans Diaspo Exchange avant le paiement."]);
+                'message' => "Devis maritime #{$inquiry->id} : {$inquiry->freight_amount} {$inquiry->currency} pour ".($inquiry->volume_cbm ?? $inquiry->kg / 1000)." CBM (fret hors assurance facultative). Valable jusqu’au {$inquiry->expires_at->toIso8601String()}. Acceptez le devis dans Diaspo Exchange avant le paiement."]);
             Conversation::whereKey($inquiry->conversation_id)->update(['last_message_at' => now()]);
             \App\Services\FreightInquiryMessaging::notify($message, $inquiry->user);
         });

@@ -42,11 +42,23 @@ class MaritimeBookingService
         return DB::transaction(function () use ($sender, $departureId, $data) {
             $departure = MaritimeDeparture::with(['originHub', 'destinationHub', 'company'])->lockForUpdate()->findOrFail($departureId);
 
+            if (isset($data['volume_cbm'])) {
+                if (($departure->freight_rate_snapshot['transport_mode'] ?? 'sea') !== 'sea') {
+                    throw new MaritimeBookingException('Le fret aérien se réserve en kilogrammes.', 'kg_booked');
+                }
+                $data['kg_booked'] = round((float) $data['volume_cbm'] * MaritimeDeparture::KG_PER_CBM, 2);
+            }
+
             if (! $departure->isBookable()) {
                 throw new MaritimeBookingException(__('maritime.trip_impossible'));
             }
             if ((float) $departure->remaining_kg < (float) $data['kg_booked']) {
-                throw new MaritimeBookingException(__('maritime.not_enough_kg', ['kg' => (float) $departure->remaining_kg]));
+                throw new MaritimeBookingException(
+                    ($departure->freight_rate_snapshot['transport_mode'] ?? 'sea') === 'sea'
+                        ? 'Volume disponible : '.((float) $departure->remaining_kg / MaritimeDeparture::KG_PER_CBM).' CBM.'
+                        : __('maritime.not_enough_kg', ['kg' => (float) $departure->remaining_kg]),
+                    ($departure->freight_rate_snapshot['transport_mode'] ?? 'sea') === 'sea' ? 'volume_cbm' : 'kg_booked'
+                );
             }
 
             if (strtoupper($data['recipient_country']) !== $departure->destinationHub->country) {
@@ -67,7 +79,7 @@ class MaritimeBookingService
                     || $inquiry->maritime_departure_id !== $departure->id
                     || round($inquiry->kg, 2) !== round((float) $data['kg_booked'], 2)
                     || $inquiry->currency !== $currency || $inquiry->maritime_booking_id) {
-                    throw new MaritimeBookingException('Le devis doit être accepté, valide et correspondre au départ et au poids réservés.');
+                    throw new MaritimeBookingException('Le devis doit être accepté, valide et correspondre au départ et à la quantité réservée.');
                 }
                 if ($inquiry->departure_snapshot != $departure->quoteIdentity()) {
                     throw new MaritimeBookingException('Les conditions du départ ont changé. Contactez ASSO pour un nouveau devis.');
@@ -109,7 +121,7 @@ class MaritimeBookingService
                 'maritime_departure_id' => $departure->id,
                 'sender_user_id' => $sender->id,
                 'kg_booked' => $data['kg_booked'],
-                'volume_cbm' => $departure->volumeForKg((float) $data['kg_booked']),
+                'volume_cbm' => ($departure->freight_rate_snapshot['transport_mode'] ?? 'sea') === 'sea' ? (float) $data['kg_booked'] / MaritimeDeparture::KG_PER_CBM : null,
                 'parcels_count' => $data['parcels_count'] ?? 1,
                 'sender_first_name' => $data['sender_first_name'],
                 'sender_last_name' => $data['sender_last_name'],

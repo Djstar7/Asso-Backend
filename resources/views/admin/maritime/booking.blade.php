@@ -46,7 +46,7 @@
                     <dt class="text-gray-500">QG d'arrivée</dt><dd class="text-white">{{ $d->destinationHub->name }}, {{ $d->destinationHub->address }}, {{ $d->destinationHub->city }}</dd>
                     <dt class="text-gray-500">Départ</dt><dd class="text-white">{{ $d->departure_date->format('d/m/Y') }}</dd>
                     <dt class="text-gray-500">Dépôt avant le</dt><dd class="text-white">{{ $booking->dropoff_deadline->format('d/m/Y') }}</dd>
-                    <dt class="text-gray-500">Poids / colis</dt><dd class="text-white">{{ (float) $booking->kg_booked }} kg{{ $booking->volume_cbm !== null ? ' (' . rtrim(rtrim(number_format((float) $booking->volume_cbm, 4, ',', ' '), '0'), ',') . ' m³)' : '' }} · {{ $booking->parcels_count }} colis</dd>
+                    <dt class="text-gray-500">Volume / poids / colis</dt><dd class="text-white">{{ ($booking->departure->freight_rate_snapshot['transport_mode'] ?? 'sea') === 'sea' ? ((float) $booking->volume_cbm ?: (float) $booking->kg_booked / 1000) : (float) $booking->kg_booked }} {{ ($booking->departure->freight_rate_snapshot['transport_mode'] ?? 'sea') === 'sea' ? 'CBM' : 'kg' }} · {{ $booking->parcels_count }} colis</dd>
                     <dt class="text-gray-500">Nature</dt><dd class="text-white">{{ $booking->parcelNature?->name ?? '—' }}</dd>
                     <dt class="text-gray-500">Valeur déclarée</dt><dd class="text-white">{{ $money($booking->declared_value) }}</dd>
                     <dt class="text-gray-500">Assurance facultative</dt><dd class="text-white">{{ $booking->insurance_opt_in ? 'Souscrite' : 'Refusée' }} · {{ $booking->insurance_status }}</dd>

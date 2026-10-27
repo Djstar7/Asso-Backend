@@ -26,7 +26,7 @@
         @foreach([
             ['fa-anchor', '1. Partenaire', 'Créez le partenaire de transport ci-dessous, puis ajoutez ses tarifs aériens et/ou maritimes.'],
             ['fa-warehouse', '2. QG', 'Ajoutez ses QG de dépôt et de retrait (ex. Paris, Douala).'],
-            ['fa-ship', '3. Départs', 'Ouvrez ses départs : date, capacité, tarif au m³ ou au kg.'],
+            ['fa-ship', '3. Départs', 'Ouvrez ses départs : date, capacité et tarif en CBM pour le maritime, en kg pour l’aérien.'],
             ['fa-wallet', '4. Paiement', 'Le fret est crédité au Wallet selon l’échéance du tarif (embarquement ou arrivée). Les envois historiques restent réglés à la remise.'],
         ] as [$icon, $title, $text])
             <div class="bg-dark-100 rounded-xl border border-dark-200 p-4">
@@ -101,7 +101,7 @@
                                 <a href="{{ route('admin.maritime.partners.show', $d->company) }}" class="text-xs text-primary-400">{{ $d->company->name }}</a></td>
                             <td class="px-4 py-3">{{ $d->originHub->city }} → {{ $d->destinationHub->city }}</td>
                             <td class="px-4 py-3 whitespace-nowrap text-xs">jusqu'au {{ $d->bookingClosesOn()->format('d/m') }}<br>dépôt avant le {{ $d->dropoffDeadline()->format('d/m') }}</td>
-                            <td class="px-4 py-3 whitespace-nowrap">{{ (float) $d->remaining_kg }} / {{ (float) $d->capacity_kg }} kg</td>
+                            <td class="px-4 py-3 whitespace-nowrap">{{ ($d->freight_rate_snapshot['transport_mode'] ?? 'sea') === 'sea' ? (float) $d->remaining_kg / 1000 : (float) $d->remaining_kg }} / {{ ($d->freight_rate_snapshot['transport_mode'] ?? 'sea') === 'sea' ? (float) $d->capacity_kg / 1000 : (float) $d->capacity_kg }} {{ ($d->freight_rate_snapshot['transport_mode'] ?? 'sea') === 'sea' ? 'CBM' : 'kg' }}</td>
                             <td class="px-4 py-3 whitespace-nowrap">@include('admin.maritime._price', ['d' => $d])</td>
                             <td class="px-4 py-3"><a href="{{ route('admin.maritime.bookings.index', ['departure' => $d->id]) }}" class="text-primary-400 underline">{{ $d->paid_bookings_count }}</a></td>
                             <td class="px-4 py-3">{{ \App\Models\MaritimeDeparture::STATUSES[$d->status] ?? $d->status }}</td>

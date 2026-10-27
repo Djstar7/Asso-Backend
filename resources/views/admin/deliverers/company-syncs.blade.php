@@ -19,9 +19,6 @@
     </div>
 
 
-    @if($errors->any())
-        <div class="mb-4 p-4 bg-red-900/20 text-red-300 rounded-lg"><ul>@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>
-    @endif
     <!-- Stats Cards -->
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <div class="bg-dark-100 rounded-xl border border-dark-200 p-6">

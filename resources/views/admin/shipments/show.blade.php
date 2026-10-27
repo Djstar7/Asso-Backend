@@ -26,14 +26,6 @@
         </div>
     @endif
 
-    @if($errors->any())
-        <div class="mb-6 p-4 bg-red-900/20 border-l-4 border-red-500 rounded">
-            <ul class="text-red-300 text-sm list-disc list-inside">
-                @foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach
-            </ul>
-        </div>
-    @endif
-
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div class="lg:col-span-2 space-y-6">
             <!-- Historique -->

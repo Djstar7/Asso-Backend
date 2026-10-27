@@ -13,16 +13,6 @@
         </button>
     </div>
 
-    @if($errors->any())
-        <div class="mb-6 p-4 bg-red-900/20 border-l-4 border-red-500 rounded">
-            <ul class="text-red-300 text-sm list-disc list-inside">
-                @foreach($errors->all() as $error)
-                    <li>{{ $error }}</li>
-                @endforeach
-            </ul>
-        </div>
-    @endif
-
     <!-- Réglages globaux -->
     <div class="bg-dark-100 rounded-xl shadow-lg border border-dark-200 p-6 mb-6">
         <h2 class="text-lg font-semibold text-white mb-4"><i class="fas fa-sliders-h mr-2 text-primary-400"></i>Réglages de livraison</h2>
