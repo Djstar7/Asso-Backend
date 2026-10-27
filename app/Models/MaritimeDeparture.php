@@ -222,6 +222,43 @@ class MaritimeDeparture extends Model
             ->whereDate('departure_date', '>=', today());
     }
 
+    /** Tarifs autorisés pour ce partenaire, ce trajet, ce mode et cette devise. */
+    public function cargoRateOptions(): array
+    {
+        $mode = $this->freight_rate_snapshot['transport_mode'] ?? 'sea';
+        $unit = $mode === 'sea' ? 'cbm' : 'kg';
+        $unitsInKg = $mode === 'sea' ? self::KG_PER_CBM : 1;
+        $category = $this->freight_rate_snapshot['cargo_category'] ?? 'general';
+        // Le tarif fixé lors de la publication du départ reste inchangé.
+        $options = [$category => array_merge($this->freight_rate_snapshot ?? [], [
+            'cargo_category' => $category, 'transport_mode' => $mode,
+            'rate_unit' => $unit, 'currency' => $this->currency,
+            'rate_amount' => $this->partnerFreightFor($unitsInKg),
+            'public_rate_amount' => $this->publicFreightFor($unitsInKg),
+        ])];
+        if ($this->requiresQuote()) {
+            return $options;
+        }
+        $rates = PartnerFreightRate::where('deliverer_company_id', $this->deliverer_company_id)
+            ->where('origin_country', $this->originHub?->country)
+            ->where('destination_country', $this->destinationHub?->country)
+            ->where('transport_mode', $mode)->where('rate_unit', $unit)
+            ->where('currency', $this->currency)->where('is_active', true)
+            ->orderByDesc('id')->get();
+        foreach ($rates as $rate) {
+            if (isset($options[$rate->cargo_category])) {
+                continue;
+            }
+            $snapshot = $rate->snapshot();
+            $snapshot['public_rate_amount'] = $rate->public_rate_amount !== null
+                ? (float) $rate->public_rate_amount
+                : round((float) $rate->rate_amount * (1 + self::commissionRate() / 100), 2);
+            $options[$rate->cargo_category] = $snapshot;
+        }
+
+        return $options;
+    }
+
     public function toApi(?int $viewerId = null): array
     {
         $includeMeeting = $viewerId !== null && $this->bookings()
@@ -233,6 +270,12 @@ class MaritimeDeparture extends Model
             'requires_quote' => $this->requiresQuote(),
             'transport_mode' => $this->freight_rate_snapshot['transport_mode'] ?? 'sea',
             'cargo_category' => $this->freight_rate_snapshot['cargo_category'] ?? 'general',
+            'cargo_options' => collect($this->cargoRateOptions())->map(fn ($rate) => [
+                'cargo_category' => $rate['cargo_category'],
+                'price_per_unit' => $this->requiresQuote() ? null : (float) $rate['public_rate_amount'],
+                'unit' => $rate['rate_unit'] === 'cbm' ? 'CBM' : 'kg',
+                'currency' => $rate['currency'],
+            ])->values()->all(),
             'transit_days_min' => $this->freight_rate_snapshot['transit_days_min'] ?? null,
             'transit_days_max' => $this->freight_rate_snapshot['transit_days_max'] ?? null,
             'frequency_days' => $this->freight_rate_snapshot['frequency_days'] ?? null,

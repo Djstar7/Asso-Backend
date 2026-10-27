@@ -128,6 +128,8 @@ class MaritimeController extends Controller
     {
         return [
             'freight_inquiry_id' => 'nullable|integer|min:1',
+            'cargo_category' => 'sometimes|required|in:general,sensitive',
+            'expected_unit_price' => 'sometimes|required|numeric|min:0',
             'kg_booked' => 'required_without:volume_cbm|numeric|min:0.5',
             'volume_cbm' => 'required_without:kg_booked|numeric|min:0.001|max:1000000',
             'parcels_count' => 'nullable|integer|min:1|max:500',

@@ -99,6 +99,10 @@ class FreightInquiryTest extends TestCase
         $id = $this->postJson($url, $this->bookingData(['freight_inquiry_id' => $inquiry->id]))->assertCreated()
             ->assertJsonPath('data.total_price', 15000)->assertJsonPath('data.status', 'paid')->json('data.id');
         $this->assertDatabaseHas('maritime_bookings', ['id' => $id, 'freight_subtotal' => 10000, 'commission_amount' => 5000, 'total_price' => 15000]);
+        $snapshot = MaritimeBooking::findOrFail($id)->freight_rate_snapshot;
+        $this->assertEquals(1000000, $snapshot['rate_amount']);
+        $this->assertEquals(1500000, $snapshot['public_rate_amount']);
+        $this->assertSame($inquiry->id, $snapshot['freight_inquiry_id']);
         $this->assertSame('booked', $inquiry->fresh()->status);
         $this->postJson($url, $this->bookingData(['freight_inquiry_id' => $inquiry->id]))->assertUnprocessable();
         $this->assertSame(1, MaritimeBooking::count());

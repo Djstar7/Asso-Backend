@@ -21,6 +21,52 @@ class PartnerFreightRatesTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_customer_selects_only_configured_cargo_and_pays_the_corresponding_price(): void
+    {
+        Mail::fake();
+        $this->mock(FirebaseMessagingService::class, fn ($m) => $m->shouldReceive('sendToUser')->andReturn([]));
+        Currency::firstOrCreate(['code' => 'XAF'], ['name' => 'FCFA', 'symbol' => 'FCFA', 'is_active' => true]);
+        $partner = DelivererCompany::create(['name' => 'Partenaire', 'service_type' => 'maritime', 'is_active' => true]);
+        $hubs = $this->hubs($partner);
+        $base = ['deliverer_company_id' => $partner->id, 'origin_country' => 'CN', 'destination_country' => 'CM',
+            'transport_mode' => 'sea', 'rate_unit' => 'cbm', 'currency' => 'XAF', 'is_active' => true];
+        $general = PartnerFreightRate::create($base + ['cargo_category' => 'general', 'rate_amount' => 650, 'public_rate_amount' => 900]);
+        $sensitive = PartnerFreightRate::create($base + ['cargo_category' => 'sensitive', 'rate_amount' => 800, 'public_rate_amount' => 1200]);
+        $admin = User::factory()->create(['role' => 'admin']);
+        $this->actingAs($admin)->post(route('admin.maritime.departures.store', $partner),
+            $this->payload($hubs) + ['partner_freight_rate_id' => $general->id])->assertSessionHasNoErrors();
+        $departure = MaritimeDeparture::firstOrFail();
+        $this->get(route('admin.maritime.partners.show', $partner))->assertOk()
+            ->assertSee('<select name="currency"', false)->assertSee('FCFA (XAF)');
+        $buyer = User::factory()->create();
+        WalletBalance::create(['user_id' => $buyer->id, 'currency' => 'XAF', 'balance' => 10000, 'locked_balance' => 0]);
+        $nature = ParcelNature::create(['name' => 'Colis', 'insurance_rate' => 1, 'is_active' => true]);
+        $this->actingAs($buyer, 'sanctum');
+        $url = "/api/v1/maritime/departures/{$departure->id}";
+        $this->getJson($url)->assertOk()->assertJsonCount(2, 'data.cargo_options')
+            ->assertJsonPath('data.cargo_options.0.cargo_category', 'general')
+            ->assertJsonPath('data.cargo_options.1.cargo_category', 'sensitive')
+            ->assertJsonPath('data.cargo_options.1.price_per_unit', 1200)
+            ->assertJsonMissingPath('data.cargo_options.1.rate_amount');
+        $payload = ['volume_cbm' => 1, 'cargo_category' => 'sensitive', 'expected_unit_price' => 1200,
+            'sender_first_name' => 'Jean', 'sender_last_name' => 'Test', 'sender_phone' => '+237699999999',
+            'emergency_phone' => '+237699999998', 'recipient_first_name' => 'Marie', 'recipient_last_name' => 'Test',
+            'recipient_country' => 'CM', 'recipient_phone' => '+237699999997', 'parcel_nature_id' => $nature->id,
+            'declared_value' => 1000, 'insurance_opt_in' => false, 'payment_method' => 'wallet'];
+        $id = $this->postJson("$url/book", $payload)->assertCreated()
+            ->assertJsonPath('data.total_price', 1200)->assertJsonPath('data.cargo_category', 'sensitive')->json('data.id');
+        $this->assertDatabaseHas('maritime_bookings', ['id' => $id, 'cargo_category' => 'sensitive', 'freight_subtotal' => 800, 'commission_amount' => 400]);
+        $this->assertEquals(8800, WalletBalance::where('user_id', $buyer->id)->value('balance'));
+        $this->assertEquals(900, $departure->fresh()->publicFreightFor(1000));
+        $sensitive->update(['public_rate_amount' => 1500]);
+        $this->postJson("$url/book", $payload)->assertUnprocessable()->assertJsonValidationErrors('cargo_category');
+        $this->assertEquals(1200, \App\Models\MaritimeBooking::findOrFail($id)->freight_rate_snapshot['public_rate_amount']);
+        $sensitive->update(['is_active' => false]);
+        $this->getJson($url)->assertOk()->assertJsonCount(1, 'data.cargo_options');
+        $this->postJson("$url/book", $payload)->assertUnprocessable()->assertJsonValidationErrors('cargo_category');
+        $this->assertSame(1, \App\Models\MaritimeBooking::count());
+    }
+
     private function hubs(DelivererCompany $partner, string $originCountry = 'CN', string $originCity = 'Guangzhou'): array
     {
         return [

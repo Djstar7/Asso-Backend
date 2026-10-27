@@ -72,6 +72,19 @@ class MaritimeBookingService
             // Départ au m³ : kilos convertis en m³, puis tarif au m³ (voir MaritimeDeparture).
             $freightSubtotal = $departure->partnerFreightFor((float) $data['kg_booked']);
             $freight = $departure->publicFreightFor((float) $data['kg_booked']);
+            $category = $data['cargo_category'] ?? $departure->freight_rate_snapshot['cargo_category'] ?? 'general';
+            $rate = $departure->cargoRateOptions()[$category] ?? null;
+            if ($rate === null) {
+                throw new MaritimeBookingException('Cette catégorie de colis n’est pas proposée par ce partenaire pour ce trajet.', 'cargo_category');
+            }
+            if (empty($data['freight_inquiry_id'])) {
+                if (isset($data['expected_unit_price']) && round((float) $data['expected_unit_price'], 2) !== round((float) $rate['public_rate_amount'], 2)) {
+                    throw new MaritimeBookingException('Le tarif a changé. Actualisez le départ avant de confirmer le paiement.', 'cargo_category');
+                }
+                $units = $rate['rate_unit'] === 'cbm' ? (float) $data['kg_booked'] / MaritimeDeparture::KG_PER_CBM : (float) $data['kg_booked'];
+                $freightSubtotal = round($units * (float) $rate['rate_amount'], 2);
+                $freight = round($units * (float) $rate['public_rate_amount'], 2);
+            }
             $inquiry = null;
             if (! empty($data['freight_inquiry_id'])) {
                 $inquiry = \App\Models\FreightInquiry::where('user_id', $sender->id)->lockForUpdate()->findOrFail($data['freight_inquiry_id']);
@@ -84,8 +97,15 @@ class MaritimeBookingService
                 if ($inquiry->departure_snapshot != $departure->quoteIdentity()) {
                     throw new MaritimeBookingException('Les conditions du départ ont changé. Contactez ASSO pour un nouveau devis.');
                 }
+                if ($category !== $inquiry->cargo_category) {
+                    throw new MaritimeBookingException('La catégorie du colis doit correspondre au devis accepté.', 'cargo_category');
+                }
                 $freightSubtotal = $inquiry->partner_amount;
                 $freight = $inquiry->freight_amount;
+                $units = $rate['rate_unit'] === 'cbm' ? (float) $data['kg_booked'] / MaritimeDeparture::KG_PER_CBM : (float) $data['kg_booked'];
+                $rate['rate_amount'] = round($freightSubtotal / $units, 2);
+                $rate['public_rate_amount'] = round($freight / $units, 2);
+                $rate['freight_inquiry_id'] = $inquiry->id;
             }
             $commission = round($freight - $freightSubtotal, 2);
 
@@ -121,6 +141,8 @@ class MaritimeBookingService
                 'maritime_departure_id' => $departure->id,
                 'sender_user_id' => $sender->id,
                 'kg_booked' => $data['kg_booked'],
+                'cargo_category' => $category,
+                'freight_rate_snapshot' => $rate,
                 'volume_cbm' => ($departure->freight_rate_snapshot['transport_mode'] ?? 'sea') === 'sea' ? (float) $data['kg_booked'] / MaritimeDeparture::KG_PER_CBM : null,
                 'parcels_count' => $data['parcels_count'] ?? 1,
                 'sender_first_name' => $data['sender_first_name'],
@@ -138,12 +160,12 @@ class MaritimeBookingService
                 'insurance_quote_amount' => $insuranceQuote,
                 'insurance_status' => $insuranceOptIn ? 'pending_payment' : 'not_opted_in',
                 'insurance_amount' => 0,
-                'price_per_kg' => $departure->price_per_kg,
+                'price_per_kg' => round($freightSubtotal / (float) $data['kg_booked'], 2),
                 'freight_subtotal' => $freightSubtotal,
                 'commission_amount' => $commission,
                 'total_price' => $total,
                 'currency' => $currency,
-                'partner_freight_payment_timing' => $departure->freight_rate_snapshot['freight_payment_timing'] ?? 'completion',
+                'partner_freight_payment_timing' => $rate['freight_payment_timing'] ?? 'completion',
                 'dropoff_deadline' => $departure->dropoffDeadline(),
                 'confirmation_code' => str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT),
                 'status' => MaritimeBooking::STATUS_PENDING,

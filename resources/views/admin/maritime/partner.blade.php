@@ -200,9 +200,13 @@
                         <label class="block text-sm text-gray-300 mb-1" x-text="unit === 'cbm' ? 'Prix pour 1 m³' : 'Prix pour 1 kg'"></label>
                         <input type="number" step="0.01" min="0.01" name="price" x-model="price" :disabled="!!rateId" :required="!rateId" class="{{ $input }}">
                     </div>
-                    <div class="w-24">
+                    <div class="w-36">
                         <label class="block text-sm text-gray-300 mb-1">Devise</label>
-                        <input name="currency" maxlength="3" required value="{{ old('currency', 'EUR') }}" class="{{ $input }} uppercase">
+                        <select name="currency" required class="{{ $input }}">
+                            @foreach(['EUR' => 'EUR (€)', 'XAF' => 'FCFA (XAF)', 'USD' => 'USD ($)', 'CNY' => 'CNY (¥)', 'CAD' => 'CAD ($)', 'GBP' => 'GBP (£)'] as $code => $label)
+                                <option value="{{ $code }}" @selected(old('currency', 'EUR') === $code)>{{ $label }}</option>
+                            @endforeach
+                        </select>
                     </div>
                 </div>
                 <div>
@@ -332,8 +336,12 @@
                                        value="{{ ($d->freight_rate_snapshot['transport_mode'] ?? 'sea') === 'sea' ? $d->partnerFreightFor(1000) : (float) $d->price_per_kg }}"
                                        required @disabled($hasBookings) class="{{ $input }} mt-1">
                             </label>
-                            <label class="w-28 text-sm text-gray-300">Devise
-                                <input name="currency" maxlength="3" value="{{ $d->currency }}" required @disabled($hasBookings) class="{{ $input }} mt-1 uppercase">
+                            <label class="w-36 text-sm text-gray-300">Devise
+                                <select name="currency" required @disabled($hasBookings) class="{{ $input }} mt-1">
+                                    @foreach(array_unique(array_merge(['EUR', 'XAF', 'USD', 'CNY', 'CAD', 'GBP'], [$d->currency])) as $code)
+                                        <option value="{{ $code }}" @selected($d->currency === $code)>{{ $code === 'XAF' ? 'FCFA (XAF)' : $code }}</option>
+                                    @endforeach
+                                </select>
                             </label>
                         </div>
                         <label class="text-sm text-gray-300"><span x-text="unit === 'cbm' ? 'Capacité (CBM)' : 'Capacité (kg)'"></span>

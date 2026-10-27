@@ -55,6 +55,8 @@ class MaritimeBooking extends Model
         'sender_user_id',
         'kg_booked',
         'volume_cbm',
+        'cargo_category',
+        'freight_rate_snapshot',
         'parcels_count',
         'sender_first_name',
         'sender_last_name',
@@ -98,6 +100,7 @@ class MaritimeBooking extends Model
     ];
 
     protected $casts = [
+        'freight_rate_snapshot' => 'array',
         'partner_freight_paid_at' => 'datetime',
         'partner_freight_paid_xaf' => 'decimal:2',
         'kg_booked' => 'decimal:2',
@@ -180,6 +183,7 @@ class MaritimeBooking extends Model
         return [
             'id' => $this->id,
             'transport_mode' => $this->departure?->freight_rate_snapshot['transport_mode'] ?? 'sea',
+            'cargo_category' => $this->cargo_category ?? $this->departure?->freight_rate_snapshot['cargo_category'] ?? 'general',
             'maritime_departure_id' => $this->maritime_departure_id,
             'departure' => $this->relationLoaded('departure') && $this->departure ? $this->departure->toApi($viewer?->id) : null,
             'kg_booked' => (float) $this->kg_booked,

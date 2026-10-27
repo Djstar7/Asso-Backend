@@ -30,7 +30,12 @@
                 }
                 if (currency) {
                     currency.disabled = !!rate;
-                    if (rate) currency.value = rate.currency;
+                    if (rate) {
+                        if (currency.tagName === 'SELECT' && !Array.from(currency.options).some(option => option.value === rate.currency)) {
+                            currency.add(new Option(rate.currency, rate.currency));
+                        }
+                        currency.value = rate.currency;
+                    }
                 }
                 if (summary) {
                     summary.textContent = rate ? `Partenaire : ${rate.rate_amount} ${rate.currency}/${rate.rate_unit === 'cbm' ? 'CBM' : 'kg'}` +
