@@ -310,6 +310,7 @@
         "booking_paid_with_wallet": "Réservation payée avec votre Wallet."
     },
     "payments": {
+        "kpay_provider_unstable": "Ce service est momentanément instable. Veuillez choisir un autre opérateur ou réessayer dans quelques minutes.",
         "method_unavailable": "Ce moyen de paiement est actuellement indisponible.",
         "amount_too_low_for_method": "Le montant est trop faible pour ce moyen de paiement.",
         "kpay_init_failed": "Échec de l'initiation du paiement KPay.",

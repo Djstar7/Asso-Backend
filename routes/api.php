@@ -169,7 +169,7 @@ Route::prefix('v1')->group(function () {
 
 // Payment webhooks (no auth — protégé par vérification de signature HMAC + re-poll KPay)
 Route::post('/v1/payments/webhook/kpay', [PaymentController::class, 'webhookKpay']);
-// Alias court (certaines configs KPay utilisent cette forme)
+
 Route::post('/webhooks/kpay', [PaymentController::class, 'webhookKpay']);
 
 // Webhook ElgioPay (Mobile Money Cameroun) — signature X-Elgiopay-Signature +
@@ -295,8 +295,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Payments
         Route::get('/payments/methods', [PaymentController::class, 'methods']);
+//
         // Aperçu prix vendeur → prix client (commission ASSO incluse), saisie produit.
-        Route::get('/pricing/preview', [PaymentController::class, 'pricingPreview']);
+        // routes/api.php (dans le groupe /v1/payments, même middleware que /methods)
+Route::get('/payments/operator-availability', [PaymentMethodsController::class, 'operatorAvailability']);Route::get('/pricing/preview', [PaymentController::class, 'pricingPreview']);
         Route::post('/payments/initiate', [PaymentController::class, 'initiate']);
         Route::get('/payments/status/{reference}', [PaymentController::class, 'status']);
 

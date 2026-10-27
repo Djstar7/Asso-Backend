@@ -54,7 +54,22 @@ class PaymentController extends Controller
             ],
         ]);
     }
+    // Dans le contrôleur qui gère /v1/payments/methods
+public function operatorAvailability(Request $request, KPayService $kpay)
+{
+    $provider = $request->validate([
+        'provider' => ['required', 'string'],
+        'operation' => ['nullable', 'in:DEPOSIT,PAYOUT'],
+    ]);
+    $op = $provider['operation'] ?? 'DEPOSIT';
+    $available = $kpay->isProviderAvailable($provider['provider'], $op);
 
+    return response()->json(['data' => [
+        'provider' => $provider['provider'],
+        'available' => $available,
+        'suggestions' => $available ? [] : $kpay->suggestAlternatives($provider['provider'], $op),
+    ]]);
+}
     /**
      * Aperçu du prix public d'un produit pour le vendeur qui le saisit.
      *

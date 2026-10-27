@@ -4,6 +4,7 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * KPay Mobile Money integration (deposits + payouts).
@@ -39,6 +40,84 @@ class KPayService
             'api_key' => $this->apiKey ? 'SET' : 'NULL',
             'secret_key' => $this->secretKey ? 'SET' : 'NULL',
         ]);
+    }
+
+    /**
+     * Disponibilité des opérateurs (cache 60 s, aligné sur le cache KPay).
+     * Retourne [] si inconnu : en cas de doute on NE BLOQUE PAS le paiement.
+     */
+    public function getAvailability(): array
+    {
+        if (!$this->hasCredentials()) {
+            return [];
+        }
+
+        return Cache::remember('kpay:availability', 60, function () {
+            try {
+                $response = Http::withHeaders($this->headers())
+                    ->timeout(5) // court : ne jamais ralentir le parcours de paiement
+                    ->get("{$this->baseUrl}/api/v1/payments/availability");
+
+                if (!$response->successful()) {
+                    return [];
+                }
+
+                Log::debug('[KPayService] Availability raw', ['body' => $response->body()]);
+                return $this->normalizeAvailability($response->json() ?? []);
+            } catch (\Exception $e) {
+                Log::warning('[KPayService] availability exception', ['error' => $e->getMessage()]);
+                return [];
+            }
+        });
+    }
+
+    /**
+     * Normalise en: ['MTN_MOMO_CMR' => ['DEPOSIT' => true, 'PAYOUT' => false], ...]
+     * À AJUSTER selon la vraie structure de la réponse KPay.
+     */
+    private function normalizeAvailability(array $raw): array
+    {
+        $out = [];
+        // Hypothèse : liste de { provider, operation|type, status|available }
+        $items = $raw['data'] ?? $raw['providers'] ?? $raw;
+
+        foreach ($items as $item) {
+            if (!is_array($item)) continue;
+            $code = $item['provider'] ?? $item['code'] ?? null;
+            $op = strtoupper($item['operation'] ?? $item['type'] ?? 'DEPOSIT');
+            if (!$code) continue;
+
+            $status = strtoupper((string) ($item['status'] ?? ''));
+            $ok = $item['available'] ?? $item['operational']
+                ?? in_array($status, ['OPERATIONAL', 'AVAILABLE', 'UP', 'ACTIVE'], true);
+
+            $out[$code][$op] = (bool) $ok;
+        }
+        return $out;
+    }
+
+    /** true si l'opérateur est dispo pour l'opération (true par défaut si inconnu). */
+    public function isProviderAvailable(string $provider, string $operation = 'DEPOSIT'): bool
+    {
+        $map = $this->getAvailability();
+        return $map[$provider][$operation] ?? true;
+    }
+
+    /** Opérateurs alternatifs disponibles dans le même pays. */
+    public function suggestAlternatives(string $provider, string $operation = 'DEPOSIT'): array
+    {
+        $country = KPayCatalog::countryForProvider($provider);
+        $alts = [];
+        foreach (KPayCatalog::PROVIDERS as $code => $meta) {
+            if (
+                $code !== $provider
+                && $meta['country'] === $country
+                && $this->isProviderAvailable($code, $operation)
+            ) {
+                $alts[] = $code;
+            }
+        }
+        return $alts;
     }
 
     /** Activé par l'admin ET clés présentes (nouveaux paiements). */
@@ -101,6 +180,14 @@ class KPayService
         if (!$this->isConfigured()) {
             return ['success' => false, 'message' => __('payments.kpay_not_configured')];
         }
+        if (!$this->isProviderAvailable($params['provider'], 'DEPOSIT')) {
+            return [
+                'success' => false,
+                'code' => 'PROVIDER_UNAVAILABLE',
+                'message' => __('payments.kpay_provider_unstable'),
+                'suggestions' => $this->suggestAlternatives($params['provider'], 'DEPOSIT'),
+            ];
+        }
 
         try {
             $payload = [
@@ -113,7 +200,6 @@ class KPayService
             if (!empty($params['metadata'])) {
                 $payload['metadata'] = $params['metadata'];
             }
-
             $response = Http::withHeaders($this->headers())
                 ->asJson()
                 ->timeout(30)
