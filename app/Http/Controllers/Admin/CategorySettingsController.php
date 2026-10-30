@@ -16,8 +16,10 @@ class CategorySettingsController extends Controller
      */
     public function index()
     {
-        $categories = Category::withCount(['subcategories', 'products'])->get();
-        $subcategories = Subcategory::with('category')->withCount('products')->get();
+        // Les rayons de la Bibliothèque se gèrent dans leur propre section.
+        $categories = Category::where('is_library', false)->withCount(['subcategories', 'products'])->get();
+        $subcategories = Subcategory::with('category')->withCount('products')
+            ->whereHas('category', fn ($q) => $q->where('is_library', false))->get();
 
         return view('admin.settings.categories', compact('categories', 'subcategories'));
     }

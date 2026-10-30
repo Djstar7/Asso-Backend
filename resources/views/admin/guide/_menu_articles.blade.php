@@ -40,6 +40,22 @@ const MENU_ARTICLES = {
     lead:'Les réclamations liées aux réservations immobilières, distinctes des litiges de commandes de produits.',
     body:()=>steps(['Ouvrez le dossier et examinez le motif, les preuves et la réservation.','Vérifiez le montant concerné et les parties indiquées.','Rédigez une explication, puis choisissez la décision proposée : remboursement ou déblocage selon les éléments du dossier.'])
   },
+  library_overview: {
+    lead:'Le point sur la Bibliothèque : nombre de livres, ventes payées des 30 derniers jours, meilleures ventes et fiches à compléter.',
+    body:()=>`<p>Chaque compteur « à compléter » ouvre la liste des livres concernés. Commencez par les livres sans fiche : sans auteur, ils restent mal référencés dans la recherche.</p>`
+  },
+  library_books: {
+    lead:'Tous les livres en vente, séparés du catalogue général : ils n’apparaissent ni dans « Tous les produits » ni dans les fils de l’accueil de l’application.',
+    body:()=>`${steps(['Recherchez un livre par titre, auteur, éditeur ou ISBN, ou filtrez par rayon, boutique, langue et format.','Pour en ajouter un, utilisez '+k('Ajouter un livre')+' : c’est le formulaire produit, limité aux rayons, avec le bloc « Détails du livre ».','Le badge du menu compte les livres rangés dans un rayon sans fiche (auteur manquant) : ouvrez-les et complétez la fiche.'])}${note('info','Dans l’application','Les livres sont visibles dans la rubrique Bibliothèque, dans la recherche (titre, auteur, ISBN) et sur la page de leur boutique.')}`
+  },
+  library_import: {
+    lead:'Ajout ou mise à jour de livres en masse depuis un fichier CSV ou Excel.',
+    body:()=>`${steps(['Téléchargez le modèle et remplissez une ligne par livre.','La colonne « rayon » doit reprendre le nom exact d’un rayon ; « genre » est facultative et doit appartenir à ce rayon.','Choisissez la boutique qui vend les livres, envoyez le fichier, puis lisez le rapport : les lignes en erreur sont listées avec leur numéro.'])}${note('tip','Mise à jour','Un livre dont l’ISBN existe déjà dans la boutique est mis à jour au lieu d’être créé en double : réimportez le fichier pour corriger prix et stocks.')}${note('warn','Excel français','Un CSV enregistré par Excel utilise souvent « ; » comme séparateur : il est reconnu automatiquement.')}`
+  },
+  library_shelves: {
+    lead:'Les rayons de la Bibliothèque (Romans, Jeunesse, Scolaire…) et leurs genres. Ils se gèrent ici et non dans la page Catégories.',
+    body:()=>steps(['Créez un rayon avec son nom en français et en anglais.','Ajoutez-lui des genres pour affiner le classement.','Un rayon ou un genre qui contient des livres ne peut pas être supprimé : déplacez d’abord les livres.'])
+  },
   property_settings: {
     lead:'Les règles et équipements utilisés par les annonces immobilières.',
     body:()=>`<p>Cette page regroupe les paramètres du service immobilier et la liste des équipements. Contrôlez le libellé et la valeur de chaque réglage, puis enregistrez. Une modification des équipements doit rester cohérente avec les annonces proposées aux clients.</p>`

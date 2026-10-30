@@ -86,7 +86,11 @@ class ProductSearchService
             ->orWhereHas('category', fn (Builder $c) => $c->whereRaw($contains('categories.name'), [$pattern])
                 ->orWhereRaw($contains('categories.name_en'), [$pattern]))
             ->orWhereHas('subcategory', fn (Builder $s) => $s->whereRaw($contains('subcategories.name'), [$pattern]))
-            ->orWhereHas('shop', fn (Builder $s) => $s->whereRaw($contains('shops.name'), [$pattern]));
+            ->orWhereHas('shop', fn (Builder $s) => $s->whereRaw($contains('shops.name'), [$pattern]))
+            // Livres : on cherche aussi par auteur, éditeur ou ISBN.
+            ->orWhereHas('book', fn (Builder $b) => $b->whereRaw($contains('product_books.author'), [$pattern])
+                ->orWhereRaw($contains('product_books.publisher'), [$pattern])
+                ->orWhereRaw($contains('product_books.isbn'), [$pattern]));
 
         if ($this->isPostgres() && mb_strlen($term) >= self::FUZZY_MIN_LENGTH) {
             $query->orWhereRaw(

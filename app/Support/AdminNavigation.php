@@ -64,6 +64,8 @@ class AdminNavigation
             'listings' => \App\Models\RealEstate\Listing::where('status', 'pending_review')->count(),
             'landlords' => \App\Models\RealEstate\LandlordVerification::where('status', 'pending')->count(),
             'property_disputes' => \App\Models\RealEstate\Dispute::where('status', 'open')->count(),
+            // Livres rangés dans un rayon sans fiche (auteur manquant) : à compléter.
+            'library_books' => \App\Models\Product::library()->doesntHave('book')->count(),
             'stripe_accounts' => User::whereNotNull('stripe_account_id')->where('stripe_account_status', 'pending')->count(),
             'payout_requests' => \App\Models\PlatformWithdrawal::where('processing_mode', 'manual')->whereIn('status', ['pending', 'processing'])->count(),
             default => $counters[$item['badge'] ?? ''] ?? 0,

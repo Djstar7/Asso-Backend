@@ -20,7 +20,11 @@ class CategoryController extends Controller
                 ->orWhere('origin_country', '');
         });
 
-        $categories = Category::withCount(['products' => $localOnly])
+        // Rayons de la Bibliothèque : seuls avec ?library=1 (écran Bibliothèque),
+        // avec le reste via ?with_library=1 (formulaire vendeur), absents sinon.
+        $categories = Category::query()
+            ->when(! $request->boolean('with_library'), fn ($q) => $q->where('is_library', $request->boolean('library')))
+            ->withCount(['products' => $localOnly])
             ->with(['subcategories' => function ($q) use ($localOnly) {
                 $q->withCount(['products' => $localOnly]);
             }])
@@ -36,6 +40,7 @@ class CategoryController extends Controller
                 'slug' => $cat->slug,
                 'description' => $cat->description,
                 'svg_icon' => $cat->svg_icon,
+                'is_library' => (bool) $cat->is_library,
                 'products_count' => $cat->products_count,
                 'subcategories' => $cat->subcategories->map(fn($sub) => [
                     'id' => $sub->id,

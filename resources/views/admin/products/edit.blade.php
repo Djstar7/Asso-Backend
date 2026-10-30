@@ -5,10 +5,10 @@
     <!-- Header -->
     <div class="mb-6 flex items-center justify-between">
         <div>
-            <h1 class="text-2xl font-bold text-white">Modifier le Produit</h1>
+            <h1 class="text-2xl font-bold text-white">{{ $libraryMode ? 'Modifier le livre' : 'Modifier le Produit' }}</h1>
             <p class="text-gray-400">Mettez à jour les informations du produit</p>
         </div>
-        <a href="{{ route('admin.products.index') }}" class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-all">
+        <a href="{{ $libraryMode ? route('admin.library.books.index') : route('admin.products.index') }}" class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-all">
             <i class="fas fa-arrow-left mr-2"></i>
             Retour
         </a>
@@ -95,6 +95,10 @@
                         </div>
                     </div>
                 </div>
+
+                @if($libraryMode)
+                    @include('admin.products._book')
+                @endif
 
                 <!-- Vente en gros (Import) -->
 <div class="bg-dark-100 rounded-xl shadow-lg p-6" id="wholesale_section" style="display:none;">
