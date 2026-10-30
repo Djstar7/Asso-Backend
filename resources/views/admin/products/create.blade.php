@@ -67,11 +67,11 @@
                             <label class="block text-sm font-medium text-white mb-2">
                                 Catégorie <span class="text-red-500">*</span>
                             </label>
-                            <select name="category_id" id="category_id" required onchange="loadSubcategories(this.value)"
+                            <select name="category_id" id="category_id" required onchange="loadSubcategories(this.value);  toggleBookSection()"
                                     class="w-full px-4 py-2 bg-dark-50 border border-dark-300 rounded-lg focus:ring-2 focus:ring-primary-500 @error('category_id') border-red-500 @enderror">
                                 <option value="">Sélectionnez</option>
                                 @foreach($categories as $category)
-                                    <option value="{{ $category->id }}" {{ old('category_id') == $category->id ? 'selected' : '' }}>{{ $category->name }}</option>
+                                    <option  value="{{ $category->id }}"  data-library="{{ $category->is_library ? 1 : 0 }}" {{ old('category_id') == $category->id ? 'selected' : '' }}>{{ $category->name }}</option>
                                 @endforeach
                             </select>
                             @error('category_id')<p class="mt-1 text-sm text-red-400">{{ $message }}</p>@enderror
@@ -90,6 +90,8 @@
                         </div>
                     </div>
                 </div>
+
+                @include('admin.products._book')
 
                 <!-- Vente en gros (Import) -->
 <div class="bg-dark-100 rounded-xl shadow-lg p-6" id="wholesale_section" style="display:none;">

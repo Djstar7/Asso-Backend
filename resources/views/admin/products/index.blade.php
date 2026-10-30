@@ -8,10 +8,10 @@
             @if(request()->boolean('asso') || \App\Support\AssoScope::active())
             <h1 class="text-2xl font-bold text-white">Produits ASSO</h1>
             <p class="text-gray-400">Produits des boutiques ASSO</p>
+            @elseif(request()->boolean('library'))
+            <h1 class="text-2xl font-bold text-white">Bibliothèque</h1>
+            <p class="text-gray-400">Livres en vente sur la plateforme</p>
             @else
-            <h1 class="text-2xl font-bold text-white">Produits</h1>
-            <p class="text-gray-400">Gérez tous les produits de la plateforme</p>
-            @endif
         </div>
         <div class="flex gap-3">
             <!-- View Toggle -->
@@ -27,6 +27,13 @@
                     <i class="fas fa-list"></i>
                 </button>
             </div>
+            @adminCan('admin.products.create')
+<a href="{{ route('admin.books.import') }}"
+   class="px-4 py-2 bg-dark-100 border border-dark-200 text-white rounded-lg hover:border-primary-500 transition-all">
+    <i class="fas fa-file-import mr-2"></i>
+    Importer des livres
+</a>
+@endadminCan
 @adminCan('admin.products.create')
             <a href="{{ route('admin.products.create') }}"
                class="px-4 py-2 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-lg hover:shadow-lg transition-all">
@@ -42,6 +49,7 @@
     <div class="bg-dark-100 rounded-xl shadow-lg p-6 mb-6 border border-dark-200">
         <form method="GET" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
             @if(request()->boolean('asso'))<input type="hidden" name="asso" value="1">@endif
+            @if(request()->boolean('library'))<input type="hidden" name="library" value="1">@endif
             <input type="text" name="search" value="{{ request('search') }}" placeholder="Rechercher..." class="px-4 py-2 bg-dark-50 border border-dark-300 text-white placeholder-gray-400 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
             <select name="shop_id" class="px-4 py-2 bg-dark-50 border border-dark-300 text-white rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
                 <option value="">Toutes les boutiques</option>
@@ -115,7 +123,9 @@
                 <div class="p-4">
                     <h3 class="font-semibold text-white mb-1 truncate">{{ $product->name }}</h3>
                     <p class="text-xs text-gray-400 mb-2">{{ $product->shop?->name ?? '—' }}</p>
-
+                    @if($product->book)
+    <p class="text-xs text-primary-400 mb-2"><i class="fas fa-user mr-1"></i>{{ $product->book->author }}</p>
+@endif
                     <!-- Rating Stars -->
                     <div class="flex items-center gap-2 mb-3">
                         <div class="flex items-center">

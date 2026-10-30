@@ -249,6 +249,16 @@ class Product extends Model
         return \App\Services\ExchangeRateService::convertAmount($currency, 'XAF', (float) $this->price);
     }
 
+    public function book(): HasOne
+    {
+        return $this->hasOne(ProductBook::class);
+    }
+
+    public function scopeLibrary($query)
+    {
+        return $query->whereHas('category', fn ($c) => $c->where('is_library', true));
+    }
+
     /**
      * Recalcule `price_xaf` des produits hors XAF au taux du jour (appelé après la
      * synchronisation des taux) : sans cela tri, filtres et cartes gardaient le taux

@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Models\Category;
 use App\Models\DeliveryPricelist;
 use App\Models\Inventory;
+use App\Services\ProductBookService;
 use App\Services\ProductBroadcastService;
 use App\Services\ProductVariantService;
 use App\Services\ProductVideoUploadService;
@@ -20,13 +21,17 @@ class ProductController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Product::with(['images', 'primaryImage', 'video', 'category', 'subcategory', 'shop', 'user', 'variants'])
+        $query = Product::with(['images', 'primaryImage', 'video', 'book', 'category', 'subcategory', 'shop', 'user', 'variants'])
             ->where('status', 'active')
             // Catalogue local par défaut ; les produits importés restent accessibles via ?origin_country=XX.
             ->when(!$request->filled('origin_country'), fn ($query) => $query->where(function ($q) {
                 $q->whereNull('origin_country')
                     ->orWhere('origin_country', '');
-            }))
+            }))->when(
+                $request->boolean('library'),
+                fn ($q) => $q->whereHas('category', fn ($c) => $c->where('is_library', true)),
+                fn ($q) => $q->whereDoesntHave('category', fn ($c) => $c->where('is_library', true)),
+            )
             ->whereHas('shop', function ($q) {
                 $q->where('status', 'active');
             });
@@ -41,7 +46,10 @@ class ProductController extends Controller
                     ->orWhereRaw('f_unaccent(description) ILIKE ?', ['%' . $search . '%'])
                     // Version anglaise saisie par le vendeur.
                     ->orWhereHas('translations', fn ($t) => $t->whereIn('field', ['name', 'description'])
-                        ->whereRaw('f_unaccent(value) ILIKE ?', ['%' . $search . '%']));
+                        ->whereRaw('f_unaccent(value) ILIKE ?', ['%' . $search . '%']))
+                    ->orWhereHas('book', fn ($b) => $b
+                        ->whereRaw('f_unaccent(author) ILIKE ?', ['%' . $search . '%'])
+                        ->orWhere('isbn', 'ILIKE', '%' . $search . '%'));
             });
         }
 
@@ -68,6 +76,17 @@ class ProductController extends Controller
         // Filter by origin country (produits importés : CN, TR, AE…)
         if ($request->filled('origin_country')) {
             $query->where('origin_country', strtoupper($request->origin_country));
+        }
+        if ($request->boolean('library')) {
+            if ($request->filled('author')) {
+                $query->whereHas('book', fn ($b) => $b->whereRaw('f_unaccent(author) ILIKE ?', ['%' . $request->author . '%']));
+            }
+            if ($request->filled('language')) {
+                $query->whereHas('book', fn ($b) => $b->where('language', $request->language));
+            }
+            if ($request->filled('format')) {
+                $query->whereHas('book', fn ($b) => $b->where('format', $request->format));
+            }
         }
 
         // Filter by price range — sur price_xaf (canonique XAF), car les prix peuvent
@@ -204,7 +223,7 @@ class ProductController extends Controller
 
         // For now, return random active products
         // TODO: Implement actual location-based filtering when location data is available
-        $products = Product::with(['images', 'primaryImage', 'video', 'category', 'subcategory', 'shop', 'user', 'variants'])
+        $products = Product::with(['images', 'primaryImage', 'video', 'category', 'book', 'subcategory', 'shop', 'user', 'variants'])
             ->where('status', 'active')
             ->where(function ($q) {
                 $q->whereNull('origin_country')
@@ -213,6 +232,7 @@ class ProductController extends Controller
             ->whereHas('shop', function ($q) {
                 $q->where('status', 'active');
             })
+            ->whereDoesntHave('category', fn ($c) => $c->where('is_library', true))
             ->inRandomOrder()
             ->limit($limit)
             ->get();
@@ -236,7 +256,7 @@ class ProductController extends Controller
             ? $request->user()->favorites()->pluck('product_id')->toArray()
             : [];
 
-        $products = Product::with(['images', 'primaryImage', 'video', 'category', 'subcategory', 'shop', 'user', 'variants'])
+        $products = Product::with(['images', 'primaryImage', 'video', 'category', 'book', 'subcategory', 'shop', 'user', 'variants'])
             ->where('status', 'active')
             ->where(function ($q) {
                 $q->whereNull('origin_country')
@@ -245,6 +265,7 @@ class ProductController extends Controller
             ->whereHas('shop', function ($q) {
                 $q->where('status', 'active');
             })
+            ->whereDoesntHave('category', fn ($c) => $c->where('is_library', true))
             ->orderBy('created_at', 'desc')
             ->limit($limit)
             ->get();
@@ -260,7 +281,7 @@ class ProductController extends Controller
      */
     public function show(Request $request, $id)
     {
-        $product = Product::with(['images', 'primaryImage', 'video', 'category', 'subcategory', 'shop', 'user', 'reviews.user', 'variants'])
+        $product = Product::with(['images', 'primaryImage', 'video', 'category', 'book', 'subcategory', 'shop', 'user', 'reviews.user', 'variants'])
             ->where('status', 'active')
             ->where(function ($q) {
                 $q->whereNull('origin_country')
@@ -336,7 +357,7 @@ class ProductController extends Controller
             ->where('user_id', $user->id)
             ->pluck('product_id');
 
-        $products = Product::with(['images', 'primaryImage', 'video', 'category', 'shop', 'user'])
+        $products = Product::with(['images', 'primaryImage', 'video', 'book', 'category', 'shop', 'user'])
             ->whereIn('id', $favoriteProductIds)
             ->where('status', 'active')
             ->paginate($request->get('per_page', 20));
@@ -422,7 +443,8 @@ class ProductController extends Controller
             'free_delivery' => 'nullable|boolean',
         ] + \App\Services\DepositOrderService::productRules('nullable') + ProductVariantService::rules()
             + \App\Support\Translation\ContentLocale::rules(Product::TRANSLATION_RULES)
-            + \App\Support\DeliveryDelay::rules());
+            + \App\Support\DeliveryDelay::rules()
+             + ProductBookService::rules());
 
         \Log::info('[PRODUCT_STORE] Validation passed');
 
@@ -539,6 +561,7 @@ class ProductController extends Controller
             app(ProductVariantService::class)->sync($product, $validated['variants'], $validated['variant_options'] ?? null);
         }
         $product->syncTranslations($validated['translations'] ?? null);
+        app(ProductBookService::class)->sync($product, $validated['book'] ?? null);
 
         \Log::info('[PRODUCT_STORE] Product created:', [
             'product_id' => $product->id,
@@ -601,7 +624,7 @@ class ProductController extends Controller
         }
 
         // Load relations for response
-        $product->load(['images', 'primaryImage', 'video', 'category', 'subcategory', 'user', 'shop']);
+        $product->load(['images', 'primaryImage', 'video', 'category', 'book', 'subcategory', 'user', 'shop']);
 
         \Log::info('[PRODUCT_STORE] Product loaded with relations');
 
@@ -633,7 +656,7 @@ class ProductController extends Controller
             'client_reference' => $product->client_reference,
         ]);
 
-        $product->load(['images', 'primaryImage', 'video', 'category', 'subcategory', 'user', 'shop']);
+        $product->load(['images', 'primaryImage', 'video', 'category', 'book', 'subcategory', 'user', 'shop']);
         $vendorPackage = $request->user()->activeVendorPackage;
 
         return response()->json([
@@ -716,6 +739,7 @@ class ProductController extends Controller
             ]),
             // Vidéo de présentation, exposée seulement une fois traitée (null sinon).
             'video' => $product->video?->toApi(),
+            'book' => $product->book?->toApi(),
             'category' => $product->category ? [
                 'id' => $product->category->id,
                 'name' => $product->category->name,
