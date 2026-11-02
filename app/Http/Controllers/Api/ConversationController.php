@@ -48,7 +48,7 @@ class ConversationController extends Controller
                     'id' => $conv->id,
                     'other_user' => [
                         'id' => $otherUser->id,
-                        'name' => $otherUser->name,
+                        'name' => $otherUser->publicName(),
                         'avatar' => $otherUser->avatar,
                         'phone' => $otherUser->phone,
                     ],
@@ -198,7 +198,7 @@ class ConversationController extends Controller
                 'id' => $conversation->id,
                 'other_user' => [
                     'id' => $otherUser->id,
-                    'name' => $otherUser->name,
+                    'name' => $otherUser->publicName(),
                     'avatar' => $otherUser->avatar,
                     'phone' => $otherUser->phone,
                 ],
@@ -425,7 +425,7 @@ class ConversationController extends Controller
                 $fcmService = app(FirebaseMessagingService::class);
 
                 // Construire le titre et le corps de la notification
-                $notificationTitle = $sender->name;
+                $notificationTitle = $sender->publicName($recipient->locale);
                 $notificationBody = $message->message
                     ? (strlen($message->message) > 100 ? substr($message->message, 0, 100).'...' : $message->message)
                     : ($message->image_path ? $recipient->localized('notifications.new_message.photo_body') : $recipient->localized('notifications.new_message.text_body'));
@@ -435,7 +435,7 @@ class ConversationController extends Controller
                     'type' => 'new_message',
                     'conversation_id' => (string) $conversationId,
                     'sender_id' => (string) $userId,
-                    'sender_name' => $sender->name,
+                    'sender_name' => $sender->publicName($recipient->locale),
                     'message_id' => (string) $message->id,
                     'screen' => 'chatdetail',
                     'click_action' => 'FLUTTER_NOTIFICATION_CLICK',

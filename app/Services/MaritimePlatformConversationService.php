@@ -17,12 +17,12 @@ class MaritimePlatformConversationService
                 abort(404);
             }
             if ($booking->status !== MaritimeBooking::STATUS_SHIPPED) {
-                throw new MaritimeBookingException('Platform contact is available only after the booking is shipped.');
+                throw new MaritimeBookingException(__('maritime.platform_contact_after_shipping'));
             }
 
             $resolvedPlatform = CommissionService::platformAccount();
             if (! $resolvedPlatform || $resolvedPlatform->is($customer)) {
-                throw new MaritimeBookingException('The official platform account is unavailable.');
+                throw new MaritimeBookingException(__('maritime.platform_account_unavailable'));
             }
             // Serializes lookup/create for all conversations against the official account.
             $platform = User::whereKey($resolvedPlatform->id)->lockForUpdate()->firstOrFail();

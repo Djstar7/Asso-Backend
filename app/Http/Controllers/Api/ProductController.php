@@ -27,22 +27,12 @@ class ProductController extends Controller
                 $q->whereNull('origin_country')
                     ->orWhere('origin_country', '');
             }))
-            ->whereHas('shop', function ($q) {
-                $q->where('status', 'active');
-            });
+            ->whereHas('shop', fn ($q) => $q->publiclyVisible());
 
-        // Search (accent-insensitive using PostgreSQL f_unaccent function)
-        if ($request->has('search') && $request->search) {
-            $search = $request->search;
-
-            $query->where(function ($q) use ($search) {
-                // Use PostgreSQL f_unaccent function for accent-insensitive search
-                $q->whereRaw('f_unaccent(name) ILIKE ?', ['%' . $search . '%'])
-                    ->orWhereRaw('f_unaccent(description) ILIKE ?', ['%' . $search . '%'])
-                    // Version anglaise saisie par le vendeur.
-                    ->orWhereHas('translations', fn ($t) => $t->whereIn('field', ['name', 'description'])
-                        ->whereRaw('f_unaccent(value) ILIKE ?', ['%' . $search . '%']));
-            });
+        $search = trim((string) $request->get('search', ''));
+        $searchService = app(\App\Services\ProductSearchService::class);
+        if ($search !== '') {
+            $searchService->apply($query, $search);
         }
 
         // Filter by category
@@ -80,12 +70,15 @@ class ProductController extends Controller
         }
 
         // Sort — trier par prix se fait sur la valeur canonique XAF (price_xaf)
-        $sortBy = $request->get('sort_by', 'created_at');
-        $sortOrder = $request->get('sort_order', 'desc');
-        if ($sortBy === 'price') {
-            $query->orderByRaw('COALESCE(price_xaf, price) ' . ($sortOrder === 'asc' ? 'asc' : 'desc'));
+        $sortBy = $request->get('sort_by', $search !== '' ? 'relevance' : 'created_at');
+        $sortOrder = $request->get('sort_order') === 'asc' ? 'asc' : 'desc';
+        if ($sortBy === 'relevance' && $search !== '') {
+            $searchService->orderByRelevance($query, $search);
+        } elseif ($sortBy === 'price') {
+            $query->orderByRaw('COALESCE(price_xaf, price) ' . $sortOrder);
         } else {
-            $query->orderBy($sortBy, $sortOrder);
+            // Colonne libre côté client : une valeur inconnue faisait échouer la requête.
+            $query->orderBy(in_array($sortBy, ['created_at', 'name'], true) ? $sortBy : 'created_at', $sortOrder);
         }
 
         // Paginate
@@ -210,9 +203,7 @@ class ProductController extends Controller
                 $q->whereNull('origin_country')
                     ->orWhere('origin_country', '');
             })
-            ->whereHas('shop', function ($q) {
-                $q->where('status', 'active');
-            })
+            ->whereHas('shop', fn ($q) => $q->publiclyVisible())
             ->inRandomOrder()
             ->limit($limit)
             ->get();
@@ -242,9 +233,7 @@ class ProductController extends Controller
                 $q->whereNull('origin_country')
                     ->orWhere('origin_country', '');
             })
-            ->whereHas('shop', function ($q) {
-                $q->where('status', 'active');
-            })
+            ->whereHas('shop', fn ($q) => $q->publiclyVisible())
             ->orderBy('created_at', 'desc')
             ->limit($limit)
             ->get();
@@ -266,7 +255,7 @@ class ProductController extends Controller
                 $q->whereNull('origin_country')
                     ->orWhere('origin_country', '');
             })
-            ->whereHas('shop', fn ($query) => $query->where('status', 'active'))
+            ->whereHas('shop', fn ($query) => $query->publiclyVisible())
             ->findOrFail($id);
 
         $favoriteIds = [];
@@ -690,7 +679,7 @@ class ProductController extends Controller
             'variants' => $product->variants->where('is_active', true)->values()
                 ->map(fn ($variant) => app(ProductVariantService::class)->presentVariant($variant, $product, $pricing['rate'])),
             'variant_options' => app(ProductVariantService::class)->presentOptions($product),
-            'stock' => $product->stock,
+            'stock' => $product->availableStock(),
             'requires_quote' => (bool) $product->requires_quote,
             'price_is_indicative' => (bool) $product->requires_quote,
             'availability_label' => $product->requires_quote ? __('Prix et disponibilité à confirmer') : null,

@@ -88,13 +88,13 @@ class MessageController extends Controller
             if ($client) {
                 app(FirebaseMessagingService::class)->sendToUser(
                     $client,
-                    $support->name,
+                    $support->publicName($client->locale),
                     strlen($request->message) > 100 ? substr($request->message, 0, 100) . '...' : $request->message,
                     [
                         'type' => 'new_message',
                         'conversation_id' => (string) $conversation->id,
                         'sender_id' => (string) $support->id,
-                        'sender_name' => $support->name,
+                        'sender_name' => $support->publicName($client->locale),
                         'message_id' => (string) $message->id,
                         'screen' => 'chatdetail',
                         'click_action' => 'FLUTTER_NOTIFICATION_CLICK',

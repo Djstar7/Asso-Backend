@@ -35,17 +35,17 @@ class SearchSynonym extends Model
      */
     public static function getRelatedTerms(string $term): array
     {
-        $normalizedTerm = strtolower($term);
+        $normalizedTerm = mb_strtolower($term);
         $relatedTerms = [$normalizedTerm];
 
         // Get direct synonyms
-        $synonyms = self::where('term', $normalizedTerm)
+        $synonyms = self::sameWord('term', $normalizedTerm)
             ->where('is_active', true)
             ->pluck('synonym')
             ->toArray();
 
         // Get reverse synonyms (terms that have this as a synonym)
-        $reverseTerms = self::where('synonym', $normalizedTerm)
+        $reverseTerms = self::sameWord('synonym', $normalizedTerm)
             ->where('is_active', true)
             ->pluck('term')
             ->toArray();
@@ -55,12 +55,22 @@ class SearchSynonym extends Model
         return array_unique($relatedTerms);
     }
 
+    /** « telephone » doit retrouver les synonymes enregistrés sous « téléphone ». */
+    private static function sameWord(string $column, string $word)
+    {
+        $query = self::query();
+
+        return $query->getConnection()->getDriverName() === 'pgsql'
+            ? $query->whereRaw("LOWER(f_unaccent({$column})) = LOWER(f_unaccent(?))", [$word])
+            : $query->where($column, $word);
+    }
+
     /**
      * Expand a search query with all related terms
      */
     public static function expandSearchQuery(string $query): array
     {
-        $words = preg_split('/\s+/', strtolower(trim($query)));
+        $words = preg_split('/\s+/', mb_strtolower(trim($query)));
         $expandedTerms = [];
 
         foreach ($words as $word) {

@@ -57,9 +57,7 @@ class SearchController extends Controller
                 $q->whereNull('origin_country')
                     ->orWhere('origin_country', '');
             })
-            ->whereHas('shop', function ($q) {
-                $q->where('status', 'active');
-            });
+            ->whereHas('shop', fn ($q) => $q->publiclyVisible());
 
         // 3. Apply search with multiple strategies
         $query->where(function ($q) use ($searchQuery, $expandedTerms) {

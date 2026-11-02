@@ -97,6 +97,10 @@ Route::prefix('v1')->group(function () {
     // General routes
     Route::get('/products', [ProductController::class, 'index']);
     Route::get('/products/{id}', [ProductController::class, 'show']);
+
+    // Diaspo Maritime : les départs se consultent sans compte, réserver en demande un.
+    Route::get('/maritime/departures', [\App\Http\Controllers\Api\MaritimeController::class, 'departures']);
+    Route::get('/maritime/departures/{id}', [\App\Http\Controllers\Api\MaritimeController::class, 'showDeparture']);
     Route::get('/categories', [CategoryController::class, 'index']);
     Route::get('/banners', [BannerController::class, 'index']);
 
@@ -238,8 +242,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/maritime/inquiries', [\App\Http\Controllers\Api\FreightInquiryController::class, 'index']);
         Route::post('/maritime/inquiries', [\App\Http\Controllers\Api\FreightInquiryController::class, 'store'])->middleware('throttle:10,1');
         Route::post('/maritime/inquiries/{id}/accept', [\App\Http\Controllers\Api\FreightInquiryController::class, 'accept'])->whereNumber('id');
-        Route::get('/maritime/departures', [\App\Http\Controllers\Api\MaritimeController::class, 'departures']);
-        Route::get('/maritime/departures/{id}', [\App\Http\Controllers\Api\MaritimeController::class, 'showDeparture']);
         Route::post('/maritime/departures/{id}/book', [\App\Http\Controllers\Api\MaritimeController::class, 'book']);
         Route::get('/maritime/bookings', [\App\Http\Controllers\Api\MaritimeController::class, 'bookings']);
         Route::get('/maritime/bookings/{id}/payment-status', [\App\Http\Controllers\Api\MaritimeController::class, 'paymentStatus']);

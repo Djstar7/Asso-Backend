@@ -56,7 +56,7 @@ class WholesaleSolexDeliveryTest extends TestCase
         $supplier = User::factory()->create();
         $supplierShop = Shop::create([
             'user_id' => $supplier->id, 'name' => 'Usine Guangzhou', 'slug' => 'gz-' . uniqid(),
-            'status' => 'active', 'city' => 'Guangzhou', 'country' => 'Chine',
+            'status' => 'active', 'verified_at' => now(), 'city' => 'Guangzhou', 'country' => 'Chine',
         ]);
         ImportCountry::create(['code' => 'CN', 'name' => 'Chine', 'is_active' => true]);
         $this->product = Product::create([

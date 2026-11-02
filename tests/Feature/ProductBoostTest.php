@@ -68,7 +68,7 @@ class ProductBoostTest extends TestCase
             [
                 'name' => 'Boutique ' . $user->id,
                 'slug' => 'boutique-' . $user->id,
-                'status' => 'active',
+                'status' => 'active', 'verified_at' => now(),
             ],
         );
 

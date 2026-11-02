@@ -239,6 +239,17 @@ class Shop extends Model
         return !is_null($this->verified_at);
     }
 
+    /** Boutique ouverte au public : la même règle vaut pour sa page et ses produits. */
+    public function isPubliclyVisible(): bool
+    {
+        return $this->status === 'active' && $this->isVerified();
+    }
+
+    public function scopePubliclyVisible($query)
+    {
+        return $query->where('status', 'active')->whereNotNull('verified_at');
+    }
+
     /**
      * Check if shop is rejected
      */

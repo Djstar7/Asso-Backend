@@ -105,14 +105,9 @@ class ImportController extends Controller
         $query = Product::query()
             ->where('is_wholesale', true)
             ->where('status', 'active')
-            ->whereHas('shop', fn ($q) => $q->where('status', 'active'));
+            ->whereHas('shop', fn ($q) => $q->publiclyVisible());
 
-        foreach (preg_split('/\s+/', trim((string) $search), -1, PREG_SPLIT_NO_EMPTY) as $word) {
-            $like = '%' . mb_strtolower(addcslashes($word, '%_\\')) . '%';
-            $query->where(fn ($q) => $q->whereRaw('LOWER(name) LIKE ?', [$like])
-                ->orWhereRaw('LOWER(description) LIKE ?', [$like])
-                ->orWhereRaw('LOWER(characteristics) LIKE ?', [$like]));
-        }
+        app(\App\Services\ProductSearchService::class)->apply($query, trim((string) $search));
 
         return $query;
     }
@@ -125,7 +120,7 @@ class ImportController extends Controller
     {
         $product = Product::where('is_wholesale', true)
             ->where('status', 'active')
-            ->whereHas('shop', fn ($query) => $query->where('status', 'active'))
+            ->whereHas('shop', fn ($query) => $query->publiclyVisible())
             ->with(['priceTiers', 'images', 'variants', 'video', 'shop', 'category', 'subcategory'])
             ->findOrFail($id);
 

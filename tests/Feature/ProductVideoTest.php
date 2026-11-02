@@ -52,7 +52,7 @@ class ProductVideoTest extends TestCase
     {
         $vendor = User::factory()->create(['role' => 'vendeur']);
         $shop = Shop::create([
-            'user_id' => $vendor->id, 'name' => 'Grossiste', 'slug' => 'grossiste-' . $vendor->id, 'status' => 'active',
+            'user_id' => $vendor->id, 'name' => 'Grossiste', 'slug' => 'grossiste-' . $vendor->id, 'status' => 'active', 'verified_at' => now(),
         ]);
         $category = Category::create(['name' => 'Textile', 'slug' => 'textile-' . Str::random(4)]);
 

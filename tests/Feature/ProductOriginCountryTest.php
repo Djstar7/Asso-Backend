@@ -26,7 +26,7 @@ class ProductOriginCountryTest extends TestCase
             'user_id' => $user->id,
             'name' => 'Boutique Test',
             'slug' => 'boutique-test-' . $user->id,
-            'status' => 'active',
+            'status' => 'active', 'verified_at' => now(),
         ]);
 
         return [$user, $shop];

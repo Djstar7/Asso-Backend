@@ -137,6 +137,17 @@ class Product extends Model
         'requires_quote',
     ];
 
+    /**
+     * Quantité réellement commandable : avec des déclinaisons actives, c'est leur
+     * stock qui fait foi, puisque chaque commande porte sur l'une d'elles.
+     */
+    public function availableStock(): ?int
+    {
+        $variants = $this->variants->where('is_active', true);
+
+        return $variants->isNotEmpty() ? (int) $variants->sum('stock') : $this->stock;
+    }
+
     protected $casts = [
         'requires_quote' => 'boolean',
         'price' => 'decimal:2',
