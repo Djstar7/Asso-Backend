@@ -49,7 +49,7 @@ class ShopLocationTest extends TestCase
             'user_id' => $vendor->id,
             'name' => 'Boutique',
             'slug' => 'boutique',
-            'status' => 'active',
+            'status' => 'active', 'verified_at' => now(),
             'address' => 'Bonapriso',
         ]);
         $category = Category::create(['name' => 'Divers', 'slug' => 'divers']);
@@ -130,7 +130,7 @@ class ShopLocationTest extends TestCase
             'user_id' => $vendor->id,
             'name' => 'Boutique',
             'slug' => 'boutique',
-            'status' => 'active',
+            'status' => 'active', 'verified_at' => now(),
             'address' => 'Rue des Palmiers, Akwa, Douala',
             'city' => 'Douala',
             'country' => 'Cameroun',
@@ -162,7 +162,7 @@ class ShopLocationTest extends TestCase
     {
         $vendor = User::factory()->create(['role' => 'vendeur']);
         $shop = Shop::create([
-            'user_id' => $vendor->id, 'name' => 'Boutique', 'slug' => 'boutique', 'status' => 'active',
+            'user_id' => $vendor->id, 'name' => 'Boutique', 'slug' => 'boutique', 'status' => 'active', 'verified_at' => now(),
             'address' => 'Rue Njo-Njo, Douala, Cameroun', 'city' => 'Douala', 'country' => 'Cameroun',
             'latitude' => 4.03, 'longitude' => 9.69,
         ]);
@@ -194,7 +194,7 @@ class ShopLocationTest extends TestCase
     {
         $vendor = User::factory()->create(['role' => 'vendeur']);
         $shop = Shop::create([
-            'user_id' => $vendor->id, 'name' => 'Boutique', 'slug' => 'boutique', 'status' => 'active',
+            'user_id' => $vendor->id, 'name' => 'Boutique', 'slug' => 'boutique', 'status' => 'active', 'verified_at' => now(),
             'address' => 'Rue Njo-Njo, Douala, Cameroun', 'latitude' => 4.03, 'longitude' => 9.69,
         ]);
         Sanctum::actingAs($vendor);
@@ -232,7 +232,7 @@ class ShopLocationTest extends TestCase
             'user_id' => $vendor->id,
             'name' => 'Boutique',
             'slug' => 'boutique',
-            'status' => 'active',
+            'status' => 'active', 'verified_at' => now(),
             'address' => 'Akwa, Douala, Cameroun',
             'description' => 'Ancienne description',
             'categories' => ['Électronique', 'Mode & Vêtements'],

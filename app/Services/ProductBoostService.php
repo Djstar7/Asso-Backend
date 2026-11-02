@@ -162,7 +162,7 @@ class ProductBoostService
             ->with(['product.images', 'product.primaryImage', 'product.category', 'product.subcategory', 'product.shop', 'product.user', 'product.variants'])
             ->whereHas('product', function ($q) use ($filters) {
                 $q->where('status', 'active')
-                    ->whereHas('shop', fn ($s) => $s->where('status', 'active'));
+                    ->whereHas('shop', fn ($s) => $s->publiclyVisible());
 
                 // Une publicité doit rester pertinente : on respecte le filtrage
                 // de la page où elle s'insère.

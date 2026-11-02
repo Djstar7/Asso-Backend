@@ -1,4 +1,5 @@
 {
+  "support": {"display_name": "Support ASSO"},
   "transport": {"destination_country_mismatch": "Le pays du destinataire doit correspondre au pays du QG d’arrivée."},
   "landlord_upload": {
     "id_document_type": "Choisissez une CNI ou un passeport.",
@@ -1057,6 +1058,7 @@
         "validated_paid_after_balance": "Commande validée. Vous serez payé une fois le produit livré, vérifié avec ASSO et le solde réglé par le client."
     },
     "products": {
+        "stock_managed_by_variants": "Le stock de ce produit se gère par déclinaison.",
         "sponsored_label": "Sponsorisé",
         "added_to_favorites": "Ajouté aux favoris",
         "removed_from_favorites": "Retiré des favoris",
@@ -1740,6 +1742,8 @@
         }
     },
     "maritime": {
+        "platform_contact_after_shipping": "Le contact avec la plateforme est possible une fois le colis expédié.",
+        "platform_account_unavailable": "Le compte officiel de la plateforme est indisponible.",
         "trip_impossible": "Trajet impossible à faire, veuillez consulter les prochaines dates pour cette destination.",
         "not_enough_kg": "Il ne reste que :kg kg sur ce départ.",
         "booking_created_confirm_on_phone": "Envoi enregistré. Confirmez le paiement sur votre téléphone.",

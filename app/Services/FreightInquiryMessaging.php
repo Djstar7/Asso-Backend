@@ -20,9 +20,9 @@ class FreightInquiryMessaging
             }
             try {
                 $sender = $message->sender;
-                app(FirebaseMessagingService::class)->sendToUser($recipient, $sender->name, mb_substr($message->message, 0, 150), [
+                app(FirebaseMessagingService::class)->sendToUser($recipient, $sender->publicName($recipient->locale), mb_substr($message->message, 0, 150), [
                     'type' => 'new_message', 'conversation_id' => (string) $message->conversation_id,
-                    'sender_id' => (string) $sender->id, 'sender_name' => $sender->name,
+                    'sender_id' => (string) $sender->id, 'sender_name' => $sender->publicName($recipient->locale),
                     'message_id' => (string) $message->id, 'screen' => 'chatdetail',
                     'notification_key' => 'freight-message:'.$message->id,
                     'click_action' => 'FLUTTER_NOTIFICATION_CLICK',

@@ -84,7 +84,7 @@ class DepositOrderTest extends TestCase
             'user_id' => $seller->id,
             'name' => 'Boutique ' . $seller->id,
             'slug' => 'boutique-' . $seller->id,
-            'status' => 'active',
+            'status' => 'active', 'verified_at' => now(),
         ]);
         $product = Product::create([
             'user_id' => $seller->id,

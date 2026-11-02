@@ -29,7 +29,7 @@ class ProductVariantOptionsTest extends TestCase
             'user_id' => $this->vendor->id,
             'name' => 'Boutique locale',
             'slug' => 'boutique-locale',
-            'status' => 'active',
+            'status' => 'active', 'verified_at' => now(),
         ]);
         $this->category = Category::create(['name' => 'Chaussures', 'slug' => 'chaussures']);
     }
@@ -69,7 +69,8 @@ class ProductVariantOptionsTest extends TestCase
             ->assertRedirect(route('admin.products.index'));
 
         $product = Product::where('name', 'Basket locale')->firstOrFail();
-        $this->assertSame(9, $product->stock);
+        // La déclinaison masquée (4) ne compte pas : elle n'est pas commandable.
+        $this->assertSame(5, $product->stock);
         $this->assertCount(4, $product->variants);
         $this->assertSame('#123456', $product->variant_options[0]['values'][1]['hex']);
 

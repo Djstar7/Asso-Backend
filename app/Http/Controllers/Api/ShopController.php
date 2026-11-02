@@ -85,8 +85,7 @@ class ShopController extends Controller
             ], 404);
         }
 
-        // Only show verified shops publicly
-        if (!$shop->isVerified()) {
+        if (!$shop->isPubliclyVisible()) {
             return response()->json([
                 'success' => false,
                 'message' => __('shops.unavailable'),
@@ -97,7 +96,7 @@ class ShopController extends Controller
             'user',
             'products' => function ($query) {
                 $query->where('status', 'active')
-                      ->with(['images', 'primaryImage', 'video', 'category'])
+                      ->with(['images', 'primaryImage', 'video', 'category', 'variants'])
                       ->orderBy('created_at', 'desc');
             }
         ]);
@@ -473,7 +472,23 @@ class ShopController extends Controller
                 'slug' => $product->slug,
                 'description' => $product->description,
                 ...\App\Services\CommissionService::buyerPriceFields($product), // prix public (devise + XAF)
-                'stock' => (int) $product->stock,
+                'stock' => $product->availableStock(),
+                // La fiche ouverte depuis la boutique doit pouvoir y revenir.
+                'shop' => [
+                    'id' => $shop->id,
+                    'name' => $shop->name,
+                    'logo' => $shop->logo ? media_url($shop->logo) : null,
+                    'is_certified' => (bool) $shop->is_certified,
+                    'address' => $shop->address,
+                    'city' => $shop->city,
+                    'country' => $shop->country,
+                    'location_label' => $shop->location_label,
+                ],
+                'seller' => $shop->user ? [
+                    'id' => $shop->user->id,
+                    'name' => $shop->user->name,
+                    'avatar' => $shop->user->avatar ? media_url($shop->user->avatar) : null,
+                ] : null,
                 'primary_image' => $product->primaryImage ? media_url($product->primaryImage->image_path) : null,
                 'images' => $images,
                 'video' => $product->video?->toApi(),

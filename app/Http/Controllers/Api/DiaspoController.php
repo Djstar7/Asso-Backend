@@ -101,7 +101,7 @@ class DiaspoController extends Controller
             'departure_country', 'arrival_country', 'departure_city', 'arrival_city',
         ] as $f) {
             if ($request->filled($f)) {
-                $q->where($f, 'ilike', '%'.$request->query($f).'%');
+                $this->whereContains($q, $f, (string) $request->query($f));
             }
         }
         if ($request->filled('max_price')) {
@@ -110,6 +110,16 @@ class DiaspoController extends Controller
         $q->orderBy('departure_datetime');
 
         return response()->json(['success' => true, 'data' => $this->paginate($q, $request)]);
+    }
+
+    /** Filtre insensible à la casse et aux accents : « Yaounde » retrouve « Yaoundé ». */
+    private function whereContains($query, string $column, string $value): void
+    {
+        $pattern = '%'.strtr($value, ['!' => '!!', '%' => '!%', '_' => '!_']).'%';
+
+        $query->getConnection()->getDriverName() === 'pgsql'
+            ? $query->whereRaw("f_unaccent({$column}) ILIKE f_unaccent(?) ESCAPE '!'", [$pattern])
+            : $query->whereRaw("LOWER({$column}) LIKE LOWER(?) ESCAPE '!'", [$pattern]);
     }
 
     public function myOffers(Request $request)

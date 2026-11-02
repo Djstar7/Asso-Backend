@@ -21,7 +21,7 @@ class SourcedCatalogVisibilityTest extends TestCase
     private function product(): Product
     {
         $seller = User::factory()->create();
-        $shop = Shop::create(['user_id' => $seller->id, 'name' => 'ASSO Import', 'status' => 'active']);
+        $shop = Shop::create(['user_id' => $seller->id, 'name' => 'ASSO Import', 'status' => 'active', 'verified_at' => now()]);
         $category = Category::create(['name' => 'Maison', 'slug' => 'maison']);
         ImportCountry::create(['code' => 'CN', 'name' => 'Chine', 'is_active' => true]);
         $product = Product::create([

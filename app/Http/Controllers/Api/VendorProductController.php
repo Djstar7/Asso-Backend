@@ -676,6 +676,13 @@ class VendorProductController extends Controller
             ], 403);
         }
 
+        if ($product->variants()->exists()) {
+            return response()->json([
+                'success' => false,
+                'message' => __('products.stock_managed_by_variants'),
+            ], 422);
+        }
+
         DB::beginTransaction();
         try {
             // Calculate new stock
@@ -772,6 +779,13 @@ class VendorProductController extends Controller
             'stock' => 'required|integer|min:0',
             'notes' => 'nullable|string',
         ]);
+
+        if ($product->variants()->exists()) {
+            return response()->json([
+                'success' => false,
+                'message' => __('products.stock_managed_by_variants'),
+            ], 422);
+        }
 
         DB::beginTransaction();
         try {

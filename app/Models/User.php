@@ -685,6 +685,15 @@ class User extends Authenticatable implements HasLocalePreference
     }
 
     /**
+     * Nom montré aux clients : le support et le compte plateforme sont des comptes
+     * admin, ils parlent au nom d'ASSO et non sous leur nom de compte.
+     */
+    public function publicName(?string $locale = null): string
+    {
+        return $this->isAdmin() ? __('support.display_name', [], $locale) : $this->name;
+    }
+
+    /**
      * Compte autorisé à se connecter au back-office (admin ou gestionnaire).
      */
     public function isBackofficeStaff(): bool

@@ -54,11 +54,12 @@ class MaritimeController extends Controller
         }
 
         $page = $q->paginate(min(50, (int) $request->query('per_page', 20)));
+        $viewerId = $this->viewerId($request);
 
         return response()->json([
             'success' => true,
             'data' => [
-                'data' => collect($page->items())->map(fn ($departure) => $departure->toApi($request->user()?->id))->values(),
+                'data' => collect($page->items())->map(fn ($departure) => $departure->toApi($viewerId))->values(),
                 'current_page' => $page->currentPage(),
                 'last_page' => $page->lastPage(),
                 'total' => $page->total(),
@@ -79,7 +80,13 @@ class MaritimeController extends Controller
                 ->whereHas('destinationHub', fn ($h) => $h->where('is_demo', false)))
             ->findOrFail($id);
 
-        return response()->json(['success' => true, 'data' => $departure->toApi($request->user()?->id)]);
+        return response()->json(['success' => true, 'data' => $departure->toApi($this->viewerId($request))]);
+    }
+
+    /** Route publique : le jeton, s'il y en a un, n'est pas lu par le garde par défaut. */
+    private function viewerId(Request $request): ?int
+    {
+        return ($request->user() ?? auth('sanctum')->user())?->id;
     }
 
     /** POST /v1/maritime/departures/{id}/book */

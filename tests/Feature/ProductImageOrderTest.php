@@ -25,7 +25,7 @@ class ProductImageOrderTest extends TestCase
             'user_id' => $vendor->id,
             'name' => 'Boutique',
             'slug' => 'boutique-' . $vendor->id,
-            'status' => 'active',
+            'status' => 'active', 'verified_at' => now(),
         ]);
         $category = Category::firstOrCreate(['slug' => 'test'], ['name' => 'Test', 'is_active' => true]);
 

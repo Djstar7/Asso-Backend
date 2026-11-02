@@ -106,7 +106,7 @@ class AppController extends Controller
 
         return [
             'support_user_id' => $user->id,
-            'name' => $user->name,
+            'name' => $user->publicName(),
             'avatar' => $user->avatar,
         ];
     }

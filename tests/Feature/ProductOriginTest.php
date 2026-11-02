@@ -43,7 +43,7 @@ class ProductOriginTest extends TestCase
 
         $this->admin = User::factory()->create(['role' => 'admin']);
         $this->vendor = User::factory()->create(['role' => 'vendeur']);
-        $this->shop = Shop::create(['user_id' => $this->vendor->id, 'name' => 'ASSO Fashion', 'slug' => 'asso-fashion', 'status' => 'active']);
+        $this->shop = Shop::create(['user_id' => $this->vendor->id, 'name' => 'ASSO Fashion', 'slug' => 'asso-fashion', 'status' => 'active', 'verified_at' => now()]);
         $this->category = Category::create(['name' => 'Mode', 'slug' => 'mode']);
         ImportCountry::create(['code' => 'CN', 'name' => 'Chine', 'flag' => '🇨🇳', 'sort_order' => 1]);
     }

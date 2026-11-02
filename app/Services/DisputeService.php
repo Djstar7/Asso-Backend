@@ -1285,7 +1285,7 @@ class DisputeService
 
         $base = fn () => Product::query()
             ->where('status', 'active')
-            ->whereHas('shop', fn ($shop) => $shop->where('status', 'active'))
+            ->whereHas('shop', fn ($shop) => $shop->publiclyVisible())
             ->withEffectiveFreeDelivery()
             ->whereKeyNot($product->id)
             ->when($excludedShopId, fn ($q) => $q->where(fn ($s) => $s->whereNull('shop_id')->orWhere('shop_id', '!=', $excludedShopId)))

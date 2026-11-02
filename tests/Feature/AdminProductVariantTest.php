@@ -22,7 +22,7 @@ class AdminProductVariantTest extends TestCase
             'user_id' => $vendor->id,
             'name' => 'ASSO Import',
             'slug' => 'asso-import',
-            'status' => 'active',
+            'status' => 'active', 'verified_at' => now(),
         ]);
         $category = Category::create(['name' => 'Mode', 'slug' => 'mode']);
 
@@ -71,7 +71,7 @@ class AdminProductVariantTest extends TestCase
             'user_id' => $vendor->id,
             'name' => 'Boutique Import',
             'slug' => 'boutique-import',
-            'status' => 'active',
+            'status' => 'active', 'verified_at' => now(),
         ]);
         $category = Category::create(['name' => 'Maison', 'slug' => 'maison']);
         ImportCountry::create(['code' => 'CN', 'name' => 'Chine']);

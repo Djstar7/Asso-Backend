@@ -101,7 +101,7 @@ class ContentTranslationTest extends TestCase
     public function test_vendor_edits_french_text_and_english_version_separately(): void
     {
         $vendor = User::factory()->create(['role' => 'vendeur']);
-        $shop = Shop::create(['user_id' => $vendor->id, 'name' => 'Ma boutique', 'slug' => 'ma-boutique', 'status' => 'active']);
+        $shop = Shop::create(['user_id' => $vendor->id, 'name' => 'Ma boutique', 'slug' => 'ma-boutique', 'status' => 'active', 'verified_at' => now()]);
         $product = Product::create([
             'user_id' => $vendor->id, 'shop_id' => $shop->id, 'category_id' => $this->category()->id,
             'name' => 'Chaise en bois', 'description' => 'Belle chaise', 'price' => 10000, 'stock' => 5, 'status' => 'active',
@@ -140,7 +140,7 @@ class ContentTranslationTest extends TestCase
     {
         $this->category();
         $vendor = User::factory()->create(['role' => 'vendeur']);
-        Shop::create(['user_id' => $vendor->id, 'name' => 'Ma boutique', 'slug' => 'ma-boutique', 'status' => 'active']);
+        Shop::create(['user_id' => $vendor->id, 'name' => 'Ma boutique', 'slug' => 'ma-boutique', 'status' => 'active', 'verified_at' => now()]);
         Sanctum::actingAs($vendor);
 
         $this->withHeader('Accept-Language', 'en')

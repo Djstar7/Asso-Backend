@@ -92,7 +92,7 @@ class PaymentsWalletMonetizationTest extends TestCase
             'user_id' => $u->id,
             'name' => 'Boutique ' . $u->id,
             'slug' => 'boutique-' . $u->id,
-            'status' => 'active',
+            'status' => 'active', 'verified_at' => now(),
         ]);
     }
 

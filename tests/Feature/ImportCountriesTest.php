@@ -48,7 +48,7 @@ class ImportCountriesTest extends TestCase
             ImportCountry::create(['code' => $code, 'name' => $name, 'flag' => '', 'sort_order' => $i, 'is_active' => true]);
         }
         $seller = \App\Models\User::factory()->create();
-        $shop = \App\Models\Shop::create(['user_id' => $seller->id, 'name' => 'Import', 'slug' => 'imp-' . uniqid(), 'status' => 'active']);
+        $shop = \App\Models\Shop::create(['user_id' => $seller->id, 'name' => 'Import', 'slug' => 'imp-' . uniqid(), 'status' => 'active', 'verified_at' => now()]);
         $category = \App\Models\Category::create(['name' => 'Tech', 'slug' => 'tech-' . uniqid()]);
         foreach ([['CN', 'Chargeur rapide USB-C'], ['CN', 'Écouteurs Bluetooth'], ['TR', 'Chargeur sans fil'], ['AE', 'Parfum oud']] as [$country, $name]) {
             \App\Models\Product::create([
@@ -73,7 +73,7 @@ class ImportCountriesTest extends TestCase
     {
         ImportCountry::create(['code' => 'CN', 'name' => 'Chine', 'flag' => '', 'sort_order' => 1, 'is_active' => true]);
         $seller = \App\Models\User::factory()->create();
-        $shop = \App\Models\Shop::create(['user_id' => $seller->id, 'name' => 'Import', 'slug' => 'imp-' . uniqid(), 'status' => 'active']);
+        $shop = \App\Models\Shop::create(['user_id' => $seller->id, 'name' => 'Import', 'slug' => 'imp-' . uniqid(), 'status' => 'active', 'verified_at' => now()]);
         $category = \App\Models\Category::create(['name' => 'Tech', 'slug' => 'tech-' . uniqid()]);
         // Même seconde de création : l'ordre reste stable d'une page à l'autre.
         foreach (range(1, 5) as $i) {

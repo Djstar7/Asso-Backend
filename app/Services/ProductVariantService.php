@@ -145,7 +145,7 @@ class ProductVariantService
 
             $updates = ['variant_options' => $this->buildOptions($rows->pluck('attributes')->all(), $options)];
             if ($rows->isNotEmpty()) {
-                $updates['stock'] = $rows->sum('stock');
+                $updates['stock'] = $rows->where('is_active', true)->sum('stock');
             }
             $product->updateQuietly($updates);
         });

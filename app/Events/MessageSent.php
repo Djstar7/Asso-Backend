@@ -54,7 +54,7 @@ class MessageSent implements ShouldBroadcast
             'sender_id' => $this->message->sender_id,
             'sender' => [
                 'id' => $this->message->sender->id,
-                'name' => $this->message->sender->name,
+                'name' => $this->message->sender->publicName(),
                 'avatar' => $this->message->sender->avatar,
             ],
             'message' => $this->message->message,

@@ -1,4 +1,5 @@
 {
+  "support": {"display_name": "ASSO Support"},
   "Prix et disponibilité à confirmer": "Price and availability pending confirmation",
   "transport": {"destination_country_mismatch": "The recipient country must match the destination hub country."},
   "landlord_upload": {
@@ -1057,6 +1058,7 @@
         "validated_paid_after_balance": "Order confirmed. You will be paid once the product is delivered, checked with ASSO and the balance paid by the customer."
     },
     "products": {
+        "stock_managed_by_variants": "This product's stock is managed per variant.",
         "sponsored_label": "Sponsored",
         "added_to_favorites": "Added to favorites",
         "removed_from_favorites": "Removed from favorites",
@@ -1740,6 +1742,8 @@
         }
     },
     "maritime": {
+        "platform_contact_after_shipping": "You can contact the platform once the parcel has shipped.",
+        "platform_account_unavailable": "The official platform account is unavailable.",
         "trip_impossible": "This trip is no longer possible. Please check the next dates for this destination.",
         "not_enough_kg": "Only :kg kg are left on this departure.",
         "booking_created_confirm_on_phone": "Shipment recorded. Confirm the payment on your phone.",

@@ -49,7 +49,7 @@ class DisputeTest extends TestCase
         $this->company = DelivererCompany::create(['user_id' => $this->courier->id, 'name' => 'Livreur SARL', 'is_active' => true]);
         $this->category = Category::create(['name' => 'Mode', 'slug' => 'mode-' . uniqid()]);
         $this->shop = Shop::create([
-            'user_id' => $this->seller->id, 'name' => 'Boutique', 'slug' => 'boutique-' . uniqid(), 'status' => 'active',
+            'user_id' => $this->seller->id, 'name' => 'Boutique', 'slug' => 'boutique-' . uniqid(), 'status' => 'active', 'verified_at' => now(),
         ]);
     }
 
@@ -638,8 +638,8 @@ class DisputeTest extends TestCase
         $dispute = $this->openDispute($order);
 
         $otherSeller = User::factory()->create();
-        $freeShop = Shop::create(['user_id' => $otherSeller->id, 'name' => 'Gratuite', 'slug' => 'g-' . uniqid(), 'status' => 'active', 'free_delivery' => true]);
-        $paidShop = Shop::create(['user_id' => User::factory()->create()->id, 'name' => 'Payante', 'slug' => 'p-' . uniqid(), 'status' => 'active']);
+        $freeShop = Shop::create(['user_id' => $otherSeller->id, 'name' => 'Gratuite', 'slug' => 'g-' . uniqid(), 'status' => 'active', 'verified_at' => now(), 'free_delivery' => true]);
+        $paidShop = Shop::create(['user_id' => User::factory()->create()->id, 'name' => 'Payante', 'slug' => 'p-' . uniqid(), 'status' => 'active', 'verified_at' => now()]);
         $inherits = $this->product(['shop_id' => $freeShop->id, 'user_id' => $otherSeller->id, 'name' => 'Suit la boutique']);
         $optedOut = $this->product(['shop_id' => $freeShop->id, 'user_id' => $otherSeller->id, 'name' => 'Exclu', 'free_delivery' => false]);
         $ownFree = $this->product(['shop_id' => $paidShop->id, 'user_id' => $paidShop->user_id, 'name' => 'Offerte produit', 'free_delivery' => true]);

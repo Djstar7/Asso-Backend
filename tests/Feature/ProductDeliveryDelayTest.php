@@ -41,7 +41,7 @@ class ProductDeliveryDelayTest extends TestCase
         $this->admin = User::factory()->create(['role' => 'admin']);
         $this->vendor = User::factory()->create(['role' => 'vendeur']);
         $this->shop = Shop::create([
-            'user_id' => $this->vendor->id, 'name' => 'Boutique', 'slug' => 'boutique', 'status' => 'active',
+            'user_id' => $this->vendor->id, 'name' => 'Boutique', 'slug' => 'boutique', 'status' => 'active', 'verified_at' => now(),
         ]);
         $this->category = Category::create(['name' => 'Meubles', 'slug' => 'meubles']);
     }
