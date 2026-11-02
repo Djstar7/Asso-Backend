@@ -29,7 +29,7 @@ class AnnouncementController extends Controller
      */
     public function create()
     {
-        $users = User::orderBy('name')->get();
+        $users = User::orderBy('first_name')->orderBy('last_name')->get();
         return view('admin.announcements.create', compact('users'));
     }
 
@@ -81,7 +81,7 @@ class AnnouncementController extends Controller
      */
     public function edit(Announcement $announcement)
     {
-        $users = User::orderBy('name')->get();
+        $users = User::orderBy('first_name')->orderBy('last_name')->get();
         return view('admin.announcements.edit', compact('announcement', 'users'));
     }
 
