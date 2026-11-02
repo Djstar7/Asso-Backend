@@ -133,6 +133,24 @@ class CatalogAuditFixesTest extends TestCase
         $this->assertSame(4, $item['stock']);
     }
 
+    public function test_shop_created_from_the_dashboard_is_active_and_verified(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $this->actingAs($admin)->post('/admin/shops', [
+            'user_id' => $this->seller->id,
+            'name' => 'Boutique Dashboard',
+        ])->assertSessionHasNoErrors()->assertRedirect(route('admin.shops.index'));
+
+        $shop = Shop::where('name', 'Boutique Dashboard')->firstOrFail();
+        $this->assertSame('active', $shop->status);
+        $this->assertNotNull($shop->verified_at);
+        $this->assertSame($admin->id, $shop->verified_by);
+
+        $this->makeProduct('Robe dashboard', ['shop_id' => $shop->id]);
+        $this->assertSame(['Robe dashboard'], $this->searchNames('dashboard'));
+    }
+
     public function test_active_variants_decide_the_available_stock(): void
     {
         $product = $this->makeProduct('Robe', ['stock' => 0]);

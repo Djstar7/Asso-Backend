@@ -82,13 +82,18 @@ class ShopController extends Controller
             'address' => 'nullable|string',
             'latitude' => 'nullable|numeric|between:-90,90',
             'longitude' => 'nullable|numeric|between:-180,180',
-            'status' => 'required|in:active,inactive',
             'logo' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
             'categories' => 'nullable|array',
             'categories.*' => 'string',
         ]);
 
         $validated['slug'] = Str::slug($validated['name']).'-'.time();
+
+        // Créée par l'équipe, la boutique n'a pas à attendre sa validation : sans
+        // cela, ses produits resteraient masqués du catalogue.
+        $validated['status'] = 'active';
+        $validated['verified_at'] = now();
+        $validated['verified_by'] = auth()->id();
 
         unset($validated['logo']);
         $shop = new Shop;

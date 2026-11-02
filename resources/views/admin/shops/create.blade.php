@@ -130,40 +130,6 @@
                     ])
                 </div>
 
-                <!-- Status -->
-                <div>
-                    <label for="status" class="block text-sm font-medium text-white mb-2">
-                        <i class="fas fa-toggle-on text-primary-500 mr-1"></i>
-                        Statut <span class="text-red-500">*</span>
-                    </label>
-                    <div class="flex gap-6">
-                        <label class="flex items-center cursor-pointer">
-                            <input type="radio"
-                                   name="status"
-                                   value="active"
-                                   {{ old('status', 'active') == 'active' ? 'checked' : '' }}
-                                   class="w-4 h-4 text-primary-600 border-dark-300 focus:ring-primary-500">
-                            <span class="ml-2 text-white">
-                                <i class="fas fa-check-circle text-green-500 mr-1"></i>
-                                Active
-                            </span>
-                        </label>
-                        <label class="flex items-center cursor-pointer">
-                            <input type="radio"
-                                   name="status"
-                                   value="inactive"
-                                   {{ old('status') == 'inactive' ? 'checked' : '' }}
-                                   class="w-4 h-4 text-primary-600 border-dark-300 focus:ring-primary-500">
-                            <span class="ml-2 text-white">
-                                <i class="fas fa-times-circle text-gray-400 mr-1"></i>
-                                Inactive
-                            </span>
-                        </label>
-                    </div>
-                    @error('status')
-                        <p class="mt-1 text-sm text-red-400">{{ $message }}</p>
-                    @enderror
-                </div>
             </div>
 
             <!-- Action Buttons -->
