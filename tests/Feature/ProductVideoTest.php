@@ -339,6 +339,27 @@ class ProductVideoTest extends TestCase
             ->assertSee('robe d\\u0027\\u00e9t\\u00e9.mp4', false);
     }
 
+    public function test_le_bloc_video_reste_visible_pour_un_produit_non_grossiste(): void
+    {
+        $admin = $this->admin();
+        $wholesale = $this->wholesaleProduct();
+        $local = Product::create([
+            'user_id' => $wholesale->user_id, 'shop_id' => $wholesale->shop_id,
+            'category_id' => $wholesale->category_id, 'name' => 'Produit local',
+            'price' => 5000, 'stock' => 3, 'status' => 'active',
+        ]);
+
+        foreach ([route('admin.products.create'), route('admin.products.edit', $local)] as $url) {
+            $dom = new \DOMDocument;
+            @$dom->loadHTML($this->actingAs($admin)->get($url)->assertOk()->getContent());
+            $xpath = new \DOMXPath($dom);
+
+            $this->assertSame(1, $xpath->query('//form//*[@id="video_manager"]')->length, $url);
+            // La section « gros » est masquée sans pays d'origine : elle emporterait la vidéo.
+            $this->assertSame(0, $xpath->query('//*[@id="wholesale_section"]//*[@id="video_manager"]')->length, $url);
+        }
+    }
+
     // ------------------------------------------------------------------
     // Diffusion à l'app
     // ------------------------------------------------------------------

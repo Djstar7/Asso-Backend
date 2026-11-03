@@ -149,8 +149,6 @@
         @enderror
     </div>
 
-    @include('admin.products._video')
-
     <div id="shipping_preview" class="mt-6 border-t border-dark-300 pt-4 hidden">
         <h3 class="text-sm font-semibold text-white mb-2">
             <i class="fas fa-ship text-primary-500 mr-1"></i> Expéditions configurées pour ce pays
@@ -224,6 +222,8 @@
                 @include('admin.products._variants')
 
                 @include('admin.products._images')
+
+                @include('admin.products._video')
             </div>
 
             <!-- Sidebar -->
