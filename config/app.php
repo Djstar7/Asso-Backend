@@ -72,8 +72,15 @@ return [
 
     'ios_store_url' => env(
         'IOS_STORE_URL',
-        'https://apps.apple.com/app/asso/id000000000',
+        'https://apps.apple.com/app/id6763892792',
     ),
+
+    // Identité de l'application pour ses liens (association, boutons de la vitrine).
+    'android_package' => env('ANDROID_PACKAGE', 'com.asso.asso'),
+    'ios_app_id' => env('IOS_APP_ID', '6763892792'),
+    'ios_team_id' => env('IOS_TEAM_ID', 'MVNNT5L9VD'),
+    'ios_bundle_id' => env('IOS_BUNDLE_ID', 'com.asso.asso'),
+    'mobile_scheme' => env('MOBILE_SCHEME', 'assomarket'),
 
     /*
     |--------------------------------------------------------------------------

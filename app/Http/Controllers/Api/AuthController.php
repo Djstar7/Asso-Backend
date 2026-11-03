@@ -565,7 +565,7 @@ class AuthController extends Controller
     /**
      * Shape the authenticated user for the mobile client.
      */
-    private function userPayload(User $user): array
+    public function userPayload(User $user): array
     {
         return [
             'id' => $user->id,

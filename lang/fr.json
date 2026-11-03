@@ -2013,5 +2013,26 @@
         "next": "Suivant",
         "go_to": "Aller à la page :page",
         "current": "Page :page, page actuelle"
+    },
+    "share": {
+        "unavailable_title": "Contenu indisponible",
+        "unavailable_message": "Ce produit ou cette boutique n'est plus disponible. Découvrez les autres offres dans l'application ASSO.",
+        "price_on_quote": "Prix à confirmer",
+        "price_from": "À partir de :price",
+        "sold_by": "Vendu par",
+        "shop_products": "Produits de la boutique",
+        "open_app": "Ouvrir dans l'application",
+        "get_app": "Télécharger ASSO",
+        "get_android": "Télécharger sur Google Play",
+        "get_ios": "Télécharger sur l'App Store"
+    },
+    "web_login": {
+        "scope_denied": "Cette action se fait depuis l'application ASSO.",
+        "not_found": "Session de connexion introuvable.",
+        "approved": "Connexion autorisée.",
+        "not_available": "L'espace vendeur web n'est pas disponible pour ce compte.",
+        "invalid_code": "Ce QR a expiré ou a déjà été utilisé. Affichez-en un nouveau sur votre ordinateur.",
+        "notification_title": "Nouvelle connexion web",
+        "notification_body": "Votre espace vendeur vient d'être ouvert sur :browser (:platform). Si ce n'est pas vous, déconnectez ce navigateur depuis l'application."
     }
 }
