@@ -419,6 +419,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
             });
 
         // Announcements
+        // Avant la ressource : `{announcement}` capterait sinon cette adresse.
+        Route::get('/announcements/product-search', [AnnouncementController::class, 'searchProducts'])->name('announcements.product-search');
         Route::resource('announcements', AnnouncementController::class);
         Route::post('/announcements/{announcement}/send', [AnnouncementController::class, 'send'])->name('announcements.send');
 

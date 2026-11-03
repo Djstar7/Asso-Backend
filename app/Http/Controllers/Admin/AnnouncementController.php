@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Announcement;
+use App\Models\Product;
 use App\Models\User;
 use App\Services\FirebaseMessagingService;
 use App\Support\Translation\ContentLocale;
@@ -12,6 +13,33 @@ use Illuminate\Support\Facades\Log;
 
 class AnnouncementController extends Controller
 {
+    /**
+     * Produits proposés au lien d'une annonce, cherchés par nom ou par numéro.
+     */
+    public function searchProducts(Request $request)
+    {
+        $term = trim((string) $request->query('q'));
+        if ($term === '') {
+            return response()->json(['products' => []]);
+        }
+
+        $products = Product::openableInApp()
+            ->with('shop:id,name')
+            ->where(fn ($q) => $q->where('name', 'like', '%'.addcslashes($term, '%_\\').'%')
+                ->when(ctype_digit($term), fn ($q) => $q->orWhere('id', (int) $term)))
+            ->latest('id')
+            ->limit(20)
+            ->get();
+
+        return response()->json([
+            'products' => $products->map(fn (Product $product) => [
+                'id' => $product->id,
+                'name' => $product->name,
+                'shop' => $product->shop?->name,
+            ]),
+        ]);
+    }
+
     /**
      * Display a listing of the resource.
      */
@@ -29,8 +57,10 @@ class AnnouncementController extends Controller
      */
     public function create()
     {
-        $users = User::orderBy('name')->get();
-        return view('admin.announcements.create', compact('users'));
+        $users = User::orderBy('first_name')->orderBy('last_name')->get();
+        $linkedProduct = Product::find(old('product_id'));
+
+        return view('admin.announcements.create', compact('users', 'linkedProduct'));
     }
 
     /**
@@ -44,8 +74,12 @@ class AnnouncementController extends Controller
             'channel' => 'required|in:sms,whatsapp,email,push',
             'target_type' => 'required|in:all,specific',
             'user_id' => 'nullable|exists:users,id|required_if:target_type,specific',
+            'product_id' => $this->productRule(),
             'scheduled_at' => 'nullable|date|after:now',
         ] + ContentLocale::rules(['title' => 'string|max:255', 'message' => 'string']));
+
+        // Seul le push s'ouvre dans l'application : un autre canal n'a pas de lien.
+        $validated['product_id'] ??= null;
 
         try {
             // Déterminer le statut
@@ -72,7 +106,7 @@ class AnnouncementController extends Controller
      */
     public function show(Announcement $announcement)
     {
-        $announcement->load('user');
+        $announcement->load('user', 'product');
         return view('admin.announcements.show', compact('announcement'));
     }
 
@@ -81,8 +115,10 @@ class AnnouncementController extends Controller
      */
     public function edit(Announcement $announcement)
     {
-        $users = User::orderBy('name')->get();
-        return view('admin.announcements.edit', compact('announcement', 'users'));
+        $users = User::orderBy('first_name')->orderBy('last_name')->get();
+        $linkedProduct = Product::find(old('product_id', $announcement->product_id));
+
+        return view('admin.announcements.edit', compact('announcement', 'users', 'linkedProduct'));
     }
 
     /**
@@ -102,8 +138,12 @@ class AnnouncementController extends Controller
             'channel' => 'required|in:sms,whatsapp,email,push',
             'target_type' => 'required|in:all,specific',
             'user_id' => 'nullable|exists:users,id|required_if:target_type,specific',
+            'product_id' => $this->productRule(),
             'scheduled_at' => 'nullable|date|after:now',
         ] + ContentLocale::rules(['title' => 'string|max:255', 'message' => 'string']));
+
+        // Seul le push s'ouvre dans l'application : un autre canal n'a pas de lien.
+        $validated['product_id'] ??= null;
 
         try {
             // Déterminer le statut
@@ -152,6 +192,13 @@ class AnnouncementController extends Controller
                 ->with('error', 'Cette annonce a déjà été envoyée');
         }
 
+        // Une annonce dont le toucher afficherait « Produit introuvable » ne part pas.
+        if ($announcement->channel === 'push' && $announcement->product_id
+            && ! Product::openableInApp()->whereKey($announcement->product_id)->exists()) {
+            return redirect()->back()
+                ->with('error', 'Le produit lié n\'est plus disponible : retirez-le ou choisissez-en un autre avant l\'envoi');
+        }
+
         try {
             $successCount = 0;
             $failureCount = 0;
@@ -169,6 +216,9 @@ class AnnouncementController extends Controller
                     'announcement_id' => $announcement->id,
                     'created_at' => $announcement->created_at->toIso8601String(),
                 ];
+                if ($announcement->product_id) {
+                    $data['product_id'] = (string) $announcement->product_id;
+                }
 
                 if ($announcement->target_type === 'all') {
                     Log::info("Envoi de notification push à tous les utilisateurs via topic");
@@ -246,6 +296,21 @@ class AnnouncementController extends Controller
             return redirect()->back()
                 ->with('error', 'Erreur lors de l\'envoi: ' . $e->getMessage());
         }
+    }
+
+    /** Produit lié : facultatif, push seulement, et sa fiche doit pouvoir s'ouvrir. */
+    private function productRule(): array
+    {
+        return [
+            'exclude_unless:channel,push',
+            'nullable',
+            'integer',
+            function ($attribute, $value, $fail) {
+                if (! Product::openableInApp()->whereKey($value)->exists()) {
+                    $fail('Ce produit n\'est pas disponible dans l\'application.');
+                }
+            },
+        ];
     }
 
     /** @return array<string, array{0: string, 1: string}> langue => [titre, message] */

@@ -121,7 +121,8 @@ class ExchangeController extends Controller
 
         // Liste des vendeurs pour le filtre
         $sellers = User::whereHas('contactClicksAsSeller')
-            ->orderBy('name')
+            ->orderBy('first_name')
+            ->orderBy('last_name')
             ->get();
 
         return view('admin.exchanges.contact-clicks', compact('clicks', 'sellers'));
