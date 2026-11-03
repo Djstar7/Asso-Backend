@@ -1,5 +1,7 @@
 {{--
     Vidéo de présentation d'un produit (tous produits, grossistes compris).
+    À garder hors de la section « gros », masquée tant qu'aucun pays d'origine
+    n'est choisi : le bloc disparaîtrait pour les produits locaux.
 
     La vidéo part dès qu'elle est choisie, par morceaux de 4 Mo, sans attendre
     l'enregistrement du formulaire : barre de progression réelle, reprise d'un
@@ -18,16 +20,17 @@
     ] : null;
 @endphp
 
-<div class="mt-6 border-t border-dark-300 pt-4" id="video_manager"
+<div class="bg-dark-100 rounded-xl shadow-lg p-6" id="video_manager"
      data-chunk-url="{{ route('admin.product-videos.chunk') }}"
      data-base-url="{{ url('/admin/product-videos') }}"
      data-max-mb="{{ \App\Models\ProductVideo::MAX_SIZE_MB }}"
      data-extensions="{{ implode(',', \App\Models\ProductVideo::EXTENSIONS) }}"
      data-current='@json($currentVideoData)'>
 
-    <h3 class="text-sm font-semibold text-white mb-1">
-        <i class="fas fa-video text-primary-500 mr-1"></i> Vidéo de présentation
-        <span class="text-gray-400 font-normal">(optionnelle)</span>
+    <h3 class="text-lg font-bold text-white mb-1 flex items-center">
+        <i class="fas fa-video text-primary-500 mr-2"></i>
+        Vidéo de présentation
+        <span class="ml-2 text-sm text-gray-400 font-normal">(optionnelle)</span>
     </h3>
     <p class="text-xs text-gray-400 mb-3">
         Lue en boucle et sans le son sur la carte du produit, avec le son sur la fiche produit.
