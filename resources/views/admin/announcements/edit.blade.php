@@ -127,6 +127,7 @@
                         </div>
                     </div>
                 </div>
+                @include('admin.announcements.partials.product-picker', ['linkedProduct' => $linkedProduct, 'disabled' => $announcement->status === 'sent'])
             </div>
 
             <!-- Settings Sidebar -->

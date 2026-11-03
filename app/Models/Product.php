@@ -363,6 +363,19 @@ class Product extends Model
     }
 
     /**
+     * Produits dont la fiche s'ouvre dans l'application : l'API sert le catalogue
+     * local d'un côté, le gros de l'autre, et rien pour un importé hors gros.
+     */
+    public function scopeOpenableInApp($query)
+    {
+        return $query->where('status', 'active')
+            ->whereHas('shop', fn ($shop) => $shop->publiclyVisible())
+            ->where(fn ($q) => $q->where('is_wholesale', true)
+                ->orWhereNull('origin_country')
+                ->orWhere('origin_country', ''));
+    }
+
+    /**
      * Même règle que hasFreeDelivery(), en SQL : livraison offerte par le vendeur sur le
      * produit, ou produit qui suit sa boutique (null) quand la boutique l'offre.
      */

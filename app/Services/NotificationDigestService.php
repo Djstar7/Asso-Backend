@@ -12,7 +12,8 @@ class NotificationDigestService
     {
         // An entity publication is one event, regardless of language/topic retries.
         $type = $data['type'] ?? 'announcement';
-        $entity = $data['product_boost_id'] ?? $data['product_id'] ?? $data['offer_id'] ?? null;
+        // Une annonce passe avant son produit lié : deux annonces sur un même produit restent deux événements.
+        $entity = $data['announcement_id'] ?? $data['product_boost_id'] ?? $data['product_id'] ?? $data['offer_id'] ?? null;
         $key = $data['notification_key'] ?? ($entity !== null ? $type.':'.$entity
             : 'announcement:'.now(config('notifications.digest_timezone'))->toDateString().':'.hash('sha256', json_encode([$texts, $data])));
         $item = NotificationDigestItem::firstOrCreate(['event_key' => hash('sha256', (string) $key.':'.json_encode($data['recipient_ids'] ?? []))], ['texts' => $texts, 'data' => $data]);

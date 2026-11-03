@@ -20,6 +20,7 @@ class Announcement extends Model
         'channel',
         'target_type',
         'user_id',
+        'product_id',
         'status',
         'scheduled_at',
         'sent_at',
@@ -40,6 +41,14 @@ class Announcement extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Produit ouvert par un toucher sur l'annonce dans l'application (facultatif)
+     */
+    public function product(): BelongsTo
+    {
+        return $this->belongsTo(Product::class);
     }
 
     /**

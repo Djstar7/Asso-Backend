@@ -125,6 +125,18 @@
                             </div>
                         </div>
                     @endif
+
+                    @if($announcement->product)
+                        <div class="flex items-center justify-between p-4 bg-dark-50 rounded-lg border border-dark-200">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-1">
+                                    Produit ouvert au toucher
+                                </label>
+                                <p class="text-white font-medium">{{ $announcement->product->name }}</p>
+                                <p class="text-gray-400 text-sm">N° {{ $announcement->product->id }}</p>
+                            </div>
+                        </div>
+                    @endif
                 </div>
             </div>
 
