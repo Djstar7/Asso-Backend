@@ -205,9 +205,9 @@ class RealEstateReservationTest extends TestCase
     {
         $this->wallet()->credit($this->tenant, 760000);
         $listing = $this->house();
-        $moveInDate = '2026-11-03';
+        $moveInDate = now()->addDays(10);
 
-        $this->book($listing, ['move_in_date' => $moveInDate])->assertCreated();
+        $this->book($listing, ['move_in_date' => $moveInDate->toDateString()])->assertCreated();
 
         $reservation = Reservation::with(['listing', 'tenant', 'payee'])->firstOrFail();
         Storage::disk('local')->assertExists($reservation->contract_path);
@@ -225,7 +225,7 @@ class RealEstateReservationTest extends TestCase
 
         $this->assertStringContainsString($logoData, $html);
         $this->assertStringContainsString("Date d'emménagement", $html);
-        $this->assertStringContainsString('03/11/2026', $html);
+        $this->assertStringContainsString($moveInDate->format('d/m/Y'), $html);
         $this->assertStringContainsString('Signature manuscrite du bailleur', $html);
         $this->assertStringContainsString('Signature manuscrite du locataire', $html);
         $this->assertStringContainsString('Date : ____ / ____ / ______', $html);
