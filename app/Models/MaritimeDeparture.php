@@ -85,6 +85,11 @@ class MaritimeDeparture extends Model
         return $this->hasMany(MaritimeBooking::class);
     }
 
+    public function freightInquiries(): HasMany
+    {
+        return $this->hasMany(FreightInquiry::class);
+    }
+
     // ------------------------------------------------------------------
     // Réglages (admin → Maritime)
     // ------------------------------------------------------------------
@@ -220,6 +225,14 @@ class MaritimeDeparture extends Model
     {
         return $query->whereIn('status', [self::STATUS_OPEN, self::STATUS_CLOSED])
             ->whereDate('departure_date', '>=', today());
+    }
+
+    /** Départs proposés dans l'application : ni clos, ni complets, ni passés. */
+    public function scopeBookable($query)
+    {
+        return $query->where('status', self::STATUS_OPEN)
+            ->where('remaining_kg', '>', 0)
+            ->whereDate('departure_date', '>=', today()->addDays(self::bookingCutoffDays()));
     }
 
     /** Tarifs autorisés pour ce partenaire, ce trajet, ce mode et cette devise. */

@@ -1865,6 +1865,7 @@
             "own_listing": "Vous ne pouvez pas réserver votre propre bien.",
             "unit_required": "Choisissez le logement ou le lot à réserver.",
             "unit_full": "Plus aucune place disponible pour ce logement.",
+            "reopen_blocked": "Une réservation est encore en cours sur ce logement : attendez sa conclusion pour le remettre en location.",
             "lots_unavailable": "Il ne reste pas assez de morceaux disponibles pour cette sélection.",
             "min_lease": "Ce logement se loue au moins :months mois.",
             "cannot_confirm": "Cette réservation ne peut plus être confirmée."

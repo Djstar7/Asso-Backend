@@ -1865,6 +1865,7 @@
             "own_listing": "You cannot book your own property.",
             "unit_required": "Choose the home or plot to book.",
             "unit_full": "No place left for this home.",
+            "reopen_blocked": "A reservation is still in progress on this home: wait for it to end before listing it again.",
             "lots_unavailable": "Not enough plots left for this selection.",
             "min_lease": "This home is rented for at least :months months.",
             "cannot_confirm": "This booking can no longer be confirmed."

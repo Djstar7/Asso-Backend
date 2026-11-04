@@ -8,4 +8,5 @@ return [
     'digest_timezone' => 'Africa/Douala',
     'digest_time' => '09:00',
     'real_estate_interval_hours' => 24,
+    'marketing_retention_days' => 14,
 ];

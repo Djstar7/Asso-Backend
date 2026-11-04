@@ -106,6 +106,7 @@ class RealEstateDisputeService
                 foreach ($r->lotQuantities() as $unitId => $quantity) {
                     Unit::whereKey($unitId)->increment('units_available', $quantity);
                 }
+                $r->listing()->whereDoesntHave('units')->update(['reserved_at' => null]);
                 $r->update(['status' => 'refunded']);
                 $d->update(['status' => 'refunded']);
             } else {

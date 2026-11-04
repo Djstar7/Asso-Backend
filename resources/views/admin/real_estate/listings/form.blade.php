@@ -45,6 +45,11 @@
                 <form method="POST" action="{{ route('admin.real-estate.listings.featured', $listing) }}">@csrf
                     <button class="px-4 py-2 bg-dark-200 text-white rounded-lg hover:bg-dark-50"><i class="fas fa-star mr-2 {{ $listing->is_featured ? 'text-primary-400' : '' }}"></i>{{ $listing->is_featured ? 'Retirer de la une' : 'Mettre à la une' }}</button>
                 </form>
+                @if($listing->reserved_at)
+                <form method="POST" action="{{ route('admin.real-estate.listings.reopen', $listing) }}">@csrf
+                    <button class="px-4 py-2 bg-dark-200 text-white rounded-lg hover:bg-dark-50"><i class="fas fa-undo mr-2"></i>Remettre en location</button>
+                </form>
+                @endif
                 <form method="POST" action="{{ route('admin.real-estate.listings.archive', $listing) }}">@csrf
                     <button class="px-4 py-2 bg-dark-200 text-white rounded-lg hover:bg-dark-50"><i class="fas fa-archive mr-2"></i>{{ $listing->status === 'archived' ? 'Désarchiver' : 'Archiver' }}</button>
                 </form>

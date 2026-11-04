@@ -240,7 +240,7 @@ class DiaspoController extends Controller
                 return response()->json(['success' => false, 'message' => __('diaspo.cannot_book_own_offer')], 422);
             }
             // Offre réservable = vérifiée et publiée (schéma unifié : statut 'approved').
-            if ($offer->status !== 'approved' || (float) $offer->remaining_kg < $data['kg_booked']) {
+            if ($offer->status !== 'approved' || $offer->departure_datetime->isPast() || (float) $offer->remaining_kg < $data['kg_booked']) {
                 return response()->json(['success' => false, 'message' => __('diaspo.offer_unavailable_or_insufficient_kg')], 422);
             }
             // « Profil non vérifié » : l'offre est visible mais aucun paiement n'est
