@@ -77,6 +77,9 @@ class ListingController extends Controller
             'cabinet_id' => ['required', Rule::exists('real_estate_cabinets', 'id')->where(fn ($query) => $query->where('is_active', true))],
         ]);
         $data['units'] = $this->unitsFromRequest($request);
+        if ($type === Listing::TYPE_LAND) {
+            $data['is_divisible'] = $request->boolean('is_divisible');
+        }
         $listing = $this->editor->save(new Listing([
             'type' => $type, 'status' => Listing::STATUS_DRAFT,
         ]), $data);
@@ -122,11 +125,13 @@ class ListingController extends Controller
                 'district' => $district,
                 'land_titled' => (bool) ($row['titled'] ?? false),
                 'deposit_percent' => $data['deposit_percent'] ?? null,
+                'is_divisible' => $surfaces->count() > 1,
                 'units' => $surfaces->map(fn ($s) => [
                     'label' => number_format($s, 0, ',', ' ').' m²',
                     'surface_min' => $s,
                     'surface_max' => $s,
                     'net_price' => $perM2 ? $s * (int) $row['price'] : (int) $row['price'],
+                    'price_per_m2' => $perM2 ? (int) $row['price'] : null,
                     'units_total' => 1,
                 ])->all(),
             ]);
@@ -162,6 +167,9 @@ class ListingController extends Controller
             $data[$flag] = $request->boolean($flag);
         }
         $data['units'] = $this->unitsFromRequest($request);
+        if ($type === Listing::TYPE_LAND) {
+            $data['is_divisible'] = $request->boolean('is_divisible');
+        }
         $listing = $this->editor->save($listing, $data);
         $listing->syncTranslations($request->input('translations'));
         $this->storeUploads($request, $listing);
@@ -304,6 +312,8 @@ class ListingController extends Controller
             ], fn ($v) => $v !== null && $v !== '') + [
                 'furnished' => ! empty($u['furnished']),
                 'serviced' => ! empty($u['serviced']),
+                // Hors du filtre : vider le champ doit effacer le prix au m² du lot.
+                'price_per_m2' => filled($u['price_per_m2'] ?? null) ? (int) $u['price_per_m2'] : null,
             ])
             ->values()->all();
     }

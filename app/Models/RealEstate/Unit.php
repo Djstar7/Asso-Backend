@@ -14,7 +14,7 @@ class Unit extends Model
     protected $table = 'real_estate_units';
 
     protected $fillable = [
-        'listing_id', 'label', 'surface_min', 'surface_max', 'net_price', 'old_net_price',
+        'listing_id', 'label', 'surface_min', 'surface_max', 'net_price', 'old_net_price', 'price_per_m2',
         'capacity', 'kitchen', 'furnished', 'serviced', 'units_total', 'units_available',
         'available_from', 'position',
     ];
@@ -25,6 +25,7 @@ class Unit extends Model
         'available_from' => 'date',
         'net_price' => 'integer',
         'old_net_price' => 'integer',
+        'price_per_m2' => 'integer',
     ];
 
     public function listing(): BelongsTo

@@ -1834,6 +1834,8 @@
         },
         "errors": {
             "support_unavailable": "Le service client est momentanément indisponible. Réessayez plus tard.",
+            "lots_exceed_surface": "Les lots totalisent :used m², plus que la surface totale du terrain (:total m²).",
+            "lots_already_reserved": "Des morceaux sont déjà réservés : ce terrain doit rester morcelable.",
             "unknown_room": "Cette pièce n'appartient pas à l'annonce.",
             "already_verified": "Votre profil de bailleur est déjà vérifié.",
             "verification_required": "Envoyez d'abord vos pièces pour faire vérifier votre profil de bailleur.",
@@ -1847,7 +1849,7 @@
             "room_photos": "une photo pour chaque pièce",
             "video": "une vidéo du logement",
             "price": "le loyer",
-            "lots": "au moins un lot de surface"
+            "lots": "au moins un lot de surface (deux morceaux pour un terrain morcelable)"
         },
         "rooms": {
             "entrance": "Entrée",

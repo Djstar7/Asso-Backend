@@ -57,7 +57,7 @@ class Listing extends Model
         'electricity', 'security_level', 'has_parking', 'has_fence', 'has_guard',
         'land_titled', 'land_title_status', 'serviced', 'deposit_percent',
         'min_lease_months', 'advance_months', 'available_from', 'reserved_at',
-        'net_price', 'old_net_price', 'promo_text',
+        'net_price', 'old_net_price', 'price_per_m2', 'is_divisible', 'promo_text',
         'is_featured', 'views_count', 'status', 'rejection_reason', 'published_at',
     ];
 
@@ -77,6 +77,8 @@ class Listing extends Model
         'published_at' => 'datetime',
         'net_price' => 'integer',
         'old_net_price' => 'integer',
+        'price_per_m2' => 'integer',
+        'is_divisible' => 'boolean',
         'deposit_percent' => 'float',
         'latitude' => 'float',
         'longitude' => 'float',
@@ -169,11 +171,31 @@ class Listing extends Model
         return $this->type === self::TYPE_SALE;
     }
 
-    /** Exact lot surfaces only: a range does not define a unit price. */
+    /** Morcelable : case du back-office, sinon déduit du nombre de lots (annonces existantes). */
+    public function isDivisible(): bool
+    {
+        if ($this->is_divisible !== null) {
+            return $this->is_divisible;
+        }
+        $units = $this->relationLoaded('units') ? $this->units : $this->units()->get();
+
+        return (int) $units->sum('units_total') > 1;
+    }
+
+    /** Prix au m² saisi : celui du lot, sinon celui du terrain. */
+    public function enteredLandRate(?Unit $unit = null): ?int
+    {
+        return ($unit?->price_per_m2 ?: $this->price_per_m2) ?: null;
+    }
+
+    /** Saisi s'il existe ; sinon calculé, sur une surface exacte seulement (une fourchette ne définit pas de prix). */
     public function landUnitRate(?Unit $unit = null, bool $old = false): ?float
     {
-        if (! $unit && ($this->relationLoaded('units') ? $this->units->isNotEmpty() : $this->units()->exists())) {
+        if (! $unit && ($this->relationLoaded('units') ? $this->units : $this->units()->get())->isNotEmpty()) {
             return null;
+        }
+        if (! $old && ($entered = $this->enteredLandRate($unit))) {
+            return (float) $entered;
         }
         $surface = $unit ? $unit->surface_min : $this->surface_m2;
         if (! $surface || ($unit && $unit->surface_max && $unit->surface_max != $surface)) {
@@ -198,9 +220,10 @@ class Listing extends Model
     public static function landRateSql(): string
     {
         return '(CASE WHEN EXISTS (SELECT 1 FROM real_estate_units e WHERE e.listing_id = real_estate_listings.id) '
-            .'THEN (SELECT MIN(1.0 * u.net_price / NULLIF(u.surface_min, 0)) FROM real_estate_units u '
-            .'WHERE u.listing_id = real_estate_listings.id AND (u.surface_max IS NULL OR u.surface_max = u.surface_min)) '
-            .'ELSE 1.0 * real_estate_listings.net_price / NULLIF(real_estate_listings.surface_m2, 0) END)';
+            .'THEN (SELECT MIN(COALESCE(1.0 * u.price_per_m2, 1.0 * real_estate_listings.price_per_m2, '
+            .'CASE WHEN u.surface_max IS NULL OR u.surface_max = u.surface_min THEN 1.0 * u.net_price / NULLIF(u.surface_min, 0) END)) '
+            .'FROM real_estate_units u WHERE u.listing_id = real_estate_listings.id) '
+            .'ELSE COALESCE(1.0 * real_estate_listings.price_per_m2, 1.0 * real_estate_listings.net_price / NULLIF(real_estate_listings.surface_m2, 0)) END)';
     }
 
     /** Le visiteur a-t-il payé une réservation sur cette annonce ? */
@@ -314,14 +337,14 @@ class Listing extends Model
             'bedrooms' => $this->bedrooms,
             'surface_m2' => $this->surface_m2,
             'surface_label' => $this->surfaceRangeLabel(),
-            'furnished' => (bool) $this->furnished,
+            'furnished' => ! $this->isSale() && $this->furnished,
             'land_titled' => (bool) $this->land_titled,
             'serviced' => (bool) ($this->serviced || ($this->relationLoaded('units') && $this->units->contains('serviced', true))),
             'price_per_m2' => $this->isLand() ? $this->landUnitRate($this->landPriceUnit()) : null,
             'old_price_per_m2' => $this->isLand() ? $this->landUnitRate($this->landPriceUnit(), true) : null,
             'price' => $pricing->displayed($this->minNetPrice(), $this->type),
             'old_price' => $old ? $pricing->displayed($old, $this->type) : null,
-            'price_from' => $this->relationLoaded('units') && $this->units->count() > 1,
+            'price_from' => ! $this->isSale() && $this->relationLoaded('units') && $this->units->count() > 1,
             'currency' => 'XAF',
             'images' => $images->map(fn (Media $m) => media_url($m->path))->all(),
             'photos_count' => $media->where('type', 'image')->count(),
@@ -363,10 +386,12 @@ class Listing extends Model
         $open = $units->where('units_available', '>', 0);
 
         return [
+            'is_divisible' => $this->isDivisible(),
             'is_subdivided' => $lotsTotal > 1,
             // per_lot : le client choisit un morceau (unit_id) et une quantité, ou tout le terrain (whole).
             'sale_mode' => $lotsTotal > 1 ? 'per_lot' : 'whole',
-            'total_surface_m2' => $exact ? (int) $units->sum(fn (Unit $u) => $u->surface_min * $u->units_total) : $this->surface_m2,
+            // La surface saisie fait référence, sinon la somme des lots.
+            'total_surface_m2' => $this->surface_m2 ?: ($exact ? (int) $units->sum(fn (Unit $u) => $u->surface_min * $u->units_total) : null),
             'lots_total' => $lotsTotal,
             'lots_available' => $lotsAvailable,
             'lots_sold' => max(0, $lotsTotal - $lotsAvailable),
@@ -450,7 +475,8 @@ class Listing extends Model
             'highlights' => $amenities->where('kind', 'highlight')->values()->map->toApi()->all(),
             'equipments' => $amenities->where('kind', 'equipment')->values()->map->toApi()->all(),
             'services' => $amenities->where('kind', 'service')->values()->map->toApi()->all(),
-            'units' => ($this->relationLoaded('units') ? $this->units : $this->units()->get())->map(fn (Unit $u) => [
+            // Maison en vente : un seul prix, pas de types de logement.
+            'units' => ($this->isSale() ? collect() : ($this->relationLoaded('units') ? $this->units : $this->units()->get()))->map(fn (Unit $u) => [
                 'id' => $u->id,
                 'label' => $u->label,
                 'surface_min' => $u->surface_min,
