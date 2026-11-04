@@ -12,6 +12,14 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
+// Connexion à l'espace vendeur web : les jetons expirés et les vieilles sessions.
+Schedule::call(function () {
+    \App\Models\WebLoginSession::where('expires_at', '<', now()->subDays(2))->delete();
+    \Laravel\Sanctum\PersonalAccessToken::where('name', config('web_vendor.token_name'))
+        ->where('expires_at', '<', now())
+        ->delete();
+})->daily()->name('web-login:purge')->withoutOverlapping();
+
 // Actions du back-office : permissions et périmètre recalculés à chaque passage.
 Schedule::command('admin:notify-actions')->everyFiveMinutes()->withoutOverlapping(15);
 

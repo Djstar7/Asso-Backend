@@ -6,7 +6,7 @@
 @section('content')
 <div class="space-y-6">
     <!-- Tabs Navigation -->
-    <div class="bg-dark-100 rounded-lg shadow-sm border border-dark-200" x-data="adminTabState({ key: 'settings.index.{{ auth()->id() }}', property: 'activeTab', allowed: ['general', 'system', 'commissions', 'account'], initial: 'general', forced: '{{ $errors->hasBag('account') || $errors->hasBag('password') ? 'account' : '' }}' })">
+    <div class="bg-dark-100 rounded-lg shadow-sm border border-dark-200" x-data="adminTabState({ key: 'settings.index.{{ auth()->id() }}', property: 'activeTab', allowed: ['general', 'system', 'commissions', 'account', 'links'], initial: 'general', forced: '{{ $errors->hasBag('account') || $errors->hasBag('password') ? 'account' : '' }}' })">
         <div class="border-b border-dark-200">
             <nav class="flex space-x-4 px-6" aria-label="Tabs">
                 <button @click="activeTab = 'general'"
@@ -24,6 +24,11 @@
                         class="py-4 px-1 border-b-2 font-medium text-sm transition-colors">
                     <i class="fas fa-percentage mr-2"></i> Commissions
                 </button>
+                <button @click="activeTab = 'links'"
+                        :class="activeTab === 'links' ? 'border-primary-500 text-primary-500' : 'border-transparent text-gray-400 hover:text-gray-300'"
+                        class="py-4 px-1 border-b-2 font-medium text-sm transition-colors">
+                    <i class="fas fa-link mr-2"></i> Liens
+                </button>
                 <button @click="activeTab = 'account'"
                         :class="activeTab === 'account' ? 'border-primary-500 text-primary-500' : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-300'"
                         class="py-4 px-1 border-b-2 font-medium text-sm transition-colors">
@@ -31,6 +36,8 @@
                 </button>
             </nav>
         </div>
+
+        @include('admin.settings._links')
 
         <!-- Mon compte -->
         <div x-show="activeTab === 'account'" x-cloak class="p-6 space-y-8">

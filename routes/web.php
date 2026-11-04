@@ -34,6 +34,7 @@ use App\Http\Controllers\Admin\SupportController;
 use App\Http\Controllers\Admin\TransactionController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\VaultController;
+use App\Http\Controllers\PublicShareController;
 use Illuminate\Support\Facades\Route;
 
 // Redirect root to admin login
@@ -41,40 +42,41 @@ Route::get('/', function () {
     return redirect()->route('admin.login');
 });
 
-// Lien public d'un produit, celui que l'application partage.
+// Liens partagés d'un produit et d'une boutique.
 //
-// Sur un appareil où l'application est installée, le système ouvre la fiche
-// directement (lien universel) et cette route n'est jamais atteinte. Ailleurs
-// — navigateur de bureau, téléphone sans l'application — elle renvoie vers la
-// boutique d'applications correspondante.
+// Sur un appareil où l'application est installée et associée au domaine, le
+// système l'ouvre directement et ces routes ne sont pas atteintes. Ailleurs,
+// elles affichent la vitrine.
 //
-// Le lien n'ouvre l'application que si le domaine sert aussi
-// /.well-known/assetlinks.json (Android) et
-// /.well-known/apple-app-site-association (iOS).
-Route::get('/produit/{id}', function (string $id) {
-    $agent = (string) request()->header('User-Agent');
-
-    $store = match (true) {
-        (bool) preg_match('/android/i', $agent) => config('app.android_store_url'),
-        (bool) preg_match('/iphone|ipad|ipod/i', $agent) => config('app.ios_store_url'),
-        default => config('app.android_store_url'),
-    };
-
-    return redirect()->away($store);
-})->name('product.share')->where('id', '[0-9]+');
-
-// iOS refuse le fichier d'association s'il n'est pas servi en
-// application/json. Sans extension, le serveur web ne devine pas le type :
-// on le sert donc explicitement.
-Route::get('/.well-known/apple-app-site-association', function () {
-    // Le fichier porte l'extension .json sur le disque : sans elle, le
-    // serveur web le sert en statique, sans type, avant même d'atteindre
-    // Laravel — et iOS l'ignore alors silencieusement.
-    $path = public_path('.well-known/apple-app-site-association.json');
-    abort_unless(is_file($path), 404);
-
-    return response()->file($path, ['Content-Type' => 'application/json']);
+// Ni `/p` ni `/b` ne figurent dans le manifest des versions Android déjà
+// installées, qui réclament `/produit` et plantent à froid sur un lien remis par
+// le système (Flutter le prenait pour une route). `/produit` reste donc hors des
+// fichiers d'association et renvoie simplement vers la vitrine.
+//
+// Sans session : les robots d'aperçu de lien en créeraient une à chaque passage.
+Route::middleware('throttle:300,1')->withoutMiddleware([
+    \Illuminate\Session\Middleware\StartSession::class,
+    \Illuminate\View\Middleware\ShareErrorsFromSession::class,
+    \Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class,
+])->group(function () {
+    Route::get('/p/{id}', [PublicShareController::class, 'product'])->name('share.product')->where('id', '[0-9]{1,18}');
+    Route::get('/b/{id}', [PublicShareController::class, 'shop'])->name('share.shop')->where('id', '[0-9]{1,18}');
+    Route::permanentRedirect('/produit/{id}', '/p/{id}')->where('id', '[0-9]{1,18}');
 });
+
+// Espace vendeur web. Le dossier public/vendor ne doit pas exister : le serveur
+// web répondrait 403 à cette adresse avant d'atteindre Laravel.
+Route::get('/vendor', [\App\Http\Controllers\VendorWebController::class, 'show'])
+    ->name('vendor.web')
+    ->withoutMiddleware([
+        \Illuminate\Session\Middleware\StartSession::class,
+        \Illuminate\View\Middleware\ShareErrorsFromSession::class,
+        \Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class,
+    ]);
+
+// Servis par Laravel : leur contenu suit les interrupteurs du back-office.
+Route::get('/.well-known/assetlinks.json', [PublicShareController::class, 'assetLinks']);
+Route::get('/.well-known/apple-app-site-association', [PublicShareController::class, 'appleAssociation']);
 
 // Pages de retour des paiements par redirection (PayPal, Stripe Checkout).
 // La WebView mobile intercepte ces URLs pour clôturer le parcours ; la confirmation
@@ -347,6 +349,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
             // General Settings
             Route::get('/', [SettingsController::class, 'index'])->name('index');
             Route::put('/update', [SettingsController::class, 'update'])->name('update');
+
+            // Liens partagés : interrupteurs et empreintes de signature.
+            Route::put('/links', [SettingsController::class, 'updateLinks'])->name('links.update');
 
             // Mon compte : nom, e-mail et mot de passe du compte connecté.
             Route::put('/account', [SettingsController::class, 'updateAccount'])->name('account.update');

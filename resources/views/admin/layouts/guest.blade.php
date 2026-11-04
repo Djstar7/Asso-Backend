@@ -8,7 +8,7 @@
 
     <!-- Tailwind CSS -->
     <!-- Servi par ASSO : le CDN tailwindcss.com est parfois injoignable (DNS), la page restait sans style. -->
-    <script src="{{ asset('vendor/tailwindcss/tailwindcss-3.4.17.js') }}"></script>
+    <script src="{{ asset('tailwindcss/tailwindcss-3.4.17.js') }}"></script>
     <script>
         tailwind.config = {
             theme: {

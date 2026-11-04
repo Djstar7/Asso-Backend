@@ -18,7 +18,11 @@ return Application::configure(basePath: dirname(__DIR__))
             \App\Http\Middleware\AdminUploadResponse::class,
             \App\Http\Middleware\CheckMaintenanceMode::class,
         ]);
-        $middleware->api(append: [
+        $middleware->api(prepend: [
+            // Avant la résolution des modèles : une route interdite répond 403,
+            // sans révéler si l'élément demandé existe.
+            \App\Http\Middleware\EnsureWebVendorScope::class,
+        ], append: [
             \App\Http\Middleware\SetLocale::class,
         ]);
         $middleware->alias([

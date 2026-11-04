@@ -9,6 +9,7 @@ use App\Models\Setting;
 use App\Services\CommissionService;
 use App\Services\SafeUpload;
 use App\Support\Translation\ContentLocale;
+use App\Support\LinkSettings;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -34,8 +35,16 @@ class SettingsController extends Controller
             'sales_commission_rate' => app(\App\Services\SalesCommissionService::class)->defaultRate(),
         ];
 
+        $linkSettings = [
+            'share_links_enabled' => LinkSettings::shareEnabled(),
+            'app_links_association_enabled' => LinkSettings::associationEnabled(),
+            'android_sha256_fingerprints' => implode("\n", LinkSettings::androidFingerprints()),
+            'web_vendor_login_enabled' => LinkSettings::webVendorEnabled(),
+            'web_vendor_test_user_ids' => implode(', ', LinkSettings::webVendorTestUsers()),
+        ];
+
         return view('admin.settings.index', compact(
-            'generalSettings', 'systemSettings', 'commissionRanges', 'commissionSettings'
+            'generalSettings', 'systemSettings', 'commissionRanges', 'commissionSettings', 'linkSettings'
         ));
     }
 
@@ -174,7 +183,7 @@ class SettingsController extends Controller
             }
 
             return redirect()->route('admin.settings.index',
-                in_array($request->input('_active_tab'), ['general', 'system', 'commissions', 'account'], true)
+                in_array($request->input('_active_tab'), ['general', 'system', 'commissions', 'account', 'links'], true)
                     ? ['tab' => $request->input('_active_tab')] : []
             )
                 ->with('success', 'Paramètres mis à jour avec succès');
@@ -187,6 +196,41 @@ class SettingsController extends Controller
                 ->with('error', 'Les paramètres n’ont pas pu être enregistrés. Réessayez plus tard.')
                 ->withInput();
         }
+    }
+
+    /**
+     * Interrupteurs des liens partagés (voir LinkSettings).
+     */
+    public function updateLinks(Request $request)
+    {
+        $validated = $request->validate([
+            'android_sha256_fingerprints' => ['nullable', 'string', 'max:2000', function ($attribute, $value, $fail) {
+                foreach (preg_split('/[\s,]+/', strtoupper((string) $value), -1, PREG_SPLIT_NO_EMPTY) as $fingerprint) {
+                    if (! preg_match(LinkSettings::FINGERPRINT_PATTERN, $fingerprint)) {
+                        $fail('Empreinte SHA-256 invalide : '.$fingerprint);
+                    }
+                }
+            }],
+            'web_vendor_test_user_ids' => ['nullable', 'string', 'max:500', 'regex:/^[0-9,\s]*$/'],
+        ]);
+
+        // Sans empreinte, Android ne vérifierait rien : autant le dire tout de suite.
+        if ($request->boolean('app_links_association_enabled')
+            && blank($validated['android_sha256_fingerprints'] ?? null)) {
+            return redirect()->route('admin.settings.index', ['tab' => 'links'])
+                ->withErrors(['android_sha256_fingerprints' => 'Renseignez au moins une empreinte avant d’activer l’association.'])
+                ->withInput();
+        }
+
+        Setting::set('share_links_enabled', $request->boolean('share_links_enabled'), 'boolean', 'general', 'Bouton de partage dans l\'application');
+        Setting::set('app_links_association_enabled', $request->boolean('app_links_association_enabled'), 'boolean', LinkSettings::GROUP, 'Fichiers d\'association servis aux téléphones');
+        Setting::set('android_sha256_fingerprints', (string) ($validated['android_sha256_fingerprints'] ?? ''), 'text', LinkSettings::GROUP, 'Empreintes de signature Android');
+
+        Setting::set('web_vendor_login_enabled', $request->boolean('web_vendor_login_enabled'), 'boolean', LinkSettings::GROUP, 'Espace vendeur web');
+        Setting::set('web_vendor_test_user_ids', (string) ($validated['web_vendor_test_user_ids'] ?? ''), 'text', LinkSettings::GROUP, 'Comptes de test de l\'espace vendeur web');
+
+        return redirect()->route('admin.settings.index', ['tab' => 'links'])
+            ->with('success', 'Réglages des liens enregistrés');
     }
 
     /**

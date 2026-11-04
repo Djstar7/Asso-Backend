@@ -199,6 +199,23 @@ Route::post('/v1/stripe/connect/webhook', [App\Http\Controllers\Api\StripeWebhoo
 // Broadcasting auth endpoint for WebSocket private channels
 Broadcast::routes(['middleware' => ['auth:sanctum']]);
 
+// Connexion par QR à l'espace vendeur web, côté navigateur (voir WebLoginController).
+Route::prefix('v1/web-login')->group(function () {
+    Route::post('/sessions', [\App\Http\Controllers\Api\WebLoginController::class, 'create'])->middleware('throttle:20,1');
+    Route::post('/sessions/{id}/poll', [\App\Http\Controllers\Api\WebLoginController::class, 'poll'])
+        ->middleware('throttle:240,1')
+        ->whereUuid('id');
+});
+
+// Connexion par QR, côté application : absent de la liste blanche du jeton web.
+Route::middleware(['auth:sanctum', 'throttle:60,1'])->prefix('v1/web-login')->group(function () {
+    Route::get('/availability', [\App\Http\Controllers\Api\WebLoginController::class, 'availability']);
+    Route::post('/scan', [\App\Http\Controllers\Api\WebLoginController::class, 'scan']);
+    Route::post('/approve', [\App\Http\Controllers\Api\WebLoginController::class, 'approve']);
+    Route::get('/devices', [\App\Http\Controllers\Api\WebLoginController::class, 'devices']);
+    Route::delete('/devices/{id}', [\App\Http\Controllers\Api\WebLoginController::class, 'revoke'])->whereNumber('id');
+});
+
 Route::middleware('auth:sanctum')->group(function () {
 
     // User profile

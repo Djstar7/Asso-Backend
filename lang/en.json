@@ -2013,5 +2013,26 @@
         "next": "Next",
         "go_to": "Go to page :page",
         "current": "Page :page, current page"
+    },
+    "share": {
+        "unavailable_title": "Content unavailable",
+        "unavailable_message": "This product or shop is no longer available. Discover other offers in the ASSO app.",
+        "price_on_quote": "Price to be confirmed",
+        "price_from": "From :price",
+        "sold_by": "Sold by",
+        "shop_products": "Shop products",
+        "open_app": "Open in the app",
+        "get_app": "Download ASSO",
+        "get_android": "Get it on Google Play",
+        "get_ios": "Download on the App Store"
+    },
+    "web_login": {
+        "scope_denied": "This action is done from the ASSO app.",
+        "not_found": "Sign-in session not found.",
+        "approved": "Sign-in authorised.",
+        "not_available": "The vendor web space is not available for this account.",
+        "invalid_code": "This QR code has expired or was already used. Show a new one on your computer.",
+        "notification_title": "New web sign-in",
+        "notification_body": "Your vendor space was just opened on :browser (:platform). If this was not you, sign this browser out from the app."
     }
 }
