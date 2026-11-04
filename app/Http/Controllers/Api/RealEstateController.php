@@ -97,6 +97,7 @@ class RealEstateController extends Controller
             ->with(['units', 'media', 'tourRooms', 'amenities', 'cabinet']);
 
         $this->applyFilters($query, $data);
+        $query->availableFirst();
 
         // Le prix affiché est le prix de référence, utilisé aussi pour le tri.
         $minNet = 'COALESCE((SELECT MIN(u.net_price) FROM real_estate_units u WHERE u.listing_id = real_estate_listings.id), real_estate_listings.net_price)';

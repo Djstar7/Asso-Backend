@@ -26,11 +26,11 @@ class MaritimeController extends Controller
         private MaritimePlatformConversationService $platformConversations
     ) {}
 
-    /** GET /v1/maritime/departures — départs à venir (les clos restent visibles, grisés). */
+    /** GET /v1/maritime/departures — départs réservables (clos et complets masqués). */
     public function departures(Request $request)
     {
         $q = MaritimeDeparture::with(['company', 'originHub', 'destinationHub'])
-            ->upcoming()
+            ->bookable()
             ->whereHas('company', fn ($c) => $c->where('is_active', true))
             ->whereHas('originHub', fn ($h) => $h->where('is_active', true)->when(app()->isProduction(), fn ($q) => $q->where('is_demo', false)))
             ->whereHas('destinationHub', fn ($h) => $h->where('is_active', true)->when(app()->isProduction(), fn ($q) => $q->where('is_demo', false)))

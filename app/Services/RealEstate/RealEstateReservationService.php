@@ -78,6 +78,8 @@ class RealEstateReservationService
             if ($unit->units_available <= 0) {
                 throw new \DomainException(__('real_estate.reservation.unit_full'));
             }
+        } elseif ($listing->reserved_at) {
+            throw new \DomainException(__('real_estate.reservation.unit_full'));
         }
         if (! $listing->isLand() && $listing->min_lease_months && ! empty($data['months']) && $data['months'] < $listing->min_lease_months) {
             throw new \DomainException(__('real_estate.reservation.min_lease', ['months' => $listing->min_lease_months]));
@@ -289,24 +291,26 @@ class RealEstateReservationService
             // Le dernier logement (ou un des morceaux) a pu partir pendant le paiement
             // Mobile Money : l'argent est encaissé, on le rend en entier sur le Wallet.
             $quantities = $r->lotQuantities();
-            if ($quantities) {
-                $units = Unit::whereIn('id', array_keys($quantities))->orderBy('id')->lockForUpdate()->get()->keyBy('id');
-                $short = collect($quantities)->contains(
-                    fn (int $quantity, int $unitId) => ! $units->has($unitId) || $units[$unitId]->units_available < $quantity
-                );
-                if ($short) {
-                    $wallet->credit($r->tenant, (float) $r->total_amount, null,
-                        WalletTransaction::label('immo_reservation_refunded', ['reference' => $r->reference]),
-                        ['reference_type' => 'real_estate_reservation', 'reference_id' => $r->id]);
-                    $r->update(['status' => 'refunded', 'paid_at' => now()]);
-                    $soldOut = true;
+            $units = Unit::whereIn('id', array_keys($quantities))->orderBy('id')->lockForUpdate()->get()->keyBy('id');
+            // Bien sans unités : une seule place, portée par l'annonce elle-même.
+            $singlePlace = Listing::withTrashed()->whereKey($r->listing_id)->lockForUpdate()->first();
+            $singlePlace = $quantities || $singlePlace->units()->exists() ? null : $singlePlace;
+            $short = collect($quantities)->contains(
+                fn (int $quantity, int $unitId) => ! $units->has($unitId) || $units[$unitId]->units_available < $quantity
+            ) || $singlePlace?->reserved_at;
+            if ($short) {
+                $wallet->credit($r->tenant, (float) $r->total_amount, null,
+                    WalletTransaction::label('immo_reservation_refunded', ['reference' => $r->reference]),
+                    ['reference_type' => 'real_estate_reservation', 'reference_id' => $r->id]);
+                $r->update(['status' => 'refunded', 'paid_at' => now()]);
+                $soldOut = true;
 
-                    return;
-                }
-                foreach ($quantities as $unitId => $quantity) {
-                    $units[$unitId]->decrement('units_available', $quantity);
-                }
+                return;
             }
+            foreach ($quantities as $unitId => $quantity) {
+                $units[$unitId]->decrement('units_available', $quantity);
+            }
+            $singlePlace?->update(['reserved_at' => now()]);
 
             $listing = $r->listing;
             $days = (int) RealEstatePricingService::setting($listing->isLand() ? 'immo_land_release_days' : 'immo_visit_window_days');
@@ -355,6 +359,18 @@ class RealEstateReservationService
         } elseif ($soldOut) {
             $this->notify($reservation->tenant, 'real_estate_reservation_sold_out', $reservation);
         }
+    }
+
+    /**
+     * Remet en location un bien sans unités, une fois la période précédente terminée.
+     * Refusé tant que l'argent du locataire est encore bloqué.
+     */
+    public function reopen(Listing $listing): void
+    {
+        if ($listing->reservations()->whereIn('status', ['paid', 'disputed'])->exists()) {
+            throw new \DomainException(__('real_estate.reservation.reopen_blocked'));
+        }
+        $listing->update(['reserved_at' => null]);
     }
 
     public function fail(Reservation $reservation): void

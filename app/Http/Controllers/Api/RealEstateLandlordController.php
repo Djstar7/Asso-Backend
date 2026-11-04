@@ -9,6 +9,7 @@ use App\Models\RealEstate\Media;
 use App\Services\RealEstate\LandlordVerificationService;
 use App\Services\RealEstate\ListingEditor;
 use App\Services\RealEstate\RealEstatePricingService;
+use App\Services\RealEstate\RealEstateReservationService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -173,6 +174,19 @@ class RealEstateLandlordController extends Controller
         $listing->update(['status' => Listing::STATUS_PENDING, 'rejection_reason' => null]);
 
         return response()->json(['success' => true, 'data' => $this->payload($listing, $request)]);
+    }
+
+    /** Le logement est de nouveau libre : l'annonce redevient réservable. */
+    public function reopen(Request $request, int $id, RealEstateReservationService $reservations)
+    {
+        $listing = $this->ownListing($request, $id);
+        try {
+            $reservations->reopen($listing);
+        } catch (\DomainException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return response()->json(['success' => true, 'data' => $this->payload($listing->fresh(), $request)]);
     }
 
     public function uploadMedia(Request $request, int $id)

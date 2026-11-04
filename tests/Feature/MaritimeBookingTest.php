@@ -2,9 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Models\Conversation;
 use App\Models\Currency;
 use App\Models\DelivererCompany;
 use App\Models\ExchangeRate;
+use App\Models\FreightInquiry;
 use App\Models\MaritimeBooking;
 use App\Models\MaritimeDeparture;
 use App\Models\MaritimeHub;
@@ -445,5 +447,48 @@ class MaritimeBookingTest extends TestCase
         // Gestionnaire : pas d'accès aux paiements.
         $this->actingAs(User::factory()->create(['role' => 'product_manager']));
         $this->get(route('admin.partner-payouts.show', $partner))->assertForbidden();
+    }
+
+    public function test_only_bookable_departures_are_listed(): void
+    {
+        $open = $this->departure(20);
+        $insideCutoff = $this->departure(3);
+        $closed = $this->departure(20);
+        $closed->update(['status' => 'closed']);
+        $full = $this->departure(20);
+        $full->update(['remaining_kg' => 0]);
+        $past = $this->departure(-1);
+
+        $ids = collect($this->getJson('/api/v1/maritime/departures')->assertOk()->json('data.data'))->pluck('id')->all();
+
+        $this->assertSame([$open->id], $ids);
+        // Hors liste, un départ clos reste consultable (envois déjà réservés).
+        $this->getJson("/api/v1/maritime/departures/{$closed->id}")->assertOk()->assertJsonPath('data.is_bookable', false);
+        $this->assertNotContains($insideCutoff->id, $ids);
+        $this->assertNotContains($past->id, $ids);
+    }
+
+    public function test_purge_keeps_past_departures_with_a_booking_or_an_inquiry(): void
+    {
+        $this->fakeKpay();
+        $booked = $this->departure(20);
+        Sanctum::actingAs(User::factory()->create());
+        $this->postJson("/api/v1/maritime/departures/{$booked->id}/book", $this->payload())->assertCreated();
+        $booked->update(['departure_date' => today()->subDay()]);
+
+        $inquired = $this->departure(-1);
+        $client = User::factory()->create();
+        $conversation = Conversation::withoutEvents(fn () => Conversation::create(['user1_id' => $client->id, 'user2_id' => User::factory()->create()->id]));
+        FreightInquiry::create(['user_id' => $client->id, 'conversation_id' => $conversation->id, 'maritime_departure_id' => $inquired->id, 'destination_country' => 'CM', 'kg' => 10, 'cargo_category' => 'general', 'description' => 'Colis', 'currency' => 'EUR']);
+
+        $yesterday = $this->departure(-1);
+        $today = $this->departure(0);
+
+        $this->artisan('diaspo:purge-expired')->assertSuccessful();
+
+        $this->assertDatabaseHas('maritime_departures', ['id' => $booked->id]);
+        $this->assertDatabaseHas('maritime_departures', ['id' => $inquired->id]);
+        $this->assertDatabaseHas('maritime_departures', ['id' => $today->id]);
+        $this->assertDatabaseMissing('maritime_departures', ['id' => $yesterday->id]);
     }
 }

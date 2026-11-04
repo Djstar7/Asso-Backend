@@ -56,7 +56,7 @@ class Listing extends Model
         'road_access', 'distance_to_road_m', 'road_condition', 'is_landlocked', 'water_source',
         'electricity', 'security_level', 'has_parking', 'has_fence', 'has_guard',
         'land_titled', 'land_title_status', 'serviced', 'deposit_percent',
-        'min_lease_months', 'advance_months', 'available_from',
+        'min_lease_months', 'advance_months', 'available_from', 'reserved_at',
         'net_price', 'old_net_price', 'promo_text',
         'is_featured', 'views_count', 'status', 'rejection_reason', 'published_at',
     ];
@@ -73,6 +73,7 @@ class Listing extends Model
         'serviced' => 'boolean',
         'is_featured' => 'boolean',
         'available_from' => 'date',
+        'reserved_at' => 'datetime',
         'published_at' => 'datetime',
         'net_price' => 'integer',
         'old_net_price' => 'integer',
@@ -151,6 +152,12 @@ class Listing extends Model
     }
 
     // ---------------------------------------------------------------- helpers
+
+    /** Les biens sans plus aucune place passent après les autres, sans quitter la liste. */
+    public function scopeAvailableFirst(Builder $q): Builder
+    {
+        return $q->orderByRaw('CASE WHEN COALESCE((SELECT SUM(u.units_available) FROM real_estate_units u WHERE u.listing_id = real_estate_listings.id), CASE WHEN real_estate_listings.reserved_at IS NULL THEN 1 ELSE 0 END) > 0 THEN 0 ELSE 1 END');
+    }
 
     public function isLand(): bool
     {
@@ -234,7 +241,7 @@ class Listing extends Model
     {
         $units = $this->relationLoaded('units') ? $this->units : $this->units()->get();
 
-        return $units->isEmpty() ? 1 : (int) $units->sum('units_available');
+        return $units->isEmpty() ? ($this->reserved_at ? 0 : 1) : (int) $units->sum('units_available');
     }
 
     public function surfaceRangeLabel(): ?string
@@ -326,6 +333,7 @@ class Listing extends Model
             'available_from' => $this->available_from?->toDateString(),
             'available_now' => ! $this->available_from || ! $this->available_from->isFuture(),
             'units_available' => $available,
+            'is_reserved' => $this->reserved_at !== null,
             'low_stock' => $available > 0 && $available <= $threshold && $this->unitsTotal() > 1,
             // Terrain : vendu en bloc ou morceau par morceau (null pour une maison).
             'subdivision' => $this->isLand() ? $this->subdivisionApi() : null,

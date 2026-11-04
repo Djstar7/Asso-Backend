@@ -25,7 +25,10 @@ class NotificationDigestController extends Controller
         $locale = app()->getLocale();
 
         return response()->json(['success' => true, 'date' => $date,
-            'items' => $items->getCollection()->map(function ($item) use ($locale) {
+            // Un trajet déjà parti n'a plus rien à proposer : son annonce sort du résumé.
+            'items' => $items->getCollection()->reject(fn ($item) => ($item->data['type'] ?? null) === 'new_diaspo_offer'
+                && isset($item->data['departure_datetime']) && now()->greaterThanOrEqualTo($item->data['departure_datetime'])
+            )->values()->map(function ($item) use ($locale) {
                 $texts = $item->texts[$locale] ?? $item->texts['fr'] ?? (array_values($item->texts)[0] ?? ['', '']);
 
                 return ['id' => $item->id, 'title' => $texts[0], 'body' => $texts[1], 'data' => array_diff_key($item->data, ['recipient_ids' => true])];

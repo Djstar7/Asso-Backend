@@ -9,6 +9,7 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Services\FirebaseMessagingService;
 use App\Services\MobileMoneyGateway;
+use App\Services\RealEstate\RealEstateReservationService;
 use App\Services\WalletService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
@@ -474,5 +475,73 @@ class RealEstateReservationTest extends TestCase
         $this->book($this->house())->assertStatus(422);
         $this->assertSame(0, Reservation::count());
         $this->assertSame([760000.0, 760000.0], $this->balance($this->tenant));
+    }
+
+    public function test_house_without_units_cannot_be_reserved_twice(): void
+    {
+        $this->wallet()->credit($this->tenant, 760000);
+        $listing = $this->house();
+        $this->book($listing)->assertCreated();
+
+        $this->getJson("/api/v1/real-estate/listings/{$listing->id}")
+            ->assertJsonPath('data.units_available', 0)
+            ->assertJsonPath('data.is_reserved', true);
+
+        $this->tenant = User::factory()->create();
+        $this->wallet()->credit($this->tenant, 760000);
+        $this->book($listing)->assertStatus(422);
+
+        $this->assertSame(1, Reservation::count());
+    }
+
+    public function test_second_payment_landing_on_a_reserved_house_is_refunded(): void
+    {
+        $this->wallet()->credit($this->tenant, 760000);
+        $listing = $this->house();
+        $first = $this->book($listing, ['payment_mode' => 'wallet'])->assertCreated();
+        // Second locataire entré dans le paiement avant que la maison ne parte.
+        $pending = Reservation::findOrFail($first->json('data.id'))->replicate(['contract_path', 'invoice_path']);
+        $pending->forceFill(['reference' => 'IMMO-RACE', 'status' => 'pending_payment', 'tenant_id' => User::factory()->create()->id])->save();
+
+        app(RealEstateReservationService::class)->confirm($pending);
+
+        $this->assertSame('refunded', $pending->fresh()->status);
+        $this->assertSame((float) $pending->total_amount, (float) $pending->tenant->fresh()->kpayBalanceFor('XAF'));
+        $this->assertNotNull($listing->fresh()->reserved_at);
+    }
+
+    public function test_reserved_house_reopens_only_when_no_money_is_held(): void
+    {
+        $this->wallet()->credit($this->tenant, 760000);
+        $listing = $this->house();
+        $id = $this->book($listing)->assertCreated()->json('data.id');
+
+        Sanctum::actingAs($this->owner);
+        $this->postJson("/api/v1/real-estate/landlord/listings/{$listing->id}/reopen")->assertStatus(422);
+        $this->assertNotNull($listing->fresh()->reserved_at);
+
+        Sanctum::actingAs($this->tenant);
+        $this->postJson("/api/v1/real-estate/reservations/{$id}/confirm")->assertOk();
+
+        Sanctum::actingAs(User::factory()->create());
+        $this->postJson("/api/v1/real-estate/landlord/listings/{$listing->id}/reopen")->assertNotFound();
+
+        Sanctum::actingAs($this->owner);
+        $this->postJson("/api/v1/real-estate/landlord/listings/{$listing->id}/reopen")->assertOk();
+        $this->assertNull($listing->fresh()->reserved_at);
+    }
+
+    public function test_reserved_houses_stay_listed_after_available_ones(): void
+    {
+        $reserved = $this->house();
+        $reserved->update(['reserved_at' => now(), 'published_at' => now()->addMinute()]);
+        $full = $this->house([['label' => 'Chambre', 'net_price' => 50000, 'units_total' => 1, 'units_available' => 0]]);
+        $full->update(['published_at' => now()->addMinute()]);
+        $free = $this->house();
+
+        $ids = collect($this->getJson('/api/v1/real-estate/listings')->assertOk()->json('data'))->pluck('id');
+
+        $this->assertSame($free->id, $ids->first());
+        $this->assertEqualsCanonicalizing([$reserved->id, $full->id], $ids->slice(1)->values()->all());
     }
 }

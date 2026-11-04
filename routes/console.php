@@ -195,6 +195,21 @@ Schedule::command('maritime:refund-missed-dropoffs')
     ->dailyAt('01:30')
     ->withoutOverlapping(300);
 
+/*
+ * Annonces dont le départ est passé : supprimées si personne n'y a réservé,
+ * simplement retirées sinon (code de validation, litiges, comptabilité).
+ */
+Schedule::command('diaspo:purge-expired')
+    ->dailyAt('01:45')
+    ->timezone(config('notifications.digest_timezone'))
+    ->withoutOverlapping(300);
+
+// Annonces de la plateforme (résumé quotidien) : plus affichées passé le délai.
+Schedule::command('announcements:purge')
+    ->dailyAt('02:00')
+    ->timezone(config('notifications.digest_timezone'))
+    ->withoutOverlapping(300);
+
 /**
  * =====================================================
  * ASSO ADS — CLÔTURE DES CAMPAGNES DE SPONSORING

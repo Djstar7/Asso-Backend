@@ -241,7 +241,7 @@ class DiaspoOfferController extends Controller
         }
 
         // Ne peut pas supprimer si des réservations existent
-        if ($offer->bookings()->whereIn('status', ['paid', 'completed'])->exists()) {
+        if ($offer->bookings()->whereIn('status', ['paid', 'confirmed', 'completed'])->exists()) {
             return response()->json([
                 'success' => false,
                 'message' => __('diaspo.offer_delete_has_active_bookings'),

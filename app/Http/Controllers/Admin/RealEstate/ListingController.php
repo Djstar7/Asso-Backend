@@ -10,6 +10,7 @@ use App\Models\RealEstate\Media;
 use App\Services\RealEstate\LandlordVerificationService;
 use App\Services\RealEstate\ListingEditor;
 use App\Services\RealEstate\RealEstatePricingService;
+use App\Services\RealEstate\RealEstateReservationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -205,6 +206,17 @@ class ListingController extends Controller
         $listing->update(['status' => $listing->status === Listing::STATUS_ARCHIVED ? Listing::STATUS_DRAFT : Listing::STATUS_ARCHIVED]);
 
         return back()->with('success', 'Statut mis à jour.');
+    }
+
+    public function reopen(Listing $listing, RealEstateReservationService $reservations)
+    {
+        try {
+            $reservations->reopen($listing);
+        } catch (\DomainException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', 'L\'annonce est de nouveau réservable.');
     }
 
     public function destroy(Listing $listing)

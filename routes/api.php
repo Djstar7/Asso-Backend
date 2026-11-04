@@ -523,6 +523,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::put('/listings/{id}', 'update')->whereNumber('id');
             Route::delete('/listings/{id}', 'destroy')->whereNumber('id');
             Route::post('/listings/{id}/submit', 'submit')->whereNumber('id');
+            Route::post('/listings/{id}/reopen', 'reopen')->whereNumber('id');
             Route::post('/listings/{id}/media', 'uploadMedia')->whereNumber('id');
             Route::delete('/listings/{id}/media/{mediaId}', 'deleteMedia')->whereNumber('id')->whereNumber('mediaId');
         });

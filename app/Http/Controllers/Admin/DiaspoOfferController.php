@@ -174,6 +174,13 @@ class DiaspoOfferController extends Controller
      */
     public function destroy(DiaspoOffer $offer)
     {
+        // Supprimer l'offre annulerait ces réservations sans rembourser l'expéditeur.
+        if ($offer->bookings()->whereIn('status', ['paid', 'confirmed'])->exists()) {
+            return redirect()
+                ->back()
+                ->with('error', 'Cette offre a des réservations payées ou confirmées : réglez-les ou annulez-les avant de la supprimer.');
+        }
+
         try {
             // Cancel all pending bookings
             foreach ($offer->bookings()->pending()->get() as $booking) {
