@@ -1835,6 +1835,8 @@
         },
         "errors": {
             "support_unavailable": "Customer service is temporarily unavailable. Please try again later.",
+            "lots_exceed_surface": "The lots add up to :used m², more than the plot's total surface (:total m²).",
+            "lots_already_reserved": "Some pieces are already reserved: this plot must remain divisible.",
             "unknown_room": "This room does not belong to the listing.",
             "already_verified": "Your landlord profile is already verified.",
             "verification_required": "First send your documents to get your landlord profile verified.",
@@ -1848,7 +1850,7 @@
             "room_photos": "one photo for each room",
             "video": "a video of the home",
             "price": "the rent",
-            "lots": "at least one plot size"
+            "lots": "at least one surface lot (two pieces for a divisible plot)"
         },
         "rooms": {
             "entrance": "Entrance",
