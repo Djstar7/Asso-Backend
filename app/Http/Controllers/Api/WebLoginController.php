@@ -87,7 +87,7 @@ class WebLoginController extends Controller
             $token = $user->createToken(
                 config('web_vendor.token_name'),
                 [config('web_vendor.ability')],
-                now()->addHours(config('web_vendor.token_hours')),
+                now()->addDays(config('web_vendor.token_idle_days')),
             );
 
             $session->update([
@@ -178,7 +178,7 @@ class WebLoginController extends Controller
                 'platform' => $session->platform,
                 'ip' => $session->ip,
                 'connected_at' => $session->consumed_at?->toIso8601String(),
-                'expires_at' => $tokens[$session->token_id]->expires_at?->toIso8601String(),
+                'last_active_at' => ($tokens[$session->token_id]->last_used_at ?? $session->consumed_at)?->toIso8601String(),
             ]);
 
         return response()->json(['success' => true, 'sessions' => $sessions]);

@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use App\Support\LinkSettings;
 use Closure;
 use Illuminate\Http\Request;
+use Laravel\Sanctum\PersonalAccessToken;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -43,6 +44,18 @@ class EnsureWebVendorScope
             ], 403);
         }
 
+        $this->keepAlive($token);
+
         return $next($request);
+    }
+
+    /** Repousse la fin de session, au plus une écriture par heure. */
+    private function keepAlive(PersonalAccessToken $token): void
+    {
+        $until = now()->addDays(config('web_vendor.token_idle_days'));
+
+        if ($token->expires_at?->lt($until->copy()->subHour())) {
+            $token->forceFill(['expires_at' => $until])->save();
+        }
     }
 }

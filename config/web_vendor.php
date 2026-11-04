@@ -6,7 +6,7 @@
 |--------------------------------------------------------------------------
 |
 | Connexion par QR, comme WhatsApp : le navigateur affiche un code et le scan
-| depuis l'application vaut autorisation. Le navigateur reçoit un jeton de courte durée limité aux
+| depuis l'application vaut autorisation. Le navigateur reçoit un jeton limité aux
 | routes ci-dessous (EnsureWebVendorScope). Toute route absente est refusée :
 | une nouvelle route reste donc fermée à ce jeton tant qu'on ne l'a pas déclarée.
 |
@@ -27,7 +27,9 @@ return [
     'pickup_seconds' => 60,
     'poll_seconds' => 2,
 
-    'token_hours' => 12,
+    // Comme WhatsApp : le navigateur reste connecté tant qu'il sert ; seule une
+    // inactivité de cette durée le déconnecte.
+    'token_idle_days' => 14,
 
     'routes' => [
         // Compte : lecture, langue et déconnexion seulement.

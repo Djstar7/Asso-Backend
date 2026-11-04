@@ -100,7 +100,7 @@ class WebVendorLoginTest extends TestCase
         $token = PersonalAccessToken::findToken($response->json('token'));
         $this->assertSame(['vendor-web'], $token->abilities);
         $this->assertSame($vendor->id, $token->tokenable_id);
-        $this->assertTrue($token->expires_at->between(now()->addHours(11), now()->addHours(13)));
+        $this->assertTrue($token->expires_at->between(now()->addDays(13), now()->addDays(15)));
     }
 
     public function test_le_jeton_n_est_remis_qu_une_seule_fois(): void
@@ -307,11 +307,21 @@ class WebVendorLoginTest extends TestCase
         $this->assertNotSame('web_scope_denied', $response->json('code'));
     }
 
-    public function test_un_jeton_web_expire_ne_passe_plus(): void
+    public function test_un_navigateur_utilise_reste_connecte(): void
     {
         $token = $this->signIn($this->vendor());
 
-        $this->travel(13)->hours();
+        foreach (range(1, 3) as $period) {
+            $this->travel(10)->days();
+            $this->asBrowser($token)->getJson('/api/v1/vendor/dashboard')->assertOk();
+        }
+    }
+
+    public function test_quatorze_jours_sans_activite_deconnectent_le_navigateur(): void
+    {
+        $token = $this->signIn($this->vendor());
+
+        $this->travel(15)->days();
 
         $this->asBrowser($token)->getJson('/api/v1/vendor/dashboard')->assertUnauthorized();
     }
@@ -336,6 +346,7 @@ class WebVendorLoginTest extends TestCase
         $devices = $this->asPhone($vendor)->getJson('/api/v1/web-login/devices')->assertOk()->json('sessions');
         $this->assertCount(1, $devices);
         $this->assertSame('Chrome', $devices[0]['browser']);
+        $this->assertNotNull($devices[0]['last_active_at']);
 
         $this->asPhone($this->vendor())->deleteJson('/api/v1/web-login/devices/'.$devices[0]['id'])->assertNotFound();
         $this->asPhone($vendor)->deleteJson('/api/v1/web-login/devices/'.$devices[0]['id'])->assertOk();

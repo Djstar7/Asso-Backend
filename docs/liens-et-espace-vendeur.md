@@ -99,7 +99,7 @@ Dans Paramètres, Liens : renseigner le numéro du compte de test, cocher « Act
 | Ouvrir `asso-dashboard.sbs/vendor` sur ordinateur | Un QR s'affiche |
 | Attendre 2 minutes sans scanner | Un nouveau QR s'affiche tout seul ; après environ 10 minutes, un bouton le propose |
 | Application, tableau de bord vendeur, Espace vendeur sur ordinateur, scanner | Sans autre question : le tableau de bord s'ouvre et une notification arrive sur le téléphone |
-| Recharger la page | La session reste ouverte |
+| Recharger la page, fermer puis rouvrir le navigateur | La session reste ouverte ; seuls 14 jours sans activité ou une déconnexion ramènent au QR |
 | Modifier un produit, y ajouter une photo, traiter une commande, modifier la boutique | Tout s'enregistre |
 | Ouvrir une réclamation, envoyer une preuve, choisir le remplacement ou le retour | Tout s'enregistre ; un message renvoie au téléphone pour le partenaire et le paiement de la course |
 | Cliquer sur « Voir les forfaits » | Message « Disponible dans l'application » |
