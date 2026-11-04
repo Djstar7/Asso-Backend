@@ -313,6 +313,7 @@
     },
     "payments": {
         "method_unavailable": "This payment method is currently unavailable.",
+        "kpay_provider_unstable": "This service is temporarily unstable. Please choose another operator or try again in a few minutes.",
         "amount_too_low_for_method": "The amount is too low for this payment method.",
         "kpay_init_failed": "Failed to initiate the KPay payment.",
         "card_temporarily_unavailable": "Card payment is temporarily unavailable.",
