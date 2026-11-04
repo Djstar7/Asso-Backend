@@ -68,6 +68,8 @@ class ListingEditor
             'available_from' => ['nullable', 'date'],
             'net_price' => [$type === Listing::TYPE_LAND ? 'nullable' : $req, 'integer', 'min:0'],
             'old_net_price' => ['nullable', 'integer', 'min:0'],
+            'price_per_m2' => ['nullable', 'integer', 'min:1'],
+            'is_divisible' => ['nullable', 'boolean'],
             'promo_text' => ['nullable', 'string', 'max:255'],
             'amenity_ids' => ['nullable', 'array'],
             'amenity_ids.*' => ['integer', 'exists:real_estate_amenities,id'],
@@ -78,6 +80,7 @@ class ListingEditor
             'units.*.surface_max' => ['nullable', 'integer', 'min:1'],
             'units.*.net_price' => ['required_with:units', 'integer', 'min:0'],
             'units.*.old_net_price' => ['nullable', 'integer', 'min:0'],
+            'units.*.price_per_m2' => ['nullable', 'integer', 'min:1'],
             'units.*.capacity' => ['nullable', 'integer', 'min:1', 'max:50'],
             'units.*.kitchen' => ['nullable', Rule::in(['private', 'shared', 'none'])],
             'units.*.furnished' => ['nullable', 'boolean'],
@@ -100,9 +103,21 @@ class ListingEditor
                 throw ValidationException::withMessages(['type' => 'Cette annonce possède des réservations. Créez une nouvelle annonce pour changer sa catégorie.']);
             }
             $fields = Arr::except($data, ['amenity_ids', 'units', 'rooms_tour']);
-            if (($fields['type'] ?? $listing->type) !== Listing::TYPE_RENT) {
+            $type = $fields['type'] ?? $listing->type;
+            if ($type !== Listing::TYPE_RENT) {
                 $fields['advance_months'] = null;
                 $fields['min_lease_months'] = null;
+            }
+            if ($type !== Listing::TYPE_LAND) {
+                $fields['price_per_m2'] = null;
+                $fields['is_divisible'] = null;
+            }
+            // Maison en vente : un seul prix, sans types de logement ni « meublé ».
+            if ($type === Listing::TYPE_SALE) {
+                $fields['furnished'] = false;
+                if (array_key_exists('units', $data)) {
+                    $data['units'] = [];
+                }
             }
             if (empty($fields['cabinet_id']) && ! $listing->cabinet_id) {
                 $fields['cabinet_id'] = Cabinet::defaultPartner()?->id;
@@ -112,7 +127,12 @@ class ListingEditor
             if (array_key_exists('amenity_ids', $data)) {
                 $listing->amenities()->sync($data['amenity_ids'] ?? []);
             }
-            if (array_key_exists('units', $data)) {
+            if ($type === Listing::TYPE_LAND && $listing->is_divisible === false && array_key_exists('units', $data)) {
+                $this->syncWholeLand($listing, $data['net_price'] ?? null);
+            } elseif (array_key_exists('units', $data)) {
+                if ($type === Listing::TYPE_LAND) {
+                    $this->assertLotsFitSurface($listing, $data['units'] ?? []);
+                }
                 $this->syncUnits($listing, $data['units'] ?? []);
             }
             if (array_key_exists('rooms_tour', $data)) {
@@ -137,12 +157,17 @@ class ListingEditor
                 $available = (int) $unit->units_available + $available - (int) $u['units_available_was'];
             }
 
-            $attrs = Arr::only($u, ['label', 'surface_min', 'surface_max', 'net_price', 'old_net_price', 'capacity',
+            $attrs = Arr::only($u, ['label', 'surface_min', 'surface_max', 'net_price', 'old_net_price', 'price_per_m2', 'capacity',
                 'kitchen', 'furnished', 'serviced', 'available_from']) + [
                     'units_total' => $total,
                     'units_available' => max(0, min($total, $available)),
                     'position' => $position,
                 ];
+            if ($listing->isLand()) {
+                $attrs['net_price'] = $this->landLotPrice($listing, $attrs);
+            } else {
+                unset($attrs['price_per_m2']);
+            }
             $unit ? $unit->update($attrs) : $unit = $listing->units()->create($attrs);
             $keep[] = $unit->id;
         }
@@ -157,6 +182,73 @@ class ListingEditor
         if ($keep) {
             $listing->forceFill(['net_price' => (int) $listing->units()->min('net_price')])->save();
         }
+    }
+
+    /** Surface exacte + prix au m² (du lot, sinon du terrain) : le prix du lot en découle. */
+    private function landLotPrice(Listing $listing, array $lot): int
+    {
+        $rate = ($lot['price_per_m2'] ?? null) ?: $listing->price_per_m2;
+        $surface = (int) ($lot['surface_min'] ?? 0);
+        $exact = empty($lot['surface_max']) || (int) $lot['surface_max'] === $surface;
+
+        return $rate && $surface > 0 && $exact ? $rate * $surface : (int) $lot['net_price'];
+    }
+
+    /**
+     * Les lots ne dépassent pas la surface totale. Un lot fermé garde seulement
+     * la surface déjà réservée : le reste du terrain peut être remorcelé.
+     */
+    private function assertLotsFitSurface(Listing $listing, array $units): void
+    {
+        if (! $listing->surface_m2) {
+            return;
+        }
+        $reserved = $listing->exists ? Reservation::reservedUnitCounts($listing->id) : [];
+        $used = collect($units)->sum(function (array $u) use ($reserved) {
+            $lots = (int) ($u['units_available'] ?? 1) > 0 ? (int) ($u['units_total'] ?? 1) : (int) ($reserved[$u['id'] ?? 0] ?? 0);
+
+            return (int) ($u['surface_min'] ?? 0) * $lots;
+        });
+        if ($used > $listing->surface_m2) {
+            throw ValidationException::withMessages(['units' => __('real_estate.errors.lots_exceed_surface', [
+                'used' => number_format($used, 0, ',', ' '),
+                'total' => number_format($listing->surface_m2, 0, ',', ' '),
+            ])]);
+        }
+    }
+
+    /**
+     * Terrain non morcelable : une seule ligne, le terrain entier. Refusé si des
+     * morceaux sont déjà réservés, car contrats et factures restent liés à ces lots.
+     */
+    private function syncWholeLand(Listing $listing, ?int $netPrice): void
+    {
+        $units = $listing->units()->lockForUpdate()->get();
+        $reserved = Reservation::reservedUnitCounts($listing->id);
+        if ($units->sum('units_total') > 1 && $reserved !== []) {
+            throw ValidationException::withMessages(['is_divisible' => __('real_estate.errors.lots_already_reserved')]);
+        }
+        $kept = $units->firstWhere(fn ($u) => isset($reserved[$u->id])) ?? $units->first();
+        $listing->units()->when($kept, fn ($q) => $q->whereKeyNot($kept->id))->delete();
+
+        $surface = $listing->surface_m2 ?: $kept?->surface_min;
+        $price = $this->landLotPrice($listing, [
+            'surface_min' => $surface,
+            'surface_max' => $surface,
+            'net_price' => $netPrice ?? $kept?->net_price ?? 0,
+        ]);
+        $attrs = [
+            'label' => $surface ? number_format($surface, 0, ',', ' ').' m²' : ($kept?->label ?? $listing->title),
+            'surface_min' => $surface,
+            'surface_max' => $surface,
+            'net_price' => $price,
+            'price_per_m2' => null,
+            'units_total' => 1,
+            'units_available' => $kept ? min(1, (int) $kept->units_available) : 1,
+            'position' => 0,
+        ];
+        $kept ? $kept->update($attrs) : $listing->units()->create($attrs);
+        $listing->forceFill(['net_price' => $price])->save();
     }
 
     private function syncRooms(Listing $listing, array $rooms): void
@@ -246,8 +338,11 @@ class ListingEditor
             if ($listing->minNetPrice() <= 0) {
                 $missing[] = 'price';
             }
-        } elseif ($listing->units->isEmpty()) {
+        } elseif ($listing->units->isEmpty() || ($listing->isDivisible() && $listing->units->sum('units_total') < 2)) {
+            // Morcelable : il faut au moins deux morceaux à proposer.
             $missing[] = 'lots';
+        } elseif ($listing->minNetPrice() <= 0) {
+            $missing[] = 'price';
         }
 
         return $missing;
