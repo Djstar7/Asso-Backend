@@ -478,9 +478,16 @@
                 if (!p.ok) return;
                 const kept = this.units.filter(u => this.isReserved(u)).map(u => ({ ...u, units_available: 0 }));
                 const replaced = this.units.length - kept.length;
-                if (replaced > 0 && !confirm(`Les ${replaced} lot(s) actuel(s) sans réservation seront remplacés par ces morceaux`
-                    + (kept.length ? ` ; ${kept.length} lot(s) réservé(s) sont conservés et fermés à la vente` : '')
-                    + '. Rien n\'est enregistré avant de cliquer sur Enregistrer. Continuer ?')) return;
+                const apply = () => this.applyPlan(p, kept);
+                if (replaced > 0) {
+                    window.customConfirm(`Les ${replaced} lot(s) actuel(s) sans réservation seront remplacés par ces morceaux`
+                        + (kept.length ? ` ; ${kept.length} lot(s) réservé(s) sont conservés et fermés à la vente` : '')
+                        + '. Rien n\'est enregistré avant de cliquer sur Enregistrer. Continuer ?', apply);
+                    return;
+                }
+                apply();
+            },
+            applyPlan(p, kept) {
                 const rows = [];
                 const rate = parseInt(this.split.price);
                 let n = 0;
