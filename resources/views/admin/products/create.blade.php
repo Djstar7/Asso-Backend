@@ -115,6 +115,8 @@
     </p>
 
     <div id="tiers_container" class="{{ old('is_wholesale', $product->is_wholesale ?? false) ? '' : 'hidden' }}">
+        @include('admin.products._package_dimensions')
+
         <div class="flex items-center justify-between mb-2">
             <label class="text-sm font-medium text-white">Paliers de prix</label>
             <button type="button" onclick="addTierRow()"
@@ -431,6 +433,22 @@ function tierRowTemplate(data = {}) {
                 <i class="fas fa-trash"></i>
             </button>
         </div>
+        <div class="md:col-span-2">
+            <label class="block text-xs text-gray-400 mb-1">Longueur (cm)</label>
+            <input type="number" step="0.01" min="1" max="3000" name="tiers[${idx}][length_cm]" value="${esc(data.length_cm)}"
+                   class="w-full px-3 py-2 bg-dark-100 border border-dark-300 rounded text-white text-sm">
+        </div>
+        <div class="md:col-span-2">
+            <label class="block text-xs text-gray-400 mb-1">Largeur (cm)</label>
+            <input type="number" step="0.01" min="1" max="3000" name="tiers[${idx}][width_cm]" value="${esc(data.width_cm)}"
+                   class="w-full px-3 py-2 bg-dark-100 border border-dark-300 rounded text-white text-sm">
+        </div>
+        <div class="md:col-span-2">
+            <label class="block text-xs text-gray-400 mb-1">Hauteur (cm)</label>
+            <input type="number" step="0.01" min="1" max="3000" name="tiers[${idx}][height_cm]" value="${esc(data.height_cm)}"
+                   class="w-full px-3 py-2 bg-dark-100 border border-dark-300 rounded text-white text-sm">
+        </div>
+        <div class="md:col-span-6 text-xs text-primary-200" data-tier-preview></div>
     </div>`;
 }
 
@@ -543,7 +561,10 @@ document.addEventListener('DOMContentLoaded', function() {
             unit_price: {{ $tier['unit_price'] ?? 0 }},
             min_quantity: {{ $tier['min_quantity'] ?? 1 }},
             pack_size: {{ $tier['pack_size'] ?? 1 }},
-            weight_kg: @json($tier['weight_kg'] ?? null)
+            weight_kg: @json($tier['weight_kg'] ?? null),
+            length_cm: @json($tier['length_cm'] ?? null),
+            width_cm: @json($tier['width_cm'] ?? null),
+            height_cm: @json($tier['height_cm'] ?? null)
         });
     @endforeach
 

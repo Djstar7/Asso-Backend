@@ -222,6 +222,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/wholesale-orders', [\App\Http\Controllers\Admin\WholesaleOrderController::class, 'index'])->name('wholesale-orders.index');
         Route::get('/wholesale-orders/{order}', [\App\Http\Controllers\Admin\WholesaleOrderController::class, 'show'])->name('wholesale-orders.show');
         Route::post('/wholesale-orders/{order}/confirm', [\App\Http\Controllers\Admin\WholesaleOrderController::class, 'confirm'])->name('wholesale-orders.confirm');
+        Route::post('/wholesale-orders/{order}/collect-at-warehouse', [\App\Http\Controllers\Admin\WholesaleOrderController::class, 'collectAtWarehouse'])->name('wholesale-orders.collect-at-warehouse');
         Route::post('/wholesale-orders/{order}/reject', [\App\Http\Controllers\Admin\WholesaleOrderController::class, 'reject'])->name('wholesale-orders.reject');
 
         // Boutiques ASSO : ASSO confirme ou refuse les commandes de ses boutiques.
@@ -414,6 +415,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::delete('/import-countries/{importCountry}', [ImportCountryController::class, 'destroy'])->name('import-countries.destroy');
 
         // Options d'expédition rattachées à un pays importé
+        Route::put('/import-countries/{importCountry}/freight-rules', [\App\Http\Controllers\Admin\ImportShippingOptionController::class, 'updateRules'])->name('import-countries.freight-rules');
         Route::prefix('import-countries/{importCountry}/shipping-options')
             ->name('import-countries.shipping-options.')
             ->group(function () {

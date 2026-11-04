@@ -52,7 +52,8 @@ class AssoShipmentService
             'handed_to_carrier' => array_merge(['in_transit'], $transportSteps),
             'in_transit' => $transportSteps,
             'customs' => $order->is_wholesale ? ['arrived_hub'] : ['arrived'],
-            'arrived_hub' => ['pickup_requested'],
+            // Retrait à l'entrepôt : la remise passe uniquement par le code (voir collectAtWarehouse).
+            'arrived_hub' => $order->isWarehousePickup() ? [] : ['pickup_requested'],
             'pickup_requested' => ['pickup_accepted'],
             'pickup_accepted' => ['collected_by_carrier'],
             'collected_by_carrier' => $order->leavesFromImportHub() ? [$final] : ['partner_in_transit'],
@@ -222,6 +223,27 @@ class AssoShipmentService
             if (!$order->carrier_courier_requested_at && in_array($step, CarrierCourierService::OPEN_STEPS, true)) {
                 DB::afterCommit(fn () => app(CarrierCourierService::class)->request($order));
             }
+
+            return $order->fresh();
+        });
+    }
+
+    /** Remise à l'entrepôt : ASSO saisit le code présenté par le client. */
+    public function collectAtWarehouse(Order $order, string $code, User $actor): Order
+    {
+        return DB::transaction(function () use ($order, $code, $actor) {
+            $order = Order::lockForUpdate()->findOrFail($order->id);
+            $this->check($order->isWarehousePickup() && $order->status === 'shipped' && $order->tracking_status === 'arrived_hub'
+                && $order->payment_status === Order::PAYMENT_PAID, 'shipment.invalid_transition');
+            $this->check($order->canBeHandedOver(), 'orders.balance_due_before_handover');
+            $this->check($order->confirmation_code !== null && hash_equals((string) $order->confirmation_code, trim($code)), 'delivery.confirmation_code_incorrect');
+
+            $order->update([
+                'status' => 'delivered', 'delivered_at' => now(), 'confirmation_code' => null,
+                'confirmed_by_deliverer_at' => now(), 'confirmed_by_client_at' => now(),
+            ]);
+            app(OrderTrackingService::class)->record($order, 'delivered', $order->delivery_breakdown['warehouse']['name'] ?? null,
+                __('tracking.warehouse_collected_note'), 'admin', $actor->id, notifyBuyer: true);
 
             return $order->fresh();
         });

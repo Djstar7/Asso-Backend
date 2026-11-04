@@ -19,6 +19,31 @@ class ImportHub
     public const SETTING = 'import_hub_shop_id';
     public const NAME = 'ASSO Import Douala';
     public const CITY = 'Douala';
+    public const PICKUP_THRESHOLD_SETTING = 'import_hub_pickup_threshold_kg';
+    public const DEFAULT_PICKUP_THRESHOLD_KG = 300;
+
+    /** Au-delà de ce poids facturé, le client récupère sa commande à l'entrepôt. */
+    public static function pickupThresholdKg(): float
+    {
+        return (float) (Setting::get(self::PICKUP_THRESHOLD_SETTING) ?: self::DEFAULT_PICKUP_THRESHOLD_KG);
+    }
+
+    /** Lieu de retrait figé sur la commande : le client doit le retrouver tel quel. */
+    public static function pickupSnapshot(): array
+    {
+        $shop = self::shop();
+
+        return [
+            'delivery_option' => 'warehouse_pickup',
+            'company_name' => self::NAME,
+            'warehouse' => [
+                'name' => $shop?->name ?? self::NAME,
+                'address' => trim(implode(' — ', array_filter([$shop?->location_label, $shop?->address]))) ?: null,
+                'city' => $shop?->city ?? self::CITY,
+                'phone' => $shop?->phone,
+            ],
+        ];
+    }
 
     public static function shop(): ?Shop
     {

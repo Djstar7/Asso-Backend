@@ -108,7 +108,7 @@ class AdminContentTranslationTest extends TestCase
 
         $country = ImportCountry::create(['code' => 'CN', 'name' => 'Chine', 'sort_order' => 1]);
         $this->actingAs($admin)->postJson("/admin/import-countries/{$country->id}/shipping-options", [
-            'mode' => 'air', 'rate_type' => 'per_kg', 'rate_amount' => 5000, 'lead_time_days' => 9,
+            'mode' => 'air', 'cost_amount' => 5000, 'lead_time_days' => 9,
             'expedition_note' => 'Départ hebdomadaire', 'translations' => ['en' => ['expedition_note' => 'Weekly departure']],
         ])->assertOk()->assertJsonPath('shipping_option.translations.en.expedition_note', 'Weekly departure');
     }

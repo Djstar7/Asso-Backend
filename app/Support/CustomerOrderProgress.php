@@ -32,7 +32,7 @@ class CustomerOrderProgress
 
         return [
             'kind' => $wholesale ? 'wholesale' : ($order->has_local_products ? 'local' : 'retail'),
-            'delivery_option' => $agency ? 'agency_pickup' : 'home_delivery',
+            'delivery_option' => $order->isWarehousePickup() ? 'warehouse_pickup' : ($agency ? 'agency_pickup' : 'home_delivery'),
             'stage' => $stage,
             'steps' => $stage === 'cancelled' ? ['cancelled'] : $steps,
         ];

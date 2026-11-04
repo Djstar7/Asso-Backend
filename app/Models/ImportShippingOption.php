@@ -6,7 +6,7 @@ use App\Models\Concerns\HasTranslations;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Option d'expédition internationale (Avion / Bateau / Express) pour le module gros :
+ * Option d'expédition internationale (Avion / Bateau) pour le module gros :
  * prix du trajet pays d'origine → Douala (entrepôt ASSO). SOLEX livre ensuite le client.
  * `country_code` nulle = option valable pour tous les pays d'import.
  */
@@ -24,6 +24,9 @@ class ImportShippingOption extends Model
         'tracking_url_template',
         'rate_type',
         'rate_amount',
+        'cost_amount',
+        'margin_type',
+        'margin_value',
         'currency',
         'lead_time_days',
         'expedition_note',
@@ -34,6 +37,8 @@ class ImportShippingOption extends Model
 
     protected $casts = [
         'rate_amount' => 'decimal:2',
+        'cost_amount' => 'decimal:2',
+        'margin_value' => 'decimal:2',
         'lead_time_days' => 'integer',
         'destinations' => 'array',
         'is_active' => 'boolean',
@@ -43,12 +48,26 @@ class ImportShippingOption extends Model
     public const MODE_LABELS = [
         'air' => 'Avion',
         'sea' => 'Bateau',
-        'express' => 'Express',
+        'express' => 'Express', // retiré : pour les anciennes commandes
     ];
+
+    /** Modes proposés aux clients. */
+    public const ACTIVE_MODES = ['air', 'sea'];
+
+    /** Tarif client : le tarif d'achat plus la marge ASSO, en pourcentage ou en montant. */
+    public static function clientRate(float $cost, ?string $marginType, ?float $marginValue): float
+    {
+        return round($cost + match ($marginType) {
+            'percent' => $cost * (float) $marginValue / 100,
+            'amount' => (float) $marginValue,
+            default => 0,
+        });
+    }
 
     public function scopeActiveForCountry($query, ?string $code)
     {
         return $query->where('is_active', true)
+            ->whereIn('mode', self::ACTIVE_MODES)
             ->where(function ($q) use ($code) {
                 $q->whereNull('country_code');
                 if ($code) {

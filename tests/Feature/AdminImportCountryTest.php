@@ -86,9 +86,9 @@ class AdminImportCountryTest extends TestCase
         $this->assertFalse($o->fresh()->is_active);
 
         $this->actingAs($admin)->putJson($base, [
-            'mode' => 'air', 'rate_type' => 'flat', 'rate_amount' => 20000, 'lead_time_days' => 10,
+            'mode' => 'sea', 'cost_amount' => 20000, 'lead_time_days' => 10,
         ])->assertOk();
-        $this->assertSame('flat', $o->fresh()->rate_type);
+        $this->assertSame('per_cbm', $o->fresh()->rate_type);
 
         $this->actingAs($admin)->deleteJson($base)->assertOk();
         $this->assertDatabaseMissing('import_shipping_options', ['id' => $o->id]);

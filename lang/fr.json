@@ -1029,6 +1029,8 @@
         "carrier_tracking_after_handover": "Le suivi transporteur commence après la remise du colis.",
         "tracking_step_added": "Étape ajoutée. L'acheteur a été prévenu.",
         "wholesale": {
+            "air_weight_limit": "Au-delà de :weight kg, cette commande ne peut partir que par bateau.",
+            "pickup_requires_update": "Cette commande se récupère à l'entrepôt de Douala : mettez l'application à jour pour la passer.",
             "solex_delivery_required": "Choisissez la livraison SOLEX : la commande arrive à Douala, puis SOLEX la livre jusqu'à vous.",
             "delivery_address_required": "Indiquez votre adresse de livraison.",
             "created": "Commande en gros créée."
@@ -1239,6 +1241,7 @@
             "kg_range": ":min à :max kg"
         },
         "options": {
+            "warehouse_pickup": "Retrait à l'entrepôt ASSO",
             "agency_pickup": "Retrait en agence",
             "home_delivery": "Livraison à domicile"
         },
@@ -1507,6 +1510,7 @@
         "inactive": "Votre compte commercial est désactivé. Contactez ASSO."
     },
     "tracking": {
+        "warehouse_collected_note": "Code de retrait validé à l'entrepôt",
         "steps": {
             "export_pickup_requested": "Collecte Solex programmée",
             "export_collected": "Colis récupéré chez le vendeur par Solex",
@@ -1891,6 +1895,9 @@
         "confirmation_required": "Renseignez le contact, le canal et la référence de la confirmation du transporteur.",
         "asso_only": "Le suivi de ce transporteur est renseigné par l’équipe ASSO.",
         "reception_unavailable": "La réception ne peut être confirmée qu’après une remise enregistrée et un paiement intégral.",
+        "warehouse_ready_notification": "Commande :order arrivée à :name. Présentez le code affiché dans votre commande pour la récupérer.",
+        "warehouse_ready_balance_notification": "Commande :order arrivée à :name. Réglez le solde pour obtenir votre code de retrait.",
+        "warehouse_code_locked": "Trop de codes incorrects pour cette commande. Réessayez dans :minutes min.",
         "ready_notification": "Commande :order disponible chez :name, :address, :city. Téléphone :phone. Présentez votre référence de commande pour le retrait."
     },
     "admin_nav": {

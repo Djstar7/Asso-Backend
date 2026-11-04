@@ -677,9 +677,11 @@ class OrderController extends Controller
         // Code de remise : disponible dès l’affectation du livreur, y compris
         // pour le transporteur. La validation reste contrôlée par les étapes de transport.
         // Commande avec acompte : le code n'est remis qu'une fois le solde payé.
+        // Retrait à l'entrepôt : le code est remis dès l'arrivée à Douala.
         if (!$order->isInternationalExport() && $order->status === 'shipped' && $order->canBeHandedOver()
-            && (!$order->isCarrierDelivery() || ($order->carrier_courier_requested_at && $order->delivery_person_id
-                && !$order->isAgencyPickup()))) {
+            && ($order->isWarehousePickup() ? $order->tracking_status === \App\Services\OrderTrackingService::IMPORT_HUB_STEP
+                : (!$order->isCarrierDelivery() || ($order->carrier_courier_requested_at && $order->delivery_person_id
+                    && !$order->isAgencyPickup())))) {
             $data['confirmation_code'] = $order->confirmation_code;
         }
 

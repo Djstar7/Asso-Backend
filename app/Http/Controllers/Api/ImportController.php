@@ -8,12 +8,15 @@ use App\Models\ImportShippingOption;
 use App\Models\Product;
 use App\Models\ProductImage;
 use App\Models\ProductVideo;
+use App\Services\ImportFreightService;
 use App\Services\OrderService;
 use App\Services\PaymentMethodService;
 use App\Services\ExchangeRateService;
 use App\Services\ProductVariantService;
+use App\Support\ImportHub;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 
 /**
  * Module ASSO CHINA / DUBAÏ / TURQUIE — catalogue de commande EN GROS (import).
@@ -25,6 +28,9 @@ class ImportController extends Controller
 {
     public const PER_PAGE = 20;
     public const MAX_PER_PAGE = 50;
+
+    /** Règles déjà lues par pays : le catalogue sert plusieurs produits du même pays. */
+    private array $freightRules = [];
 
     /**
      * Catalogue gros d'un pays d'import, page par page.
@@ -236,13 +242,16 @@ class ImportController extends Controller
             'items.*.variant_id' => 'nullable|integer|exists:product_variants,id',
             'items.*.quantity' => 'required|integer|min:1',
             'shipping_option_id' => 'required|exists:import_shipping_options,id',
+            // Envoyés par les anciens APK, ignorés : le serveur calcule seul le transport.
             'shipping_weight_kg' => 'nullable|numeric|min:0',
             'shipping_cbm' => 'nullable|numeric|min:0',
+            // Retrait à l'entrepôt : ni SOLEX ni adresse de livraison.
+            'warehouse_pickup' => 'nullable|boolean',
             'payment_mode' => 'nullable|in:wallet,kpay_direct,stripe_direct',
             'provider' => 'required_if:payment_mode,kpay_direct|string',
             'phone_number' => 'required_if:payment_mode,kpay_direct|string',
             // Livraison SOLEX de Douala jusqu'au client (offre de GET /v1/delivery/partners).
-            'delivery_company_id' => 'required|exists:deliverer_companies,id',
+            'delivery_company_id' => [Rule::requiredIf(! $request->boolean('warehouse_pickup')), 'nullable', 'exists:deliverer_companies,id'],
             'delivery_zone_id' => 'nullable|exists:delivery_zones,id',
             'delivery_route_id' => 'nullable|exists:delivery_routes,id',
             'delivery_grid_id' => 'nullable|exists:delivery_city_grids,id',
@@ -250,7 +259,7 @@ class ImportController extends Controller
             'delivery_quarter' => 'nullable|string|max:120',
             'delivery_city' => 'nullable|string|max:120',
             'delivery_country' => 'nullable|string|max:60',
-            'delivery_address' => 'required|string',
+            'delivery_address' => [Rule::requiredIf(! $request->boolean('warehouse_pickup')), 'nullable', 'string'],
             'delivery_address_details' => 'nullable|string|max:500',
             'customer_phone' => 'required|string|max:30',
             'delivery_latitude' => 'nullable|numeric',
@@ -276,15 +285,14 @@ class ImportController extends Controller
                 client: $request->user(),
                 items: $validated['items'],
                 shippingOptionId: (int) $validated['shipping_option_id'],
-                shippingWeightKg: (float) ($validated['shipping_weight_kg'] ?? 0),
-                shippingCbm: (float) ($validated['shipping_cbm'] ?? 0),
                 deliveryAddress: $validated['delivery_address'] ?? null,
                 paymentMode: $paymentMode,
                 kpayProvider: $validated['provider'] ?? null,
                 kpayPhone: $validated['phone_number'] ?? null,
                 notes: $validated['notes'] ?? null,
                 delivery: [
-                    'company_id' => (int) $validated['delivery_company_id'],
+                    'warehouse_pickup' => $request->boolean('warehouse_pickup'),
+                    'company_id' => (int) ($validated['delivery_company_id'] ?? 0),
                     'zone_id' => isset($validated['delivery_zone_id']) ? (int) $validated['delivery_zone_id'] : null,
                     'route_id' => isset($validated['delivery_route_id']) ? (int) $validated['delivery_route_id'] : null,
                     'grid_id' => isset($validated['delivery_grid_id']) ? (int) $validated['delivery_grid_id'] : null,
@@ -333,6 +341,11 @@ class ImportController extends Controller
             'min_order_quantity' => $minFromTiers ?? $p->min_order_quantity,
             // Le poids est renseigné par l'équipe/le vendeur, jamais par le client.
             'unit_weight_kg' => $p->weightKg(),
+            'freight_rules' => $this->freightRules($p->origin_country),
+            // Dimensions du colis d'une unité, facultatives (cm).
+            'length_cm' => $p->length_cm !== null ? (float) $p->length_cm : null,
+            'width_cm' => $p->width_cm !== null ? (float) $p->width_cm : null,
+            'height_cm' => $p->height_cm !== null ? (float) $p->height_cm : null,
             'stock' => $p->stock,
             'requires_quote' => (bool) $p->requires_quote,
             'price_is_indicative' => (bool) $p->requires_quote,
@@ -370,6 +383,21 @@ class ImportController extends Controller
         }
 
         return $data;
+    }
+
+    /** Règles du transport, pour que l'application affiche ce que le serveur appliquera. */
+    private function freightRules(?string $countryCode): array
+    {
+        return $this->freightRules[$countryCode] ??= (function () use ($countryCode) {
+            $country = ImportCountry::where('code', $countryCode)->first();
+
+            return [
+                'air_max_weight_kg' => (float) ($country?->air_max_weight_kg ?? ImportFreightService::DEFAULT_AIR_MAX_KG),
+                'volumetric_divisor' => (int) ($country?->air_volumetric_divisor ?: ImportFreightService::DEFAULT_DIVISOR),
+                'pickup_threshold_kg' => ImportHub::pickupThresholdKg(),
+                'warehouse' => ImportHub::pickupSnapshot()['warehouse'],
+            ];
+        })();
     }
 
     private function targetCurrency(Request $request): string

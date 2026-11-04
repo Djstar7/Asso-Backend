@@ -42,6 +42,14 @@ class WholesaleOrderStage
         return self::STAGES[$stage][0] ?? $stage;
     }
 
+    /** Libellé pour une commande : à Douala, le client vient chercher un retrait entrepôt. */
+    public static function labelFor(Order $order): string
+    {
+        $stage = self::of($order);
+
+        return $stage === 'last_mile' && $order->isWarehousePickup() ? 'À Douala · retrait client' : self::label($stage);
+    }
+
     public static function badge(string $stage): string
     {
         return self::STAGES[$stage][1] ?? self::STAGES['awaiting_payment'][1];

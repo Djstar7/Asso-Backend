@@ -63,7 +63,7 @@ class Order extends Model
     public const DIRECT_PAYMENT_METHODS = ['kpay_direct', 'paypal_direct', 'stripe_direct'];
 
     protected $fillable = [
-        'order_number', 'user_id', 'status', 'subtotal', 'delivery_fee', 'import_shipping_fee', 'base_delivery_price', 'delivery_commission', 'free_delivery', 'free_delivery_amount', 'total',
+        'order_number', 'user_id', 'status', 'subtotal', 'delivery_fee', 'import_shipping_fee', 'import_freight_margin', 'base_delivery_price', 'delivery_commission', 'free_delivery', 'free_delivery_amount', 'total',
         'sale_commission_rate', 'sale_commission', 'vendor_net_amount', 'settled_at', 'refunded_at',
         'is_wholesale', 'has_local_products', 'import_country_code', 'shipping_mode', 'shipping_option_id',
         'delivery_address',
@@ -207,6 +207,12 @@ class Order extends Model
      * Transporteur + livraison à domicile depuis l'agence d'arrivée (ex. SOLEX) : le
      * devis comprend un dernier kilomètre. Son suivi reste renseigné par ASSO.
      */
+    /** Commande trop lourde pour SOLEX : le client la récupère à l'entrepôt de Douala. */
+    public function isWarehousePickup(): bool
+    {
+        return ($this->delivery_breakdown['delivery_option'] ?? null) === 'warehouse_pickup';
+    }
+
     public function hasLastMileDelivery(): bool
     {
         return $this->isCarrierDelivery()

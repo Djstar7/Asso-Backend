@@ -17,7 +17,7 @@
     $hasLocal = $order->delivery_company_id !== null;
 
     // Parcours : combien d'étapes sont franchies.
-    $journey = ['Payée', 'Validée par ASSO', "Expédiée depuis {$countryName}", 'Arrivée à Douala', 'Livraison SOLEX', 'Livrée'];
+    $journey = ['Payée', 'Validée par ASSO', "Expédiée depuis {$countryName}", 'Arrivée à Douala', $order->isWarehousePickup() ? 'Retrait à l\'entrepôt' : 'Livraison SOLEX', 'Livrée'];
     $done = match ($stage) {
         'to_validate' => 1,
         'to_ship' => 2,
@@ -46,7 +46,7 @@
             </h1>
             <p class="text-gray-400">Passée le {{ $order->created_at->displayTz()->format('d/m/Y à H:i') }} · {{ $countryName }} → Douala → {{ $delivery['company_name'] ?? 'client' }}</p>
         </div>
-        <span class="px-3 py-1 rounded-full text-sm border {{ WholesaleOrderStage::badge($stage) }}">{{ WholesaleOrderStage::label($stage) }}</span>
+        <span class="px-3 py-1 rounded-full text-sm border {{ WholesaleOrderStage::badge($stage) }}">{{ WholesaleOrderStage::labelFor($order) }}</span>
     </div>
 
     @include('admin.wholesale_orders._flash')
@@ -178,6 +178,23 @@
                 @endif
             </div>
 
+            @if($order->isWarehousePickup() && $order->status === 'shipped' && $order->tracking_status === 'arrived_hub')
+                <div class="{{ $card }}" id="warehouse-pickup">
+                    <h2 class="text-lg font-semibold text-white mb-2"><i class="fas fa-warehouse mr-2 text-primary-400"></i>Retrait à l'entrepôt</h2>
+                    @if($order->canBeHandedOver())
+                        <p class="text-sm text-gray-300 mb-3">Demandez au client le code à 6 chiffres affiché dans sa commande, puis remettez-lui le colis une fois le code validé.</p>
+                        <form method="POST" action="{{ route('admin.wholesale-orders.collect-at-warehouse', $order) }}" class="flex flex-wrap gap-2 items-end">
+                            @csrf
+                            <input name="code" required inputmode="numeric" maxlength="6" minlength="6" autocomplete="off" placeholder="Code à 6 chiffres"
+                                   class="px-3 py-2 bg-dark-50 border border-dark-200 rounded-lg text-white font-mono tracking-widest">
+                            <button class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"><i class="fas fa-check mr-2"></i>Valider la remise</button>
+                        </form>
+                    @else
+                        <p class="text-sm text-yellow-300"><i class="fas fa-exclamation-triangle mr-1"></i>{{ __('orders.balance_due_before_handover') }}</p>
+                    @endif
+                </div>
+            @endif
+
             @include('admin.shipments._tracking_actions')
 
             <!-- Historique -->
@@ -273,6 +290,14 @@
                 @if($shipping?->expedition_note)
                     <div class="text-xs text-gray-400">{{ $shipping->expedition_note }}</div>
                 @endif
+                @if($freight = $order->delivery_breakdown['import_freight'] ?? null)
+                    <div class="{{ $row }}"><span>Poids réel</span><span class="text-white">{{ rtrim(rtrim(number_format($freight['weight_kg'], 3, ',', ' '), '0'), ',') }} kg</span></div>
+                    <div class="{{ $row }}"><span>Volume</span><span class="text-white">{{ rtrim(rtrim(number_format($freight['volume_cbm'], 3, ',', ' '), '0'), ',') ?: '0' }} CBM</span></div>
+                    <div class="{{ $row }}"><span>Facturé</span><span class="text-white">{{ rtrim(rtrim(number_format($freight['billed_quantity'], 3, ',', ' '), '0'), ',') }} {{ ['per_kg' => 'kg', 'per_cbm' => 'CBM'][$freight['rate_type']] ?? '' }} × {{ number_format($freight['rate_amount'], 0, ',', ' ') }} FCFA</span></div>
+                    @if($freight['margin_total'] !== null)
+                        <div class="{{ $row }}"><span>Marge ASSO</span><span class="text-primary-300">{{ number_format($freight['margin_total'], 0, ',', ' ') }} FCFA</span></div>
+                    @endif
+                @endif
                 <div class="{{ $row }}"><span>N° de suivi</span><span class="text-white font-mono">{{ $order->carrier_tracking_number ?? '—' }}</span></div>
                 @if($delivery['carrier_tracking_url'])
                     <a href="{{ $delivery['carrier_tracking_url'] }}" target="_blank" rel="noopener" class="inline-block text-primary-400 hover:text-primary-300"><i class="fas fa-external-link-alt mr-1"></i>Suivre chez le transporteur</a>
@@ -282,7 +307,10 @@
             <!-- Livraison locale -->
             <div class="{{ $card }} text-sm text-gray-300 space-y-2">
                 <h2 class="text-lg font-semibold text-white mb-2"><i class="fas fa-truck mr-2 text-primary-400"></i>Douala → client</h2>
-                @if($hasLocal)
+                @if($order->isWarehousePickup())
+                    <p class="text-white">Retrait à l'entrepôt, sans SOLEX</p>
+                    <p class="text-gray-400">{{ $order->delivery_breakdown['warehouse']['address'] ?? $order->delivery_breakdown['warehouse']['name'] ?? '' }}</p>
+                @elseif($hasLocal)
                     <div class="{{ $row }}"><span>Partenaire</span><span class="text-white">{{ $delivery['company_name'] }}</span></div>
                     <div class="{{ $row }}"><span>Option</span><span class="text-white text-right">{{ $delivery['delivery_option_label'] ?? $delivery['service_mode_label'] }}</span></div>
                     @if($delivery['route_label'])

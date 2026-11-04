@@ -419,8 +419,6 @@ class OrderService
         User $client,
         array $items,
         int $shippingOptionId,
-        float $shippingWeightKg = 0,
-        float $shippingCbm = 0,
         ?string $deliveryAddress = null,
         string $paymentMode = 'kpay_direct',
         ?string $kpayProvider = null,
@@ -432,14 +430,13 @@ class OrderService
         array $delivery = []
     ): Order {
         return DB::transaction(function () use (
-            $client, $items, $shippingOptionId, $shippingWeightKg, $shippingCbm,
+            $client, $items, $shippingOptionId,
             $deliveryAddress, $paymentMode, $kpayProvider, $kpayPhone, $notes, $delivery
         ) {
             $subtotal = 0;
             $orderItems = [];
             $countryCode = null;
-            $calculatedWeightKg = 0;
-            $hasMissingWeight = false;
+            $freightLines = [];
             $depositFlags = [];
             $depositSubtotal = 0.0;
 
@@ -518,13 +515,7 @@ class OrderService
                     $depositSubtotal += DepositOrderService::depositFor($lineTotal, (float) $product->deposit_rate);
                 }
                 $countryCode = $countryCode ?? $product->origin_country;
-                // Poids d'une unité du palier (pack, bidon, pièce), sinon celui de la fiche.
-                $unitWeight = $tier->weight_kg > 0 ? (float) $tier->weight_kg : $product->weightKg();
-                if ($unitWeight) {
-                    $calculatedWeightKg += $unitWeight * $quantity;
-                } else {
-                    $hasMissingWeight = true;
-                }
+                $freightLines[] = ['product' => $product, 'tier' => $tier, 'variant' => $variant, 'quantity' => $quantity];
 
                 $orderItems[] = [
                     'product_id' => $product->id,
@@ -545,17 +536,17 @@ class OrderService
             }
             $isDepositOrder = in_array(true, $depositFlags, true);
 
-            // Expédition internationale : coût selon l'option choisie (poids / volume / forfait).
+            // Expédition internationale : calcul autoritaire côté serveur, jamais depuis
+            // des mesures envoyées par le client.
             $shipping = ImportShippingOption::where('id', $shippingOptionId)->where('is_active', true)->firstOrFail();
-            if ($shipping->rate_type === 'per_kg') {
-                if ($hasMissingWeight || $calculatedWeightKg <= 0) {
-                    throw new \Exception(__('orders.parcel_weight_required'));
-                }
-                // Calcul autoritaire côté serveur : ne jamais faire saisir ni faire
-                // confiance au poids envoyé par le client.
-                $shippingWeightKg = $calculatedWeightKg;
+            $freight = app(ImportFreightService::class);
+            $measure = $freight->measure($freightLines, $countryCode);
+            if (! $freight->isAvailable($shipping, $measure)) {
+                throw new \Exception(__('orders.wholesale.air_weight_limit', ['weight' => $measure['air_max_weight_kg']]));
             }
-            $shippingCost = $shipping->computeCost($shippingWeightKg, $shippingCbm);
+            $billedQuantity = $freight->billedQuantity($shipping, $measure);
+            $shippingCost = $shipping->computeCost($billedQuantity, $billedQuantity);
+            $freightSnapshot = $freight->snapshot($shipping, $measure, $billedQuantity, $shippingCost);
             // L'option est tarifée dans sa propre devise : ramenée en XAF avant d'entrer
             // dans le total, comme les paliers (et comme le catalogue l'affiche).
             $shippingCurrency = strtoupper($shipping->currency ?: 'XAF');
@@ -567,12 +558,18 @@ class OrderService
                 $shippingCost = round($converted, 2);
             }
 
+            // Au-delà du seuil : retrait à l'entrepôt, sans SOLEX. Un ancien APK ne sait
+            // pas le proposer et doit être mis à jour.
+            $warehousePickup = $freight->requiresWarehousePickup($measure);
+            if ($warehousePickup && empty($delivery['warehouse_pickup'])) {
+                throw new \Exception(__('orders.wholesale.pickup_requires_update'));
+            }
             // Puis SOLEX, de l'entrepôt ASSO de Douala jusqu'au client : prix recalculé
             // côté serveur (même calcul que l'offre affichée), payé avec la commande.
-            if (empty($delivery['company_id'])) {
+            if (! $warehousePickup && empty($delivery['company_id'])) {
                 throw new \Exception(__('orders.delivery_address_required_solex'));
             }
-            $quote = app(DeliveryQuoteService::class)->quoteFor(
+            $quote = $warehousePickup ? null : app(DeliveryQuoteService::class)->quoteFor(
                 array_map(fn ($item) => [
                     'product_id' => (int) $item['product_id'],
                     'quantity' => (int) $item['quantity'],
@@ -590,12 +587,12 @@ class OrderService
                 $delivery['quarter'] ?? null,
                 $deliveryAddress,
             );
-            $localDeliveryFee = (float) $quote['delivery_price'];
+            $localDeliveryFee = (float) ($quote['delivery_price'] ?? 0);
 
             // Livraison gratuite : la course SOLEX est retenue sur la part du vendeur ;
             // l'expédition jusqu'à Douala reste payée par l'acheteur.
             $freeDeliveryAmount = 0.0;
-            $freeDelivery = FreeDeliveryService::applies(
+            $freeDelivery = ! $warehousePickup && FreeDeliveryService::applies(
                 FreeDeliveryService::cartEligible(Product::with('shop')->whereIn('id', array_column($orderItems, 'product_id'))->get()),
                 $localDeliveryFee,
                 round($subtotal, 2),
@@ -637,32 +634,34 @@ class OrderService
                 'shipping_mode' => $shipping->mode,
                 'shipping_option_id' => $shipping->id,
                 'delivery_mode' => Order::DELIVERY_CARRIER,
-                'shipping_weight_kg' => $calculatedWeightKg > 0 ? $calculatedWeightKg : $quote['weight_kg'],
+                'shipping_weight_kg' => $measure['weight_kg'] > 0 ? $measure['weight_kg'] : ($quote['weight_kg'] ?? 0),
                 'subtotal' => $subtotal,
                 // Frais de livraison = trajet jusqu'à Douala (ASSO) + SOLEX jusqu'au client.
                 'delivery_fee' => $shippingCost + $localDeliveryFee,
                 'import_shipping_fee' => $shippingCost,
+                'import_freight_margin' => $freightSnapshot['margin_total'],
                 // Part SOLEX (TTC) et commission ASSO sur sa course, réglées comme une livraison.
-                'base_delivery_price' => (float) $quote['base_price'],
-                'delivery_commission' => (float) $quote['asso_commission'],
+                'base_delivery_price' => (float) ($quote['base_price'] ?? 0),
+                'delivery_commission' => (float) ($quote['asso_commission'] ?? 0),
                 'free_delivery' => $freeDelivery,
                 'free_delivery_amount' => $freeDeliveryAmount,
-                'delivery_company_id' => $quote['company_id'],
-                'delivery_zone_id' => $quote['zone_id'],
-                'delivery_route_id' => $quote['route_id'],
-                'delivery_city_grid_id' => $quote['grid_id'],
-                'delivery_vehicle' => $quote['vehicle'],
-                'delivery_vat_amount' => $quote['breakdown']['vat_amount'],
+                'delivery_company_id' => $quote['company_id'] ?? null,
+                'delivery_zone_id' => $quote['zone_id'] ?? null,
+                'delivery_route_id' => $quote['route_id'] ?? null,
+                'delivery_city_grid_id' => $quote['grid_id'] ?? null,
+                'delivery_vehicle' => $quote['vehicle'] ?? null,
+                'delivery_vat_amount' => $quote['breakdown']['vat_amount'] ?? 0,
                 'delivery_agency_id' => $quote['pickup_agency']['id'] ?? null,
                 'pickup_agency_snapshot' => $quote['pickup_agency'] ?? null,
-                'delivery_breakdown' => $this->deliverySnapshot($quote, $orderedProducts) + [
+                'delivery_breakdown' => ($quote ? $this->deliverySnapshot($quote, $orderedProducts) : ImportHub::pickupSnapshot()) + [
                     'import_leg' => $this->importLeg($shipping, $shippingCost, $countryCode),
+                    'import_freight' => $freightSnapshot,
                 ],
                 'sale_commission_rate' => $saleCommission['rate'],
                 'sale_commission' => $saleCommission['commission'],
                 'vendor_net_amount' => $saleCommission['vendor_net'],
                 'total' => $total,
-                'delivery_address' => $deliveryAddress,
+                'delivery_address' => $warehousePickup ? ImportHub::NAME : $deliveryAddress,
                 'delivery_address_details' => $delivery['address_details'] ?? null,
                 'customer_phone' => $delivery['customer_phone'] ?? null,
                 'delivery_latitude' => $delivery['latitude'] ?? null,
@@ -688,7 +687,7 @@ class OrderService
             app(OrderTrackingService::class)->record(
                 $order, 'pending', null,
                 'Commande import — '.($shipping->carrier ?: (ImportShippingOption::MODE_LABELS[$shipping->mode] ?? $shipping->mode))
-                    .' jusqu\'à '.ImportHub::CITY.", puis {$quote['company_name']} — {$quote['route_label']}",
+                    .' jusqu\'à '.ImportHub::CITY.($quote ? ", puis {$quote['company_name']} — {$quote['route_label']}" : ', retrait à l\'entrepôt'),
                 'buyer', $client->id,
             );
 
