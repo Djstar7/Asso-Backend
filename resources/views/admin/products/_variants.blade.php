@@ -160,6 +160,8 @@
     const $ = id => document.getElementById(id);
     const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const isColorName = name => COLOR_NAMES.includes(String(name).trim().toLowerCase());
+    // « Dimensions » : trois mesures au lieu d'un texte libre, lues par le calcul du transport.
+    const isDimensionName = name => String(name).trim().toLowerCase() === 'dimensions';
     const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
 
     function guessHex(name) {
@@ -190,7 +192,8 @@
     // ---------- Rendu des groupes ----------
     function renderGroups() {
         $('vb_groups').innerHTML = groups.map((g, gi) => {
-            const presets = (PRESETS[g.name.trim().toLowerCase()] || [])
+            const isDimension = isDimensionName(g.name);
+            const presets = (isDimension ? [] : PRESETS[g.name.trim().toLowerCase()] || [])
                 .filter(p => !g.values.some(v => v.value.toLowerCase() === p.toLowerCase()));
             const chips = g.values.map((v, vi) => g.type === 'color'
                 ? `<span class="group inline-flex items-center gap-2 pl-1 pr-2 py-1 rounded-full bg-dark-50 border border-dark-300 text-white text-sm">
@@ -213,27 +216,37 @@
             return `
             <div class="rounded-xl border border-dark-300 bg-dark-50/60 p-4">
               <div class="flex items-center gap-3">
-                <div class="w-9 h-9 rounded-lg flex items-center justify-center ${g.type === 'color' ? 'bg-pink-500/15 text-pink-400' : 'bg-primary-500/15 text-primary-400'}">
-                  <i class="fas ${g.type === 'color' ? 'fa-palette' : 'fa-tag'}"></i>
+                <div class="w-9 h-9 rounded-lg flex items-center justify-center ${g.type === 'color' ? 'bg-pink-500/15 text-pink-400' : isDimension ? 'bg-cyan-500/15 text-cyan-400' : 'bg-primary-500/15 text-primary-400'}">
+                  <i class="fas ${g.type === 'color' ? 'fa-palette' : isDimension ? 'fa-ruler-combined' : 'fa-tag'}"></i>
                 </div>
                 <input value="${esc(g.name)}" data-group-name="${gi}" placeholder="Nom de l'option (ex. Matière)"
                        class="flex-1 px-3 py-2 bg-dark-100 border border-dark-300 rounded-lg text-white font-semibold">
-                <label class="hidden md:flex items-center gap-2 text-xs text-gray-400 whitespace-nowrap">
+                ${isDimension ? '' : `<label class="hidden md:flex items-center gap-2 text-xs text-gray-400 whitespace-nowrap">
                   <input type="checkbox" data-group-color="${gi}" ${g.type === 'color' ? 'checked' : ''}> Pastilles de couleur
-                </label>
+                </label>`}
                 <button type="button" data-remove-group="${gi}" class="px-3 py-2 rounded-lg text-gray-400 hover:bg-red-600 hover:text-white" title="Supprimer cette option">
                   <i class="fas fa-trash"></i>
                 </button>
               </div>
               <div class="mt-3 flex flex-wrap items-center gap-2">
-                ${chips || '<span class="text-sm text-gray-500 italic">Aucune valeur pour l\'instant</span>'}
+                ${chips || `<span class="text-sm text-gray-500 italic">${isDimension ? 'Aucune taille pour l\'instant' : 'Aucune valeur pour l\'instant'}</span>`}
               </div>
+              ${isDimension ? `
+              <div class="mt-3 grid grid-cols-3 md:grid-cols-[1fr_1fr_1fr_auto] gap-2 items-end">
+                ${[['l', 'Longueur (cm)'], ['w', 'Largeur (cm)'], ['h', 'Hauteur (cm)']].map(([key, text]) => `
+                  <label class="block text-xs text-gray-400">${text}
+                    <input type="number" min="1" max="3000" step="0.01" data-dimension="${gi}:${key}"
+                           class="mt-1 w-full px-3 py-2 bg-dark-100 border border-dark-300 rounded-lg text-white text-sm">
+                  </label>`).join('')}
+                <button type="button" data-add-dimension="${gi}" class="col-span-3 md:col-span-1 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm rounded-lg"><i class="fas fa-plus mr-1"></i>Ajouter</button>
+              </div>
+              <p class="mt-2 text-xs text-gray-500">Colis emballé d'une unité. Le client choisit sa taille, et le transport se calcule avec elle.</p>` : `
               <div class="mt-3 flex gap-2">
                 ${g.type === 'color' ? `<input type="color" data-new-hex="${gi}" value="#1E88E5" class="w-11 h-10 p-1 bg-dark-100 border border-dark-300 rounded-lg cursor-pointer" title="Teinte de la nouvelle couleur">` : ''}
                 <input data-new-value="${gi}" placeholder="${g.type === 'color' ? 'Nom de la couleur (ex. Bleu nuit)' : 'Nouvelle valeur'} puis Entrée"
                        class="flex-1 px-3 py-2 bg-dark-100 border border-dark-300 rounded-lg text-white text-sm">
                 <button type="button" data-add-value="${gi}" class="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm rounded-lg"><i class="fas fa-plus"></i></button>
-              </div>
+              </div>`}
               ${presetButtons ? `<div class="mt-3 flex flex-wrap gap-1.5"><span class="text-xs text-gray-500 mr-1 self-center">Suggestions :</span>${presetButtons}</div>` : ''}
             </div>`;
         }).join('');
@@ -331,12 +344,23 @@
         document.querySelector(`[data-new-value="${gi}"]`)?.focus();
     }
 
+    // « 120 × 80 × 100 cm » : le format relu par le serveur et l'application.
+    function addDimension(gi) {
+        const field = key => document.querySelector(`[data-dimension="${gi}:${key}"]`);
+        const fields = ['l', 'w', 'h'].map(field);
+        const empty = fields.find(input => !(parseFloat(input.value) >= 1 && parseFloat(input.value) <= 3000));
+        if (empty) return empty.focus();
+        addValue(gi, fields.map(input => parseFloat(input.value)).join(' × ') + ' cm');
+        field('l')?.focus();
+    }
+
     const root = $('variant_builder');
 
     root.addEventListener('click', e => {
         const t = e.target.closest('button');
         if (!t) return;
         if (t.dataset.addGroup !== undefined) return addGroup(t.dataset.addGroup);
+        if (t.dataset.addDimension !== undefined) return addDimension(+t.dataset.addDimension);
         if (t.dataset.removeGroup !== undefined) {
             const g = groups[+t.dataset.removeGroup];
             const remove = () => {
@@ -374,6 +398,9 @@
             e.preventDefault();
             const gi = +e.target.dataset.newValue;
             addValue(gi, e.target.value, document.querySelector(`[data-new-hex="${gi}"]`)?.value);
+        } else if (e.target.dataset.dimension !== undefined) {
+            e.preventDefault();
+            addDimension(+e.target.dataset.dimension.split(':')[0]);
         } else if (e.target.dataset.groupName !== undefined || e.target.closest('#vb_rows') || e.target.id === 'vb_bulk_stock') {
             e.preventDefault(); // ne jamais soumettre le formulaire depuis l'éditeur
         }

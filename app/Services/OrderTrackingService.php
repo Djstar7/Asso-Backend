@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Order;
+use App\Support\ImportHub;
 use App\Models\OrderTrackingEvent;
 use Illuminate\Support\Facades\Log;
 
@@ -134,6 +135,12 @@ class OrderTrackingService
                 ]);
                 if ($step === 'ready_for_pickup' && $order->pickup_agency_snapshot) {
                     $body = $buyer->localized('shipment.ready_notification', $order->pickup_agency_snapshot + ['order' => $order->order_number]);
+                }
+                if ($step === self::IMPORT_HUB_STEP && $order->isWarehousePickup()) {
+                    $body = $buyer->localized($order->canBeHandedOver() ? 'shipment.warehouse_ready_notification' : 'shipment.warehouse_ready_balance_notification', [
+                        'order' => $order->order_number,
+                        'name' => $order->delivery_breakdown['warehouse']['name'] ?? ImportHub::NAME,
+                    ]);
                 }
                 $this->fcm->sendToUser(
                     $buyer,

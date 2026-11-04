@@ -19,6 +19,9 @@ class ProductPriceTier extends Model
         'min_quantity',
         'pack_size',
         'weight_kg',
+        'length_cm',
+        'width_cm',
+        'height_cm',
         'sort_order',
         'is_active',
     ];
@@ -28,6 +31,9 @@ class ProductPriceTier extends Model
         'min_quantity' => 'integer',
         'pack_size' => 'integer',
         'weight_kg' => 'float',
+        'length_cm' => 'float',
+        'width_cm' => 'float',
+        'height_cm' => 'float',
         'sort_order' => 'integer',
         'is_active' => 'boolean',
     ];
@@ -62,6 +68,10 @@ class ProductPriceTier extends Model
             'pack_size' => $this->pack_size,
             // Poids d'une unité commandée à ce palier (null : poids du produit).
             'weight_kg' => $this->weight_kg,
+            // Dimensions du colis d'une unité (null : celles du produit).
+            'length_cm' => $this->length_cm,
+            'width_cm' => $this->width_cm,
+            'height_cm' => $this->height_cm,
             'formatted_price' => number_format((float) $this->unit_price, 0, ',', ' ') . ' ' . $this->currency,
         ];
     }

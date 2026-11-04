@@ -94,6 +94,7 @@ class Product extends Model
     ];
 
     protected $fillable = [
+        'length_cm', 'width_cm', 'height_cm',
         'shop_id',
         'user_id',
         'category_id',
@@ -390,6 +391,29 @@ class Product extends Model
      * Poids unitaire en kg lu depuis la fiche (colonne texte : « 1,5 », « 500 g », « 2kg »).
      * Null si absent ou illisible : la livraison ne peut alors pas être chiffrée.
      */
+    /** Poids d'une unité commandée : celui du palier (pack, bidon, pièce), sinon de la fiche. */
+    public function packageWeightKg(?ProductPriceTier $tier = null): ?float
+    {
+        return $tier?->weight_kg > 0 ? (float) $tier->weight_kg : $this->weightKg();
+    }
+
+    /**
+     * Longueur, largeur et hauteur (cm) du colis d'une unité : celles du palier si elles
+     * sont complètes, sinon celles du produit, sinon null.
+     *
+     * @return array{0: float, 1: float, 2: float}|null
+     */
+    public function packageDimensions(?ProductPriceTier $tier = null): ?array
+    {
+        foreach ([$tier, $this] as $source) {
+            if ($source?->length_cm > 0 && $source->width_cm > 0 && $source->height_cm > 0) {
+                return [(float) $source->length_cm, (float) $source->width_cm, (float) $source->height_cm];
+            }
+        }
+
+        return null;
+    }
+
     public function weightKg(): ?float
     {
         $raw = strtolower(trim((string) $this->weight));

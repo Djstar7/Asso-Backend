@@ -18,7 +18,7 @@
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div class="bg-dark-50 rounded-lg p-4">
                 <p class="text-xs uppercase tracking-wider text-gray-500 mb-1">1. Pays d'origine → Douala</p>
-                <p class="text-sm text-white">Prix par pays et par mode (avion, bateau, express)&nbsp;: bouton <i class="fas fa-ship text-blue-400"></i> de chaque pays ci-dessous.</p>
+                <p class="text-sm text-white">Tarif d'achat, marge ASSO et seuil avion par pays&nbsp;: bouton <i class="fas fa-ship text-blue-400"></i> de chaque pays ci-dessous.</p>
             </div>
             <div class="bg-dark-50 rounded-lg p-4">
                 <p class="text-xs uppercase tracking-wider text-gray-500 mb-1">2. Entrepôt de réception</p>
@@ -64,6 +64,10 @@
                 <input name="{{ $field }}" required value="{{ old($field, $hub->$field) }}" class="w-full px-3 py-2 bg-dark-200 rounded text-white" @if(in_array($field, ['latitude', 'longitude'])) type="number" step="any" @endif>
             </label>
         @endforeach
+            <label class="text-gray-300 text-sm">Retrait obligatoire à l'entrepôt au-delà de (kg facturés)
+                <input name="pickup_threshold_kg" type="number" min="0" step="0.01" required value="{{ old('pickup_threshold_kg', \App\Support\ImportHub::pickupThresholdKg()) }}" class="w-full px-3 py-2 bg-dark-200 rounded text-white">
+                <span class="block text-xs text-gray-500 mt-1">Au-delà, pas de SOLEX : le client présente un code à l'entrepôt.</span>
+            </label>
         </div>
         <button class="mt-3 px-4 py-2 bg-blue-600 rounded text-white">Enregistrer le point de départ</button>
     </form>
@@ -267,31 +271,49 @@
 
         <p class="text-sm text-gray-400 mb-4">Prix du trajet jusqu'à l'entrepôt de Douala. La livraison SOLEX jusqu'au client s'ajoute d'après son adresse.</p>
 
-        <div id="shipping_list_container" class="space-y-2 mb-6"></div>
+        <div id="shipping_list_container" class="space-y-2 mb-4"></div>
+
+        <form id="freightRulesForm" class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end mb-6 p-3 bg-dark-50 rounded-lg">
+            <div>
+                <label class="block text-xs text-gray-400 mb-1">Avion jusqu'à (kg facturés)</label>
+                <input type="number" step="0.01" min="0" id="rules_air_max" required class="w-full px-3 py-2 bg-dark-50 border border-dark-200 rounded-lg text-white text-sm">
+            </div>
+            <div>
+                <label class="block text-xs text-gray-400 mb-1">Diviseur du poids volumétrique</label>
+                <input type="number" min="1000" max="10000" id="rules_divisor" required class="w-full px-3 py-2 bg-dark-50 border border-dark-200 rounded-lg text-white text-sm">
+            </div>
+            <button type="submit" class="px-4 py-2 bg-dark-200 text-white rounded-lg text-sm hover:bg-dark-100"><i class="fas fa-save mr-1"></i>Enregistrer les règles du pays</button>
+            <p class="md:col-span-3 text-xs text-gray-400">Au-delà du seuil, seul le bateau est proposé. Le bateau compte 1 000 kg pour 1 CBM.</p>
+        </form>
 
         <div class="border-t border-dark-300 pt-4">
             <h3 class="text-sm font-semibold text-white mb-3">Ajouter / Modifier une option</h3>
             <form id="shippingForm" class="grid grid-cols-1 md:grid-cols-6 gap-3 items-end">
                 <div class="md:col-span-1">
                     <label class="block text-xs text-gray-400 mb-1">Mode</label>
-                    <select name="mode" id="shipping_mode" required
+                    <select name="mode" id="shipping_mode" required onchange="updateShippingPreview()"
                             class="w-full px-3 py-2 bg-dark-50 border border-dark-200 rounded-lg text-white text-sm">
                         <option value="air">Avion</option>
                         <option value="sea">Bateau</option>
-                        <option value="express">Express</option>
                     </select>
                 </div>
+                <div class="md:col-span-2">
+                    <label class="block text-xs text-gray-400 mb-1">Tarif d'achat (FCFA, <span id="shipping_unit">/ kg</span>)</label>
+                    <input type="number" step="0.01" min="0" name="cost_amount" id="shipping_cost_amount" required oninput="updateShippingPreview()"
+                           class="w-full px-3 py-2 bg-dark-50 border border-dark-200 rounded-lg text-white text-sm">
+                </div>
                 <div class="md:col-span-1">
-                    <label class="block text-xs text-gray-400 mb-1">Tarif</label>
-                    <select name="rate_type" id="shipping_rate_type" required
+                    <label class="block text-xs text-gray-400 mb-1">Marge ASSO</label>
+                    <select name="margin_type" id="shipping_margin_type" onchange="updateShippingPreview()"
                             class="w-full px-3 py-2 bg-dark-50 border border-dark-200 rounded-lg text-white text-sm">
-                        <option value="per_kg">Par kg</option>
-                        <option value="flat">Forfait</option>
+                        <option value="">Aucune</option>
+                        <option value="percent">En %</option>
+                        <option value="amount">En FCFA</option>
                     </select>
                 </div>
                 <div class="md:col-span-1">
-                    <label class="block text-xs text-gray-400 mb-1">Montant (FCFA)</label>
-                    <input type="number" step="0.01" min="0" name="rate_amount" id="shipping_rate_amount" required
+                    <label class="block text-xs text-gray-400 mb-1">Valeur de la marge</label>
+                    <input type="number" step="0.01" min="0" name="margin_value" id="shipping_margin_value" oninput="updateShippingPreview()"
                            class="w-full px-3 py-2 bg-dark-50 border border-dark-200 rounded-lg text-white text-sm">
                 </div>
                 <div class="md:col-span-1">
@@ -322,6 +344,7 @@
                            placeholder="https://www.dhl.com/cm-fr/home/tracking.html?tracking-id={number}"
                            class="w-full px-3 py-2 bg-dark-50 border border-dark-200 rounded-lg text-white text-sm">
                 </div>
+                <p id="shipping_client_rate" class="md:col-span-6 text-sm text-primary-200"></p>
                 <div class="md:col-span-6 flex justify-end gap-2">
                     <button type="button" id="shipping_cancel_edit" onclick="resetShippingForm()"
                             class="hidden px-4 py-2 bg-dark-200 text-gray-300 rounded-lg hover:bg-dark-50 text-sm">
@@ -390,6 +413,8 @@ function loadShippingList() {
             const container = document.getElementById('shipping_list_container');
             const options = res.shipping_options ?? [];
             shippingOptions = options;
+            document.getElementById('rules_air_max').value = res.rules?.air_max_weight_kg ?? 100;
+            document.getElementById('rules_divisor').value = res.rules?.air_volumetric_divisor ?? 6000;
 
             if (!options.length) {
                 container.innerHTML = '<p class="text-sm text-gray-500">Aucune option configurée pour ce pays.</p>';
@@ -400,9 +425,10 @@ function loadShippingList() {
                 <div class="flex items-center justify-between bg-dark-50 p-3 rounded-lg">
                     <div class="text-sm text-white">
                         <strong>${o.mode.toUpperCase()}</strong>${o.carrier ? ' (' + o.carrier + ')' : ''} —
-                        ${o.rate_type === 'flat'
-                            ? Number(o.rate_amount).toLocaleString() + ' FCFA (forfait)'
-                            : Number(o.rate_amount).toLocaleString() + ' FCFA/kg'}
+                        ${Number(o.rate_amount).toLocaleString()} FCFA ${{ flat: '(forfait)', per_cbm: '/ CBM', per_kg: '/ kg' }[o.rate_type]}
+                        ${o.cost_amount !== null
+                            ? `<span class="text-gray-400">(achat ${Number(o.cost_amount).toLocaleString()}${o.margin_type ? ', marge ' + Number(o.margin_value).toLocaleString() + (o.margin_type === 'percent' ? ' %' : ' FCFA') : ''})</span>`
+                            : '<span class="text-amber-300">(ancien tarif : modifiez pour saisir le tarif d\'achat)</span>'}
                         — ${o.lead_time_days}j
                         ${o.expedition_note ? '· ' + o.expedition_note : ''}
                         ${!o.is_active ? '<span class="ml-2 text-xs text-gray-500">(inactif)</span>' : ''}
@@ -431,8 +457,9 @@ document.getElementById('shippingForm').addEventListener('submit', function (e) 
 
     const payload = {
         mode: document.getElementById('shipping_mode').value,
-        rate_type: document.getElementById('shipping_rate_type').value,
-        rate_amount: document.getElementById('shipping_rate_amount').value,
+        cost_amount: document.getElementById('shipping_cost_amount').value,
+        margin_type: document.getElementById('shipping_margin_type').value || null,
+        margin_value: document.getElementById('shipping_margin_value').value || null,
         lead_time_days: document.getElementById('shipping_lead_time').value,
         expedition_note: document.getElementById('shipping_note').value,
         translations: { en: { expedition_note: document.getElementById('shipping_note_en').value } },
@@ -465,13 +492,44 @@ document.getElementById('shippingForm').addEventListener('submit', function (e) 
         .catch(() => alert("Erreur réseau lors de l'enregistrement."));
 });
 
+// Tarif vu par le client, même calcul que le serveur.
+function updateShippingPreview() {
+    const unit = document.getElementById('shipping_mode').value === 'sea' ? '/ CBM' : '/ kg';
+    const cost = parseFloat(document.getElementById('shipping_cost_amount').value) || 0;
+    const margin = parseFloat(document.getElementById('shipping_margin_value').value) || 0;
+    const type = document.getElementById('shipping_margin_type').value;
+    const client = Math.round(cost + (type === 'percent' ? cost * margin / 100 : type === 'amount' ? margin : 0));
+    document.getElementById('shipping_unit').textContent = unit;
+    document.getElementById('shipping_client_rate').textContent = cost ? `Prix client : ${client.toLocaleString('fr-FR')} FCFA ${unit}` : '';
+}
+
+document.getElementById('freightRulesForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    fetch(`${shippingBaseUrl}/${currentShippingCountryId}/freight-rules`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+            'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+            air_max_weight_kg: document.getElementById('rules_air_max').value,
+            air_volumetric_divisor: document.getElementById('rules_divisor').value,
+        }),
+    })
+        .then(r => r.json())
+        .then(res => { if (!res.success) alert("Erreur lors de l'enregistrement."); })
+        .catch(() => alert("Erreur réseau lors de l'enregistrement."));
+});
+
 function editShippingOption(id) {
     const option = shippingOptions.find(o => o.id === id);
     if (!option) return;
     editingShippingOptionId = option.id;
     document.getElementById('shipping_mode').value = option.mode;
-    document.getElementById('shipping_rate_type').value = option.rate_type;
-    document.getElementById('shipping_rate_amount').value = option.rate_amount;
+    document.getElementById('shipping_cost_amount').value = option.cost_amount ?? '';
+    document.getElementById('shipping_margin_type').value = option.margin_type ?? '';
+    document.getElementById('shipping_margin_value').value = option.margin_value ?? '';
     document.getElementById('shipping_lead_time').value = option.lead_time_days;
     document.getElementById('shipping_note').value = option.expedition_note ?? '';
     document.getElementById('shipping_note_en').value = option.translations?.en?.expedition_note ?? '';
@@ -479,6 +537,7 @@ function editShippingOption(id) {
     document.getElementById('shipping_tracking_url').value = option.tracking_url_template ?? '';
     document.getElementById('shipping_submit_label').textContent = 'Mettre à jour';
     document.getElementById('shipping_cancel_edit').classList.remove('hidden');
+    updateShippingPreview();
 }
 
 function resetShippingForm() {
@@ -486,6 +545,7 @@ function resetShippingForm() {
     document.getElementById('shippingForm').reset();
     document.getElementById('shipping_submit_label').textContent = 'Ajouter';
     document.getElementById('shipping_cancel_edit').classList.add('hidden');
+    updateShippingPreview();
 }
 
 function toggleShippingOption(id) {

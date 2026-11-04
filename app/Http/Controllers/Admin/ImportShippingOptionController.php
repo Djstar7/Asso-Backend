@@ -16,13 +16,26 @@ class ImportShippingOptionController extends Controller
     public function index(ImportCountry $importCountry)
     {
         $options = ImportShippingOption::where('country_code', $importCountry->code)
+            ->whereIn('mode', ['air', 'sea'])
             ->orderBy('sort_order')
             ->get();
 
         return response()->json([
             'success' => true,
             'shipping_options' => $options->map(fn ($option) => $this->present($option))->values(),
+            'rules' => $importCountry->only(['air_max_weight_kg', 'air_volumetric_divisor']),
         ]);
+    }
+
+    /** Seuil avion et diviseur volumétrique du pays. */
+    public function updateRules(Request $request, ImportCountry $importCountry)
+    {
+        $importCountry->update($request->validate([
+            'air_max_weight_kg' => 'required|numeric|min:0',
+            'air_volumetric_divisor' => 'required|integer|min:1000|max:10000',
+        ]));
+
+        return response()->json(['success' => true]);
     }
 
     /**
@@ -30,17 +43,7 @@ class ImportShippingOptionController extends Controller
      */
     public function store(Request $request, ImportCountry $importCountry)
     {
-        $validated = $request->validate([
-            'mode'             => 'required|in:air,sea,express',
-            'rate_type'        => 'required|in:per_kg,flat',
-            'rate_amount'      => 'required|numeric|min:0',
-            'lead_time_days'   => 'required|integer|min:1',
-            'expedition_note'  => 'nullable|string|max:255',
-            'sort_order'       => 'nullable|integer|min:0',
-            // Transporteur (DHL, FedEx…) et lien de suivi ({number} = n° saisi à l'expédition)
-            'carrier'          => 'nullable|string|max:100',
-            'tracking_url_template' => 'nullable|string|max:255',
-        ] + ContentLocale::rules(['expedition_note' => 'string|max:255']));
+        $validated = $this->validated($request);
 
         // updateOrCreate sur (country_code, mode) : empêche les doublons de mode
         // pour un même pays — si "air" existe déjà, on le met à jour au lieu de dupliquer.
@@ -49,6 +52,9 @@ class ImportShippingOptionController extends Controller
             [
                 'rate_type'       => $validated['rate_type'],
                 'rate_amount'     => $validated['rate_amount'],
+                'cost_amount'     => $validated['cost_amount'],
+                'margin_type'     => $validated['margin_type'],
+                'margin_value'    => $validated['margin_value'],
                 'lead_time_days'  => $validated['lead_time_days'],
                 'expedition_note' => $validated['expedition_note'] ?? null,
                 'carrier'         => $validated['carrier'] ?? null,
@@ -72,17 +78,7 @@ class ImportShippingOptionController extends Controller
     {
         $this->ensureBelongsTo($importCountry, $shippingOption);
 
-        $validated = $request->validate([
-            'mode'             => 'required|in:air,sea,express',
-            'rate_type'        => 'required|in:per_kg,flat',
-            'rate_amount'      => 'required|numeric|min:0',
-            'lead_time_days'   => 'required|integer|min:1',
-            'expedition_note'  => 'nullable|string|max:255',
-            'sort_order'       => 'nullable|integer|min:0',
-            // Transporteur (DHL, FedEx…) et lien de suivi ({number} = n° saisi à l'expédition)
-            'carrier'          => 'nullable|string|max:100',
-            'tracking_url_template' => 'nullable|string|max:255',
-        ] + ContentLocale::rules(['expedition_note' => 'string|max:255']));
+        $validated = $this->validated($request);
 
         $shippingOption->update($validated);
         $shippingOption->syncTranslations($validated['translations'] ?? null);
@@ -112,6 +108,33 @@ class ImportShippingOptionController extends Controller
         $shippingOption->delete();
 
         return response()->json(['success' => true]);
+    }
+
+    /**
+     * Le bateau se facture au CBM et l'avion au kilo ; le tarif client est le tarif
+     * d'achat saisi plus la marge ASSO.
+     */
+    private function validated(Request $request): array
+    {
+        $validated = $request->validate([
+            'mode'             => 'required|in:air,sea',
+            'cost_amount'      => 'required|numeric|min:0',
+            'margin_type'      => 'nullable|in:percent,amount',
+            'margin_value'     => 'nullable|required_with:margin_type|numeric|min:0',
+            'lead_time_days'   => 'required|integer|min:1',
+            'expedition_note'  => 'nullable|string|max:255',
+            'sort_order'       => 'nullable|integer|min:0',
+            // Transporteur (DHL, FedEx…) et lien de suivi ({number} = n° saisi à l'expédition)
+            'carrier'          => 'nullable|string|max:100',
+            'tracking_url_template' => 'nullable|string|max:255',
+        ] + ContentLocale::rules(['expedition_note' => 'string|max:255']));
+
+        $validated['margin_type'] = $validated['margin_type'] ?? null;
+        $validated['margin_value'] = $validated['margin_type'] ? (float) $validated['margin_value'] : null;
+        $validated['rate_type'] = $validated['mode'] === 'sea' ? 'per_cbm' : 'per_kg';
+        $validated['rate_amount'] = ImportShippingOption::clientRate((float) $validated['cost_amount'], $validated['margin_type'], $validated['margin_value']);
+
+        return $validated;
     }
 
     /**

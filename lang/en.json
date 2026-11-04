@@ -1028,6 +1028,8 @@
         "carrier_tracking_after_handover": "Carrier tracking starts after the package is handed over.",
         "tracking_step_added": "Step added. The buyer has been notified.",
         "wholesale": {
+            "air_weight_limit": "Above :weight kg, this order can only travel by sea.",
+            "pickup_requires_update": "This order is collected at the Douala warehouse: update the app to place it.",
             "solex_delivery_required": "Choose SOLEX delivery: the order arrives in Douala, then SOLEX delivers it to you.",
             "delivery_address_required": "Enter your delivery address.",
             "created": "Wholesale order created."
@@ -1238,6 +1240,7 @@
             "kg_range": ":min to :max kg"
         },
         "options": {
+            "warehouse_pickup": "Collection from the ASSO warehouse",
             "agency_pickup": "Agency pickup",
             "home_delivery": "Home delivery"
         },
@@ -1506,6 +1509,7 @@
         "inactive": "Your sales agent account is disabled. Please contact ASSO."
     },
     "tracking": {
+        "warehouse_collected_note": "Collection code validated at the warehouse",
         "steps": {
             "export_pickup_requested": "Solex collection scheduled",
             "export_collected": "Collected from seller by Solex",
@@ -1888,6 +1892,9 @@
         "confirmation_required": "Enter the contact, channel and carrier confirmation reference.",
         "asso_only": "ASSO staff manage tracking for this carrier.",
         "reception_unavailable": "Receipt can only be confirmed after a recorded handover and full payment.",
+        "warehouse_ready_notification": "Order :order has arrived at :name. Show the code in your order to collect it.",
+        "warehouse_ready_balance_notification": "Order :order has arrived at :name. Pay the balance to get your collection code.",
+        "warehouse_code_locked": "Too many incorrect codes for this order. Try again in :minutes min.",
         "ready_notification": "Order :order is available at :name, :address, :city. Phone :phone. Present your order reference for collection."
     },
     "admin_nav": {

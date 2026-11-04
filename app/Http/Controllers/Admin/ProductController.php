@@ -160,6 +160,12 @@ class ProductController extends Controller
             'tiers.*.min_quantity' => 'required_with:tiers|integer|min:1',
             'tiers.*.pack_size' => 'nullable|integer|min:1',
             'tiers.*.weight_kg' => 'nullable|numeric|min:0',
+            'tiers.*.length_cm' => 'nullable|numeric|min:1|max:3000',
+            'tiers.*.width_cm' => 'nullable|numeric|min:1|max:3000',
+            'tiers.*.height_cm' => 'nullable|numeric|min:1|max:3000',
+            'length_cm' => 'nullable|numeric|min:1|max:3000',
+            'width_cm' => 'nullable|numeric|min:1|max:3000',
+            'height_cm' => 'nullable|numeric|min:1|max:3000',
             // Les options (couleurs, tailles) se cumulent pour atteindre un palier.
             'tier_mix_variants' => 'nullable|boolean',
 
@@ -169,6 +175,7 @@ class ProductController extends Controller
         ] + ProductVariantService::rules() + \App\Support\DeliveryDelay::rules());
 
         $this->assertDistinctTierThresholds($validated['tiers'] ?? []);
+        $this->assertCoherentDimensions($validated, $validated['tiers'] ?? []);
 
         // Isole les données "gros" AVANT toute insertion — elles ne vont pas dans `products`
         $tiers = $validated['tiers'] ?? [];
@@ -327,6 +334,12 @@ class ProductController extends Controller
             'tiers.*.min_quantity' => 'required_with:tiers|integer|min:1',
             'tiers.*.pack_size' => 'nullable|integer|min:1',
             'tiers.*.weight_kg' => 'nullable|numeric|min:0',
+            'tiers.*.length_cm' => 'nullable|numeric|min:1|max:3000',
+            'tiers.*.width_cm' => 'nullable|numeric|min:1|max:3000',
+            'tiers.*.height_cm' => 'nullable|numeric|min:1|max:3000',
+            'length_cm' => 'nullable|numeric|min:1|max:3000',
+            'width_cm' => 'nullable|numeric|min:1|max:3000',
+            'height_cm' => 'nullable|numeric|min:1|max:3000',
             // Les options (couleurs, tailles) se cumulent pour atteindre un palier.
             'tier_mix_variants' => 'nullable|boolean',
 
@@ -336,6 +349,7 @@ class ProductController extends Controller
         ] + ProductVariantService::rules() + \App\Support\DeliveryDelay::rules());
 
         $this->assertDistinctTierThresholds($validated['tiers'] ?? []);
+        $this->assertCoherentDimensions($validated, $validated['tiers'] ?? []);
 
         // Isole les données "gros" AVANT l'update — elles ne vont pas dans `products`
         $tiers = $validated['tiers'] ?? [];
@@ -457,6 +471,31 @@ class ProductController extends Controller
      * Le palier appliqué se déduit de la quantité : deux paliers au même seuil
      * rendraient le prix ambigu.
      */
+    /**
+     * Dimensions facultatives, mais complètes et cohérentes avec le poids : au-delà de
+     * 20 000 kg/m³ (plus dense que le plomb), l'unité saisie n'est pas le centimètre.
+     */
+    private function assertCoherentDimensions(array $product, array $tiers): void
+    {
+        $sources = ['' => [$product, null]];
+        foreach ($tiers as $i => $tier) {
+            $sources["tiers.$i."] = [$tier, $tier['weight_kg'] ?? null];
+        }
+        foreach ($sources as $prefix => [$values, $ownWeight]) {
+            $dimensions = array_filter([$values['length_cm'] ?? null, $values['width_cm'] ?? null, $values['height_cm'] ?? null], 'filled');
+            if ($dimensions === []) {
+                continue;
+            }
+            if (count($dimensions) < 3) {
+                throw ValidationException::withMessages([$prefix.'length_cm' => 'Renseignez la longueur, la largeur et la hauteur, ou laissez les trois vides.']);
+            }
+            $weight = (float) (filled($ownWeight) ? $ownWeight : ($product['weight'] ?? 0));
+            if ($weight / (array_product(array_map('floatval', $dimensions)) / 1_000_000) > 20000) {
+                throw ValidationException::withMessages([$prefix.'length_cm' => 'Dimensions incohérentes avec le poids : saisissez bien des centimètres, pas des mètres.']);
+            }
+        }
+    }
+
     private function assertDistinctTierThresholds(array $tiers): void
     {
         $thresholds = collect($tiers)
@@ -490,6 +529,9 @@ class ProductController extends Controller
                 'pack_size' => $tier['pack_size'] ?? 1,
                 // Poids d'une unité de ce palier (pack, bidon, pièce) : sert au prix au kg et à SOLEX.
                 'weight_kg' => isset($tier['weight_kg']) && $tier['weight_kg'] !== '' ? (float) $tier['weight_kg'] : null,
+                'length_cm' => filled($tier['length_cm'] ?? null) ? (float) $tier['length_cm'] : null,
+                'width_cm' => filled($tier['width_cm'] ?? null) ? (float) $tier['width_cm'] : null,
+                'height_cm' => filled($tier['height_cm'] ?? null) ? (float) $tier['height_cm'] : null,
                 'currency' => $product->currency ?? 'XAF',
                 'is_active' => true,
                 'sort_order' => $i + 1,

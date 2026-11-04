@@ -13,7 +13,10 @@ use App\Services\OrderTrackingService;
 use App\Support\DeliveryPresenter;
 use App\Support\ImportHub;
 use App\Support\WholesaleOrderStage;
+use App\Services\AssoShipmentService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Commandes en gros (Chine, Dubaï, Turquie) : ASSO est le vendeur. Elle les valide,
@@ -104,6 +107,29 @@ class WholesaleOrderController extends Controller
         }
 
         return back()->with('success', 'Commande validée. Vous pouvez l’expédier depuis le pays d’origine.');
+    }
+
+    /** Retrait à l'entrepôt : le code présenté par le client vaut remise. */
+    public function collectAtWarehouse(Request $request, Order $order, AssoShipmentService $shipments)
+    {
+        abort_unless($order->is_wholesale, 404);
+        $validated = $request->validate(['code' => 'required|string|size:6']);
+
+        // Six chiffres : les essais sont limités par commande, pas seulement par compte.
+        $key = 'warehouse-code:'.$order->id;
+        if (RateLimiter::tooManyAttempts($key, 5)) {
+            return back()->with('error', __('shipment.warehouse_code_locked', ['minutes' => ceil(RateLimiter::availableIn($key) / 60)]));
+        }
+        try {
+            $shipments->collectAtWarehouse($order, $validated['code'], $request->user());
+        } catch (ValidationException $e) {
+            RateLimiter::hit($key, 900);
+
+            return back()->with('error', collect($e->errors())->flatten()->first());
+        }
+        RateLimiter::clear($key);
+
+        return back()->with('success', 'Code validé : commande remise au client.');
     }
 
     /** Refus d'une commande encore en attente : acheteur remboursé. */

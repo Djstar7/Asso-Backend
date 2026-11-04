@@ -108,7 +108,7 @@
                             </div>
                         </td>
                         <td class="px-4 py-3">
-                            <span class="px-2 py-1 rounded-full text-xs border whitespace-nowrap {{ WholesaleOrderStage::badge($orderStage) }}">{{ WholesaleOrderStage::label($orderStage) }}</span>
+                            <span class="px-2 py-1 rounded-full text-xs border whitespace-nowrap {{ WholesaleOrderStage::badge($orderStage) }}">{{ WholesaleOrderStage::labelFor($order) }}</span>
                         </td>
                         <td class="px-4 py-3 text-right whitespace-nowrap">
                             <a href="{{ route('admin.wholesale-orders.show', $order) }}" class="text-primary-400 hover:text-primary-300"><i class="fas fa-eye mr-1"></i> Gérer</a>

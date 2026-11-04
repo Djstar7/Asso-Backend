@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\ImportCountry;
+use App\Models\Setting;
 use App\Support\ImportHub;
 use App\Support\Translation\ContentLocale;
 use Illuminate\Http\Request;
@@ -46,6 +47,7 @@ class ImportCountryController extends Controller
             'latitude' => 'required|numeric|between:-90,90', 'longitude' => 'required|numeric|between:-180,180',
             'phone' => 'required|string|max:30',
         ]);
+        $threshold = $request->validate(['pickup_threshold_kg' => 'nullable|numeric|min:0'])['pickup_threshold_kg'] ?? null;
         $hub = ImportHub::ensureShop();
         if (!$hub) {
             return back()->with('error', 'Compte plateforme ASSO introuvable.');
@@ -54,6 +56,9 @@ class ImportCountryController extends Controller
         $hub->save();
         // Le quartier explicitement choisi prime sur la déduction par adresse.
         $hub->update(['quarter' => $data['quarter']]);
+        if ($threshold !== null) {
+            Setting::set(ImportHub::PICKUP_THRESHOLD_SETTING, (string) $threshold, 'string', 'import');
+        }
         return back()->with('success', 'Adresse de départ ASSO enregistrée.');
     }
 

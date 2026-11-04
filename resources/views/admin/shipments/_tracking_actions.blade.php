@@ -23,7 +23,7 @@
             <p class="text-sm text-gray-300 mb-3">Agence de départ : {{ $solex['name'] }} · {{ $solex['address'] }} · {{ $solex['phone'] }}</p>
         @endif
     @else
-    <p class="text-sm text-gray-300 mb-3">ASSO suit le colis jusqu'à sa remise au client. Après réception à Douala, la demande d’enlèvement est proposée aux livreurs synchronisés du partenaire. Le premier qui accepte est affecté ; le suivi reste accessible à ASSO.</p>
+    <p class="text-sm text-gray-300 mb-3">@if($order->isWarehousePickup())ASSO suit le colis jusqu'à l'entrepôt. Le client y récupère ensuite sa commande avec son code, sans SOLEX.@else ASSO suit le colis jusqu'à sa remise au client. Après réception à Douala, la demande d’enlèvement est proposée aux livreurs synchronisés du partenaire. Le premier qui accepte est affecté ; le suivi reste accessible à ASSO.@endif</p>
     @endif
     @if($order->deliveryCompany)
         <div class="text-sm text-gray-300 mb-3 space-y-1">

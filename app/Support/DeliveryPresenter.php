@@ -38,7 +38,7 @@ class DeliveryPresenter
             'vehicle' => $order->delivery_vehicle,
             'vehicle_label' => $snapshot['vehicle_label'] ?? null,
             'delivery_option' => $snapshot['delivery_option'] ?? ($isCarrier && ! $order->hasLastMileDelivery() ? 'agency_pickup' : 'home_delivery'),
-            'delivery_option_label' => in_array($snapshot['delivery_option'] ?? null, ['home_delivery', 'agency_pickup'], true)
+            'delivery_option_label' => in_array($snapshot['delivery_option'] ?? null, ['home_delivery', 'agency_pickup', 'warehouse_pickup'], true)
                 ? __("delivery.options.{$snapshot['delivery_option']}")
                 : ($snapshot['delivery_option_label'] ?? null),
             'last_mile' => $order->hasLastMileDelivery(),
@@ -68,8 +68,9 @@ class DeliveryPresenter
             'tracking_status_label' => OrderTrackingService::stepLabel($order->tracking_status, $order),
             // Le client accuse réception après la remise enregistrée par ASSO.
             'can_confirm_reception' => $order->canConfirmReception(),
-            'delivery_option' => $order->isAgencyPickup() ? 'agency_pickup' : 'home_delivery',
-            'pickup_agency' => $order->isAgencyPickup() ? $order->pickup_agency_snapshot : null,
+            'delivery_option' => $order->isWarehousePickup() ? 'warehouse_pickup' : ($order->isAgencyPickup() ? 'agency_pickup' : 'home_delivery'),
+            // Retrait à l'entrepôt : affiché dans l'application comme un lieu de retrait.
+            'pickup_agency' => $order->isWarehousePickup() ? ($snapshot['warehouse'] ?? null) : ($order->isAgencyPickup() ? $order->pickup_agency_snapshot : null),
             'agency_collected_at' => $order->agency_collected_at?->toIso8601String(),
             'reception_confirmed_at' => $order->confirmed_by_client_at?->toIso8601String(),
             'timeline' => $order->relationLoaded('trackingEvents') ? OrderTrackingService::timeline($order) : [],
