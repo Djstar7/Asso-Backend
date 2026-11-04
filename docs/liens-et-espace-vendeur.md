@@ -97,12 +97,11 @@ Dans Paramètres, Liens : renseigner le numéro du compte de test, cocher « Act
 | Essai | Résultat attendu |
 |---|---|
 | Ouvrir `asso-dashboard.sbs/vendor` sur ordinateur | Un QR s'affiche |
-| Application, tableau de bord vendeur, Espace vendeur sur ordinateur, scanner | L'ordinateur indique « QR scanné », le téléphone demande confirmation |
-| Refuser | L'ordinateur l'indique et propose un nouveau QR |
-| Attendre 2 minutes sans scanner | Le QR expire et un nouveau est proposé |
-| Accepter | Le tableau de bord s'ouvre et une notification arrive sur le téléphone |
+| Attendre 2 minutes sans scanner | Un nouveau QR s'affiche tout seul ; après environ 10 minutes, un bouton le propose |
+| Application, tableau de bord vendeur, Espace vendeur sur ordinateur, scanner | Sans autre question : le tableau de bord s'ouvre et une notification arrive sur le téléphone |
 | Recharger la page | La session reste ouverte |
 | Modifier un produit, y ajouter une photo, traiter une commande, modifier la boutique | Tout s'enregistre |
+| Ouvrir une réclamation, envoyer une preuve, choisir le remplacement ou le retour | Tout s'enregistre ; un message renvoie au téléphone pour le partenaire et le paiement de la course |
 | Cliquer sur « Voir les forfaits » | Message « Disponible dans l'application » |
 | « Quitter » | Retour au QR |
 | Téléphone, Déconnecter ce navigateur | L'ordinateur revient au QR à l'action suivante |
@@ -116,7 +115,7 @@ Vider la liste des comptes de test.
 
 ## Ce que le jeton web ne peut pas faire
 
-La liste blanche est dans `config/web_vendor.php`. Toute route absente est refusée, y compris les routes ajoutées plus tard. Sont exclus : wallet, retraits, paiements, forfaits, achat de boosts, litiges, modification du compte, autorisation d'un autre navigateur.
+La liste blanche est dans `config/web_vendor.php`. Toute route absente est refusée, y compris les routes ajoutées plus tard. Sont exclus : wallet, retraits, paiements, forfaits, achat de boosts, choix du partenaire et paiement des courses de litige, modification du compte, autorisation d'un autre navigateur.
 
 Pour ajouter une route à l'espace web, il faut l'inscrire dans cette liste.
 

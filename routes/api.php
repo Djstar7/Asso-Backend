@@ -212,7 +212,6 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->prefix('v1/web-login')->gr
     Route::get('/availability', [\App\Http\Controllers\Api\WebLoginController::class, 'availability']);
     Route::post('/scan', [\App\Http\Controllers\Api\WebLoginController::class, 'scan']);
     Route::post('/approve', [\App\Http\Controllers\Api\WebLoginController::class, 'approve']);
-    Route::post('/reject', [\App\Http\Controllers\Api\WebLoginController::class, 'reject']);
     Route::get('/devices', [\App\Http\Controllers\Api\WebLoginController::class, 'devices']);
     Route::delete('/devices/{id}', [\App\Http\Controllers\Api\WebLoginController::class, 'revoke'])->whereNumber('id');
 });

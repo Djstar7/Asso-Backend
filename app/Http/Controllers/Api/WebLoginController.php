@@ -16,12 +16,12 @@ use Illuminate\Support\Str;
 /**
  * Connexion par QR à l'espace vendeur web.
  *
- * Le navigateur crée une session et affiche son code en QR. L'application le
- * scanne et le vendeur confirme. Le navigateur, seul détenteur du secret, reçoit
+ * Comme sur WhatsApp, le navigateur affiche un code en QR et le scan depuis
+ * l'application vaut autorisation. Le navigateur, seul détenteur du secret, reçoit
  * alors une seule fois un jeton limité (config/web_vendor.php).
  *
  * Le code n'est pas un lien : il ne se lit que dans l'application, pour qu'un
- * message piégé ne puisse pas lancer la confirmation.
+ * message piégé ne puisse pas lancer la connexion.
  */
 class WebLoginController extends Controller
 {
@@ -71,10 +71,6 @@ class WebLoginController extends Controller
                 return response()->json(['success' => false, 'message' => __('web_login.not_found')], 404);
             }
 
-            if ($session->status === WebLoginSession::REJECTED) {
-                return $this->status('rejected');
-            }
-
             if ($session->status === WebLoginSession::CONSUMED || $session->isExpired()) {
                 return $this->status('expired');
             }
@@ -118,7 +114,7 @@ class WebLoginController extends Controller
         ]);
     }
 
-    /** Application : le QR a été lu, on montre au vendeur ce qu'il va autoriser. */
+    /** Application : le QR a été lu ; l'application l'autorise aussitôt. */
     public function scan(Request $request): JsonResponse
     {
         $session = $this->sessionFromCode($request);
@@ -159,18 +155,6 @@ class WebLoginController extends Controller
         $this->notifyNewConnection($request->user(), $session);
 
         return response()->json(['success' => true, 'message' => __('web_login.approved')]);
-    }
-
-    public function reject(Request $request): JsonResponse
-    {
-        $session = $this->sessionFromCode($request, requireScan: true);
-        if ($session instanceof JsonResponse) {
-            return $session;
-        }
-
-        $session->update(['status' => WebLoginSession::REJECTED]);
-
-        return response()->json(['success' => true]);
     }
 
     /** Application : navigateurs actuellement connectés à ce compte. */

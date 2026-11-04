@@ -5,13 +5,14 @@
 | Espace vendeur web (asso-dashboard.sbs/vendor)
 |--------------------------------------------------------------------------
 |
-| Connexion par QR : le navigateur affiche un code, l'application le scanne et
-| le vendeur confirme. Le navigateur reçoit un jeton de courte durée limité aux
+| Connexion par QR, comme WhatsApp : le navigateur affiche un code et le scan
+| depuis l'application vaut autorisation. Le navigateur reçoit un jeton de courte durée limité aux
 | routes ci-dessous (EnsureWebVendorScope). Toute route absente est refusée :
 | une nouvelle route reste donc fermée à ce jeton tant qu'on ne l'a pas déclarée.
 |
 | Volontairement absents : wallet, retraits, paiements, forfaits, achat de
-| boosts, litiges, modification du compte.
+| boosts, choix du partenaire et paiement des courses de litige, modification
+| du compte.
 |
 */
 
@@ -77,6 +78,16 @@ return [
         'GET api/v1/vendor/shop/location-requests',
         'POST api/v1/vendor/shop/location-requests',
         'GET api/v1/vendor/shops',
+
+        // Réclamations : suivi et réponse. Le partenaire et le paiement de la
+        // course restent dans l'application.
+        'GET api/v1/vendor/disputes',
+        'GET api/v1/vendor/disputes/{id}',
+        'POST api/v1/vendor/disputes/{id}/evidence',
+        'POST api/v1/vendor/disputes/{id}/replace',
+        'POST api/v1/vendor/disputes/{id}/return',
+        'POST api/v1/vendor/disputes/shipments/{id}/step',
+        'POST api/v1/vendor/disputes/receipts/{receipt}/contest',
 
         // Statistiques.
         'GET api/v1/vendor/statistics',

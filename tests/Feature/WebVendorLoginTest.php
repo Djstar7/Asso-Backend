@@ -159,17 +159,6 @@ class WebVendorLoginTest extends TestCase
         $this->poll($session)->assertJsonPath('status', 'expired')->assertJsonMissingPath('token');
     }
 
-    public function test_le_refus_du_telephone_arrive_au_navigateur(): void
-    {
-        $vendor = $this->vendor();
-        $session = $this->browserSession();
-        $this->asPhone($vendor)->postJson('/api/v1/web-login/scan', ['code' => $session['code']]);
-        $this->asPhone($vendor)->postJson('/api/v1/web-login/reject', ['code' => $session['code']])->assertOk();
-
-        $this->poll($session)->assertJsonPath('status', 'rejected')->assertJsonMissingPath('token');
-        $this->asPhone($vendor)->postJson('/api/v1/web-login/approve', ['code' => $session['code']])->assertStatus(410);
-    }
-
     public function test_un_autre_compte_ne_peut_ni_voler_ni_confirmer_un_qr_deja_lu(): void
     {
         $vendor = $this->vendor();
@@ -228,6 +217,10 @@ class WebVendorLoginTest extends TestCase
             ['POST', '/api/v1/web-login/scan'],
             ['GET', '/api/v1/web-login/devices'],
             ['POST', '/api/v1/vendor/boosts/1/cancel'],
+            ['POST', '/api/v1/vendor/disputes/shipments/1/pay'],
+            ['GET', '/api/v1/vendor/disputes/shipments/1/payment-status'],
+            ['GET', '/api/v1/vendor/disputes/shipments/1/partners'],
+            ['POST', '/api/v1/vendor/disputes/shipments/1/partner'],
         ] as [$method, $url]) {
             $this->asBrowser($token)->json($method, $url)
                 ->assertForbidden()
@@ -300,7 +293,7 @@ class WebVendorLoginTest extends TestCase
     {
         $token = $this->signIn($this->vendor());
 
-        foreach (['/api/v1/vendor/dashboard', '/api/v1/vendor/products', '/api/v1/vendor/orders', '/api/v1/vendor/shop', '/api/v1/vendor/statistics'] as $url) {
+        foreach (['/api/v1/vendor/dashboard', '/api/v1/vendor/products', '/api/v1/vendor/orders', '/api/v1/vendor/shop', '/api/v1/vendor/statistics', '/api/v1/vendor/disputes'] as $url) {
             $response = $this->asBrowser($token)->getJson($url);
             $this->assertNotSame('web_scope_denied', $response->json('code'), $url);
             $this->assertNotContains($response->status(), [401, 403], $url);
