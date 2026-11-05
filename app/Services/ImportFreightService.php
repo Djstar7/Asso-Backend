@@ -11,8 +11,7 @@ use App\Support\ImportHub;
 
 /**
  * Transport d'une commande en gros jusqu'à Douala, calculé par le serveur seul :
- * bateau au CBM (1 000 kg comptent pour 1 CBM), avion au plus grand du poids réel
- * et du poids volumétrique. Sans dimensions, seul le poids compte.
+ * bateau au CBM (1 000 kg comptent pour 1 CBM), avion au poids réel.
  */
 class ImportFreightService
 {
@@ -20,31 +19,20 @@ class ImportFreightService
 
     public const DEFAULT_AIR_MAX_KG = 100;
 
-    public const DEFAULT_DIVISOR = 6000;
-
     public const AIR_MAX_SETTING = 'import_air_max_weight_kg';
 
-    public const DIVISOR_SETTING = 'import_air_volumetric_divisor';
-
-    /** Au-delà de ce poids facturé, tous pays confondus, seul le bateau est proposé. */
+    /** Au-delà de ce poids réel, tous pays confondus, seul le bateau est proposé. */
     public static function airMaxWeightKg(): float
     {
         return (float) Setting::get(self::AIR_MAX_SETTING, self::DEFAULT_AIR_MAX_KG);
     }
 
-    /** Longueur × largeur × hauteur (cm) divisé par ce nombre donne le poids volumétrique. */
-    public static function volumetricDivisor(): int
-    {
-        return (int) Setting::get(self::DIVISOR_SETTING, self::DEFAULT_DIVISOR);
-    }
 
     /**
      * @param  iterable<array{product: Product, tier: ?ProductPriceTier, variant?: ?ProductVariant, quantity: int}>  $lines
      */
     public function measure(iterable $lines): array
     {
-        $divisor = self::volumetricDivisor();
-
         $weight = 0.0;
         $cbm = 0.0;
         $missingWeight = false;
@@ -60,18 +48,14 @@ class ImportFreightService
                 $cbm += $dimensions[0] * $dimensions[1] * $dimensions[2] / 1_000_000 * $line['quantity'];
             }
         }
-        $volumetric = $cbm * 1_000_000 / $divisor;
 
         return [
             'weight_kg' => round($weight, 3),
             'volume_cbm' => round($cbm, 6),
-            'volumetric_kg' => round($volumetric, 3),
-            'billable_kg' => round(max($weight, $volumetric), 3),
             'billable_cbm' => round(max($cbm, $weight / self::KG_PER_CBM), 6),
             'missing_weight' => $missingWeight,
             'unmeasured' => $unmeasured,
             'air_max_weight_kg' => self::airMaxWeightKg(),
-            'volumetric_divisor' => $divisor,
         ];
     }
 
@@ -80,7 +64,7 @@ class ImportFreightService
     {
         return match ($option->mode) {
             'sea' => true,
-            'air' => $measure['billable_kg'] <= $measure['air_max_weight_kg'],
+            'air' => $measure['weight_kg'] <= $measure['air_max_weight_kg'],
             default => false,
         };
     }
@@ -91,17 +75,12 @@ class ImportFreightService
         if ($option->rate_type === 'flat') {
             return 1.0;
         }
-        // Ancien bateau au kilo, gardé jusqu'à la saisie du tarif au CBM : poids réel seul.
-        $legacySeaByKg = $option->mode === 'sea' && $option->rate_type === 'per_kg';
-        if ($measure['unmeasured'] || ($legacySeaByKg && $measure['missing_weight'])) {
+        // Au kilo (avion, ou ancien bateau gardé jusqu'à la saisie du CBM), le poids réel est indispensable.
+        if ($measure['unmeasured'] || ($option->rate_type === 'per_kg' && $measure['missing_weight'])) {
             throw new \Exception(__('orders.parcel_weight_required'));
         }
 
-        return match (true) {
-            $legacySeaByKg => $measure['weight_kg'],
-            $option->rate_type === 'per_cbm' => $measure['billable_cbm'],
-            default => $measure['billable_kg'],
-        };
+        return $option->rate_type === 'per_cbm' ? $measure['billable_cbm'] : $measure['weight_kg'];
     }
 
     /** Détail figé sur la commande : mesures, tarif, coût d'achat et marge ASSO. */
@@ -112,7 +91,6 @@ class ImportFreightService
         return [
             'weight_kg' => $measure['weight_kg'],
             'volume_cbm' => $measure['volume_cbm'],
-            'volumetric_kg' => $measure['volumetric_kg'],
             'billed_quantity' => $quantity,
             'rate_type' => $option->rate_type,
             'rate_amount' => (float) $option->rate_amount,
@@ -127,6 +105,6 @@ class ImportFreightService
     /** Au-delà du seuil de l'entrepôt : retrait à Douala, sans SOLEX. */
     public function requiresWarehousePickup(array $measure): bool
     {
-        return $measure['billable_kg'] > ImportHub::pickupThresholdKg();
+        return $measure['weight_kg'] > ImportHub::pickupThresholdKg();
     }
 }

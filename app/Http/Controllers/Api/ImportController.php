@@ -390,7 +390,6 @@ class ImportController extends Controller
     {
         return $this->freightRules ??= [
             'air_max_weight_kg' => ImportFreightService::airMaxWeightKg(),
-            'volumetric_divisor' => ImportFreightService::volumetricDivisor(),
             'pickup_threshold_kg' => ImportHub::pickupThresholdKg(),
             'warehouse' => ImportHub::pickupSnapshot()['warehouse'],
         ];
