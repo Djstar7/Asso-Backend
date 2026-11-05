@@ -13,7 +13,7 @@
     </div>
     <p class="text-xs text-gray-300 mb-3">
         Facultatif, mais à remplir pour les gros articles : colis emballé d'<strong>une unité commandée</strong>, en <strong>centimètres</strong>.
-        Sans dimensions, le transport se calcule au poids seul : une voiture de 1 200 kg serait facturée 1,2 CBM au lieu de 12,15 CBM.
+        Sans dimensions, le transport se calcule au poids seul : une voiture de 1 200 kg serait facturée 1,2 CBM au lieu de 13,35 CBM.
         Un palier peut avoir ses propres dimensions.
     </p>
     <div class="grid grid-cols-3 gap-2 max-w-md">
@@ -60,10 +60,10 @@
                 if (!m.weight) return 'Avion impossible sans poids';
                 return m.weight > rules.air_max
                     ? `Avion retiré (plus de ${fmt(rules.air_max)} kg)`
-                    : `Avion ${fmt(m.weight * o.rate)} FCFA`;
+                    : `Avion ${fmt((m.weight + m.cbm * 1000000 / 6000) * o.rate)} FCFA`;
             }
             return o.type === 'per_cbm'
-                ? `Bateau ${fmt(Math.max(m.cbm, m.weight / 1000) * o.rate)} FCFA`
+                ? `Bateau ${fmt((m.cbm + m.weight / 1000) * o.rate)} FCFA`
                 : `Bateau ${fmt(m.weight * o.rate)} FCFA (ancien tarif au kg)`;
         });
         const dense = m.cbm > 0 && m.weight / m.cbm > 20000;

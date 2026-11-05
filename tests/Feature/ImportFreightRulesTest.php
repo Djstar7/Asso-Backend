@@ -118,17 +118,18 @@ class ImportFreightRulesTest extends TestCase
         ]);
     }
 
-    public function test_boxes_with_dimensions_bill_air_by_real_weight_and_sea_by_cbm(): void
+    public function test_boxes_add_weight_and_dimensions_by_air_and_by_sea(): void
     {
         $this->product->update(['length_cm' => 60, 'width_cm' => 40, 'height_cm' => 50]);
 
         $air = Order::find($this->order($this->air, 3)->assertCreated()->json('order_id'));
-        $this->assertEquals(288000, $air->import_shipping_fee);
+        // 24 kg réels + 60 kg volumétriques ; 0,36 CBM + 0,024 CBM.
+        $this->assertEquals(1008000, $air->import_shipping_fee);
         $this->assertEquals(24, $air->shipping_weight_kg);
-        $this->assertEquals(24, $air->delivery_breakdown['import_freight']['billed_quantity']);
+        $this->assertEquals(84, $air->delivery_breakdown['import_freight']['billed_quantity']);
 
         $sea = Order::find($this->order($this->sea, 3)->assertCreated()->json('order_id'));
-        $this->assertEquals(118800, $sea->import_shipping_fee);
+        $this->assertEquals(126720, $sea->import_shipping_fee);
         $this->assertEquals(0.36, $sea->delivery_breakdown['import_freight']['volume_cbm']);
     }
 
@@ -143,7 +144,7 @@ class ImportFreightRulesTest extends TestCase
         $this->product->update(['length_cm' => 10, 'width_cm' => 10, 'height_cm' => 10]);
         $this->tier->update(['length_cm' => 100, 'width_cm' => 100, 'height_cm' => 100]);
 
-        $this->assertEquals(330000, Order::find($this->order($this->sea, 1)->assertCreated()->json('order_id'))->import_shipping_fee);
+        $this->assertEquals(332640, Order::find($this->order($this->sea, 1)->assertCreated()->json('order_id'))->import_shipping_fee);
     }
 
     public function test_the_chosen_dimensions_option_wins_and_free_text_is_ignored(): void
@@ -155,8 +156,8 @@ class ImportFreightRulesTest extends TestCase
         ]]])->assertCreated()->json('order_id'));
 
         // 200 × 100 × 50 cm = 1 CBM ; une valeur libre laisse les dimensions de la fiche.
-        $this->assertEquals(330000, $order($option('200 × 100 × 50 cm'))->import_shipping_fee);
-        $this->assertEquals(2640, $order($option('Grande taille'))->import_shipping_fee);
+        $this->assertEquals(332640, $order($option('200 × 100 × 50 cm'))->import_shipping_fee);
+        $this->assertEquals(2970, $order($option('Grande taille'))->import_shipping_fee);
     }
 
     public function test_client_measures_are_ignored(): void
@@ -197,7 +198,7 @@ class ImportFreightRulesTest extends TestCase
         $this->product->update(['weight' => '1200', 'length_cm' => 450, 'width_cm' => 180, 'height_cm' => 150]);
 
         $order = Order::find($this->pickup($this->sea, 1)->assertCreated()->json('order_id'));
-        $this->assertEquals(4009500, $order->import_shipping_fee);
+        $this->assertEquals(4405500, $order->import_shipping_fee);
     }
 
     public function test_express_is_no_longer_offered_or_accepted(): void
@@ -271,15 +272,17 @@ class ImportFreightRulesTest extends TestCase
         $this->assertEquals(500, ImportHub::pickupThresholdKg());
     }
 
-    public function test_below_pickup_threshold_solex_stays_and_above_it_old_apps_must_update(): void
+    public function test_above_pickup_threshold_the_client_chooses_pickup_or_solex(): void
     {
-        // 300 kg pile : encore SOLEX ; 304 kg : retrait obligatoire.
+        // 300 kg pile : SOLEX seul ; 304 kg : le client choisit.
         $this->product->update(['weight' => '4']);
         $id = $this->order($this->sea, 75)->assertCreated()->json('order_id');
         $this->assertFalse(Order::find($id)->isWarehousePickup());
 
-        $this->order($this->sea, 76)->assertStatus(422)->assertJsonPath('message', __('orders.wholesale.pickup_requires_update'));
-        $this->pickup($this->sea, 76)->assertCreated();
+        $solex = $this->order($this->sea, 76)->assertCreated()->json('order_id');
+        $this->assertFalse(Order::find($solex)->isWarehousePickup());
+        $pickup = $this->pickup($this->sea, 76)->assertCreated()->json('order_id');
+        $this->assertTrue(Order::find($pickup)->isWarehousePickup());
 
         // Sous le seuil, demander le retrait ne dispense pas de SOLEX.
         $this->pickup($this->sea, 10)->assertStatus(422);
@@ -294,7 +297,7 @@ class ImportFreightRulesTest extends TestCase
         ])->assertSessionHasNoErrors();
 
         $this->assertEquals(500, ImportHub::pickupThresholdKg());
-        $this->order($this->sea, 76)->assertCreated();
+        $this->pickup($this->sea, 76)->assertStatus(422);
         $this->assertSame($hub->id, ImportHub::shop()->id);
     }
 

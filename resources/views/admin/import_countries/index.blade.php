@@ -65,9 +65,9 @@
                 <input name="air_max_weight_kg" type="number" min="0" step="0.01" required value="{{ old('air_max_weight_kg', \App\Services\ImportFreightService::airMaxWeightKg()) }}" class="w-full px-3 py-2 bg-dark-200 rounded text-white">
                 <span class="block text-xs text-gray-500 mt-1">Au-delà, seul le bateau est proposé. Le bateau compte 1 000 kg pour 1 CBM.</span>
             </label>
-            <label class="text-gray-300 text-sm">Retrait au dépôt de Douala au-delà de (kg)
+            <label class="text-gray-300 text-sm">Retrait au dépôt de Douala proposé au-delà de (kg)
                 <input name="pickup_threshold_kg" type="number" min="1" step="0.01" required value="{{ old('pickup_threshold_kg', \App\Support\ImportHub::pickupThresholdKg()) }}" class="w-full px-3 py-2 bg-dark-200 rounded text-white">
-                <span class="block text-xs text-gray-500 mt-1">Au-delà, plus de livraison : le client retire sa commande au dépôt avec un code.</span>
+                <span class="block text-xs text-gray-500 mt-1">Au-delà, le client choisit : retrait au dépôt avec un code, ou livraison SOLEX.</span>
             </label>
         </div>
         @if($errors->has('air_max_weight_kg') || $errors->has('pickup_threshold_kg'))
