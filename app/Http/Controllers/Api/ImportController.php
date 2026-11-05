@@ -29,8 +29,8 @@ class ImportController extends Controller
     public const PER_PAGE = 20;
     public const MAX_PER_PAGE = 50;
 
-    /** Règles déjà lues par pays : le catalogue sert plusieurs produits du même pays. */
-    private array $freightRules = [];
+    /** Règles déjà lues : le catalogue sert plusieurs produits. */
+    private ?array $freightRules = null;
 
     /**
      * Catalogue gros d'un pays d'import, page par page.
@@ -341,7 +341,7 @@ class ImportController extends Controller
             'min_order_quantity' => $minFromTiers ?? $p->min_order_quantity,
             // Le poids est renseigné par l'équipe/le vendeur, jamais par le client.
             'unit_weight_kg' => $p->weightKg(),
-            'freight_rules' => $this->freightRules($p->origin_country),
+            'freight_rules' => $this->freightRules(),
             // Dimensions du colis d'une unité, facultatives (cm).
             'length_cm' => $p->length_cm !== null ? (float) $p->length_cm : null,
             'width_cm' => $p->width_cm !== null ? (float) $p->width_cm : null,
@@ -386,18 +386,14 @@ class ImportController extends Controller
     }
 
     /** Règles du transport, pour que l'application affiche ce que le serveur appliquera. */
-    private function freightRules(?string $countryCode): array
+    private function freightRules(): array
     {
-        return $this->freightRules[$countryCode] ??= (function () use ($countryCode) {
-            $country = ImportCountry::where('code', $countryCode)->first();
-
-            return [
-                'air_max_weight_kg' => (float) ($country?->air_max_weight_kg ?? ImportFreightService::DEFAULT_AIR_MAX_KG),
-                'volumetric_divisor' => (int) ($country?->air_volumetric_divisor ?: ImportFreightService::DEFAULT_DIVISOR),
-                'pickup_threshold_kg' => ImportHub::pickupThresholdKg(),
-                'warehouse' => ImportHub::pickupSnapshot()['warehouse'],
-            ];
-        })();
+        return $this->freightRules ??= [
+            'air_max_weight_kg' => ImportFreightService::airMaxWeightKg(),
+            'volumetric_divisor' => ImportFreightService::volumetricDivisor(),
+            'pickup_threshold_kg' => ImportHub::pickupThresholdKg(),
+            'warehouse' => ImportHub::pickupSnapshot()['warehouse'],
+        ];
     }
 
     private function targetCurrency(Request $request): string

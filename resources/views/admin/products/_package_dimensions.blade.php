@@ -1,8 +1,8 @@
 @php
     // Tarifs clients par pays, pour l'aperçu du transport pendant la saisie.
     $freightPreview = \App\Models\ImportCountry::get()->mapWithKeys(fn ($country) => [$country->code => [
-        'air_max' => (float) $country->air_max_weight_kg,
-        'divisor' => (int) $country->air_volumetric_divisor,
+        'air_max' => \App\Services\ImportFreightService::airMaxWeightKg(),
+        'divisor' => \App\Services\ImportFreightService::volumetricDivisor(),
         'options' => \App\Models\ImportShippingOption::activeForCountry($country->code)->get()
             ->map(fn ($o) => ['mode' => $o->mode, 'type' => $o->rate_type, 'rate' => (float) $o->rate_amount])->values(),
     ]]);

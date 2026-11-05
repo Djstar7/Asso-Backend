@@ -285,7 +285,7 @@
                         </label>
                         @php $currentOrigin = \App\Models\Product::originChoice(old('origin_country')); @endphp
                         <select name="origin_country" class="w-full px-4 py-2 bg-dark-50 border border-dark-300 rounded-lg focus:ring-2 focus:ring-primary-500 @error('origin_country') border-red-500 @enderror">
-                            <option value="{{ \App\Models\Product::ORIGIN_IMPORTED }}" @selected($currentOrigin === \App\Models\Product::ORIGIN_IMPORTED)>🌍 Produit importé</option>
+                            <option value="{{ \App\Models\Product::ORIGIN_IMPORTED }}" @selected($currentOrigin === \App\Models\Product::ORIGIN_IMPORTED)>Produit importé</option>
                             <option value="{{ \App\Models\Product::ORIGIN_LOCAL }}" @selected($currentOrigin === \App\Models\Product::ORIGIN_LOCAL)>Produit local</option>
                             @foreach($importCountries as $country)
                                 <option value="{{ $country->code }}" @selected($currentOrigin === $country->code)>

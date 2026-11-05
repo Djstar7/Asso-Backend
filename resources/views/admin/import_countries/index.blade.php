@@ -18,7 +18,7 @@
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div class="bg-dark-50 rounded-lg p-4">
                 <p class="text-xs uppercase tracking-wider text-gray-500 mb-1">1. Pays d'origine → Douala</p>
-                <p class="text-sm text-white">Tarif d'achat, marge ASSO et seuil avion par pays&nbsp;: bouton <i class="fas fa-ship text-blue-400"></i> de chaque pays ci-dessous.</p>
+                <p class="text-sm text-white">Tarif d'achat et marge ASSO par pays&nbsp;: bouton <i class="fas fa-ship text-blue-400"></i> de chaque pays ci-dessous.</p>
             </div>
             <div class="bg-dark-50 rounded-lg p-4">
                 <p class="text-xs uppercase tracking-wider text-gray-500 mb-1">2. Entrepôt de réception</p>
@@ -72,6 +72,26 @@
         <button class="mt-3 px-4 py-2 bg-blue-600 rounded text-white">Enregistrer le point de départ</button>
     </form>
     @endif
+
+    <form method="POST" action="{{ route('admin.import-countries.freight-rules') }}" class="bg-dark-100 rounded-xl border border-dark-200 p-6 mb-6">
+        @csrf @method('PUT')
+        <h2 class="text-lg text-white mb-1">Règles de transport communes</h2>
+        <p class="text-sm text-gray-400 mb-3">Elles s'appliquent à tous les pays d'importation.</p>
+        <div class="grid md:grid-cols-2 gap-3">
+            <label class="text-gray-300 text-sm">Avion jusqu'à (kg facturés)
+                <input name="air_max_weight_kg" type="number" min="0" step="0.01" required value="{{ old('air_max_weight_kg', \App\Services\ImportFreightService::airMaxWeightKg()) }}" class="w-full px-3 py-2 bg-dark-200 rounded text-white">
+                <span class="block text-xs text-gray-500 mt-1">Au-delà, seul le bateau est proposé. Le bateau compte 1 000 kg pour 1 CBM.</span>
+            </label>
+            <label class="text-gray-300 text-sm">Diviseur du poids volumétrique
+                <input name="air_volumetric_divisor" type="number" min="1000" max="10000" required value="{{ old('air_volumetric_divisor', \App\Services\ImportFreightService::volumetricDivisor()) }}" class="w-full px-3 py-2 bg-dark-200 rounded text-white">
+                <span class="block text-xs text-gray-500 mt-1">Pour l'avion : longueur × largeur × hauteur (cm) ÷ ce nombre donne un poids. ASSO facture le plus grand de ce poids et du poids réel.</span>
+            </label>
+        </div>
+        @if($errors->has('air_max_weight_kg') || $errors->has('air_volumetric_divisor'))
+            <p class="mt-2 text-sm text-red-400">{{ $errors->first('air_max_weight_kg') ?: $errors->first('air_volumetric_divisor') }}</p>
+        @endif
+        <button class="mt-3 px-4 py-2 bg-blue-600 rounded text-white">Enregistrer pour tous les pays</button>
+    </form>
 
     <!-- Formulaire d'ajout -->
     <div class="bg-dark-100 rounded-xl shadow-lg border border-dark-200 p-6 mb-6">
@@ -273,19 +293,6 @@
 
         <div id="shipping_list_container" class="space-y-2 mb-4"></div>
 
-        <form id="freightRulesForm" class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end mb-6 p-3 bg-dark-50 rounded-lg">
-            <div>
-                <label class="block text-xs text-gray-400 mb-1">Avion jusqu'à (kg facturés)</label>
-                <input type="number" step="0.01" min="0" id="rules_air_max" required class="w-full px-3 py-2 bg-dark-50 border border-dark-200 rounded-lg text-white text-sm">
-            </div>
-            <div>
-                <label class="block text-xs text-gray-400 mb-1">Diviseur du poids volumétrique</label>
-                <input type="number" min="1000" max="10000" id="rules_divisor" required class="w-full px-3 py-2 bg-dark-50 border border-dark-200 rounded-lg text-white text-sm">
-            </div>
-            <button type="submit" class="px-4 py-2 bg-dark-200 text-white rounded-lg text-sm hover:bg-dark-100"><i class="fas fa-save mr-1"></i>Enregistrer les règles du pays</button>
-            <p class="md:col-span-3 text-xs text-gray-400">Au-delà du seuil, seul le bateau est proposé. Le bateau compte 1 000 kg pour 1 CBM.</p>
-        </form>
-
         <div class="border-t border-dark-300 pt-4">
             <h3 class="text-sm font-semibold text-white mb-3">Ajouter / Modifier une option</h3>
             <form id="shippingForm" class="grid grid-cols-1 md:grid-cols-6 gap-3 items-end">
@@ -413,8 +420,6 @@ function loadShippingList() {
             const container = document.getElementById('shipping_list_container');
             const options = res.shipping_options ?? [];
             shippingOptions = options;
-            document.getElementById('rules_air_max').value = res.rules?.air_max_weight_kg ?? 100;
-            document.getElementById('rules_divisor').value = res.rules?.air_volumetric_divisor ?? 6000;
 
             if (!options.length) {
                 container.innerHTML = '<p class="text-sm text-gray-500">Aucune option configurée pour ce pays.</p>';
@@ -424,7 +429,7 @@ function loadShippingList() {
             container.innerHTML = options.map(o => `
                 <div class="flex items-center justify-between bg-dark-50 p-3 rounded-lg">
                     <div class="text-sm text-white">
-                        <strong>${o.mode.toUpperCase()}</strong>${o.carrier ? ' (' + o.carrier + ')' : ''} —
+                        <strong>${o.mode === 'air' ? 'Avion' : 'Bateau'}</strong>${o.carrier ? ' (' + o.carrier + ')' : ''} —
                         ${Number(o.rate_amount).toLocaleString()} FCFA ${{ flat: '(forfait)', per_cbm: '/ CBM', per_kg: '/ kg' }[o.rate_type]}
                         ${o.cost_amount !== null
                             ? `<span class="text-gray-400">(achat ${Number(o.cost_amount).toLocaleString()}${o.margin_type ? ', marge ' + Number(o.margin_value).toLocaleString() + (o.margin_type === 'percent' ? ' %' : ' FCFA') : ''})</span>`
@@ -502,25 +507,6 @@ function updateShippingPreview() {
     document.getElementById('shipping_unit').textContent = unit;
     document.getElementById('shipping_client_rate').textContent = cost ? `Prix client : ${client.toLocaleString('fr-FR')} FCFA ${unit}` : '';
 }
-
-document.getElementById('freightRulesForm').addEventListener('submit', function (e) {
-    e.preventDefault();
-    fetch(`${shippingBaseUrl}/${currentShippingCountryId}/freight-rules`, {
-        method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-            'Accept': 'application/json',
-        },
-        body: JSON.stringify({
-            air_max_weight_kg: document.getElementById('rules_air_max').value,
-            air_volumetric_divisor: document.getElementById('rules_divisor').value,
-        }),
-    })
-        .then(r => r.json())
-        .then(res => { if (!res.success) alert("Erreur lors de l'enregistrement."); })
-        .catch(() => alert("Erreur réseau lors de l'enregistrement."));
-});
 
 function editShippingOption(id) {
     const option = shippingOptions.find(o => o.id === id);

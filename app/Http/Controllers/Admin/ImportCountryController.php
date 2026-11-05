@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\ImportCountry;
 use App\Models\Setting;
+use App\Services\ImportFreightService;
 use App\Support\ImportHub;
 use App\Support\Translation\ContentLocale;
 use Illuminate\Http\Request;
@@ -60,6 +61,19 @@ class ImportCountryController extends Controller
             Setting::set(ImportHub::PICKUP_THRESHOLD_SETTING, (string) $threshold, 'string', 'import');
         }
         return back()->with('success', 'Adresse de départ ASSO enregistrée.');
+    }
+
+    /** Seuil avion et diviseur volumétrique, communs à tous les pays. */
+    public function updateFreightRules(Request $request)
+    {
+        $rules = $request->validate([
+            'air_max_weight_kg' => 'required|numeric|min:0',
+            'air_volumetric_divisor' => 'required|integer|min:1000|max:10000',
+        ]);
+        Setting::set(ImportFreightService::AIR_MAX_SETTING, (string) $rules['air_max_weight_kg'], 'string', 'import');
+        Setting::set(ImportFreightService::DIVISOR_SETTING, (string) $rules['air_volumetric_divisor'], 'string', 'import');
+
+        return back()->with('success', 'Règles de transport enregistrées pour tous les pays.');
     }
 
     public function store(Request $request)

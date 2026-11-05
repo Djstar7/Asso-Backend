@@ -67,7 +67,7 @@
             </select>
             <select name="origin_country" class="px-4 py-2 bg-dark-50 border border-dark-300 text-white rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
                 <option value="">Toutes origines</option>
-                <option value="imported" @selected(request('origin_country') === 'imported')>🌍 Produit importé</option>
+                <option value="imported" @selected(request('origin_country') === 'imported')>Produit importé</option>
                 <option value="local" @selected(request('origin_country') === 'local')>Produit local</option>
                 @foreach(\App\Models\ImportCountry::activeOrdered()->get() as $country)
                     <option value="{{ $country->code }}" {{ request('origin_country') == $country->code ? 'selected' : '' }}>
