@@ -694,7 +694,8 @@ class OrderController extends Controller
         $claim = \App\Models\OrderDeliveryClaim::where('order_id', $order->id)->first();
         $data['delivery_claim'] = $claim?->only(['id', 'status', 'reason', 'decision_note', 'refund_amount']);
         $data['can_report_delivery'] = !in_array($order->status, ['delivered', 'cancelled'], true)
-            && !$order->refunded_at && array_sum($order->collectedAmounts()) > 0;
+            && !$order->refunded_at && array_sum($order->collectedAmounts()) > 0
+            && !app(\App\Services\DisputeResolutionService::class)->deliveryClaimOpensAt($order)->isFuture();
         $data['control'] = [
             'window_open' => $controlOpen,
             'until' => $controlOpen ? $order->auto_validate_at?->toIso8601String() : null,
