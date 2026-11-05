@@ -558,12 +558,8 @@ class OrderService
                 $shippingCost = round($converted, 2);
             }
 
-            // Au-delà du seuil : retrait à l'entrepôt, sans SOLEX. Un ancien APK ne sait
-            // pas le proposer et doit être mis à jour.
-            $warehousePickup = $freight->requiresWarehousePickup($measure);
-            if ($warehousePickup && empty($delivery['warehouse_pickup'])) {
-                throw new \Exception(__('orders.wholesale.pickup_requires_update'));
-            }
+            // Au-delà du seuil, le client peut retirer à l'entrepôt au lieu de SOLEX.
+            $warehousePickup = ! empty($delivery['warehouse_pickup']) && $freight->offersWarehousePickup($measure);
             // Puis SOLEX, de l'entrepôt ASSO de Douala jusqu'au client : prix recalculé
             // côté serveur (même calcul que l'offre affichée), payé avec la commande.
             if (! $warehousePickup && empty($delivery['company_id'])) {

@@ -1030,7 +1030,6 @@
         "tracking_step_added": "Step added. The buyer has been notified.",
         "wholesale": {
             "air_weight_limit": "Above :weight kg, this order can only travel by sea.",
-            "pickup_requires_update": "This order is collected at the Douala warehouse: update the app to place it.",
             "solex_delivery_required": "Choose SOLEX delivery: the order arrives in Douala, then SOLEX delivers it to you.",
             "delivery_address_required": "Enter your delivery address.",
             "created": "Wholesale order created."
