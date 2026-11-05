@@ -2,7 +2,6 @@
     // Tarifs clients par pays, pour l'aperçu du transport pendant la saisie.
     $freightPreview = \App\Models\ImportCountry::get()->mapWithKeys(fn ($country) => [$country->code => [
         'air_max' => \App\Services\ImportFreightService::airMaxWeightKg(),
-        'divisor' => \App\Services\ImportFreightService::volumetricDivisor(),
         'options' => \App\Models\ImportShippingOption::activeForCountry($country->code)->get()
             ->map(fn ($o) => ['mode' => $o->mode, 'type' => $o->rate_type, 'rate' => (float) $o->rate_amount])->values(),
     ]]);
@@ -56,12 +55,12 @@
         const m = measure(row);
         const rules = countries[form().querySelector('select[name="origin_country"]')?.value];
         if (!m.quantity || !rules) { target.textContent = ''; return; }
-        const billableKg = Math.max(m.weight, m.cbm * 1000000 / rules.divisor);
         const prices = rules.options.map(o => {
             if (o.mode === 'air') {
-                return billableKg > rules.air_max
+                if (!m.weight) return 'Avion impossible sans poids';
+                return m.weight > rules.air_max
                     ? `Avion retiré (plus de ${fmt(rules.air_max)} kg)`
-                    : `Avion ${fmt(billableKg * o.rate)} FCFA`;
+                    : `Avion ${fmt(m.weight * o.rate)} FCFA`;
             }
             return o.type === 'per_cbm'
                 ? `Bateau ${fmt(Math.max(m.cbm, m.weight / 1000) * o.rate)} FCFA`

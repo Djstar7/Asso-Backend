@@ -48,7 +48,6 @@ class ImportCountryController extends Controller
             'latitude' => 'required|numeric|between:-90,90', 'longitude' => 'required|numeric|between:-180,180',
             'phone' => 'required|string|max:30',
         ]);
-        $threshold = $request->validate(['pickup_threshold_kg' => 'nullable|numeric|min:0'])['pickup_threshold_kg'] ?? null;
         $hub = ImportHub::ensureShop();
         if (!$hub) {
             return back()->with('error', 'Compte plateforme ASSO introuvable.');
@@ -57,21 +56,18 @@ class ImportCountryController extends Controller
         $hub->save();
         // Le quartier explicitement choisi prime sur la déduction par adresse.
         $hub->update(['quarter' => $data['quarter']]);
-        if ($threshold !== null) {
-            Setting::set(ImportHub::PICKUP_THRESHOLD_SETTING, (string) $threshold, 'string', 'import');
-        }
         return back()->with('success', 'Adresse de départ ASSO enregistrée.');
     }
 
-    /** Seuil avion et diviseur volumétrique, communs à tous les pays. */
+    /** Seuil avion et seuil de retrait au dépôt, communs à tous les pays. */
     public function updateFreightRules(Request $request)
     {
         $rules = $request->validate([
             'air_max_weight_kg' => 'required|numeric|min:0',
-            'air_volumetric_divisor' => 'required|integer|min:1000|max:10000',
+            'pickup_threshold_kg' => 'required|numeric|min:1',
         ]);
         Setting::set(ImportFreightService::AIR_MAX_SETTING, (string) $rules['air_max_weight_kg'], 'string', 'import');
-        Setting::set(ImportFreightService::DIVISOR_SETTING, (string) $rules['air_volumetric_divisor'], 'string', 'import');
+        Setting::set(ImportHub::PICKUP_THRESHOLD_SETTING, (string) $rules['pickup_threshold_kg'], 'string', 'import');
 
         return back()->with('success', 'Règles de transport enregistrées pour tous les pays.');
     }

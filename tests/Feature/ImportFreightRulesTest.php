@@ -118,14 +118,14 @@ class ImportFreightRulesTest extends TestCase
         ]);
     }
 
-    public function test_boxes_with_dimensions_bill_air_by_volumetric_weight_and_sea_by_cbm(): void
+    public function test_boxes_with_dimensions_bill_air_by_real_weight_and_sea_by_cbm(): void
     {
         $this->product->update(['length_cm' => 60, 'width_cm' => 40, 'height_cm' => 50]);
 
         $air = Order::find($this->order($this->air, 3)->assertCreated()->json('order_id'));
-        $this->assertEquals(720000, $air->import_shipping_fee);
+        $this->assertEquals(288000, $air->import_shipping_fee);
         $this->assertEquals(24, $air->shipping_weight_kg);
-        $this->assertEquals(60, $air->delivery_breakdown['import_freight']['billed_quantity']);
+        $this->assertEquals(24, $air->delivery_breakdown['import_freight']['billed_quantity']);
 
         $sea = Order::find($this->order($this->sea, 3)->assertCreated()->json('order_id'));
         $this->assertEquals(118800, $sea->import_shipping_fee);
@@ -177,11 +177,19 @@ class ImportFreightRulesTest extends TestCase
         $this->order($this->air, 13)->assertCreated();
     }
 
-    public function test_volumetric_weight_counts_towards_the_air_limit(): void
+    public function test_only_real_weight_counts_towards_the_air_limit(): void
     {
         $this->product->update(['weight' => '1', 'length_cm' => 100, 'width_cm' => 100, 'height_cm' => 100]);
 
-        $this->order($this->air, 1)->assertStatus(422);
+        $this->order($this->air, 1)->assertCreated();
+    }
+
+    public function test_air_needs_a_weight_while_sea_can_use_dimensions_alone(): void
+    {
+        $this->product->update(['weight' => null, 'length_cm' => 100, 'width_cm' => 100, 'height_cm' => 100]);
+
+        $this->order($this->air, 1)->assertStatus(422)->assertJsonPath('message', __('orders.parcel_weight_required'));
+        $this->order($this->sea, 1)->assertCreated();
     }
 
     public function test_a_car_is_billed_by_volume(): void
@@ -211,7 +219,6 @@ class ImportFreightRulesTest extends TestCase
 
         $this->getJson('/api/v1/import/CN/products')->assertOk()
             ->assertJsonPath('products.0.freight_rules.air_max_weight_kg', 100)
-            ->assertJsonPath('products.0.freight_rules.volumetric_divisor', 6000)
             ->assertJsonPath('products.0.freight_rules.pickup_threshold_kg', 300)
             ->assertJsonPath('products.0.length_cm', 60)
             ->assertJsonPath('products.0.price_tiers.0.length_cm', 70);
@@ -253,15 +260,15 @@ class ImportFreightRulesTest extends TestCase
         ])->assertStatus(422);
 
         $this->actingAs($this->admin)->put(route('admin.import-countries.freight-rules'), [
-            'air_max_weight_kg' => 150, 'air_volumetric_divisor' => 5000,
+            'air_max_weight_kg' => 150, 'pickup_threshold_kg' => 500,
         ])->assertSessionHasNoErrors();
         $this->assertEquals(150, ImportFreightService::airMaxWeightKg());
-        $this->assertSame(5000, ImportFreightService::volumetricDivisor());
+        $this->assertEquals(500, ImportHub::pickupThresholdKg());
 
         $this->actingAs($this->admin)->put(route('admin.import-countries.freight-rules'), [
-            'air_max_weight_kg' => 150, 'air_volumetric_divisor' => 500,
-        ])->assertSessionHasErrors('air_volumetric_divisor');
-        $this->assertSame(5000, ImportFreightService::volumetricDivisor());
+            'air_max_weight_kg' => 150, 'pickup_threshold_kg' => 0,
+        ])->assertSessionHasErrors('pickup_threshold_kg');
+        $this->assertEquals(500, ImportHub::pickupThresholdKg());
     }
 
     public function test_below_pickup_threshold_solex_stays_and_above_it_old_apps_must_update(): void
@@ -282,9 +289,8 @@ class ImportFreightRulesTest extends TestCase
     {
         $this->product->update(['weight' => '4']);
         $hub = ImportHub::shop();
-        $this->actingAs($this->admin)->put(route('admin.import-countries.hub.update'), [
-            'address' => 'Rue 1', 'quarter' => 'Akwa', 'city' => 'Douala', 'country' => 'Cameroun', 'latitude' => 4.05, 'longitude' => 9.7,
-            'phone' => '237670000002', 'pickup_threshold_kg' => 500,
+        $this->actingAs($this->admin)->put(route('admin.import-countries.freight-rules'), [
+            'air_max_weight_kg' => 100, 'pickup_threshold_kg' => 500,
         ])->assertSessionHasNoErrors();
 
         $this->assertEquals(500, ImportHub::pickupThresholdKg());

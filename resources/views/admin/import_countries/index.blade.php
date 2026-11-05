@@ -64,10 +64,6 @@
                 <input name="{{ $field }}" required value="{{ old($field, $hub->$field) }}" class="w-full px-3 py-2 bg-dark-200 rounded text-white" @if(in_array($field, ['latitude', 'longitude'])) type="number" step="any" @endif>
             </label>
         @endforeach
-            <label class="text-gray-300 text-sm">Retrait obligatoire à l'entrepôt au-delà de (kg facturés)
-                <input name="pickup_threshold_kg" type="number" min="0" step="0.01" required value="{{ old('pickup_threshold_kg', \App\Support\ImportHub::pickupThresholdKg()) }}" class="w-full px-3 py-2 bg-dark-200 rounded text-white">
-                <span class="block text-xs text-gray-500 mt-1">Au-delà, pas de SOLEX : le client présente un code à l'entrepôt.</span>
-            </label>
         </div>
         <button class="mt-3 px-4 py-2 bg-blue-600 rounded text-white">Enregistrer le point de départ</button>
     </form>
@@ -78,17 +74,17 @@
         <h2 class="text-lg text-white mb-1">Règles de transport communes</h2>
         <p class="text-sm text-gray-400 mb-3">Elles s'appliquent à tous les pays d'importation.</p>
         <div class="grid md:grid-cols-2 gap-3">
-            <label class="text-gray-300 text-sm">Avion jusqu'à (kg facturés)
+            <label class="text-gray-300 text-sm">Avion jusqu'à (kg)
                 <input name="air_max_weight_kg" type="number" min="0" step="0.01" required value="{{ old('air_max_weight_kg', \App\Services\ImportFreightService::airMaxWeightKg()) }}" class="w-full px-3 py-2 bg-dark-200 rounded text-white">
                 <span class="block text-xs text-gray-500 mt-1">Au-delà, seul le bateau est proposé. Le bateau compte 1 000 kg pour 1 CBM.</span>
             </label>
-            <label class="text-gray-300 text-sm">Diviseur du poids volumétrique
-                <input name="air_volumetric_divisor" type="number" min="1000" max="10000" required value="{{ old('air_volumetric_divisor', \App\Services\ImportFreightService::volumetricDivisor()) }}" class="w-full px-3 py-2 bg-dark-200 rounded text-white">
-                <span class="block text-xs text-gray-500 mt-1">Pour l'avion : longueur × largeur × hauteur (cm) ÷ ce nombre donne un poids. ASSO facture le plus grand de ce poids et du poids réel.</span>
+            <label class="text-gray-300 text-sm">Retrait au dépôt de Douala au-delà de (kg)
+                <input name="pickup_threshold_kg" type="number" min="1" step="0.01" required value="{{ old('pickup_threshold_kg', \App\Support\ImportHub::pickupThresholdKg()) }}" class="w-full px-3 py-2 bg-dark-200 rounded text-white">
+                <span class="block text-xs text-gray-500 mt-1">Au-delà, plus de livraison : le client retire sa commande au dépôt avec un code.</span>
             </label>
         </div>
-        @if($errors->has('air_max_weight_kg') || $errors->has('air_volumetric_divisor'))
-            <p class="mt-2 text-sm text-red-400">{{ $errors->first('air_max_weight_kg') ?: $errors->first('air_volumetric_divisor') }}</p>
+        @if($errors->has('air_max_weight_kg') || $errors->has('pickup_threshold_kg'))
+            <p class="mt-2 text-sm text-red-400">{{ $errors->first('air_max_weight_kg') ?: $errors->first('pickup_threshold_kg') }}</p>
         @endif
         <button class="mt-3 px-4 py-2 bg-blue-600 rounded text-white">Enregistrer pour tous les pays</button>
     </form>

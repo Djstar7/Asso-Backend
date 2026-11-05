@@ -22,7 +22,7 @@ class ImportHub
     public const PICKUP_THRESHOLD_SETTING = 'import_hub_pickup_threshold_kg';
     public const DEFAULT_PICKUP_THRESHOLD_KG = 300;
 
-    /** Au-delà de ce poids facturé, le client récupère sa commande à l'entrepôt. */
+    /** Au-delà de ce poids réel, le client récupère sa commande à l'entrepôt. */
     public static function pickupThresholdKg(): float
     {
         return (float) (Setting::get(self::PICKUP_THRESHOLD_SETTING) ?: self::DEFAULT_PICKUP_THRESHOLD_KG);
