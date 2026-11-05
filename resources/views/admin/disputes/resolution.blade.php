@@ -64,7 +64,7 @@
     <form method="POST" action="{{ route('admin.disputes.resolution.settings') }}" class="bg-dark-100 p-5 rounded-xl space-y-3">
         @csrf
         <h2 class="text-lg text-white">Délais et financement de secours</h2>
-        @foreach(['review_hours' => 'Arbitrage ASSO', 'payment_hours' => 'Financement transport', 'receipt_contest_hours' => 'Contestation réception', 'local_transit_hours' => 'Transit local', 'international_transit_hours' => 'Transit international et douane', 'dispatch_hours' => 'Remise au transporteur', 'preparation_hours' => 'Préparation locale', 'import_preparation_hours' => 'Préparation import'] as $key => $label)
+        @foreach(['delivery_claim_wait_hours' => 'Attente avant « Commande non reçue », après le délai annoncé', 'review_hours' => 'Arbitrage ASSO', 'payment_hours' => 'Financement transport', 'receipt_contest_hours' => 'Contestation réception', 'local_transit_hours' => 'Transit local', 'international_transit_hours' => 'Transit international et douane', 'dispatch_hours' => 'Remise au transporteur', 'preparation_hours' => 'Préparation locale', 'import_preparation_hours' => 'Préparation import'] as $key => $label)
             <label class="block">{{ $label }} (heures) <input type="number" name="{{ $key }}" min="1" max="8760" required value="{{ \App\Models\Setting::get('dispute_'.$key, config('disputes.'.$key)) }}" class="bg-dark-200 p-2 rounded text-white"></label>
         @endforeach
         <label class="block">Rappel avant l’échéance (heures)

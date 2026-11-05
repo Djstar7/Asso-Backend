@@ -23,6 +23,9 @@ class OrderDeliveryClaimController extends Controller
     {
         $data = $request->validate(['reason' => 'required|in:'.implode(',', OrderDeliveryClaim::REASONS), 'description' => 'required|string|min:10|max:2000', 'photos' => 'nullable|array|max:6', 'photos.*' => 'image|max:8192']);
         $order = Order::where('user_id', $request->user()->id)->findOrFail($orderId);
+        if ($resolution->deliveryClaimOpensAt($order)->isFuture() && ! OrderDeliveryClaim::where('order_id', $order->id)->exists()) {
+            return response()->json(['success' => false, 'message' => 'Cette commande ne permet pas encore de réclamation : le délai de livraison annoncé court toujours.'], 422);
+        }
         try {
             $paths = collect($request->file('photos', []))->map(fn ($file) => $file->store('disputes/delivery-claims', 'local'))->all();
             $claim = $resolution->openDeliveryClaim($order, $request->user(), $data['reason'], $data['description'], $paths);

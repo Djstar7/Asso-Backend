@@ -191,6 +191,20 @@ class DisputeResolutionService
     }
 
     /** Pré-livraison : un dossier par commande, montants encaissés conservés sur leurs rails. */
+    /** Le client signale une commande non reçue après le délai annoncé, plus la marge réglée par ASSO. */
+    public function deliveryClaimOpensAt(Order $order): \Carbon\CarbonInterface
+    {
+        $snapshot = $order->delivery_breakdown ?? [];
+        $promised = $snapshot['estimated_delivery_to'] ?? $snapshot['estimated_delivery_from'] ?? null;
+        $importDays = (int) ($snapshot['import_leg']['lead_time_days'] ?? 0);
+        $latest = max(
+            $order->created_at->copy()->addDays($importDays),
+            $promised ? \Illuminate\Support\Carbon::parse($promised)->endOfDay() : $order->created_at,
+        );
+
+        return $latest->copy()->addHours($this->hours('delivery_claim_wait_hours'));
+    }
+
     public function openDeliveryClaim(Order $order, User $client, string $reason, string $description, array $proofs = []): OrderDeliveryClaim
     {
         return DB::transaction(function () use ($order, $client, $reason, $description, $proofs) {

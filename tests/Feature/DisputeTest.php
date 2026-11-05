@@ -1233,12 +1233,42 @@ class DisputeTest extends TestCase
     {
         $order = $this->undeliveredOrder();
         $route = '/api/v1/orders/'.$order->id.'/delivery-claim';
+        $this->travel(3)->days();
         $this->actingAs($this->seller, 'sanctum')->postJson($route, ['reason' => 'not_received', 'description' => 'Commande jamais reçue par le client.'])->assertNotFound();
         $this->actingAs($this->client, 'sanctum')->postJson($route, ['reason' => 'not_received', 'description' => 'Commande jamais reçue par le client.'])->assertCreated();
         $this->postJson($route, ['reason' => 'not_received', 'description' => 'Commande jamais reçue par le client.'])->assertCreated();
         $this->assertDatabaseCount('order_delivery_claims', 1);
         $order->update(['status' => 'delivered']);
         $this->postJson($route, ['reason' => 'not_received', 'description' => 'Commande jamais reçue par le client.'])->assertUnprocessable();
+    }
+
+    public function test_order_not_received_waits_for_the_announced_delay_and_the_margin(): void
+    {
+        $order = $this->undeliveredOrder();
+        $order->update(['delivery_breakdown' => ['estimated_delivery_to' => now()->addDays(5)->toDateString()]]);
+        $route = '/api/v1/orders/'.$order->id;
+        $body = ['reason' => 'not_received', 'description' => 'Commande jamais reçue par le client.'];
+
+        $this->actingAs($this->client, 'sanctum')->getJson($route)->assertJsonPath('order.can_report_delivery', false);
+        $this->postJson($route.'/delivery-claim', $body)->assertUnprocessable();
+
+        // Le dernier jour annoncé compte en entier, la marge de 48 h court ensuite.
+        $this->travel(7)->days();
+        $this->getJson($route)->assertJsonPath('order.can_report_delivery', false);
+        $this->travel(1)->days();
+        $this->getJson($route)->assertJsonPath('order.can_report_delivery', true);
+        $this->postJson($route.'/delivery-claim', $body)->assertCreated();
+    }
+
+    public function test_order_not_received_waits_for_the_import_journey_and_a_configurable_margin(): void
+    {
+        $order = $this->undeliveredOrder();
+        $order->update(['delivery_breakdown' => ['import_leg' => ['lead_time_days' => 40]]]);
+        $resolution = app(\App\Services\DisputeResolutionService::class);
+        $this->assertTrue($order->created_at->copy()->addDays(42)->eq($resolution->deliveryClaimOpensAt($order)));
+
+        \App\Models\Setting::set('dispute_delivery_claim_wait_hours', 240, 'integer', 'disputes');
+        $this->assertTrue($order->created_at->copy()->addDays(50)->eq($resolution->deliveryClaimOpensAt($order)));
     }
 
     public function test_supervisor_detects_paid_orders_that_never_ship_without_refunding_blindly(): void
@@ -1359,6 +1389,7 @@ class DisputeTest extends TestCase
     {
         \Illuminate\Support\Facades\Storage::fake('local');
         $order = $this->undeliveredOrder();
+        $this->travel(3)->days();
         $this->actingAs($this->client, 'sanctum')->post('/api/v1/orders/'.$order->id.'/delivery-claim', [
             'reason' => 'not_received', 'description' => 'Livraison absente, justificatif de suivi joint.',
             'photos' => [\Illuminate\Http\UploadedFile::fake()->image('tracking.jpg')],

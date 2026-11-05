@@ -11,6 +11,8 @@ return [
     'dispatch_hours' => 48,
     'preparation_hours' => 48,
     'import_preparation_hours' => 720,
+    // Marge après le délai annoncé avant que le client puisse signaler une commande non reçue.
+    'delivery_claim_wait_hours' => 48,
     // Une avance automatique nécessite une enveloppe explicitement activée.
     'automatic_advance_limit' => 0,
 ];

@@ -311,16 +311,17 @@ class WholesaleSolexDeliveryTest extends TestCase
         $this->assertSame(0, Order::count());
     }
 
-    public function test_admin_can_fill_the_departure_address_before_delivery_quotes(): void
+    public function test_admin_fills_the_departure_address_from_the_shop_page(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
-        $this->actingAs($admin)->put(route('admin.import-countries.hub.update'), [
-            'city' => 'Douala', 'country' => 'Cameroun', 'quarter' => 'Akwa-Nord',
+        $this->actingAs($admin)->put(route('admin.shops.update', $this->hub), [
+            'user_id' => $this->hub->user_id, 'name' => $this->hub->name, 'status' => 'active', 'verification_status' => 'verified',
+            'city' => 'Douala', 'country' => 'Cameroun',
             'address' => 'Rue 1.234, Akwa-Nord, Douala', 'latitude' => 4.07, 'longitude' => 9.72,
             'phone' => '237670000001',
-        ])->assertSessionHas('success');
+        ])->assertSessionHasNoErrors();
         $this->assertTrue(ImportHub::isReady());
-        $this->assertSame('Akwa-Nord', $this->hub->fresh()->quarter);
+        $this->actingAs($admin)->get(route('admin.import-countries.index'))->assertOk()->assertDontSee('Adresse de départ des livraisons grossistes');
     }
 
 }
