@@ -266,7 +266,7 @@
             const data = rowData[sig] ??= { stock: 0, price_adjustment: 0, sku: '', is_active: true };
             const labels = Object.entries(combo).map(([name, value]) => {
                 const hex = hexFor(name, value);
-                return `<span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-dark-50 border border-dark-300 text-white">
+                return `<span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-dark-50 border border-dark-300 text-white whitespace-nowrap">
                     ${hex ? `<span class="w-3.5 h-3.5 rounded-full border border-white/30" style="background:${esc(hex)}"></span>` : ''}
                     <span class="text-gray-400 text-xs">${esc(name)}</span> ${esc(value)}</span>`;
             }).join(' ');

@@ -2,11 +2,11 @@
 
 namespace App\Services;
 
-use App\Models\ImportCountry;
 use App\Models\ImportShippingOption;
 use App\Models\Product;
 use App\Models\ProductPriceTier;
 use App\Models\ProductVariant;
+use App\Models\Setting;
 use App\Support\ImportHub;
 
 /**
@@ -22,13 +22,28 @@ class ImportFreightService
 
     public const DEFAULT_DIVISOR = 6000;
 
+    public const AIR_MAX_SETTING = 'import_air_max_weight_kg';
+
+    public const DIVISOR_SETTING = 'import_air_volumetric_divisor';
+
+    /** Au-delà de ce poids facturé, tous pays confondus, seul le bateau est proposé. */
+    public static function airMaxWeightKg(): float
+    {
+        return (float) Setting::get(self::AIR_MAX_SETTING, self::DEFAULT_AIR_MAX_KG);
+    }
+
+    /** Longueur × largeur × hauteur (cm) divisé par ce nombre donne le poids volumétrique. */
+    public static function volumetricDivisor(): int
+    {
+        return (int) Setting::get(self::DIVISOR_SETTING, self::DEFAULT_DIVISOR);
+    }
+
     /**
      * @param  iterable<array{product: Product, tier: ?ProductPriceTier, variant?: ?ProductVariant, quantity: int}>  $lines
      */
-    public function measure(iterable $lines, ?string $countryCode): array
+    public function measure(iterable $lines): array
     {
-        $country = $countryCode ? ImportCountry::where('code', strtoupper($countryCode))->first() : null;
-        $divisor = (int) ($country?->air_volumetric_divisor ?: self::DEFAULT_DIVISOR);
+        $divisor = self::volumetricDivisor();
 
         $weight = 0.0;
         $cbm = 0.0;
@@ -55,12 +70,12 @@ class ImportFreightService
             'billable_cbm' => round(max($cbm, $weight / self::KG_PER_CBM), 6),
             'missing_weight' => $missingWeight,
             'unmeasured' => $unmeasured,
-            'air_max_weight_kg' => (float) ($country?->air_max_weight_kg ?? self::DEFAULT_AIR_MAX_KG),
+            'air_max_weight_kg' => self::airMaxWeightKg(),
             'volumetric_divisor' => $divisor,
         ];
     }
 
-    /** L'avion s'arrête au seuil du pays ; le bateau reste toujours possible. */
+    /** L'avion s'arrête au seuil commun ; le bateau reste toujours possible. */
     public function isAvailable(ImportShippingOption $option, array $measure): bool
     {
         return match ($option->mode) {

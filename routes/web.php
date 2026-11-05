@@ -408,6 +408,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         // Pays importés (Chine, Turquie, Dubaï…) — alimente la section "Produits importés" de l'app
         Route::get('/import-countries', [ImportCountryController::class, 'index'])->name('import-countries.index');
         Route::put('/import-countries/hub', [ImportCountryController::class, 'updateHub'])->name('import-countries.hub.update');
+        Route::put('/import-countries/freight-rules', [ImportCountryController::class, 'updateFreightRules'])->name('import-countries.freight-rules');
         Route::post('/import-countries/hub', [ImportCountryController::class, 'createHub'])->name('import-countries.hub');
         Route::post('/import-countries', [ImportCountryController::class, 'store'])->name('import-countries.store');
         Route::put('/import-countries/{importCountry}', [ImportCountryController::class, 'update'])->name('import-countries.update');
@@ -415,7 +416,6 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::delete('/import-countries/{importCountry}', [ImportCountryController::class, 'destroy'])->name('import-countries.destroy');
 
         // Options d'expédition rattachées à un pays importé
-        Route::put('/import-countries/{importCountry}/freight-rules', [\App\Http\Controllers\Admin\ImportShippingOptionController::class, 'updateRules'])->name('import-countries.freight-rules');
         Route::prefix('import-countries/{importCountry}/shipping-options')
             ->name('import-countries.shipping-options.')
             ->group(function () {

@@ -540,7 +540,7 @@ class OrderService
             // des mesures envoyées par le client.
             $shipping = ImportShippingOption::where('id', $shippingOptionId)->where('is_active', true)->firstOrFail();
             $freight = app(ImportFreightService::class);
-            $measure = $freight->measure($freightLines, $countryCode);
+            $measure = $freight->measure($freightLines);
             if (! $freight->isAvailable($shipping, $measure)) {
                 throw new \Exception(__('orders.wholesale.air_weight_limit', ['weight' => $measure['air_max_weight_kg']]));
             }

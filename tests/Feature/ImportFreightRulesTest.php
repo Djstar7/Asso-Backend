@@ -17,6 +17,7 @@ use App\Services\AssoShipmentService;
 use App\Services\CommissionService;
 use App\Services\FcmService;
 use App\Services\FirebaseMessagingService;
+use App\Services\ImportFreightService;
 use App\Support\ImportHub;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\RateLimiter;
@@ -165,14 +166,14 @@ class ImportFreightRulesTest extends TestCase
         $this->assertEquals(7920, Order::find($id)->import_shipping_fee);
     }
 
-    public function test_air_stops_above_the_country_limit_while_sea_stays_available(): void
+    public function test_air_stops_above_the_common_limit_while_sea_stays_available(): void
     {
         // 12 × 8 = 96 kg : avion et bateau ; 13 × 8 = 104 kg : bateau seulement.
         $this->order($this->air, 12)->assertCreated();
         $this->order($this->air, 13)->assertStatus(422)->assertJsonPath('message', __('orders.wholesale.air_weight_limit', ['weight' => 100]));
         $this->order($this->sea, 13)->assertCreated();
 
-        ImportCountry::where('code', 'CN')->update(['air_max_weight_kg' => 200]);
+        Setting::set(ImportFreightService::AIR_MAX_SETTING, '200', 'string', 'import');
         $this->order($this->air, 13)->assertCreated();
     }
 
@@ -244,18 +245,23 @@ class ImportFreightRulesTest extends TestCase
         $this->assertArrayNotHasKey('margin_value', $option);
     }
 
-    public function test_admin_can_no_longer_create_express_or_flat_and_can_set_country_rules(): void
+    public function test_admin_can_no_longer_create_express_or_flat_and_sets_rules_for_all_countries(): void
     {
         $country = ImportCountry::where('code', 'CN')->first();
         $this->actingAs($this->admin)->postJson(route('admin.import-countries.shipping-options.store', $country), [
             'mode' => 'express', 'cost_amount' => 100, 'lead_time_days' => 3,
         ])->assertStatus(422);
 
-        $this->actingAs($this->admin)->putJson(route('admin.import-countries.freight-rules', $country), [
+        $this->actingAs($this->admin)->put(route('admin.import-countries.freight-rules'), [
             'air_max_weight_kg' => 150, 'air_volumetric_divisor' => 5000,
-        ])->assertOk();
-        $this->assertEquals(150, $country->refresh()->air_max_weight_kg);
-        $this->assertSame(5000, $country->air_volumetric_divisor);
+        ])->assertSessionHasNoErrors();
+        $this->assertEquals(150, ImportFreightService::airMaxWeightKg());
+        $this->assertSame(5000, ImportFreightService::volumetricDivisor());
+
+        $this->actingAs($this->admin)->put(route('admin.import-countries.freight-rules'), [
+            'air_max_weight_kg' => 150, 'air_volumetric_divisor' => 500,
+        ])->assertSessionHasErrors('air_volumetric_divisor');
+        $this->assertSame(5000, ImportFreightService::volumetricDivisor());
     }
 
     public function test_below_pickup_threshold_solex_stays_and_above_it_old_apps_must_update(): void

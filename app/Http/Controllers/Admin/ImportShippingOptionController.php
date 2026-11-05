@@ -23,19 +23,7 @@ class ImportShippingOptionController extends Controller
         return response()->json([
             'success' => true,
             'shipping_options' => $options->map(fn ($option) => $this->present($option))->values(),
-            'rules' => $importCountry->only(['air_max_weight_kg', 'air_volumetric_divisor']),
         ]);
-    }
-
-    /** Seuil avion et diviseur volumétrique du pays. */
-    public function updateRules(Request $request, ImportCountry $importCountry)
-    {
-        $importCountry->update($request->validate([
-            'air_max_weight_kg' => 'required|numeric|min:0',
-            'air_volumetric_divisor' => 'required|integer|min:1000|max:10000',
-        ]));
-
-        return response()->json(['success' => true]);
     }
 
     /**

@@ -22,8 +22,6 @@ class ImportCountry extends Model
         'flag',
         'sort_order',
         'is_active',
-        'air_max_weight_kg',
-        'air_volumetric_divisor',
     ];
 
     protected function casts(): array
@@ -31,8 +29,6 @@ class ImportCountry extends Model
         return [
             'is_active' => 'boolean',
             'sort_order' => 'integer',
-            'air_max_weight_kg' => 'float',
-            'air_volumetric_divisor' => 'integer',
         ];
     }
 
