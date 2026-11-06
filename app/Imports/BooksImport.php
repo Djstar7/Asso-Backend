@@ -121,10 +121,56 @@ class BooksImport implements ToCollection, WithHeadingRow, WithCustomCsvSettings
     private function upsert(array $data, Category $shelf, ?int $genreId): void
     {
         $isbn = ProductBook::normalizeIsbn($data['isbn'] ?? null);
+        // Colonne absente du fichier ou cellule vide : rien à appliquer.
+        $filled = fn (string $column) => isset($data[$column]) && $data[$column] !== '';
+
+        $existing = $isbn
+            ? ProductBook::where('isbn', $isbn)
+                ->whereHas('product', fn ($q) => $q->where('shop_id', $this->shop->id))
+                ->first()
+            : null;
+
+        if ($existing) {
+            // Mise à jour : seules les colonnes remplies changent, pour qu'un
+            // fichier « prix et stock » ne vide pas le genre ou la description.
+            $product = $existing->product;
+            $productAttributes = [
+                'name' => $data['titre'],
+                'price' => (float) $data['prix'],
+                'category_id' => $shelf->id,
+            ];
+            if ($filled('genre')) {
+                $productAttributes['subcategory_id'] = $genreId;
+            } elseif ($product->category_id !== $shelf->id) {
+                $productAttributes['subcategory_id'] = null; // l'ancien genre appartient à l'ancien rayon
+            }
+            foreach (['description' => 'description', 'stock' => 'stock', 'poids' => 'weight'] as $column => $attribute) {
+                if ($filled($column)) {
+                    $productAttributes[$attribute] = match ($column) {
+                        'stock' => (int) $data[$column],
+                        'poids' => (float) $data[$column],
+                        default => $data[$column],
+                    };
+                }
+            }
+
+            $bookAttributes = ['author' => $data['auteur']];
+            foreach (['editeur' => 'publisher', 'langue' => 'language', 'format' => 'format', 'pages' => 'pages', 'annee' => 'published_year'] as $column => $attribute) {
+                if ($filled($column)) {
+                    $bookAttributes[$attribute] = $data[$column];
+                }
+            }
+
+            $product->update($productAttributes);
+            $existing->update($bookAttributes);
+            $this->updated++;
+
+            return;
+        }
 
         $productAttributes = [
             'name' => $data['titre'],
-            'description' => ! empty($data['description']) ? $data['description'] : $data['titre'],
+            'description' => $filled('description') ? $data['description'] : $data['titre'],
             'price' => (float) $data['prix'],
             'category_id' => $shelf->id,
             'subcategory_id' => $genreId,
@@ -134,30 +180,12 @@ class BooksImport implements ToCollection, WithHeadingRow, WithCustomCsvSettings
         $bookAttributes = [
             'author' => $data['auteur'],
             'isbn' => $isbn,
-            'publisher' => $data['editeur'] ?? null,
-            'language' => $data['langue'] ?? 'fr',
-            'format' => $data['format'] ?? null,
-            'pages' => $data['pages'] ?? null,
-            'published_year' => $data['annee'] ?? null,
+            'publisher' => $filled('editeur') ? $data['editeur'] : null,
+            'language' => $filled('langue') ? $data['langue'] : 'fr',
+            'format' => $filled('format') ? $data['format'] : null,
+            'pages' => $filled('pages') ? $data['pages'] : null,
+            'published_year' => $filled('annee') ? $data['annee'] : null,
         ];
-
-        $existing = $isbn
-            ? ProductBook::where('isbn', $isbn)
-                ->whereHas('product', fn ($q) => $q->where('shop_id', $this->shop->id))
-                ->first()
-            : null;
-
-        if ($existing) {
-            // Poids conservé si la colonne est vide.
-            if (! empty($data['poids'])) {
-                $productAttributes['weight'] = (float) $data['poids'];
-            }
-            $existing->product->update($productAttributes);
-            $existing->update($bookAttributes);
-            $this->updated++;
-
-            return;
-        }
 
         $product = Product::create($productAttributes + [
             'shop_id' => $this->shop->id,

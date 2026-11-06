@@ -151,10 +151,10 @@ class LibraryTest extends TestCase
     public function test_import_creates_then_updates_books_by_isbn_and_reports_errors(): void
     {
         Subcategory::create(['category_id' => $this->shelf->id, 'name' => 'Classiques', 'name_en' => 'Classics', 'slug' => 'classiques']);
-        $csv = "titre;auteur;prix;rayon;genre;isbn;langue;format;stock;poids\n"
-            . "Une si longue lettre;Mariama Bâ;5000;Romans;Classiques;978-2-7087-0347-6;fr;paperback;20;0,3\n"
-            . "Sans auteur;;3000;Romans;;;fr;;1;\n"
-            . "Mauvais rayon;Inconnu;3000;Cuisine;;;fr;;1;\n";
+        $csv = "titre;auteur;prix;rayon;genre;isbn;editeur;langue;format;stock;poids\n"
+            . "Une si longue lettre;Mariama Bâ;5000;Romans;Classiques;978-2-7087-0347-6;NEA;fr;paperback;20;0,3\n"
+            . "Sans auteur;;3000;Romans;;;;fr;;1;\n"
+            . "Mauvais rayon;Inconnu;3000;Cuisine;;;;fr;;1;\n";
 
         $this->actingAs($this->admin)->post(route('admin.library.import.store'), [
             'shop_id' => $this->shop->id,
@@ -178,6 +178,10 @@ class LibraryTest extends TestCase
         $this->assertEquals(4500, (float) $product->fresh()->price);
         $this->assertSame(8, $product->fresh()->stock);
         $this->assertEquals(0.3, (float) $product->fresh()->weight);
+        // Colonnes absentes du fichier de mise à jour : rien n'est effacé.
+        $this->assertSame('Classiques', $product->fresh()->subcategory?->name);
+        $this->assertSame('NEA', $product->book->fresh()->publisher);
+        $this->assertSame('paperback', $product->book->fresh()->format);
     }
 
     public function test_shelves_and_genres_are_managed_in_the_section(): void
