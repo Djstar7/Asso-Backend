@@ -115,6 +115,8 @@ class VendorProductController extends Controller
             'stock' => 'sometimes|integer|min:0',
             // P4 : poids réel du colis en kg (calcul de la livraison).
             'weight' => 'sometimes|nullable|numeric|min:0.001|max:100000',
+            'length_cm' => 'sometimes|nullable|numeric|min:0.01|max:999999.99',
+            'width_cm' => 'sometimes|nullable|numeric|min:0.01|max:999999.99',
             'images' => 'sometimes|array',
             'images.*' => 'file|image|mimes:jpeg,png,jpg,gif,webp|max:5120',
             'deleted_image_ids' => 'sometimes|array',
@@ -544,6 +546,8 @@ class VendorProductController extends Controller
             'weight_category' => $product->weight_category ?? 'X-small',
             'stock' => $product->stock,
             'weight' => $product->weight,
+            'length_cm' => $product->length_cm !== null ? (float) $product->length_cm : null,
+            'width_cm' => $product->width_cm !== null ? (float) $product->width_cm : null,
             // Délai de livraison : saisi (null = hérité) et délai effectivement annoncé.
             'delivery_days_min' => $product->delivery_days_min,
             'delivery_days_max' => $product->delivery_days_max,

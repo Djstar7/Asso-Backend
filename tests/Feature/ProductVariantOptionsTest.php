@@ -62,6 +62,29 @@ class ProductVariantOptionsTest extends TestCase
         ], $overrides);
     }
 
+    public function test_product_dimensions_are_saved_updated_and_exposed(): void
+    {
+        $this->actingAs($this->admin)->post('/admin/products', $this->payload([
+            'length_cm' => '120.50', 'width_cm' => '100',
+        ]))->assertSessionHasNoErrors();
+
+        $product = Product::where('name', 'Basket locale')->firstOrFail();
+        $this->assertSame('120.50', $product->length_cm);
+        $this->getJson("/api/v1/products/{$product->id}")
+            ->assertJsonPath('product.length_cm', 120.5)
+            ->assertJsonPath('product.width_cm', 100);
+
+        Sanctum::actingAs($this->vendor);
+        $this->putJson("/api/v1/vendor/products/{$product->id}", ['width_cm' => 90])
+            ->assertOk()->assertJsonPath('product.width_cm', 90);
+        $this->assertSame('120.50', $product->fresh()->length_cm);
+        $this->putJson("/api/v1/vendor/products/{$product->id}", ['length_cm' => -1])
+            ->assertUnprocessable()->assertJsonValidationErrors('length_cm');
+        $this->putJson("/api/v1/vendor/products/{$product->id}", ['length_cm' => null, 'width_cm' => null])
+            ->assertOk()->assertJsonPath('product.length_cm', null);
+        $this->assertNull($product->fresh()->width_cm);
+    }
+
     public function test_admin_creates_local_product_with_color_and_size_matrix(): void
     {
         $this->actingAs($this->admin)->post('/admin/products', $this->payload())

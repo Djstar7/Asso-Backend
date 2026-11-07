@@ -411,6 +411,8 @@ class ProductController extends Controller
             'stock' => 'nullable|integer|min:0',
             // P4 : poids réel du colis en kg, obligatoire pour un article (calcul de la livraison).
             'weight' => 'required_if:type,article|nullable|numeric|min:0.001|max:100000',
+            'length_cm' => 'nullable|numeric|min:0.01|max:999999.99',
+            'width_cm' => 'nullable|numeric|min:0.01|max:999999.99',
             'weight_category' => 'nullable|in:' . implode(',', Product::WEIGHT_CATEGORIES),
             'sizes' => 'nullable|array',
             'sizes.*' => 'string|in:' . implode(',', Product::AVAILABLE_SIZES),
@@ -491,6 +493,8 @@ class ProductController extends Controller
             'is_local_made' => empty($validated['origin_country']) && !empty($validated['is_local_made']),
             'condition' => $validated['condition'],
             'weight_category' => $validated['weight_category'] ?? 'X-small',
+            'length_cm' => $validated['length_cm'] ?? null,
+            'width_cm' => $validated['width_cm'] ?? null,
             'sizes' => $this->normalizeSizes($validated['sizes'] ?? []),
             'slug' => \Str::slug($validated['name']) . '-' . \Str::random(5),
             'status' => 'active', // Set product as active (database constraint: active or inactive only)
@@ -695,6 +699,8 @@ class ProductController extends Controller
             'price_is_indicative' => (bool) $product->requires_quote,
             'availability_label' => $product->requires_quote ? __('Prix et disponibilité à confirmer') : null,
             'weight' => $product->weight,
+            'length_cm' => $product->length_cm !== null ? (float) $product->length_cm : null,
+            'width_cm' => $product->width_cm !== null ? (float) $product->width_cm : null,
             'status' => $product->status,
             'latitude' => $latitude,
             'longitude' => $longitude,

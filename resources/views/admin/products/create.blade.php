@@ -252,6 +252,8 @@
                         </div>
                     </div>
 
+                    @include('admin.products._dimensions')
+
                     <!-- Poids réel (obligatoire pour un article) -->
                     <div id="product_weight_field">
                     <div class="mb-4">

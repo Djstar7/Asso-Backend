@@ -237,6 +237,17 @@
                         <div class="font-semibold text-white">{{ $product->subcategory->name ?? 'Aucune' }}</div>
                     </div>
 
+                    @if($product->length_cm !== null || $product->width_cm !== null)
+                    <div class="p-4 bg-dark-50 rounded-lg">
+                        <div class="text-sm text-gray-400 mb-1"><i class="fas fa-ruler-combined mr-2"></i>Dimensions</div>
+                        <div class="font-semibold text-white">
+                            @if($product->length_cm !== null)Longueur : {{ rtrim(rtrim(number_format((float) $product->length_cm, 2, ',', ' '), '0'), ',') }} cm@endif
+                            @if($product->length_cm !== null && $product->width_cm !== null) × @endif
+                            @if($product->width_cm !== null)Largeur : {{ rtrim(rtrim(number_format((float) $product->width_cm, 2, ',', ' '), '0'), ',') }} cm@endif
+                        </div>
+                    </div>
+                    @endif
+
                     <!-- Weight Category -->
                     <div class="p-4 bg-dark-50 rounded-lg">
                         <div class="text-sm text-gray-400 mb-1">
