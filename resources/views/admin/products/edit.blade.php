@@ -278,6 +278,8 @@
                         Poids et origine
                     </h2>
 
+                    @include('admin.products._dimensions')
+
                     <div class="mb-4" id="product_weight_field">
                         <label for="weight" class="block text-sm font-medium text-white mb-2">
                             Poids unitaire (kg) <span class="text-red-500">*</span>

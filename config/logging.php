@@ -65,6 +65,14 @@ return [
             'replace_placeholders' => true,
         ],
 
+        // Journal de la sauvegarde quotidienne de la base (backup:database).
+        'backup' => [
+            'driver' => 'single',
+            'path' => storage_path('logs/backup.log'),
+            'level' => 'info',
+            'replace_placeholders' => true,
+        ],
+
         'daily' => [
             'driver' => 'daily',
             'path' => storage_path('logs/laravel.log'),

@@ -118,6 +118,8 @@ class Product extends Model
         'min_order_quantity',
         'stock',
         'weight',
+        'length_cm',
+        'width_cm',
         'weight_category',
         'sizes',
         'variant_options',
@@ -152,6 +154,8 @@ class Product extends Model
     protected $casts = [
         'requires_quote' => 'boolean',
         'price' => 'decimal:2',
+        'length_cm' => 'decimal:2',
+        'width_cm' => 'decimal:2',
         'price_xaf' => 'decimal:2',
         'min_price' => 'decimal:2',
         'max_price' => 'decimal:2',
