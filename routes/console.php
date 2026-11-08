@@ -240,3 +240,12 @@ Schedule::command('carriers:dispatch-pending')->everyFiveMinutes()->withoutOverl
 Schedule::command('notifications:retry')->everyMinute()->withoutOverlapping(5);
 
 Schedule::command('notifications:send-digests')->dailyAt(config('notifications.digest_time'))->timezone(config('notifications.digest_timezone'))->withoutOverlapping(60);
+
+/*
+ * Sauvegarde de la base : chaque nuit à minuit, heure du Cameroun. Archive
+ * chiffrée envoyée par e-mail (BACKUP_MAIL_TO) et copiée sur Google Drive.
+ */
+Schedule::command('backup:database')
+    ->dailyAt(config('backup.time'))
+    ->timezone(config('backup.timezone'))
+    ->withoutOverlapping(120);
