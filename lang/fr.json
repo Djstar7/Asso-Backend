@@ -1883,6 +1883,7 @@
             "closed": "Ce litige est déjà tranché."
         }
     },
+    "library": {"formats": {"paperback": "Broché", "hardcover": "Relié", "ebook": "Livre numérique", "audio": "Livre audio"}, "languages": {"fr": "Français", "en": "Anglais"}},
     "agency": {
         "invalid_state": "Cette commande ne permet pas cette action.",
         "assignment_locked": "L’agence ne peut plus être modifiée après l’arrivée.",
@@ -1907,6 +1908,7 @@
             "delivery": "Livraison et transport",
             "diaspo": "DIASPO et envois",
             "real_estate": "Immobilier",
+            "library": "Bibliothèque",
             "finance": "Finances",
             "customer": "Relation client",
             "marketing": "Marketing et réseau commercial",
@@ -1941,6 +1943,10 @@
             "cabinets": "Cabinets partenaires",
             "property_disputes": "Litiges immobiliers",
             "property_settings": "Réglages et équipements",
+            "library_overview": "Vue d’ensemble",
+            "library_books": "Livres",
+            "library_import": "Importer des livres",
+            "library_shelves": "Rayons et genres",
             "revenue": "Revenus ASSO",
             "withdrawals": "Retraits des fonds ASSO",
             "transactions": "Transactions",
@@ -2000,7 +2006,8 @@
         "keywords": {
             "shipments": "Commandes internationales, exports, importations, Solex, DHL, FedEx, statuts",
             "local_orders": "Commandes locales, fabrication au Cameroun",
-            "fcm_tokens": "FCM, tokens, notifications push, appareils"
+            "fcm_tokens": "FCM, tokens, notifications push, appareils",
+            "library_books": "Livres, auteurs, ISBN, éditeurs, librairie"
         }
     },
     "admin_confirmation": {

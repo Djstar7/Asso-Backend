@@ -30,6 +30,16 @@ return [
         ],
     ],
     [
+        // Réservée à l'admin : ses routes ne figurent pas dans admin_access.routes.
+        'id' => 'library', 'icon' => 'fa-book',
+        'items' => [
+            ['id' => 'library_overview', 'route' => 'admin.library.overview', 'icon' => 'fa-chart-bar', 'match' => ['admin.library.overview']],
+            ['id' => 'library_books', 'keywords' => 'admin_nav.keywords.library_books', 'route' => 'admin.library.books.index', 'icon' => 'fa-book', 'match' => ['admin.library.books.*']],
+            ['id' => 'library_import', 'route' => 'admin.library.import.create', 'icon' => 'fa-file-import', 'match' => ['admin.library.import.*']],
+            ['id' => 'library_shelves', 'route' => 'admin.library.shelves.index', 'icon' => 'fa-layer-group', 'match' => ['admin.library.shelves.*', 'admin.library.genres.*']],
+        ],
+    ],
+    [
         'id' => 'delivery', 'icon' => 'fa-truck',
         'items' => [
             ['id' => 'shipments', 'keywords' => 'admin_nav.keywords.shipments', 'route' => 'admin.shipments.index', 'icon' => 'fa-shipping-fast', 'match' => ['admin.shipments.*']],

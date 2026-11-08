@@ -1883,6 +1883,7 @@
             "closed": "This dispute has already been decided."
         }
     },
+    "library": {"formats": {"paperback": "Paperback", "hardcover": "Hardcover", "ebook": "E-book", "audio": "Audiobook"}, "languages": {"fr": "French", "en": "English"}},
     "agency": {
         "invalid_state": "This action is unavailable for this order.",
         "assignment_locked": "The agency cannot be changed after arrival.",
@@ -1907,6 +1908,7 @@
             "delivery": "Delivery and logistics",
             "diaspo": "DIASPO and shipping",
             "real_estate": "Real estate",
+            "library": "Library",
             "finance": "Finance",
             "customer": "Customer service",
             "marketing": "Marketing and sales network",
@@ -1941,6 +1943,10 @@
             "cabinets": "Partner agencies",
             "property_disputes": "Property disputes",
             "property_settings": "Settings and amenities",
+            "library_overview": "Overview",
+            "library_books": "Books",
+            "library_import": "Import books",
+            "library_shelves": "Shelves and genres",
             "revenue": "ASSO revenue",
             "withdrawals": "ASSO fund withdrawals",
             "transactions": "Transactions",
@@ -2000,7 +2006,8 @@
         "keywords": {
             "shipments": "International orders, exports, imports, Solex, DHL, FedEx, status",
             "local_orders": "Local orders, made in Cameroon",
-            "fcm_tokens": "FCM, tokens, push notifications, devices"
+            "fcm_tokens": "FCM, tokens, push notifications, devices",
+            "library_books": "Books, authors, ISBN, publishers, bookshop"
         }
     },
     "admin_confirmation": {

@@ -24,11 +24,13 @@ class Category extends Model
         'svg_icon',
         'delivery_days_min',
         'delivery_days_max',
+        'is_library'
     ];
 
     protected $casts = [
         'delivery_days_min' => 'integer',
         'delivery_days_max' => 'integer',
+        'is_library' => 'boolean',
     ];
 
     public function getSvgIconAttribute(?string $value): ?string

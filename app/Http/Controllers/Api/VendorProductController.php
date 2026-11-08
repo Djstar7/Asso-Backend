@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use App\Models\DeliveryPricelist;
+use App\Services\ProductBookService;
 use App\Services\ProductVariantService;
 use App\Services\ProductVideoUploadService;
 use App\Support\Translation\ContentLocale;
@@ -24,7 +25,7 @@ class VendorProductController extends Controller
     {
         $user = $request->user();
 
-        $query = Product::with(['images', 'primaryImage', 'video', 'category', 'subcategory', 'shop', 'variants', 'translations'])
+        $query = Product::with(['images', 'primaryImage', 'video', 'book', 'category', 'subcategory', 'shop', 'variants', 'translations'])
             ->where('user_id', $user->id)
             // Départage par id : sans lui, les produits créés à la même
             // seconde s'ordonnent librement d'une requête à l'autre, et la
@@ -128,7 +129,12 @@ class VendorProductController extends Controller
             'free_delivery' => 'sometimes|nullable|boolean',
         ] + \App\Services\DepositOrderService::productRules() + ProductVariantService::rules()
             + ContentLocale::rules(Product::TRANSLATION_RULES)
-            + \App\Support\DeliveryDelay::rules());
+            + \App\Support\DeliveryDelay::rules()
+            // Auteur exigé si la fiche livre est envoyée ou si le produit entre dans un rayon.
+            + ProductBookService::rules(
+                $request->integer('category_id') ?: $product->category_id,
+                $request->has('book') || ($request->filled('category_id') && $request->integer('category_id') !== $product->category_id),
+            ));
 
         \Log::info('[VENDOR_PRODUCT_UPDATE] Received data:', [
             'product_id' => $id,
@@ -209,6 +215,7 @@ class VendorProductController extends Controller
             unset($updateData['images'], $updateData['variants'], $updateData['variant_options'], $updateData['replace_variants'], $updateData['translations']);
             unset($updateData['deposit_enabled'], $updateData['deposit_rate']);
             unset($updateData['video_id'], $updateData['remove_video']);
+            unset($updateData['book']);
             $updateData += \App\Services\DepositOrderService::productAttributes($validated);
 
             // Convert empty strings to null for weight fields
@@ -241,6 +248,8 @@ class VendorProductController extends Controller
             if ($variants !== null) {
                 app(ProductVariantService::class)->sync($product, $variants, $variantOptions);
             }
+
+            app(ProductBookService::class)->sync($product, $validated['book'] ?? null);
 
             \Log::info('[VENDOR_PRODUCT_UPDATE] Product updated:', [
                 'product_id' => $product->id,
@@ -342,7 +351,7 @@ class VendorProductController extends Controller
             }
 
             // Load relations for response
-            $product->load(['images', 'primaryImage', 'video', 'category', 'subcategory', 'shop', 'variants']);
+            $product->load(['images', 'primaryImage', 'video', 'book', 'category', 'subcategory', 'shop', 'variants']);
 
             $responseData = [
                 'success' => true,
@@ -482,7 +491,7 @@ class VendorProductController extends Controller
 
         $product = Product::where('user_id', $request->user()->id)->findOrFail($id);
         $product->update(['free_delivery' => $validated['free_delivery'] === null ? null : (bool) $validated['free_delivery']]);
-        $product->load(['images', 'primaryImage', 'video', 'category', 'subcategory', 'shop', 'variants']);
+        $product->load(['images', 'primaryImage', 'video', 'book', 'category', 'subcategory', 'shop', 'variants']);
 
         return response()->json([
             'success' => true,
@@ -503,7 +512,7 @@ class VendorProductController extends Controller
 
         $product = Product::where('user_id', $request->user()->id)->findOrFail($id);
         $product->update(\App\Services\DepositOrderService::productAttributes($validated));
-        $product->load(['images', 'primaryImage', 'video', 'category', 'subcategory', 'shop', 'variants']);
+        $product->load(['images', 'primaryImage', 'video', 'book', 'category', 'subcategory', 'shop', 'variants']);
 
         return response()->json([
             'success' => true,
@@ -562,6 +571,7 @@ class VendorProductController extends Controller
             ]),
             // Vidéo exposée une fois traitée ; le statut permet d'afficher « en cours ».
             'video' => $product->video?->toApi(),
+            'book' => $product->book?->toApi(),
             'video_status' => $product->video?->status,
             'category' => $product->category ? [
                 'id' => $product->category->id,

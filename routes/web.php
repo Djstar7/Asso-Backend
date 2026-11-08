@@ -184,6 +184,26 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::put('/projects/{project}', [$st, 'updateProject'])->name('projects.update');
         });
 
+        // Bibliothèque — réservée à l'admin (absente de admin_access.routes).
+        // Ajout et modification d'un livre : formulaire produit en mode Bibliothèque.
+        Route::prefix('library')->name('library.')->group(function () {
+            Route::get('/', [\App\Http\Controllers\Admin\Library\OverviewController::class, 'index'])->name('overview');
+            Route::get('/books', [\App\Http\Controllers\Admin\Library\BookController::class, 'index'])->name('books.index');
+
+            $imp = \App\Http\Controllers\Admin\Library\ImportController::class;
+            Route::get('/import', [$imp, 'create'])->name('import.create');
+            Route::post('/import', [$imp, 'store'])->name('import.store');
+            Route::get('/import/template', [$imp, 'template'])->name('import.template');
+
+            $sh = \App\Http\Controllers\Admin\Library\ShelfController::class;
+            Route::get('/shelves', [$sh, 'index'])->name('shelves.index');
+            Route::post('/shelves', [$sh, 'store'])->name('shelves.store');
+            Route::put('/shelves/{shelf}', [$sh, 'update'])->name('shelves.update');
+            Route::delete('/shelves/{shelf}', [$sh, 'destroy'])->name('shelves.destroy');
+            Route::post('/shelves/{shelf}/genres', [$sh, 'storeGenre'])->name('genres.store');
+            Route::delete('/genres/{genre}', [$sh, 'destroyGenre'])->name('genres.destroy');
+        });
+
         // P4 — Partenaires logistiques (réglages, conditions, trajets au poids) et expéditions
         Route::prefix('delivery-partners')->name('delivery-partners.')->group(function () {
             Route::post('/{partner}/agencies', [\App\Http\Controllers\Admin\DeliveryAgencyController::class, 'store'])->name('agencies.store');

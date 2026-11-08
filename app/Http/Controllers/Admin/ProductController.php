@@ -11,6 +11,7 @@ use App\Models\ProductImage;
 use App\Models\ProductVideo;
 use App\Models\Shop;
 use App\Models\Subcategory;
+use App\Services\ProductBookService;
 use App\Services\ProductBroadcastService;
 use App\Services\ProductVariantService;
 use App\Services\ProductVideoUploadService;
@@ -48,6 +49,9 @@ class ProductController extends Controller
 
         if ($request->filled('category_id')) {
             $query->where('category_id', $request->category_id);
+        } else {
+            // Les livres se gèrent dans la section Bibliothèque.
+            $query->notLibrary();
         }
 
         if ($request->filled('type')) {
@@ -83,7 +87,7 @@ class ProductController extends Controller
         $products = $query->paginate(20)->withQueryString();
         $shops = Shop::when($request->boolean('asso'), fn ($q) => $q->where('user_id', \App\Support\AssoScope::ownerId()))
             ->orderBy('name')->get();
-        $categories = Category::orderBy('name')->get();
+        $categories = Category::where('is_library', false)->orderBy('name')->get();
 
         return view('admin.products.index', compact('products', 'shops', 'categories'));
     }
@@ -91,15 +95,18 @@ class ProductController extends Controller
     /**
      * Show the form for creating a new product
      */
-    public function create()
+    public function create(Request $request)
     {
+        // Mode Bibliothèque (?library=1) : seuls les rayons sont proposés.
+        $libraryMode = $request->boolean('library');
+        $this->guardLibrary($request, $libraryMode);
         $shops = Shop::where('status', 'active')->orderBy('name')->get();
-        $categories = Category::orderBy('name')->get();
+        $categories = Category::where('is_library', $libraryMode)->orderBy('name')->get();
         $subcategories = Subcategory::with('category')->orderBy('name')->get();
         $importCountries = ImportCountry::activeOrdered()->get();
         $currencies = Currency::active()->orderBy('code')->get();
 
-        return view('admin.products.create', compact('shops', 'categories', 'subcategories', 'importCountries', 'currencies'));
+        return view('admin.products.create', compact('shops', 'categories', 'subcategories', 'importCountries', 'currencies', 'libraryMode'));
     }
 
     /**
@@ -107,6 +114,8 @@ class ProductController extends Controller
      */
     public function store(Request $request)
     {
+        $this->guardLibrary($request, ProductBookService::isLibraryCategory($request->integer('category_id') ?: null));
+
         $validated = $request->validate([
             'shop_id' => 'required|exists:shops,id',
             'category_id' => 'bail|required|integer|exists:categories,id',
@@ -172,7 +181,8 @@ class ProductController extends Controller
             // Vidéo déjà envoyée par morceaux (ProductVideoController) : on ne reçoit que son id.
             'video_id' => 'nullable|integer|exists:product_videos,id',
             'remove_video' => 'nullable|boolean',
-        ] + ProductVariantService::rules() + \App\Support\DeliveryDelay::rules());
+        ] + ProductVariantService::rules() + \App\Support\DeliveryDelay::rules()
+            + ProductBookService::rules($request->integer('category_id') ?: null));
 
         $this->assertDistinctTierThresholds($validated['tiers'] ?? []);
         $this->assertCoherentDimensions($validated, $validated['tiers'] ?? []);
@@ -182,7 +192,8 @@ class ProductController extends Controller
         $variants = $validated['variants'] ?? [];
         $variantOptions = $validated['variant_options'] ?? null;
         $isWholesale = $request->boolean('is_wholesale');
-        unset($validated['tiers'], $validated['variants'], $validated['variant_options'], $validated['is_wholesale'], $validated['images'], $validated['video_id'], $validated['remove_video']);
+        $book = $validated['book'] ?? null;
+        unset($validated['tiers'], $validated['variants'], $validated['variant_options'], $validated['is_wholesale'], $validated['images'], $validated['video_id'], $validated['remove_video'], $validated['book']);
         $validated['currency'] = strtoupper($validated['currency'] ?? 'XAF');
 
         // Produit en gros : toujours la boutique « ASSO Import Douala » (entrepôt de réception).
@@ -218,10 +229,11 @@ class ProductController extends Controller
 
         $this->writtenImages = [];
         try {
-            $product = DB::transaction(function () use ($validated, $tiers, $variants, $variantOptions, $request) {
+            $product = DB::transaction(function () use ($validated, $tiers, $variants, $variantOptions, $book, $request) {
                 // Create product
                 $product = Product::create($validated);
                 $product->syncTranslations($validated['translations'] ?? null);
+                app(ProductBookService::class)->sync($product, $book);
 
                 // Paliers de prix (module GROS)
                 $this->syncPriceTiers($product, $tiers);
@@ -248,15 +260,18 @@ class ProductController extends Controller
             app(ProductBroadcastService::class)->newProduct($product);
         }
 
-        return redirect()->route('admin.products.index')->with('success', 'Produit créé avec succès!');
+        return $product->book()->exists()
+            ? redirect()->route('admin.library.books.index')->with('success', 'Livre ajouté à la Bibliothèque.')
+            : redirect()->route('admin.products.index')->with('success', 'Produit créé avec succès!');
     }
 
     /**
      * Display the specified product
      */
-    public function show(Product $product)
+    public function show(Request $request, Product $product)
     {
-        $product->load(['shop', 'category', 'subcategory', 'images', 'user', 'priceTiers', 'variants']);
+        $this->guardLibrary($request, $product->isBook());
+        $product->load(['shop', 'category', 'subcategory', 'images', 'user', 'priceTiers', 'variants', 'book']);
 
         return view('admin.products.show', compact('product'));
     }
@@ -264,16 +279,18 @@ class ProductController extends Controller
     /**
      * Show the form for editing the specified product
      */
-    public function edit(Product $product)
+    public function edit(Request $request, Product $product)
     {
-        $product->load(['images', 'priceTiers', 'variants']);
+        $product->load(['images', 'priceTiers', 'variants', 'book', 'category']);
+        $libraryMode = $product->isBook();
+        $this->guardLibrary($request, $libraryMode);
         $shops = Shop::where('status', 'active')->orderBy('name')->get();
-        $categories = Category::orderBy('name')->get();
+        $categories = Category::where('is_library', $libraryMode)->orderBy('name')->get();
         $subcategories = Subcategory::with('category')->orderBy('name')->get();
         $importCountries = ImportCountry::activeOrdered()->get();
         $currencies = Currency::active()->orderBy('code')->get();
 
-        return view('admin.products.edit', compact('product', 'shops', 'categories', 'subcategories', 'importCountries', 'currencies'));
+        return view('admin.products.edit', compact('product', 'shops', 'categories', 'subcategories', 'importCountries', 'currencies', 'libraryMode'));
     }
 
     /**
@@ -281,6 +298,9 @@ class ProductController extends Controller
      */
     public function update(Request $request, Product $product)
     {
+        $this->guardLibrary($request, $product->isBook()
+            || ProductBookService::isLibraryCategory($request->integer('category_id') ?: null));
+
         $validated = $request->validate([
             'shop_id' => 'required|exists:shops,id',
             'category_id' => 'bail|required|integer|exists:categories,id',
@@ -346,7 +366,8 @@ class ProductController extends Controller
             // Vidéo déjà envoyée par morceaux (ProductVideoController) : on ne reçoit que son id.
             'video_id' => 'nullable|integer|exists:product_videos,id',
             'remove_video' => 'nullable|boolean',
-        ] + ProductVariantService::rules() + \App\Support\DeliveryDelay::rules());
+        ] + ProductVariantService::rules() + \App\Support\DeliveryDelay::rules()
+            + ProductBookService::rules($request->integer('category_id') ?: null));
 
         $this->assertDistinctTierThresholds($validated['tiers'] ?? []);
         $this->assertCoherentDimensions($validated, $validated['tiers'] ?? []);
@@ -356,7 +377,8 @@ class ProductController extends Controller
         $variants = $validated['variants'] ?? [];
         $variantOptions = $validated['variant_options'] ?? null;
         $isWholesale = $request->boolean('is_wholesale');
-        unset($validated['tiers'], $validated['variants'], $validated['variant_options'], $validated['is_wholesale'], $validated['images'], $validated['video_id'], $validated['remove_video']);
+        $book = $validated['book'] ?? null;
+        unset($validated['tiers'], $validated['variants'], $validated['variant_options'], $validated['is_wholesale'], $validated['images'], $validated['video_id'], $validated['remove_video'], $validated['book']);
         $validated['currency'] = strtoupper($validated['currency'] ?? $product->currency ?? 'XAF');
 
         // Produit en gros : toujours la boutique « ASSO Import Douala » (entrepôt de réception).
@@ -398,10 +420,11 @@ class ProductController extends Controller
 
         $this->writtenImages = [];
         try {
-            $product = DB::transaction(function () use ($product, $validated, $tiers, $variants, $variantOptions, $request) {
+            $product = DB::transaction(function () use ($product, $validated, $tiers, $variants, $variantOptions, $book, $request) {
                 // Update product
                 $product->update($validated);
                 $product->syncTranslations($validated['translations'] ?? null);
+                app(ProductBookService::class)->sync($product, $book);
 
                 // Paliers de prix (module GROS) — remplace intégralement l'ancienne liste
                 $this->syncPriceTiers($product, $tiers);
@@ -423,14 +446,18 @@ class ProductController extends Controller
             throw $exception;
         }
 
-        return redirect()->route('admin.products.index')->with('success', 'Produit mis à jour avec succès!');
+        return $product->book()->exists()
+            ? redirect()->route('admin.library.books.index')->with('success', 'Livre mis à jour.')
+            : redirect()->route('admin.products.index')->with('success', 'Produit mis à jour avec succès!');
     }
 
     /**
      * Remove the specified product
      */
-    public function destroy(Product $product)
+    public function destroy(Request $request, Product $product)
     {
+        $this->guardLibrary($request, $product->isBook());
+
         foreach ($product->images as $image) {
             if (File::exists(public_path($image->image_path))) {
                 File::delete(public_path($image->image_path));
@@ -440,16 +467,20 @@ class ProductController extends Controller
         // La cascade SQL supprimerait les lignes sans leurs fichiers : on passe par le modèle.
         ProductVideo::where('product_id', $product->id)->get()->each->delete();
 
+        $wasBook = $product->book()->exists();
         $product->delete();
 
-        return redirect()->route('admin.products.index')->with('success', 'Produit supprimé avec succès!');
+        return $wasBook
+            ? redirect()->route('admin.library.books.index')->with('success', 'Livre supprimé.')
+            : redirect()->route('admin.products.index')->with('success', 'Produit supprimé avec succès!');
     }
 
     /**
      * Masque ou réaffiche un produit sur la plateforme (statut active/inactive).
      */
-    public function toggleStatus(Product $product)
+    public function toggleStatus(Request $request, Product $product)
     {
+        $this->guardLibrary($request, $product->isBook());
         $product->update(['status' => $product->status === 'active' ? 'inactive' : 'active']);
 
         return back()->with('success', $product->status === 'active'
@@ -645,6 +676,12 @@ class ProductController extends Controller
     /**
      * Get subcategories for a category (AJAX)
      */
+    /** La Bibliothèque est réservée à l'admin, y compris par le formulaire produit. */
+    private function guardLibrary(Request $request, bool $isBook): void
+    {
+        abort_if($isBook && ! $request->user()->canAccessAdminRoute('admin.library.books.index'), 403);
+    }
+
     public function getSubcategories(Category $category)
     {
         return response()->json($category->subcategories);

@@ -5,11 +5,11 @@
     <!-- Header -->
     <div class="mb-6">
         <div class="flex items-center gap-3">
-            <a href="{{ route('admin.products.index') }}" class="text-gray-400 hover:text-primary-600 transition-colors">
+            <a href="{{ $libraryMode ? route('admin.library.books.index') : route('admin.products.index') }}" class="text-gray-400 hover:text-primary-600 transition-colors">
                 <i class="fas fa-arrow-left"></i>
             </a>
             <div>
-                <h1 class="text-2xl font-bold text-white">Créer un Produit</h1>
+                <h1 class="text-2xl font-bold text-white">{{ $libraryMode ? 'Ajouter un livre' : 'Créer un Produit' }}</h1>
                 <p class="text-gray-400">Ajoutez un nouveau produit à la plateforme</p>
             </div>
         </div>
@@ -90,6 +90,10 @@
                         </div>
                     </div>
                 </div>
+
+                @if($libraryMode)
+                    @include('admin.products._book')
+                @endif
 
                 <!-- Vente en gros (Import) -->
 <div class="bg-dark-100 rounded-xl shadow-lg p-6" id="wholesale_section" style="display:none;">
@@ -336,7 +340,7 @@
                         <i class="fas fa-save mr-2"></i>
                         Créer le Produit
                     </button>
-                    <a href="{{ route('admin.products.index') }}" class="block w-full mt-3 px-6 py-3 bg-transparent border-2 border-white text-center text-white rounded-lg hover:bg-dark-100 hover:text-primary-600 transition-all">
+                    <a href="{{ $libraryMode ? route('admin.library.books.index') : route('admin.products.index') }}" class="block w-full mt-3 px-6 py-3 bg-transparent border-2 border-white text-center text-white rounded-lg hover:bg-dark-100 hover:text-primary-600 transition-all">
                         <i class="fas fa-times mr-2"></i>
                         Annuler
                     </a>
