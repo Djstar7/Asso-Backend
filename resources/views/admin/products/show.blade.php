@@ -151,8 +151,9 @@
                     <th class="pb-2 pr-4">Label</th>
                     <th class="pb-2 pr-4">Prix unitaire</th>
                     <th class="pb-2 pr-4">Qté min</th>
-                    <th class="pb-2 pr-4">Pack size</th>
-                    <th class="pb-2 pr-4">Poids / unité</th>
+                    <th class="pb-2 pr-4">Pièces / carton</th>
+                    <th class="pb-2 pr-4">Poids / pièce</th>
+                    <th class="pb-2 pr-4">CBM / carton</th>
                     <th class="pb-2">Statut</th>
                 </tr>
             </thead>
@@ -166,6 +167,7 @@
                         <td class="py-3 pr-4 text-gray-300">{{ $tier->min_quantity }}</td>
                         <td class="py-3 pr-4 text-gray-300">{{ $tier->pack_size }}</td>
                         <td class="py-3 pr-4 text-gray-300">{{ $tier->weight_kg !== null ? rtrim(rtrim(number_format($tier->weight_kg, 3, ',', ' '), '0'), ',') . ' kg' : '—' }}</td>
+                        <td class="py-3 pr-4 text-gray-300">{{ ($tier->cbm ?: (float) $product->cbm) ? rtrim(rtrim(number_format($tier->cbm ?: (float) $product->cbm, 4, ',', ' '), '0'), ',') . ' CBM' . ($tier->cbm ? '' : ' (fiche)') : '—' }}</td>
                         <td class="py-3">
                             @if($tier->is_active)
                                 <span class="px-2 py-0.5 text-xs rounded-full bg-green-500/20 text-green-300 border border-green-500/50">Actif</span>
@@ -236,6 +238,21 @@
                         </div>
                         <div class="font-semibold text-white">{{ $product->subcategory->name ?? 'Aucune' }}</div>
                     </div>
+
+                    @if($product->length_cm !== null || $product->width_cm !== null || $product->height_cm !== null || $product->cbm)
+                    <div class="p-4 bg-dark-50 rounded-lg">
+                        <div class="text-sm text-gray-400 mb-1"><i class="fas fa-ruler-combined mr-2"></i>Dimensions</div>
+                        <div class="font-semibold text-white">
+                            {{-- Texte assemblé en PHP : un « @endif » collé à « cm » n'est pas compilé par Blade. --}}
+                            {{ collect([
+                                $product->length_cm !== null ? 'Longueur : '.rtrim(rtrim(number_format((float) $product->length_cm, 2, ',', ' '), '0'), ',').' cm' : null,
+                                $product->width_cm !== null ? 'Largeur : '.rtrim(rtrim(number_format((float) $product->width_cm, 2, ',', ' '), '0'), ',').' cm' : null,
+                                $product->height_cm !== null ? 'Hauteur : '.rtrim(rtrim(number_format((float) $product->height_cm, 2, ',', ' '), '0'), ',').' cm' : null,
+                            ])->filter()->implode(' × ') }}
+                            @if($product->cbm) · {{ rtrim(rtrim(number_format((float) $product->cbm, 4, ',', ' '), '0'), ',') }} CBM / carton @endif
+                        </div>
+                    </div>
+                    @endif
 
                     <!-- Weight Category -->
                     <div class="p-4 bg-dark-50 rounded-lg">

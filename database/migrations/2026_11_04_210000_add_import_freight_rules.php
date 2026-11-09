@@ -15,11 +15,13 @@ return new class extends Migration
     public function up(): void
     {
         foreach (['products', 'product_price_tiers'] as $name) {
-            Schema::table($name, function (Blueprint $table) {
-                $table->decimal('length_cm', 8, 2)->nullable();
-                $table->decimal('width_cm', 8, 2)->nullable();
-                $table->decimal('height_cm', 8, 2)->nullable();
-            });
+            foreach (['length_cm', 'width_cm', 'height_cm'] as $column) {
+                if (! Schema::hasColumn($name, $column)) {
+                    Schema::table($name, function (Blueprint $table) use ($column) {
+                        $table->decimal($column, 8, 2)->nullable();
+                    });
+                }
+            }
         }
 
         Schema::table('import_shipping_options', function (Blueprint $table) {

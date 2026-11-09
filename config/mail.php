@@ -45,7 +45,19 @@ return [
             'port' => env('MAIL_PORT', 2525),
             'username' => env('MAIL_USERNAME'),
             'password' => env('MAIL_PASSWORD'),
-            'timeout' => null,
+            // Court pour que le failover bascule vite si le mailserver ne répond pas.
+            'timeout' => env('MAIL_TIMEOUT', 10),
+            'local_domain' => env('MAIL_EHLO_DOMAIN', parse_url((string) env('APP_URL', 'http://localhost'), PHP_URL_HOST)),
+        ],
+
+        // Secours : envoi direct via un relais authentifié (port 587, non bridé par l'hébergeur).
+        'fallback_smtp' => [
+            'transport' => 'smtp',
+            'host' => env('MAIL_FALLBACK_HOST', 'smtp.gmail.com'),
+            'port' => env('MAIL_FALLBACK_PORT', 587),
+            'username' => env('MAIL_FALLBACK_USERNAME'),
+            'password' => env('MAIL_FALLBACK_PASSWORD'),
+            'timeout' => env('MAIL_FALLBACK_TIMEOUT', 15),
             'local_domain' => env('MAIL_EHLO_DOMAIN', parse_url((string) env('APP_URL', 'http://localhost'), PHP_URL_HOST)),
         ],
 
@@ -81,10 +93,9 @@ return [
 
         'failover' => [
             'transport' => 'failover',
-            'mailers' => [
-                'smtp',
-                'log',
-            ],
+            // Pas de 'log' en dernier recours : il "réussirait" sans rien envoyer
+            // et l'appelant (OTP…) croirait le mail parti.
+            'mailers' => array_values(array_filter(array_map('trim', explode(',', (string) env('MAIL_FAILOVER_MAILERS', 'smtp,fallback_smtp'))))),
             'retry_after' => 60,
         ],
 

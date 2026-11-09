@@ -346,6 +346,8 @@ class ImportController extends Controller
             'length_cm' => $p->length_cm !== null ? (float) $p->length_cm : null,
             'width_cm' => $p->width_cm !== null ? (float) $p->width_cm : null,
             'height_cm' => $p->height_cm !== null ? (float) $p->height_cm : null,
+            // Volume d'un carton (CBM) ; chaque palier peut avoir le sien (price_tiers[].cbm).
+            'cbm' => $p->cbm !== null ? (float) $p->cbm : null,
             'stock' => $p->stock,
             'requires_quote' => (bool) $p->requires_quote,
             'price_is_indicative' => (bool) $p->requires_quote,
@@ -390,6 +392,8 @@ class ImportController extends Controller
     {
         return $this->freightRules ??= [
             'air_max_weight_kg' => ImportFreightService::airMaxWeightKg(),
+            // Bateau : CBM d'un carton × cartons entiers (quantité / pack_size) × tarif.
+            'sea_billing' => 'cbm_per_carton',
             'pickup_threshold_kg' => ImportHub::pickupThresholdKg(),
             'warehouse' => ImportHub::pickupSnapshot()['warehouse'],
         ];

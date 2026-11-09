@@ -6,8 +6,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * Palier de prix « gros » d'un produit importé : un conditionnement (ex. « pack de 12 »)
- * avec son prix unitaire et sa quantité minimale de commande (« cota »).
+ * Palier de prix « gros » d'un produit importé : un conditionnement (ex. « carton de 8 »)
+ * avec son prix unitaire, sa quantité minimale de commande (« cota ») et, pour le
+ * bateau, le volume d'un carton de `pack_size` pièces (`cbm`).
  */
 class ProductPriceTier extends Model
 {
@@ -22,6 +23,7 @@ class ProductPriceTier extends Model
         'length_cm',
         'width_cm',
         'height_cm',
+        'cbm',
         'sort_order',
         'is_active',
     ];
@@ -34,6 +36,7 @@ class ProductPriceTier extends Model
         'length_cm' => 'float',
         'width_cm' => 'float',
         'height_cm' => 'float',
+        'cbm' => 'float',
         'sort_order' => 'integer',
         'is_active' => 'boolean',
     ];
@@ -72,6 +75,8 @@ class ProductPriceTier extends Model
             'length_cm' => $this->length_cm,
             'width_cm' => $this->width_cm,
             'height_cm' => $this->height_cm,
+            // Volume d'un carton de `pack_size` pièces (null : dimensions, puis fiche).
+            'cbm' => $this->cbm,
             'formatted_price' => number_format((float) $this->unit_price, 0, ',', ' ') . ' ' . $this->currency,
         ];
     }

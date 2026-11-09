@@ -278,6 +278,7 @@
 
         <div class="border-t border-dark-300 pt-4">
             <h3 class="text-sm font-semibold text-white mb-3">Ajouter / Modifier une option</h3>
+            <p id="shipping_legacy_rate" class="hidden text-sm text-amber-300 mb-3"></p>
             <form id="shippingForm" class="grid grid-cols-1 md:grid-cols-6 gap-3 items-end">
                 <div class="md:col-span-1">
                     <label class="block text-xs text-gray-400 mb-1">Mode</label>
@@ -334,7 +335,12 @@
                            placeholder="https://www.dhl.com/cm-fr/home/tracking.html?tracking-id={number}"
                            class="w-full px-3 py-2 bg-dark-50 border border-dark-200 rounded-lg text-white text-sm">
                 </div>
-                <p id="shipping_client_rate" class="md:col-span-6 text-sm text-primary-200"></p>
+                <div class="md:col-span-3">
+                    <label class="block text-xs text-gray-400 mb-1">Prix client (FCFA, <span id="shipping_client_unit">/ kg</span>)</label>
+                    <input type="number" step="1" min="0" id="shipping_client_rate" oninput="updateShippingMarginFromClient()"
+                           class="w-full px-3 py-2 bg-dark-50 border border-dark-200 rounded-lg text-white text-sm">
+                    <p class="text-xs text-gray-400 mt-1">Calculé avec la marge ; vous pouvez aussi saisir le prix client. La différence devient une marge fixe.</p>
+                </div>
                 <div class="md:col-span-6 flex justify-end gap-2">
                     <button type="button" id="shipping_cancel_edit" onclick="resetShippingForm()"
                             class="hidden px-4 py-2 bg-dark-200 text-gray-300 rounded-lg hover:bg-dark-50 text-sm">
@@ -414,7 +420,7 @@ function loadShippingList() {
                     <div class="text-sm text-white">
                         <strong>${o.mode === 'air' ? 'Avion' : 'Bateau'}</strong>${o.carrier ? ' (' + o.carrier + ')' : ''} —
                         ${Number(o.rate_amount).toLocaleString()} FCFA ${{ flat: '(forfait)', per_cbm: '/ CBM', per_kg: '/ kg' }[o.rate_type]}
-                        ${o.cost_amount !== null
+                        ${o.cost_amount != null
                             ? `<span class="text-gray-400">(achat ${Number(o.cost_amount).toLocaleString()}${o.margin_type ? ', marge ' + Number(o.margin_value).toLocaleString() + (o.margin_type === 'percent' ? ' %' : ' FCFA') : ''})</span>`
                             : '<span class="text-amber-300">(ancien tarif : modifiez pour saisir le tarif d\'achat)</span>'}
                         — ${o.lead_time_days}j
@@ -488,7 +494,23 @@ function updateShippingPreview() {
     const type = document.getElementById('shipping_margin_type').value;
     const client = Math.round(cost + (type === 'percent' ? cost * margin / 100 : type === 'amount' ? margin : 0));
     document.getElementById('shipping_unit').textContent = unit;
-    document.getElementById('shipping_client_rate').textContent = cost ? `Prix client : ${client.toLocaleString('fr-FR')} FCFA ${unit}` : '';
+    document.getElementById('shipping_client_unit').textContent = unit;
+    const clientInput = document.getElementById('shipping_client_rate');
+    clientInput.setCustomValidity('');
+    clientInput.value = document.getElementById('shipping_cost_amount').value !== '' ? client : '';
+}
+
+function updateShippingMarginFromClient() {
+    const costInput = document.getElementById('shipping_cost_amount');
+    const clientInput = document.getElementById('shipping_client_rate');
+    const cost = Number(costInput.value);
+    const client = Number(clientInput.value);
+    const invalid = costInput.value !== '' && clientInput.value !== '' && client < cost;
+    clientInput.setCustomValidity(invalid ? "Le prix client ne peut pas être inférieur au tarif d'achat." : '');
+    if (clientInput.value === '' || costInput.value === '' || invalid) return;
+    document.getElementById('shipping_margin_type').value = 'amount';
+    document.getElementById('shipping_margin_value').value = Math.round((client - cost) * 100) / 100;
+    document.getElementById('shipping_margin_type').dispatchEvent(new Event('change', { bubbles: true }));
 }
 
 function editShippingOption(id) {
@@ -506,6 +528,13 @@ function editShippingOption(id) {
     document.getElementById('shipping_tracking_url').value = option.tracking_url_template ?? '';
     document.getElementById('shipping_submit_label').textContent = 'Mettre à jour';
     document.getElementById('shipping_cancel_edit').classList.remove('hidden');
+    const legacy = document.getElementById('shipping_legacy_rate');
+    legacy.textContent = option.cost_amount == null
+        ? `Tarif client actuel : ${Number(option.rate_amount).toLocaleString('fr-FR')} FCFA ${option.rate_type === 'per_cbm' ? '/ CBM' : option.rate_type === 'per_kg' ? '/ kg' : '(forfait)'}. Le tarif d'achat et la marge ne sont pas connus : veuillez les saisir${option.mode === 'sea' && option.rate_type !== 'per_cbm' ? ' pour le nouveau tarif par CBM' : ''}.`
+        : '';
+    legacy.classList.toggle('hidden', option.cost_amount != null);
+    document.getElementById('shipping_mode').dispatchEvent(new Event('change', { bubbles: true }));
+    document.getElementById('shipping_margin_type').dispatchEvent(new Event('change', { bubbles: true }));
     updateShippingPreview();
 }
 
@@ -514,6 +543,7 @@ function resetShippingForm() {
     document.getElementById('shippingForm').reset();
     document.getElementById('shipping_submit_label').textContent = 'Ajouter';
     document.getElementById('shipping_cancel_edit').classList.add('hidden');
+    document.getElementById('shipping_legacy_rate').classList.add('hidden');
     updateShippingPreview();
 }
 
