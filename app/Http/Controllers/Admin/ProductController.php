@@ -11,6 +11,7 @@ use App\Models\ProductImage;
 use App\Models\ProductVideo;
 use App\Models\Shop;
 use App\Models\Subcategory;
+use App\Services\ImportFreightService;
 use App\Services\ProductBookService;
 use App\Services\ProductBroadcastService;
 use App\Services\ProductVariantService;
@@ -174,9 +175,12 @@ class ProductController extends Controller
             'tiers.*.length_cm' => 'nullable|numeric|min:1|max:3000',
             'tiers.*.width_cm' => 'nullable|numeric|min:1|max:3000',
             'tiers.*.height_cm' => 'nullable|numeric|min:1|max:3000',
+            // Volume d'un carton de `pack_size` pièces, tel que sur le devis du fournisseur.
+            'tiers.*.cbm' => 'nullable|numeric|min:0.0001|max:100',
             'length_cm' => 'nullable|numeric|min:1|max:3000',
             'width_cm' => 'nullable|numeric|min:1|max:3000',
             'height_cm' => 'nullable|numeric|min:1|max:3000',
+            'cbm' => 'nullable|numeric|min:0.0001|max:100',
             // Les options (couleurs, tailles) se cumulent pour atteindre un palier.
             'tier_mix_variants' => 'nullable|boolean',
 
@@ -188,6 +192,7 @@ class ProductController extends Controller
 
         $this->assertDistinctTierThresholds($validated['tiers'] ?? []);
         $this->assertCoherentDimensions($validated, $validated['tiers'] ?? []);
+        $this->assertWholesaleVolume($validated, $validated['tiers'] ?? [], $request->boolean('is_wholesale'));
 
         // Isole les données "gros" AVANT toute insertion — elles ne vont pas dans `products`
         $tiers = $validated['tiers'] ?? [];
@@ -222,6 +227,8 @@ class ProductController extends Controller
 
         // Vente en gros
         $validated['is_wholesale'] = $isWholesale;
+        // Le CBM ne concerne que les produits en gros.
+        $validated['cbm'] = $isWholesale && filled($validated['cbm'] ?? null) ? (float) $validated['cbm'] : null;
         $validated['tier_mix_variants'] = $request->boolean('tier_mix_variants', true);
         // Livraison gratuite : le produit ne garde un réglage propre que s'il
         // diffère de celui de sa boutique ; sinon il la suit.
@@ -361,9 +368,12 @@ class ProductController extends Controller
             'tiers.*.length_cm' => 'nullable|numeric|min:1|max:3000',
             'tiers.*.width_cm' => 'nullable|numeric|min:1|max:3000',
             'tiers.*.height_cm' => 'nullable|numeric|min:1|max:3000',
+            // Volume d'un carton de `pack_size` pièces, tel que sur le devis du fournisseur.
+            'tiers.*.cbm' => 'nullable|numeric|min:0.0001|max:100',
             'length_cm' => 'nullable|numeric|min:1|max:3000',
             'width_cm' => 'nullable|numeric|min:1|max:3000',
             'height_cm' => 'nullable|numeric|min:1|max:3000',
+            'cbm' => 'nullable|numeric|min:0.0001|max:100',
             // Les options (couleurs, tailles) se cumulent pour atteindre un palier.
             'tier_mix_variants' => 'nullable|boolean',
 
@@ -375,6 +385,7 @@ class ProductController extends Controller
 
         $this->assertDistinctTierThresholds($validated['tiers'] ?? []);
         $this->assertCoherentDimensions($validated, $validated['tiers'] ?? []);
+        $this->assertWholesaleVolume($validated, $validated['tiers'] ?? [], $request->boolean('is_wholesale'));
 
         // Isole les données "gros" AVANT l'update — elles ne vont pas dans `products`
         $tiers = $validated['tiers'] ?? [];
@@ -410,6 +421,8 @@ class ProductController extends Controller
 
         // Vente en gros
         $validated['is_wholesale'] = $isWholesale;
+        // Le CBM ne concerne que les produits en gros.
+        $validated['cbm'] = $isWholesale && filled($validated['cbm'] ?? null) ? (float) $validated['cbm'] : null;
         $validated['tier_mix_variants'] = $request->boolean('tier_mix_variants', true);
         // Livraison gratuite : le produit ne garde un réglage propre que s'il
         // diffère de celui de sa boutique ; sinon il la suit.
@@ -531,6 +544,36 @@ class ProductController extends Controller
         }
     }
 
+    /**
+     * Au-delà du plafond avion (100 kg), un carton ne voyage qu'en bateau : son volume
+     * en CBM (ou ses dimensions) devient obligatoire. Carton = poids d'une pièce × pack_size.
+     */
+    private function assertWholesaleVolume(array $product, array $tiers, bool $isWholesale): void
+    {
+        if (! $isWholesale || ($product['type'] ?? null) !== 'article') {
+            return;
+        }
+        $limit = ImportFreightService::airMaxWeightKg();
+        $hasVolume = fn (array $values) => filled($values['cbm'] ?? null)
+            || (filled($values['length_cm'] ?? null) && filled($values['width_cm'] ?? null) && filled($values['height_cm'] ?? null));
+        $productWeight = (float) ($product['weight'] ?? 0);
+        $message = fn (float $kg) => 'Colis de '.rtrim(rtrim(number_format($kg, 2, ',', ' '), '0'), ',')
+            .' kg : au-delà de '.rtrim(rtrim(number_format($limit, 2, ',', ' '), '0'), ',')
+            .' kg l\'avion est refusé, il voyagera en bateau. Renseignez son volume en CBM.';
+
+        $tiers = array_filter($tiers, fn ($tier) => ! empty($tier['label']) && isset($tier['unit_price']));
+        if ($tiers === [] && $productWeight > $limit && ! $hasVolume($product)) {
+            throw ValidationException::withMessages(['cbm' => $message($productWeight)]);
+        }
+        foreach ($tiers as $i => $tier) {
+            $unitWeight = filled($tier['weight_kg'] ?? null) && (float) $tier['weight_kg'] > 0 ? (float) $tier['weight_kg'] : $productWeight;
+            $cartonWeight = $unitWeight * max(1, (int) ($tier['pack_size'] ?? 1));
+            if ($cartonWeight > $limit && ! $hasVolume($tier) && ! $hasVolume($product)) {
+                throw ValidationException::withMessages(["tiers.$i.cbm" => $message($cartonWeight)]);
+            }
+        }
+    }
+
     private function assertDistinctTierThresholds(array $tiers): void
     {
         $thresholds = collect($tiers)
@@ -567,6 +610,7 @@ class ProductController extends Controller
                 'length_cm' => filled($tier['length_cm'] ?? null) ? (float) $tier['length_cm'] : null,
                 'width_cm' => filled($tier['width_cm'] ?? null) ? (float) $tier['width_cm'] : null,
                 'height_cm' => filled($tier['height_cm'] ?? null) ? (float) $tier['height_cm'] : null,
+                'cbm' => filled($tier['cbm'] ?? null) ? (float) $tier['cbm'] : null,
                 'currency' => $product->currency ?? 'XAF',
                 'is_active' => true,
                 'sort_order' => $i + 1,

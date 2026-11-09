@@ -158,6 +158,11 @@
         @error('tiers')
             <p class="mt-2 text-sm text-red-400">{{ $message }}</p>
         @enderror
+        @foreach($errors->get('tiers.*') as $key => $messages)
+            @foreach($messages as $message)
+                <p class="mt-2 text-sm text-red-400">Palier {{ (int) explode('.', $key)[1] + 1 }} : {{ $message }}</p>
+            @endforeach
+        @endforeach
     </div>
 
     <div id="shipping_preview" class="mt-6 border-t border-dark-300 pt-4 hidden">
@@ -456,12 +461,12 @@
                        class="w-full px-3 py-2 bg-dark-100 border border-dark-300 rounded text-white text-sm">
             </div>
             <div class="md:col-span-2">
-                <label class="block text-xs text-gray-400 mb-1">Pack size</label>
+                <label class="block text-xs text-gray-400 mb-1"title="Nombre de pièces dans un carton du fournisseur (PCS/CTN)">Pièces / carton</label>
                 <input type="number" min="1" name="tiers[${idx}][pack_size]" value="${esc(data.pack_size ?? 1)}"
                        class="w-full px-3 py-2 bg-dark-100 border border-dark-300 rounded text-white text-sm">
             </div>
             <div class="md:col-span-2">
-                <label class="block text-xs text-gray-400 mb-1" title="Poids d'une unité commandée à ce palier : un pack, un bidon, une pièce">Poids / unité (kg)</label>
+                <label class="block text-xs text-gray-400 mb-1" title="Poids d'une pièce commandée à ce palier ; un carton pèse ce poids × pièces / carton">Poids / pièce (kg)</label>
                 <input type="number" step="0.001" min="0" name="tiers[${idx}][weight_kg]" value="${esc(data.weight_kg)}"
                        placeholder="Ex: 4.8"
                        class="w-full px-3 py-2 bg-dark-100 border border-dark-300 rounded text-white text-sm">
@@ -471,6 +476,12 @@
                         class="w-full px-3 py-2 bg-red-500 text-white rounded text-sm hover:bg-red-600">
                     <i class="fas fa-trash"></i>
                 </button>
+            </div>
+            <div class="md:col-span-2">
+                <label class="block text-xs text-gray-400 mb-1" title="Volume d'un carton, colonne CBM du devis. Obligatoire au-delà de 100 kg par carton">CBM / carton</label>
+                <input type="number" step="0.0001" min="0.0001" max="100" name="tiers[${idx}][cbm]" value="${esc(data.cbm)}"
+                       placeholder="Ex: 0.139"
+                       class="w-full px-3 py-2 bg-dark-100 border border-dark-300 rounded text-white text-sm">
             </div>
             <div class="md:col-span-2">
                 <label class="block text-xs text-gray-400 mb-1">Longueur (cm)</label>
@@ -487,7 +498,7 @@
                 <input type="number" step="0.01" min="1" max="3000" name="tiers[${idx}][height_cm]" value="${esc(data.height_cm)}"
                        class="w-full px-3 py-2 bg-dark-100 border border-dark-300 rounded text-white text-sm">
             </div>
-            <div class="md:col-span-6 text-xs text-primary-200" data-tier-preview></div>
+            <div class="md:col-span-4 text-xs text-primary-200" data-tier-preview></div>
         </div>`;
     }
 
@@ -601,17 +612,19 @@
     document.addEventListener('DOMContentLoaded', function() {
         document.querySelectorAll('input[name="type"]').forEach(input => input.addEventListener('change', syncImportWeightSection));
         togglePriceFields();
-        @foreach($product->priceTiers ?? [] as $tier)
+        {{-- Après une erreur de validation, on reprend la saisie au lieu des paliers enregistrés. --}}
+        @foreach(old('tiers', ($product->priceTiers ?? collect())->map->only(['label', 'unit_price', 'min_quantity', 'pack_size', 'weight_kg', 'length_cm', 'width_cm', 'height_cm', 'cbm'])->all()) as $tier)
             addTierRow({
-                label: @json($tier->label),
-                unit_price: {{ $tier->unit_price }},
-                min_quantity: {{ $tier->min_quantity }},
+                label: @json($tier['label'] ?? ''),
+                unit_price: @json($tier['unit_price'] ?? null),
+                min_quantity: @json($tier['min_quantity'] ?? 1),
                 // Encodé en JSON : un palier sans pack (null) cassait le script de la page.
-                pack_size: @json($tier->pack_size),
-                weight_kg: @json($tier->weight_kg),
-                length_cm: @json($tier->length_cm),
-                width_cm: @json($tier->width_cm),
-                height_cm: @json($tier->height_cm)
+                pack_size: @json($tier['pack_size'] ?? null),
+                weight_kg: @json($tier['weight_kg'] ?? null),
+                length_cm: @json($tier['length_cm'] ?? null),
+                width_cm: @json($tier['width_cm'] ?? null),
+                height_cm: @json($tier['height_cm'] ?? null),
+                cbm: @json($tier['cbm'] ?? null)
             });
         @endforeach
 

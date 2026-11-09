@@ -459,4 +459,31 @@ class ImportFreightRulesTest extends TestCase
         $this->assertEquals(0.139, $product['price_tiers'][0]['cbm']);
         $this->assertEquals(8, $product['price_tiers'][0]['pack_size']);
     }
+
+    public function test_admin_requires_cbm_only_for_wholesale_cartons_above_100_kg(): void
+    {
+        $body = fn (array $tier, array $extra = []) => $extra + [
+            'name' => 'Mixeur', 'description' => 'MX-6030', 'price_type' => 'fixed', 'price' => 1000, 'stock' => 1, 'status' => 'active',
+            'type' => 'article', 'weight' => 2.3125, 'is_wholesale' => 1, 'origin_country' => 'CN',
+            'category_id' => $this->product->category_id, 'shop_id' => $this->product->shop_id,
+            'tiers' => [$tier + ['label' => 'Carton de 8', 'unit_price' => 1000, 'min_quantity' => 8]],
+        ];
+        $update = fn (array $data) => $this->actingAs($this->admin)->put(route('admin.products.update', $this->product), $data);
+
+        // 8 × 2,3125 = 18,5 kg : moins de 100 kg, le CBM reste facultatif.
+        $update($body(['pack_size' => 8]))->assertSessionHasNoErrors();
+
+        // 8 × 15 kg = 120 kg : avion refusé, CBM exigé.
+        $update($body(['pack_size' => 8, 'weight_kg' => 15]))->assertSessionHasErrors('tiers.0.cbm');
+        $update($body(['pack_size' => 8, 'weight_kg' => 15, 'cbm' => 0.139]))->assertSessionHasNoErrors();
+        $this->assertEquals(0.139, $this->product->priceTiers()->first()->cbm);
+
+        // Le CBM de la fiche couvre aussi les paliers.
+        $update($body(['pack_size' => 8, 'weight_kg' => 15], ['cbm' => 0.2]))->assertSessionHasNoErrors();
+        $this->assertEquals(0.2, (float) $this->product->refresh()->cbm);
+
+        // Hors gros, le CBM n'est pas gardé.
+        $update(['is_wholesale' => 0, 'tiers' => [], 'cbm' => 0.2] + $body([]))->assertSessionHasNoErrors();
+        $this->assertNull($this->product->refresh()->cbm);
+    }
 }
