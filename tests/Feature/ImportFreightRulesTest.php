@@ -556,4 +556,15 @@ class ImportFreightRulesTest extends TestCase
             ->assertStatus(422)->assertJsonPath('success', false);
         $this->assertSame(1, $created->images()->count());
     }
+
+    public function test_import_country_currencies_are_available(): void
+    {
+        $this->assertSame(['AED', 'CNY', 'TRY'], \App\Models\Currency::active()->whereIn('code', ['CNY', 'AED', 'TRY'])->orderBy('code')->pluck('code')->all());
+
+        $this->actingAs($this->admin)->put(route('admin.products.update', $this->product), $this->cartonForm(['currency' => 'CNY']))
+            ->assertSessionHasNoErrors();
+        $this->assertSame('CNY', $this->product->refresh()->currency);
+        $this->assertSame(['CNY', 'CNY'], $this->product->priceTiers()->pluck('currency')->all());
+        $this->actingAs($this->admin)->get(route('admin.products.edit', $this->product))->assertOk()->assertSee('CNY — Yuan chinois');
+    }
 }
