@@ -151,7 +151,7 @@ class DeliveryPartnersTest extends TestCase
 
     public function test_admin_product_form_saves_weight_of_local_article(): void
     {
-        $product = $this->product(null);
+        $product = $this->withProductPhoto($this->product(null));
         $admin = User::factory()->create(['role' => 'admin']);
 
         $this->actingAs($admin)->put(route('admin.products.update', $product), [

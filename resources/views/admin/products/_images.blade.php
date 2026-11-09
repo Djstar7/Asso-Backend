@@ -4,7 +4,7 @@
 <div class="bg-dark-100 rounded-xl shadow-lg p-6" id="image_manager">
     <div class="flex items-center justify-between mb-4">
         <h3 class="text-lg font-bold text-white flex items-center">
-            <i class="fas fa-images text-primary-500 mr-2"></i>Photos du produit
+            <i class="fas fa-images text-primary-500 mr-2"></i>Photos du produit <span class="text-red-500 ml-1">*</span>
         </h3>
         <span class="text-xs text-gray-400" id="im_counter"></span>
     </div>
@@ -37,7 +37,7 @@
            class="flex flex-col items-center justify-center gap-2 px-6 py-8 border-2 border-dashed border-dark-300 rounded-xl cursor-pointer bg-dark-50/50 hover:border-primary-500 hover:bg-primary-500/5 transition text-center">
         <i class="fas fa-cloud-upload-alt text-3xl text-primary-500"></i>
         <span class="text-white font-medium">Glissez vos photos ici ou <span class="text-primary-400 underline">parcourez</span></span>
-        <span class="text-xs text-gray-400">Plusieurs photos possibles, en une ou plusieurs fois · JPG, PNG, WEBP · 5 Mo max par photo · 15 photos max</span>
+        <span class="text-xs text-gray-400">Au moins 1 photo obligatoire · plusieurs possibles · JPG, PNG, WEBP · 5 Mo max par photo · 15 photos max</span>
     </label>
     <input type="file" id="im_input" name="images[]" multiple accept="image/jpeg,image/png,image/webp,image/gif" class="hidden" data-custom-file-upload>
     <p id="im_error" class="hidden mt-2 text-sm text-red-400"></p>
@@ -90,6 +90,7 @@
             files.push(file);
         });
         showError(rejected.length ? 'Photos ignorées : ' + rejected.join(', ') : '');
+        if (files.length) dropzone.classList.remove('border-red-500');
         syncInput();
     }
 
@@ -188,19 +189,34 @@
                 saveOrder();
             }
             if (btn.dataset.deleteImage) {
+                // Un produit garde au moins une photo enregistrée (le serveur le refuse aussi).
+                if (existingCount() <= 1) {
+                    showError('Un produit garde au moins une photo : ajoutez-en une autre et enregistrez avant de supprimer celle-ci.');
+                    return;
+                }
                 const doDelete = () => fetch(`/admin/products/${productId}/images/${btn.dataset.deleteImage}`, {
                     method: 'DELETE',
                     headers: { 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },
                 }).then(r => r.json()).then(data => {
-                    if (!data.success) throw new Error();
+                    if (!data.success) throw new Error(data.message || '');
                     card.remove();
                     markPrimary();
                     renderNew();
-                }).catch(() => showError("La photo n'a pas pu être supprimée."));
+                }).catch(e => showError(e.message || "La photo n'a pas pu être supprimée."));
                 window.customConfirm('Supprimer définitivement cette photo ?', doDelete, { source: btn });
             }
         });
     }
+
+    // Pas d'envoi sans photo : le champ fichier est masqué, le navigateur ne peut pas le signaler.
+    input.form?.addEventListener('submit', e => {
+        if (existingCount() + files.length > 0) return;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        showError('Ajoutez au moins une photo du produit.');
+        dropzone.classList.add('border-red-500');
+        dropzone.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, true);
 
     updateCounter();
 })();

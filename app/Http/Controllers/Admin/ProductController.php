@@ -26,6 +26,10 @@ use Illuminate\Validation\ValidationException;
 
 class ProductController extends Controller
 {
+    private const PHOTO_MESSAGES = [
+        'images.required' => 'Ajoutez au moins une photo du produit.',
+        'images.min' => 'Ajoutez au moins une photo du produit.',
+    ];
 
     private array $writtenImages = [];
 
@@ -164,8 +168,9 @@ class ProductController extends Controller
             'stock' => 'required|integer|min:0',
             'status' => 'required|in:active,inactive',
             'requires_quote' => 'sometimes|boolean',
-            'images' => 'nullable|array|max:15',
-            'images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:5120',
+            // Au moins une photo : un produit sans image ne se vend pas.
+            'images' => 'required|array|min:1|max:15',
+            'images.*' => 'image|mimes:jpeg,png,jpg,gif,webp|max:5120',
 
             'is_wholesale' => 'nullable|boolean',
             // Livraison gratuite : 1 = offerte, 0 = non.
@@ -196,7 +201,7 @@ class ProductController extends Controller
             'video_id' => 'nullable|integer|exists:product_videos,id',
             'remove_video' => 'nullable|boolean',
         ] + ProductVariantService::rules() + \App\Support\DeliveryDelay::rules()
-            + ProductBookService::rules($request->integer('category_id') ?: null));
+            + ProductBookService::rules($request->integer('category_id') ?: null), self::PHOTO_MESSAGES);
 
         $this->assertDistinctTierThresholds($validated['tiers'] ?? []);
         $this->assertCoherentDimensions($validated, $validated['tiers'] ?? [], $this->isImportProduct($request));
@@ -366,8 +371,9 @@ class ProductController extends Controller
             'stock' => 'required|integer|min:0',
             'status' => 'required|in:active,inactive',
             'requires_quote' => 'sometimes|boolean',
-            'images' => 'nullable|array|max:15',
-            'images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:5120',
+            // Au moins une photo : celles déjà enregistrées comptent.
+            'images' => [Rule::requiredIf(fn () => ! $product->images()->exists()), 'nullable', 'array', 'max:15'],
+            'images.*' => 'image|mimes:jpeg,png,jpg,gif,webp|max:5120',
 
             'is_wholesale' => 'nullable|boolean',
             // Livraison gratuite : 1 = offerte, 0 = non.
@@ -398,7 +404,7 @@ class ProductController extends Controller
             'video_id' => 'nullable|integer|exists:product_videos,id',
             'remove_video' => 'nullable|boolean',
         ] + ProductVariantService::rules() + \App\Support\DeliveryDelay::rules()
-            + ProductBookService::rules($request->integer('category_id') ?: null));
+            + ProductBookService::rules($request->integer('category_id') ?: null), self::PHOTO_MESSAGES);
 
         $this->assertDistinctTierThresholds($validated['tiers'] ?? []);
         $this->assertCoherentDimensions($validated, $validated['tiers'] ?? [], $this->isImportProduct($request));
@@ -730,6 +736,12 @@ class ProductController extends Controller
         if ($image->product_id !== $product->id) {
             return response()->json(['error' => 'Image not found'], 404);
         }
+        if ($product->images()->count() <= 1) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Un produit garde au moins une photo : ajoutez-en une autre avant de supprimer celle-ci.',
+            ], 422);
+        }
 
         if (File::exists(public_path($image->image_path))) {
             File::delete(public_path($image->image_path));
@@ -755,6 +767,12 @@ class ProductController extends Controller
     {
         if ($image->product_id !== $product->id) {
             return response()->json(['error' => 'Image not found'], 404);
+        }
+        if ($product->images()->count() <= 1) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Un produit garde au moins une photo : ajoutez-en une autre avant de supprimer celle-ci.',
+            ], 422);
         }
 
         $product->images()->update(['is_primary' => false]);

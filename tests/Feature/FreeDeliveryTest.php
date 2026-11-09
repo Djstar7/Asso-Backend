@@ -238,7 +238,7 @@ class FreeDeliveryTest extends TestCase
             'status' => 'active',
         ];
 
-        $this->actingAs($pm)->post('/admin/products', $payload + ['free_delivery' => '1'])
+        $this->actingAs($pm)->post('/admin/products', $payload + ['free_delivery' => '1'] + $this->productPhoto())
             ->assertRedirect(route('admin.products.index'));
         $product = Product::where('name', 'Balle robes')->firstOrFail();
         $this->assertTrue($product->is_wholesale);

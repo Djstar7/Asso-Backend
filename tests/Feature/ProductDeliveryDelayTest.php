@@ -142,7 +142,7 @@ class ProductDeliveryDelayTest extends TestCase
 
     public function test_admin_sets_delay_on_product_category_and_default(): void
     {
-        $product = $this->product();
+        $product = $this->withProductPhoto($this->product());
         $this->actingAs($this->admin);
 
         $this->put("/admin/products/{$product->id}", [
@@ -180,7 +180,7 @@ class ProductDeliveryDelayTest extends TestCase
     public function test_maximum_is_optional_and_unlimited(): void
     {
         $this->actingAs($this->admin);
-        $product = $this->product();
+        $product = $this->withProductPhoto($this->product());
 
         $this->put("/admin/products/{$product->id}", [
             'shop_id' => $this->shop->id,

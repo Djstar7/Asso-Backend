@@ -467,6 +467,7 @@ class InternationalExportTest extends TestCase
     public function test_admin_kg_input_and_central_solex_price_produce_an_additive_export_quote(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
+        $this->withProductPhoto($this->product);
         $this->actingAs($admin)->put(route('admin.products.update', $this->product), [
             'shop_id' => $this->product->shop_id, 'category_id' => $this->product->category_id,
             'name' => $this->product->name, 'price_type' => 'fixed', 'price' => 10000,

@@ -50,7 +50,7 @@ class AdminProductOriginTest extends TestCase
         ImportCountry::create(['code' => 'CN', 'name' => 'Chine', 'flag' => '🇨🇳', 'sort_order' => 1]);
         [$shop, $cat] = $this->shopAndCategory();
 
-        $res = $this->actingAs($this->admin())->post('/admin/products', [
+        $res = $this->actingAs($this->admin())->post('/admin/products', $this->productPhoto() + [
             'shop_id' => $shop->id,
             'category_id' => $cat->id,
             'name' => 'Montre importée',
@@ -72,7 +72,7 @@ class AdminProductOriginTest extends TestCase
     {
         [$shop, $cat] = $this->shopAndCategory();
 
-        $this->actingAs($this->admin())->post('/admin/products', [
+        $this->actingAs($this->admin())->post('/admin/products', $this->productPhoto() + [
             'shop_id' => $shop->id,
             'category_id' => $cat->id,
             'name' => 'Produit importé',
@@ -95,7 +95,7 @@ class AdminProductOriginTest extends TestCase
     {
         [$shop, $cat] = $this->shopAndCategory();
 
-        $res = $this->actingAs($this->admin())->post('/admin/products', [
+        $res = $this->actingAs($this->admin())->post('/admin/products', $this->productPhoto() + [
             'shop_id' => $shop->id,
             'category_id' => $cat->id,
             'name' => 'Produit test',

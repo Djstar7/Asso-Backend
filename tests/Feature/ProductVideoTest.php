@@ -243,7 +243,7 @@ class ProductVideoTest extends TestCase
 
     private function adminPayload(Shop $shop, Category $category, array $overrides = []): array
     {
-        return array_merge([
+        return array_merge($this->productPhoto(), [
             'shop_id' => $shop->id,
             'category_id' => $category->id,
             'name' => 'Balle robes premium',

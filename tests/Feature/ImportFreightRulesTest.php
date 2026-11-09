@@ -69,6 +69,7 @@ class ImportFreightRulesTest extends TestCase
             'name' => 'Carton', 'slug' => 'carton-'.uniqid(), 'price' => 1000, 'currency' => 'XAF',
             'stock' => 0, 'status' => 'active', 'is_wholesale' => true, 'origin_country' => 'CN', 'weight' => '8',
         ]);
+        $this->withProductPhoto($this->product);
         $this->tier = ProductPriceTier::create([
             'product_id' => $this->product->id, 'label' => 'Unité', 'unit_price' => 1000,
             'currency' => 'XAF', 'min_quantity' => 1, 'is_active' => true,
@@ -533,5 +534,26 @@ class ImportFreightRulesTest extends TestCase
             ->assertSessionHasNoErrors();
         $this->assertNull($this->product->refresh()->pieces_per_carton);
         $this->assertNull($this->product->carton_weight_kg);
+    }
+
+    public function test_a_product_needs_at_least_one_photo(): void
+    {
+        $body = [
+            'name' => 'Sans photo', 'price_type' => 'fixed', 'price' => 1000, 'stock' => 1, 'status' => 'active', 'type' => 'article',
+            'weight' => 1, 'category_id' => $this->product->category_id, 'shop_id' => $this->product->shop_id,
+        ];
+        $this->actingAs($this->admin)->post(route('admin.products.store'), $body)
+            ->assertSessionHasErrors(['images' => 'Ajoutez au moins une photo du produit.']);
+        $this->actingAs($this->admin)->post(route('admin.products.store'), $body + $this->productPhoto())->assertSessionHasNoErrors();
+
+        // En édition : exigée tant que le produit n'en a aucune ; la dernière ne se supprime pas.
+        $created = Product::where('name', 'Sans photo')->firstOrFail();
+        $this->actingAs($this->admin)->put(route('admin.products.update', $created), $body)->assertSessionHasNoErrors();
+        $bare = $this->product->replicate()->fill(['slug' => 'sans-photo-'.uniqid()]);
+        $bare->save();
+        $this->actingAs($this->admin)->put(route('admin.products.update', $bare), $body)->assertSessionHasErrors('images');
+        $this->actingAs($this->admin)->deleteJson(route('admin.products.images.delete', [$created, $created->images()->first()]))
+            ->assertStatus(422)->assertJsonPath('success', false);
+        $this->assertSame(1, $created->images()->count());
     }
 }
