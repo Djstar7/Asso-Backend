@@ -348,6 +348,8 @@ class ImportController extends Controller
             'height_cm' => $p->height_cm !== null ? (float) $p->height_cm : null,
             // Volume d'un carton (CBM) ; chaque palier peut avoir le sien (price_tiers[].cbm).
             'cbm' => $p->cbm !== null ? (float) $p->cbm : null,
+            'pieces_per_carton' => $p->pieces_per_carton,
+            'carton_weight_kg' => $p->carton_weight_kg !== null ? (float) $p->carton_weight_kg : null,
             'stock' => $p->stock,
             'requires_quote' => (bool) $p->requires_quote,
             'price_is_indicative' => (bool) $p->requires_quote,

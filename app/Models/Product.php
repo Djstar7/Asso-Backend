@@ -95,8 +95,10 @@ class Product extends Model
 
     protected $fillable = [
         'length_cm', 'width_cm', 'height_cm',
-        // Volume d'un carton (CBM), produits en gros uniquement.
+        // Carton du devis fournisseur (produits en gros) : volume, pièces, poids.
         'cbm',
+        'pieces_per_carton',
+        'carton_weight_kg',
         'shop_id',
         'user_id',
         'category_id',
@@ -159,6 +161,8 @@ class Product extends Model
         'length_cm' => 'decimal:2',
         'width_cm' => 'decimal:2',
         'cbm' => 'decimal:4',
+        'pieces_per_carton' => 'integer',
+        'carton_weight_kg' => 'decimal:3',
         'price_xaf' => 'decimal:2',
         'min_price' => 'decimal:2',
         'max_price' => 'decimal:2',
@@ -444,18 +448,22 @@ class Product extends Model
     }
 
     /**
-     * Volume (CBM) de $quantity unités. Un CBM déclaré vaut pour un carton de
-     * `pack_size` pièces : on paie les cartons entiers. Sinon, les dimensions d'une unité.
+     * Volume (CBM) de $quantity unités. Un CBM déclaré vaut pour un carton : on paie
+     * les cartons entiers. Carton du palier : `pack_size` pièces ; carton de la fiche :
+     * `pieces_per_carton` (à défaut `pack_size`). Sinon, les dimensions d'une unité.
      * Le palier prime sur la fiche ; null si aucun volume n'est connu.
      */
     public function packageVolumeCbm(?ProductPriceTier $tier, int $quantity): ?float
     {
-        $perCarton = max(1, (int) ($tier?->pack_size ?: 1));
         foreach ([$tier, $this] as $source) {
             if (! $source) {
                 continue;
             }
             if ($source->cbm > 0) {
+                $perCarton = $source === $this && $this->pieces_per_carton > 0
+                    ? (int) $this->pieces_per_carton
+                    : max(1, (int) ($tier?->pack_size ?: 1));
+
                 return ceil($quantity / $perCarton) * (float) $source->cbm;
             }
             if ($source->length_cm > 0 && $source->width_cm > 0 && $source->height_cm > 0) {
@@ -468,6 +476,10 @@ class Product extends Model
 
     public function weightKg(): ?float
     {
+        // Produit en gros : poids exact d'une pièce, tiré du carton du devis.
+        if ($this->pieces_per_carton > 0 && $this->carton_weight_kg > 0) {
+            return (float) $this->carton_weight_kg / $this->pieces_per_carton;
+        }
         $raw = strtolower(trim((string) $this->weight));
         if ($raw === '' || !preg_match('/(\d+(?:[.,]\d+)?)\s*(kg|g)?/', $raw, $m)) {
             return null;

@@ -26,6 +26,7 @@ use Illuminate\Validation\ValidationException;
 
 class ProductController extends Controller
 {
+
     private array $writtenImages = [];
 
     public function __construct(private readonly ProductVariantService $variantService) {}
@@ -117,6 +118,8 @@ class ProductController extends Controller
     {
         $this->guardLibrary($request, ProductBookService::isLibraryCategory($request->integer('category_id') ?: null));
 
+        $this->prepareWholesaleInput($request);
+
         $validated = $request->validate([
             'shop_id' => 'required|exists:shops,id',
             'category_id' => 'bail|required|integer|exists:categories,id',
@@ -146,9 +149,13 @@ class ProductController extends Controller
             }],
             'weight' => [
                 // P4 : le poids compte partout (livraison locale, interurbaine, import).
-                Rule::requiredIf(fn () => $request->input('type') === 'article'),
+                // En gros, il se déduit du carton (prepareWholesaleInput).
+                Rule::requiredIf(fn () => $request->input('type') === 'article' && ! $request->boolean('is_wholesale')),
                 'nullable', 'numeric', 'min:0.001', 'max:999999',
             ],
+            // Carton du devis fournisseur, pour un produit en gros.
+            'pieces_per_carton' => [Rule::requiredIf(fn () => $this->needsCarton($request)), 'nullable', 'integer', 'min:1', 'max:100000'],
+            'carton_weight_kg' => [Rule::requiredIf(fn () => $this->needsCarton($request)), 'nullable', 'numeric', 'min:0.001', 'max:100000'],
             'weight_category' => 'sometimes|in:'.implode(',', Product::WEIGHT_CATEGORIES),
             'length_cm' => 'nullable|numeric|min:0.01|max:999999.99',
             'width_cm' => 'nullable|numeric|min:0.01|max:999999.99',
@@ -167,7 +174,8 @@ class ProductController extends Controller
             'deposit_enabled' => 'nullable|boolean',
             'deposit_rate' => 'required_if_accepted:deposit_enabled|nullable|numeric|min:1|max:99',
             'tiers' => 'nullable|array',
-            'tiers.*.label' => 'required_with:tiers|string|max:255',
+            // Facultatif : « À partir de 8 pièces » par défaut.
+            'tiers.*.label' => 'nullable|string|max:255',
             'tiers.*.unit_price' => 'required_with:tiers|numeric|min:0',
             'tiers.*.min_quantity' => 'required_with:tiers|integer|min:1',
             'tiers.*.pack_size' => 'nullable|integer|min:1',
@@ -227,8 +235,10 @@ class ProductController extends Controller
 
         // Vente en gros
         $validated['is_wholesale'] = $isWholesale;
-        // Le CBM ne concerne que les produits en gros.
-        $validated['cbm'] = $isWholesale && filled($validated['cbm'] ?? null) ? (float) $validated['cbm'] : null;
+        // Le carton (CBM, pièces, poids) ne concerne que les produits en gros.
+        foreach (['cbm', 'pieces_per_carton', 'carton_weight_kg'] as $field) {
+            $validated[$field] = $isWholesale && filled($validated[$field] ?? null) ? $validated[$field] : null;
+        }
         $validated['tier_mix_variants'] = $request->boolean('tier_mix_variants', true);
         // Livraison gratuite : le produit ne garde un réglage propre que s'il
         // diffère de celui de sa boutique ; sinon il la suit.
@@ -310,6 +320,8 @@ class ProductController extends Controller
         $this->guardLibrary($request, $product->isBook()
             || ProductBookService::isLibraryCategory($request->integer('category_id') ?: null));
 
+        $this->prepareWholesaleInput($request);
+
         $validated = $request->validate([
             'shop_id' => 'required|exists:shops,id',
             'category_id' => 'bail|required|integer|exists:categories,id',
@@ -339,9 +351,13 @@ class ProductController extends Controller
             }],
             'weight' => [
                 // P4 : le poids compte partout (livraison locale, interurbaine, import).
-                Rule::requiredIf(fn () => $request->input('type') === 'article'),
+                // En gros, il se déduit du carton (prepareWholesaleInput).
+                Rule::requiredIf(fn () => $request->input('type') === 'article' && ! $request->boolean('is_wholesale')),
                 'nullable', 'numeric', 'min:0.001', 'max:999999',
             ],
+            // Carton du devis fournisseur, pour un produit en gros.
+            'pieces_per_carton' => [Rule::requiredIf(fn () => $this->needsCarton($request)), 'nullable', 'integer', 'min:1', 'max:100000'],
+            'carton_weight_kg' => [Rule::requiredIf(fn () => $this->needsCarton($request)), 'nullable', 'numeric', 'min:0.001', 'max:100000'],
             'weight_category' => 'sometimes|in:'.implode(',', Product::WEIGHT_CATEGORIES),
             'length_cm' => 'nullable|numeric|min:0.01|max:999999.99',
             'width_cm' => 'nullable|numeric|min:0.01|max:999999.99',
@@ -360,7 +376,8 @@ class ProductController extends Controller
             'deposit_enabled' => 'nullable|boolean',
             'deposit_rate' => 'required_if_accepted:deposit_enabled|nullable|numeric|min:1|max:99',
             'tiers' => 'nullable|array',
-            'tiers.*.label' => 'required_with:tiers|string|max:255',
+            // Facultatif : « À partir de 8 pièces » par défaut.
+            'tiers.*.label' => 'nullable|string|max:255',
             'tiers.*.unit_price' => 'required_with:tiers|numeric|min:0',
             'tiers.*.min_quantity' => 'required_with:tiers|integer|min:1',
             'tiers.*.pack_size' => 'nullable|integer|min:1',
@@ -421,8 +438,10 @@ class ProductController extends Controller
 
         // Vente en gros
         $validated['is_wholesale'] = $isWholesale;
-        // Le CBM ne concerne que les produits en gros.
-        $validated['cbm'] = $isWholesale && filled($validated['cbm'] ?? null) ? (float) $validated['cbm'] : null;
+        // Le carton (CBM, pièces, poids) ne concerne que les produits en gros.
+        foreach (['cbm', 'pieces_per_carton', 'carton_weight_kg'] as $field) {
+            $validated[$field] = $isWholesale && filled($validated[$field] ?? null) ? $validated[$field] : null;
+        }
         $validated['tier_mix_variants'] = $request->boolean('tier_mix_variants', true);
         // Livraison gratuite : le produit ne garde un réglage propre que s'il
         // diffère de celui de sa boutique ; sinon il la suit.
@@ -546,6 +565,38 @@ class ProductController extends Controller
         }
     }
 
+    /**
+     * Produit en gros saisi comme une ligne du devis : le poids d'une pièce se déduit
+     * du carton, et le prix affiché est celui du premier palier (le bloc « Tarification »
+     * est masqué pour un produit en gros).
+     */
+    private function prepareWholesaleInput(Request $request): void
+    {
+        if (! $request->boolean('is_wholesale')) {
+            return;
+        }
+        $pieces = (int) $request->input('pieces_per_carton');
+        $cartonWeight = (float) str_replace(',', '.', (string) $request->input('carton_weight_kg'));
+        if ($pieces > 0 && $cartonWeight > 0) {
+            $request->merge(['weight' => round($cartonWeight / $pieces, 4)]);
+        }
+        if (! filled($request->input('price'))) {
+            $first = collect($request->input('tiers', []))
+                ->filter(fn ($tier) => is_array($tier) && is_numeric($tier['unit_price'] ?? null))
+                ->sortBy(fn ($tier) => (int) ($tier['min_quantity'] ?? 1))
+                ->first();
+            if ($first) {
+                $request->merge(['price_type' => 'fixed', 'price' => $first['unit_price']]);
+            }
+        }
+    }
+
+    /** Un article en gros sans poids saisi doit donner son carton. */
+    private function needsCarton(Request $request): bool
+    {
+        return $request->boolean('is_wholesale') && $request->input('type') === 'article' && ! filled($request->input('weight'));
+    }
+
     /** Produit en gros, ou rattaché à un pays d'import (onglet Import). */
     private function isImportProduct(Request $request): bool
     {
@@ -572,13 +623,15 @@ class ProductController extends Controller
             .' kg : au-delà de '.rtrim(rtrim(number_format($limit, 2, ',', ' '), '0'), ',')
             .' kg l\'avion est refusé, il voyagera en bateau. Renseignez son volume en CBM.';
 
-        $tiers = array_filter($tiers, fn ($tier) => ! empty($tier['label']) && isset($tier['unit_price']));
-        if ($tiers === [] && $productWeight > $limit && ! $hasVolume($product)) {
-            throw ValidationException::withMessages(['cbm' => $message($productWeight)]);
+        $pieces = (int) ($product['pieces_per_carton'] ?? 0);
+        $productCarton = filled($product['carton_weight_kg'] ?? null) ? (float) $product['carton_weight_kg'] : $productWeight;
+        if ($productCarton > $limit && ! $hasVolume($product)) {
+            throw ValidationException::withMessages(['cbm' => $message($productCarton)]);
         }
+        $tiers = array_filter($tiers, fn ($tier) => isset($tier['unit_price']) && $tier['unit_price'] !== '');
         foreach ($tiers as $i => $tier) {
             $unitWeight = filled($tier['weight_kg'] ?? null) && (float) $tier['weight_kg'] > 0 ? (float) $tier['weight_kg'] : $productWeight;
-            $cartonWeight = $unitWeight * max(1, (int) ($tier['pack_size'] ?? 1));
+            $cartonWeight = $unitWeight * max(1, (int) ($tier['pack_size'] ?? 0) ?: $pieces ?: 1);
             if ($cartonWeight > $limit && ! $hasVolume($tier) && ! $hasVolume($product)) {
                 throw ValidationException::withMessages(["tiers.$i.cbm" => $message($cartonWeight)]);
             }
@@ -588,7 +641,7 @@ class ProductController extends Controller
     private function assertDistinctTierThresholds(array $tiers): void
     {
         $thresholds = collect($tiers)
-            ->filter(fn ($tier) => ! empty($tier['label']) && isset($tier['unit_price']))
+            ->filter(fn ($tier) => isset($tier['unit_price']) && $tier['unit_price'] !== '')
             ->map(fn ($tier) => (int) ($tier['min_quantity'] ?? 1));
 
         if ($thresholds->count() !== $thresholds->unique()->count()) {
@@ -607,15 +660,17 @@ class ProductController extends Controller
         $product->priceTiers()->delete();
 
         foreach ($tiers as $i => $tier) {
-            if (empty($tier['label']) || ! isset($tier['unit_price'])) {
+            if (! isset($tier['unit_price']) || $tier['unit_price'] === '') {
                 continue; // ignore les lignes vides envoyées par erreur
             }
+            $minimum = (int) ($tier['min_quantity'] ?? 1);
 
             $product->priceTiers()->create([
-                'label' => $tier['label'],
+                'label' => filled($tier['label'] ?? null) ? $tier['label'] : "À partir de {$minimum} pièce".($minimum > 1 ? 's' : ''),
                 'unit_price' => $tier['unit_price'],
-                'min_quantity' => $tier['min_quantity'] ?? 1,
-                'pack_size' => $tier['pack_size'] ?? 1,
+                'min_quantity' => $minimum,
+                // Pièces par carton : celles du palier (ancien format), sinon de la fiche.
+                'pack_size' => filled($tier['pack_size'] ?? null) ? (int) $tier['pack_size'] : ($product->pieces_per_carton ?: 1),
                 // Poids d'une unité de ce palier (pack, bidon, pièce) : sert au prix au kg et à SOLEX.
                 'weight_kg' => isset($tier['weight_kg']) && $tier['weight_kg'] !== '' ? (float) $tier['weight_kg'] : null,
                 'length_cm' => filled($tier['length_cm'] ?? null) ? (float) $tier['length_cm'] : null,
