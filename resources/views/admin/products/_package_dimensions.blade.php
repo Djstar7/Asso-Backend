@@ -27,7 +27,7 @@
         @foreach(['length_cm' => 'Longueur (cm)', 'width_cm' => 'Largeur (cm)', 'height_cm' => 'Hauteur (cm)'] as $field => $text)
             <div>
                 <label class="block text-xs text-gray-400 mb-1" for="{{ $field }}">{{ $text }}</label>
-                <input type="number" step="0.01" min="1" max="3000" name="{{ $field }}" id="{{ $field }}"
+                <input type="number" step="0.01" min="1" max="3000" name="{{ $field }}" id="{{ $field }}" data-package-dimension
                        value="{{ old($field, $product->$field ?? null) }}"
                        class="w-full px-3 py-2 bg-dark-100 border border-dark-300 rounded text-white text-sm @error($field) border-red-500 @enderror">
             </div>
@@ -101,13 +101,26 @@
         document.querySelectorAll('#tiers_wrapper > [id^="tier_row_"]').forEach(preview);
     }
 
+    // Un seul jeu de dimensions part avec le formulaire : celui du colis pour un produit
+    // en gros, sinon « Dimensions du produit » (deux champs du même nom s'écrasaient).
+    function syncDimensionSets() {
+        const wholesale = !!document.getElementById('is_wholesale')?.checked;
+        document.querySelectorAll('#package_dimensions input').forEach(i => { i.disabled = !wholesale; });
+        document.querySelectorAll('[data-general-dimension]').forEach(i => { i.disabled = wholesale; });
+        document.getElementById('general_dimensions')?.classList.toggle('hidden', wholesale);
+    }
+
     document.addEventListener('input', e => {
         if (e.target.closest('#tiers_wrapper, #package_dimensions') || e.target.id === 'weight') refresh();
     });
-    document.addEventListener('change', e => { if (e.target.name === 'origin_country') refresh(); });
+    document.addEventListener('change', e => {
+        if (e.target.name === 'origin_country') refresh();
+        if (e.target.id === 'is_wholesale' || e.target.name === 'origin_country') syncDimensionSets();
+    });
     document.addEventListener('DOMContentLoaded', () => {
         const wrapper = document.getElementById('tiers_wrapper');
         if (wrapper) new MutationObserver(refresh).observe(wrapper, { childList: true });
+        syncDimensionSets();
         refresh();
     });
 })();

@@ -191,7 +191,7 @@ class ProductController extends Controller
             + ProductBookService::rules($request->integer('category_id') ?: null));
 
         $this->assertDistinctTierThresholds($validated['tiers'] ?? []);
-        $this->assertCoherentDimensions($validated, $validated['tiers'] ?? []);
+        $this->assertCoherentDimensions($validated, $validated['tiers'] ?? [], $this->isImportProduct($request));
         $this->assertWholesaleVolume($validated, $validated['tiers'] ?? [], $request->boolean('is_wholesale'));
 
         // Isole les données "gros" AVANT toute insertion — elles ne vont pas dans `products`
@@ -384,7 +384,7 @@ class ProductController extends Controller
             + ProductBookService::rules($request->integer('category_id') ?: null));
 
         $this->assertDistinctTierThresholds($validated['tiers'] ?? []);
-        $this->assertCoherentDimensions($validated, $validated['tiers'] ?? []);
+        $this->assertCoherentDimensions($validated, $validated['tiers'] ?? [], $this->isImportProduct($request));
         $this->assertWholesaleVolume($validated, $validated['tiers'] ?? [], $request->boolean('is_wholesale'));
 
         // Isole les données "gros" AVANT l'update — elles ne vont pas dans `products`
@@ -523,9 +523,11 @@ class ProductController extends Controller
      * Dimensions facultatives, mais complètes et cohérentes avec le poids : au-delà de
      * 20 000 kg/m³ (plus dense que le plomb), l'unité saisie n'est pas le centimètre.
      */
-    private function assertCoherentDimensions(array $product, array $tiers): void
+    private function assertCoherentDimensions(array $product, array $tiers, bool $isImport = true): void
     {
-        $sources = ['' => [$product, null]];
+        // Un produit local n'a que longueur et largeur (« Dimensions du produit ») ;
+        // le colis complet (L × l × H) ne concerne que l'import.
+        $sources = $isImport ? ['' => [$product, null]] : [];
         foreach ($tiers as $i => $tier) {
             $sources["tiers.$i."] = [$tier, $tier['weight_kg'] ?? null];
         }
@@ -542,6 +544,15 @@ class ProductController extends Controller
                 throw ValidationException::withMessages([$prefix.'length_cm' => 'Dimensions incohérentes avec le poids : saisissez bien des centimètres, pas des mètres.']);
             }
         }
+    }
+
+    /** Produit en gros, ou rattaché à un pays d'import (onglet Import). */
+    private function isImportProduct(Request $request): bool
+    {
+        $origin = (string) $request->input('origin_country', '');
+
+        return $request->boolean('is_wholesale')
+            || ! in_array($origin, ['', Product::ORIGIN_IMPORTED, Product::ORIGIN_LOCAL], true);
     }
 
     /**

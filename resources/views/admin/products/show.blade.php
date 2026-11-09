@@ -239,13 +239,17 @@
                         <div class="font-semibold text-white">{{ $product->subcategory->name ?? 'Aucune' }}</div>
                     </div>
 
-                    @if($product->length_cm !== null || $product->width_cm !== null)
+                    @if($product->length_cm !== null || $product->width_cm !== null || $product->height_cm !== null || $product->cbm)
                     <div class="p-4 bg-dark-50 rounded-lg">
                         <div class="text-sm text-gray-400 mb-1"><i class="fas fa-ruler-combined mr-2"></i>Dimensions</div>
                         <div class="font-semibold text-white">
-                            @if($product->length_cm !== null)Longueur : {{ rtrim(rtrim(number_format((float) $product->length_cm, 2, ',', ' '), '0'), ',') }} cm@endif
-                            @if($product->length_cm !== null && $product->width_cm !== null) × @endif
-                            @if($product->width_cm !== null)Largeur : {{ rtrim(rtrim(number_format((float) $product->width_cm, 2, ',', ' '), '0'), ',') }} cm@endif
+                            {{-- Texte assemblé en PHP : un « @endif » collé à « cm » n'est pas compilé par Blade. --}}
+                            {{ collect([
+                                $product->length_cm !== null ? 'Longueur : '.rtrim(rtrim(number_format((float) $product->length_cm, 2, ',', ' '), '0'), ',').' cm' : null,
+                                $product->width_cm !== null ? 'Largeur : '.rtrim(rtrim(number_format((float) $product->width_cm, 2, ',', ' '), '0'), ',').' cm' : null,
+                                $product->height_cm !== null ? 'Hauteur : '.rtrim(rtrim(number_format((float) $product->height_cm, 2, ',', ' '), '0'), ',').' cm' : null,
+                            ])->filter()->implode(' × ') }}
+                            @if($product->cbm) · {{ rtrim(rtrim(number_format((float) $product->cbm, 4, ',', ' '), '0'), ',') }} CBM / carton @endif
                         </div>
                     </div>
                     @endif
