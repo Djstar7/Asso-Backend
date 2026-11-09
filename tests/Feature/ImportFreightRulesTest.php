@@ -129,7 +129,8 @@ class ImportFreightRulesTest extends TestCase
         $this->assertEquals(84, $air->delivery_breakdown['import_freight']['billed_quantity']);
 
         $sea = Order::find($this->order($this->sea, 3)->assertCreated()->json('order_id'));
-        $this->assertEquals(126720, $sea->import_shipping_fee);
+        // Bateau : 0,36 CBM × 330 000, sans ajouter le poids.
+        $this->assertEquals(118800, $sea->import_shipping_fee);
         $this->assertEquals(0.36, $sea->delivery_breakdown['import_freight']['volume_cbm']);
     }
 
@@ -144,7 +145,7 @@ class ImportFreightRulesTest extends TestCase
         $this->product->update(['length_cm' => 10, 'width_cm' => 10, 'height_cm' => 10]);
         $this->tier->update(['length_cm' => 100, 'width_cm' => 100, 'height_cm' => 100]);
 
-        $this->assertEquals(332640, Order::find($this->order($this->sea, 1)->assertCreated()->json('order_id'))->import_shipping_fee);
+        $this->assertEquals(330000, Order::find($this->order($this->sea, 1)->assertCreated()->json('order_id'))->import_shipping_fee);
     }
 
     public function test_the_chosen_dimensions_option_wins_and_free_text_is_ignored(): void
@@ -156,8 +157,8 @@ class ImportFreightRulesTest extends TestCase
         ]]])->assertCreated()->json('order_id'));
 
         // 200 × 100 × 50 cm = 1 CBM ; une valeur libre laisse les dimensions de la fiche.
-        $this->assertEquals(332640, $order($option('200 × 100 × 50 cm'))->import_shipping_fee);
-        $this->assertEquals(2970, $order($option('Grande taille'))->import_shipping_fee);
+        $this->assertEquals(330000, $order($option('200 × 100 × 50 cm'))->import_shipping_fee);
+        $this->assertEquals(330, $order($option('Grande taille'))->import_shipping_fee);
     }
 
     public function test_client_measures_are_ignored(): void
@@ -198,7 +199,8 @@ class ImportFreightRulesTest extends TestCase
         $this->product->update(['weight' => '1200', 'length_cm' => 450, 'width_cm' => 180, 'height_cm' => 150]);
 
         $order = Order::find($this->pickup($this->sea, 1)->assertCreated()->json('order_id'));
-        $this->assertEquals(4405500, $order->import_shipping_fee);
+        // 12,15 CBM × 330 000 : le poids ne s'ajoute plus au volume.
+        $this->assertEquals(4009500, $order->import_shipping_fee);
     }
 
     public function test_express_is_no_longer_offered_or_accepted(): void
@@ -405,5 +407,56 @@ class ImportFreightRulesTest extends TestCase
         $this->actingAs($this->admin)->put(route('admin.products.update', $this->product), $body([]))->assertSessionHasNoErrors();
         $this->actingAs($this->admin)->get(route('admin.products.edit', $this->product))->assertOk()
             ->assertSee('Dimensions du colis')->assertSee('Nouveau')->assertSee('data-add-dimension', false)->assertSee('Longueur (cm)');
+    }
+
+    /** Devis Smile Bella, MX-6030 : 8 pièces par carton, 0,139 CBM, 18,5 kg le carton. */
+    private function smileBellaCarton(): void
+    {
+        $this->product->update(['weight' => '2.3125']);
+        $this->tier->update(['pack_size' => 8, 'cbm' => 0.139]);
+    }
+
+    public function test_sea_is_billed_by_whole_cartons_of_declared_cbm(): void
+    {
+        $this->smileBellaCarton();
+
+        // 0,139 × 330 000 = 45 870 FCFA par carton, même entamé.
+        $this->assertEquals(45870, Order::find($this->order($this->sea, 8)->assertCreated()->json('order_id'))->import_shipping_fee);
+        $this->assertEquals(45870, Order::find($this->order($this->sea, 1)->assertCreated()->json('order_id'))->import_shipping_fee);
+        $nine = Order::find($this->order($this->sea, 9)->assertCreated()->json('order_id'));
+        $this->assertEquals(91740, $nine->import_shipping_fee);
+        $this->assertEquals(0.278, $nine->delivery_breakdown['import_freight']['billed_quantity']);
+    }
+
+    public function test_declared_cbm_wins_over_dimensions_and_product_cbm_applies_to_tiers(): void
+    {
+        $this->product->update(['length_cm' => 100, 'width_cm' => 100, 'height_cm' => 100, 'cbm' => 0.5]);
+        $this->tier->update(['pack_size' => 10]);
+
+        // Le CBM de la fiche prime sur ses dimensions : 2 cartons de 0,5 CBM.
+        $this->assertEquals(330000, Order::find($this->order($this->sea, 11)->assertCreated()->json('order_id'))->import_shipping_fee);
+
+        $this->tier->update(['cbm' => 0.1]);
+        $this->assertEquals(66000, Order::find($this->order($this->sea, 11)->assertCreated()->json('order_id'))->import_shipping_fee);
+    }
+
+    public function test_six_cartons_of_18_5_kg_cannot_fly_but_can_sail(): void
+    {
+        $this->smileBellaCarton();
+
+        // 48 pièces = 6 cartons = 111 kg réels.
+        $this->order($this->air, 48)->assertStatus(422)->assertJsonPath('message', __('orders.wholesale.air_weight_limit', ['weight' => 100]));
+        $this->assertEquals(275220, Order::find($this->order($this->sea, 48)->assertCreated()->json('order_id'))->import_shipping_fee);
+    }
+
+    public function test_catalog_exposes_carton_cbm(): void
+    {
+        $this->smileBellaCarton();
+        $this->product->update(['cbm' => 0.2]);
+
+        $product = collect($this->getJson('/api/v1/import/CN/products')->assertOk()->json('products'))->firstWhere('id', $this->product->id);
+        $this->assertEquals(0.2, $product['cbm']);
+        $this->assertEquals(0.139, $product['price_tiers'][0]['cbm']);
+        $this->assertEquals(8, $product['price_tiers'][0]['pack_size']);
     }
 }

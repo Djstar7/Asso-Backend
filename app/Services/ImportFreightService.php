@@ -10,9 +10,10 @@ use App\Models\Setting;
 use App\Support\ImportHub;
 
 /**
- * Transport d'une commande en gros jusqu'à Douala, calculé par le serveur seul :
- * le poids et l'encombrement s'additionnent. Bateau : CBM du colis + 1 CBM par
- * 1 000 kg. Avion : poids réel + poids volumétrique. Les seuils lisent le poids réel.
+ * Transport d'une commande en gros jusqu'à Douala, calculé par le serveur seul.
+ * Bateau : CBM des cartons × tarif, sans le poids ; une ligne sans aucun volume
+ * connu compte 1 CBM par 1 000 kg. Avion : poids réel + poids volumétrique ; le
+ * plafond (100 kg) lit le poids réel. Au-delà, la fiche doit donner un CBM.
  */
 class ImportFreightService
 {
@@ -38,17 +39,25 @@ class ImportFreightService
     {
         $weight = 0.0;
         $cbm = 0.0;
+        $cbmFromWeight = 0.0;
         $missingWeight = false;
         $unmeasured = false;
         foreach ($lines as $line) {
+            $quantity = (int) $line['quantity'];
             $unitWeight = $line['product']->packageWeightKg($line['tier']);
-            // La taille choisie par le client prime sur le palier et la fiche.
-            $dimensions = ($line['variant'] ?? null)?->packageDimensions() ?? $line['product']->packageDimensions($line['tier']);
+            // La taille choisie par le client prime sur le CBM déclaré, le palier et la fiche.
+            $dimensions = ($line['variant'] ?? null)?->packageDimensions();
+            $lineCbm = $dimensions
+                ? $dimensions[0] * $dimensions[1] * $dimensions[2] / 1_000_000 * $quantity
+                : $line['product']->packageVolumeCbm($line['tier'], $quantity);
             $missingWeight = $missingWeight || ! $unitWeight;
-            $unmeasured = $unmeasured || (! $unitWeight && ! $dimensions);
-            $weight += ($unitWeight ?? 0) * $line['quantity'];
-            if ($dimensions) {
-                $cbm += $dimensions[0] * $dimensions[1] * $dimensions[2] / 1_000_000 * $line['quantity'];
+            $unmeasured = $unmeasured || (! $unitWeight && $lineCbm === null);
+            $weight += ($unitWeight ?? 0) * $quantity;
+            if ($lineCbm !== null) {
+                $cbm += $lineCbm;
+            } else {
+                // Aucun volume connu (fiche de moins de 100 kg sans CBM) : 1 CBM par 1 000 kg.
+                $cbmFromWeight += ($unitWeight ?? 0) * $quantity / self::KG_PER_CBM;
             }
         }
 
@@ -59,7 +68,8 @@ class ImportFreightService
             'volume_cbm' => round($cbm, 6),
             'volumetric_kg' => round($volumetric, 3),
             'billable_kg' => round($weight + $volumetric, 3),
-            'billable_cbm' => round($cbm + $weight / self::KG_PER_CBM, 6),
+            'billable_cbm' => round($cbm + $cbmFromWeight, 6),
+            'cbm_from_weight' => round($cbmFromWeight, 6),
             'missing_weight' => $missingWeight,
             'unmeasured' => $unmeasured,
             'air_max_weight_kg' => self::airMaxWeightKg(),

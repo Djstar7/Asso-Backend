@@ -95,6 +95,8 @@ class Product extends Model
 
     protected $fillable = [
         'length_cm', 'width_cm', 'height_cm',
+        // Volume d'un carton (CBM), produits en gros uniquement.
+        'cbm',
         'shop_id',
         'user_id',
         'category_id',
@@ -156,6 +158,7 @@ class Product extends Model
         'price' => 'decimal:2',
         'length_cm' => 'decimal:2',
         'width_cm' => 'decimal:2',
+        'cbm' => 'decimal:4',
         'price_xaf' => 'decimal:2',
         'min_price' => 'decimal:2',
         'max_price' => 'decimal:2',
@@ -434,6 +437,29 @@ class Product extends Model
         foreach ([$tier, $this] as $source) {
             if ($source?->length_cm > 0 && $source->width_cm > 0 && $source->height_cm > 0) {
                 return [(float) $source->length_cm, (float) $source->width_cm, (float) $source->height_cm];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Volume (CBM) de $quantity unités. Un CBM déclaré vaut pour un carton de
+     * `pack_size` pièces : on paie les cartons entiers. Sinon, les dimensions d'une unité.
+     * Le palier prime sur la fiche ; null si aucun volume n'est connu.
+     */
+    public function packageVolumeCbm(?ProductPriceTier $tier, int $quantity): ?float
+    {
+        $perCarton = max(1, (int) ($tier?->pack_size ?: 1));
+        foreach ([$tier, $this] as $source) {
+            if (! $source) {
+                continue;
+            }
+            if ($source->cbm > 0) {
+                return ceil($quantity / $perCarton) * (float) $source->cbm;
+            }
+            if ($source->length_cm > 0 && $source->width_cm > 0 && $source->height_cm > 0) {
+                return (float) $source->length_cm * (float) $source->width_cm * (float) $source->height_cm / 1_000_000 * $quantity;
             }
         }
 
