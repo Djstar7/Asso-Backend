@@ -160,6 +160,10 @@ class ImportFreightRulesTest extends TestCase
         // 200 × 100 × 50 cm = 1 CBM ; une valeur libre laisse les dimensions de la fiche.
         $this->assertEquals(330000, $order($option('200 × 100 × 50 cm'))->import_shipping_fee);
         $this->assertEquals(330, $order($option('Grande taille'))->import_shipping_fee);
+
+        // Avec le CBM du carton, la taille choisie ne change plus le transport.
+        $this->product->update(['cbm' => 0.139]);
+        $this->assertEquals(45870, $order($option('200 × 100 × 50 cm'))->import_shipping_fee);
     }
 
     public function test_client_measures_are_ignored(): void

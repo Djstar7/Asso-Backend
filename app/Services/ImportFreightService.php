@@ -45,8 +45,9 @@ class ImportFreightService
         foreach ($lines as $line) {
             $quantity = (int) $line['quantity'];
             $unitWeight = $line['product']->packageWeightKg($line['tier']);
-            // La taille choisie par le client prime sur le CBM déclaré, le palier et la fiche.
-            $dimensions = ($line['variant'] ?? null)?->packageDimensions();
+            // Le CBM du carton (palier ou fiche) fait foi ; sinon la taille choisie par le
+            // client (ancienne option « Dimensions »), puis les dimensions du palier ou de la fiche.
+            $dimensions = $line['product']->hasDeclaredCbm($line['tier']) ? null : ($line['variant'] ?? null)?->packageDimensions();
             $lineCbm = $dimensions
                 ? $dimensions[0] * $dimensions[1] * $dimensions[2] / 1_000_000 * $quantity
                 : $line['product']->packageVolumeCbm($line['tier'], $quantity);

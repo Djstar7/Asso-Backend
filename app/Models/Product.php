@@ -474,6 +474,12 @@ class Product extends Model
         return null;
     }
 
+    /** Le volume vient-il d'un CBM de carton saisi (palier ou fiche) ? */
+    public function hasDeclaredCbm(?ProductPriceTier $tier = null): bool
+    {
+        return $tier?->cbm > 0 || $this->cbm > 0;
+    }
+
     public function weightKg(): ?float
     {
         // Produit en gros : poids exact d'une pièce, tiré du carton du devis.

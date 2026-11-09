@@ -76,9 +76,8 @@
                 <button type="button" data-add-group="Stockage" class="vb-add px-3 py-2 rounded-lg bg-dark-50 border border-dark-300 text-sm text-white hover:border-primary-500 hover:text-primary-400 transition">
                     <i class="fas fa-memory mr-1 text-green-400"></i> Stockage
                 </button>
-                <button type="button" data-add-group="Dimensions" class="vb-add px-3 py-2 rounded-lg bg-dark-50 border border-dark-300 text-sm text-white hover:border-primary-500 hover:text-primary-400 transition">
-                    <i class="fas fa-ruler-combined mr-1 text-cyan-400"></i> Dimensions
-                </button>
+                {{-- Plus d'option « Dimensions » : le volume se saisit avec le carton (Vente en gros).
+                     Les produits qui l'ont déjà gardent leurs tailles, toujours modifiables. --}}
                 <button type="button" data-add-group="" class="vb-add px-3 py-2 rounded-lg bg-dark-50 border border-dashed border-dark-300 text-sm text-gray-300 hover:border-primary-500 hover:text-primary-400 transition">
                     <i class="fas fa-plus mr-1"></i> Autre option
                 </button>
