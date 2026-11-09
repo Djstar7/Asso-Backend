@@ -56,7 +56,7 @@ class LibraryTest extends TestCase
 
     private function adminPayload(array $overrides = []): array
     {
-        return array_merge([
+        return array_merge($this->productPhoto(), [
             'shop_id' => $this->shop->id, 'category_id' => $this->shelf->id, 'name' => 'Things Fall Apart',
             'price_type' => 'fixed', 'price' => 6000, 'type' => 'article', 'weight' => 0.3,
             'stock' => 4, 'status' => 'active',

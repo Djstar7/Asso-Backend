@@ -379,6 +379,7 @@ class DepositOrderTest extends TestCase
         $c = $this->catalog(deposit: false);
         $admin = $this->admin();
 
+        $this->withProductPhoto($c['product']);
         $this->actingAs($admin)->put("/admin/products/{$c['product']->id}", [
             'shop_id' => $c['shop']->id,
             'category_id' => $c['category']->id,

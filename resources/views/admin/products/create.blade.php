@@ -95,78 +95,7 @@
                     @include('admin.products._book')
                 @endif
 
-                <!-- Vente en gros (Import) -->
-<div class="bg-dark-100 rounded-xl shadow-lg p-6" id="wholesale_section" style="display:none;">
-    <div class="flex items-center justify-between mb-4">
-        <h2 class="text-lg font-semibold text-white flex items-center">
-            <i class="fas fa-boxes text-primary-500 mr-2"></i>
-            Vente en gros (Import)
-        </h2>
-        <span id="wholesale_country_badge" class="text-xs px-2 py-1 bg-primary-600/20 text-primary-400 rounded-full"></span>
-    </div>
-
-    <div class="mb-4 flex items-center">
-        <input type="checkbox" name="is_wholesale" id="is_wholesale" value="1"
-               {{ old('is_wholesale', $product->is_wholesale ?? false) ? 'checked' : '' }}
-               class="mr-2 w-4 h-4 text-primary-500 focus:ring-primary-500 rounded">
-        <label for="is_wholesale" class="text-white text-sm font-medium cursor-pointer">
-            Activer les paliers de prix (cota / gros)
-        </label>
-    </div>
-    <p class="mb-4 -mt-2 text-xs text-gray-400">
-        <i class="fas fa-warehouse mr-1"></i>
-        Un produit en gros est rattaché à la boutique « {{ \App\Support\ImportHub::NAME }} » : il arrive à Douala, puis SOLEX le livre au client.
-    </p>
-
-    <div id="tiers_container" class="{{ old('is_wholesale', $product->is_wholesale ?? false) ? '' : 'hidden' }}">
-        @include('admin.products._package_dimensions')
-
-        <div class="flex items-center justify-between mb-2">
-            <label class="text-sm font-medium text-white">Paliers de prix</label>
-            <button type="button" onclick="addTierRow()"
-                    class="px-3 py-1.5 bg-primary-600 text-white text-xs rounded-lg hover:bg-primary-700">
-                <i class="fas fa-plus mr-1"></i> Ajouter un palier
-            </button>
-        </div>
-
-        <p class="mb-2 text-xs text-gray-400">
-            Le prix suit la quantité commandée : du 1<sup>er</sup> au 2<sup>e</sup> palier, prix du 1<sup>er</sup> ; à partir du 2<sup>e</sup>, prix du 2<sup>e</sup>… Le seuil du 1<sup>er</sup> palier est le minimum de commande : en dessous, le client ne peut pas commander.
-        </p>
-
-        <div id="tiers_wrapper" class="space-y-2"></div>
-
-        <div class="mt-3 flex items-start">
-            <input type="hidden" name="tier_mix_variants" value="0">
-            <input type="checkbox" name="tier_mix_variants" id="tier_mix_variants" value="1"
-                   {{ old('tier_mix_variants', $product->tier_mix_variants ?? true) ? 'checked' : '' }}
-                   class="mr-2 mt-0.5 w-4 h-4 text-primary-500 focus:ring-primary-500 rounded">
-            <label for="tier_mix_variants" class="text-sm text-white cursor-pointer">
-                Cumuler les options pour atteindre un palier
-                <span class="block text-xs text-gray-400">Coché : 60 bleus + 40 rouges = 100, prix du palier 100. Décoché : chaque couleur ou taille atteint son palier (et le minimum) seule.</span>
-            </label>
-        </div>
-
-        <p id="tiers_empty_msg" class="text-xs text-gray-500 mt-2 hidden">
-            Aucun palier. Cliquez sur « Ajouter un palier » (ex: Pack de 50, Carton de 100...).
-        </p>
-
-        @error('tiers')
-            <p class="mt-2 text-sm text-red-400">{{ $message }}</p>
-        @enderror
-        @foreach($errors->get('tiers.*') as $key => $messages)
-            @foreach($messages as $message)
-                <p class="mt-2 text-sm text-red-400">Palier {{ (int) explode('.', $key)[1] + 1 }} : {{ $message }}</p>
-            @endforeach
-        @endforeach
-    </div>
-
-    <div id="shipping_preview" class="mt-6 border-t border-dark-300 pt-4 hidden">
-        <h3 class="text-sm font-semibold text-white mb-2">
-            <i class="fas fa-ship text-primary-500 mr-1"></i> Expéditions configurées pour ce pays
-        </h3>
-        <div id="shipping_list" class="text-sm text-gray-300 space-y-1"></div>
-    </div>
-</div>
+                @include('admin.products._wholesale')
 
                 <!-- Pricing Card -->
                 <div class="bg-dark-100 rounded-xl shadow-lg p-6">
@@ -183,7 +112,7 @@
                     </div>
 
                     <!-- Price Type -->
-                    <div class="mb-4">
+                    <div class="mb-4" id="price_type_field">
                         <label class="block text-sm font-medium text-white mb-2">
                             Type de Prix <span class="text-red-500">*</span>
                         </label>
@@ -401,165 +330,22 @@ function loadSubcategories(categoryId) {
         });
 }
 
-// ============================================
-// MODULE GROS — Vente en gros par pays d'import
-// ============================================
-let tierIndex = 0;
-
-function tierRowTemplate(data = {}) {
-    const idx = tierIndex++;
-    const esc = (v) => String(v ?? '').replace(/"/g, '&quot;');
-    return `
-    <div class="grid grid-cols-1 md:grid-cols-12 gap-2 items-end bg-dark-50 p-3 rounded-lg" id="tier_row_${idx}">
-        <div class="md:col-span-3">
-            <label class="block text-xs text-gray-400 mb-1">Label</label>
-            <input type="text" name="tiers[${idx}][label]" value="${esc(data.label)}"
-                   placeholder="Ex: Pack de 50"
-                   class="w-full px-3 py-2 bg-dark-100 border border-dark-300 rounded text-white text-sm">
-        </div>
-        <div class="md:col-span-2">
-            <label class="block text-xs text-gray-400 mb-1">Prix unitaire (FCFA)</label>
-            <input type="number" step="0.01" min="0" name="tiers[${idx}][unit_price]" value="${esc(data.unit_price)}"
-                   class="w-full px-3 py-2 bg-dark-100 border border-dark-300 rounded text-white text-sm">
-        </div>
-        <div class="md:col-span-2">
-            <label class="block text-xs text-gray-400 mb-1" title="Quantité à partir de laquelle ce prix s'applique">À partir de (qté)</label>
-            <input type="number" min="1" name="tiers[${idx}][min_quantity]" value="${esc(data.min_quantity)}"
-                   class="w-full px-3 py-2 bg-dark-100 border border-dark-300 rounded text-white text-sm">
-        </div>
-        <div class="md:col-span-2">
-            <label class="block text-xs text-gray-400 mb-1"title="Nombre de pièces dans un carton du fournisseur (PCS/CTN)">Pièces / carton</label>
-            <input type="number" min="1" name="tiers[${idx}][pack_size]" value="${esc(data.pack_size ?? 1)}"
-                   class="w-full px-3 py-2 bg-dark-100 border border-dark-300 rounded text-white text-sm">
-        </div>
-        <div class="md:col-span-2">
-            <label class="block text-xs text-gray-400 mb-1" title="Poids d'une pièce commandée à ce palier ; un carton pèse ce poids × pièces / carton">Poids / pièce (kg)</label>
-            <input type="number" step="0.001" min="0" name="tiers[${idx}][weight_kg]" value="${esc(data.weight_kg)}"
-                   placeholder="Ex: 4.8"
-                   class="w-full px-3 py-2 bg-dark-100 border border-dark-300 rounded text-white text-sm">
-        </div>
-        <div class="md:col-span-1">
-            <button type="button" onclick="removeTierRow(${idx})"
-                    class="w-full px-3 py-2 bg-red-500 text-white rounded text-sm hover:bg-red-600">
-                <i class="fas fa-trash"></i>
-            </button>
-        </div>
-        <div class="md:col-span-2">
-            <label class="block text-xs text-gray-400 mb-1" title="Volume d'un carton, colonne CBM du devis. Obligatoire au-delà de 100 kg par carton">CBM / carton</label>
-            <input type="number" step="0.0001" min="0.0001" max="100" name="tiers[${idx}][cbm]" value="${esc(data.cbm)}"
-                   placeholder="Ex: 0.139"
-                   class="w-full px-3 py-2 bg-dark-100 border border-dark-300 rounded text-white text-sm">
-        </div>
-        <div class="md:col-span-2">
-            <label class="block text-xs text-gray-400 mb-1">Longueur (cm)</label>
-            <input type="number" step="0.01" min="1" max="3000" name="tiers[${idx}][length_cm]" value="${esc(data.length_cm)}"
-                   class="w-full px-3 py-2 bg-dark-100 border border-dark-300 rounded text-white text-sm">
-        </div>
-        <div class="md:col-span-2">
-            <label class="block text-xs text-gray-400 mb-1">Largeur (cm)</label>
-            <input type="number" step="0.01" min="1" max="3000" name="tiers[${idx}][width_cm]" value="${esc(data.width_cm)}"
-                   class="w-full px-3 py-2 bg-dark-100 border border-dark-300 rounded text-white text-sm">
-        </div>
-        <div class="md:col-span-2">
-            <label class="block text-xs text-gray-400 mb-1">Hauteur (cm)</label>
-            <input type="number" step="0.01" min="1" max="3000" name="tiers[${idx}][height_cm]" value="${esc(data.height_cm)}"
-                   class="w-full px-3 py-2 bg-dark-100 border border-dark-300 rounded text-white text-sm">
-        </div>
-        <div class="md:col-span-4 text-xs text-primary-200" data-tier-preview></div>
-    </div>`;
-}
-
-function addTierRow(data = {}) {
-    document.getElementById('tiers_wrapper').insertAdjacentHTML('beforeend', tierRowTemplate(data));
-    updateEmptyMsg();
-}
-
-function removeTierRow(idx) {
-    document.getElementById(`tier_row_${idx}`)?.remove();
-    updateEmptyMsg();
-}
-
-function updateEmptyMsg() {
-    const wrapper = document.getElementById('tiers_wrapper');
-    const msg = document.getElementById('tiers_empty_msg');
-    if (!wrapper || !msg) return;
-    msg.classList.toggle('hidden', wrapper.children.length > 0);
-}
-
-function toggleTiersContainer() {
-    const checkbox = document.getElementById('is_wholesale');
-    const container = document.getElementById('tiers_container');
-    if (!checkbox || !container) return;
-    container.classList.toggle('hidden', !checkbox.checked);
-    if (checkbox.checked) updateEmptyMsg();
-}
-
-function toggleWholesaleSection() {
-    const select = document.querySelector('select[name="origin_country"]');
-    const country = select ? select.value : '';
-    const section = document.getElementById('wholesale_section');
-    const badge = document.getElementById('wholesale_country_badge');
-    if (!section) return;
-
-    if (country) {
-        section.style.display = 'block';
-        const label = select.options[select.selectedIndex]?.text?.trim() ?? country;
-        if (badge) badge.textContent = label;
-        loadShippingOptions(country);
-    } else {
-        section.style.display = 'none';
-        const cb = document.getElementById('is_wholesale');
-        if (cb) cb.checked = false;
-        toggleTiersContainer();
-    }
-}
-
-function syncImportWeightSection() {
-    // P4 : poids réel obligatoire pour tout article (local ou importé), masqué pour un service.
+// P4 : poids réel obligatoire pour tout article, masqué pour un service. En gros, le
+// poids d'une pièce se déduit du carton (_wholesale).
+window.syncImportWeightSection = function () {
     const field = document.getElementById('product_weight_field');
     const isArticle = document.querySelector('input[name="type"]:checked')?.value === 'article';
+    const wholesale = document.getElementById('is_wholesale')?.checked
+        && document.getElementById('wholesale_section')?.style.display !== 'none';
     if (!field) return;
-    field.classList.toggle('hidden', !isArticle);
+    const needed = isArticle && !wholesale;
+    field.classList.toggle('hidden', !needed);
     const weight = document.getElementById('weight');
     if (weight) {
-        weight.disabled = !isArticle;
-        weight.required = isArticle;
+        weight.disabled = !needed;
+        weight.required = needed;
     }
-}
-
-function loadShippingOptions(countryCode) {
-    fetch(`/api/v1/import/${countryCode}/shipping`)
-        .then(r => r.json())
-        .then(response => {
-            const data = response.success ? (response.shipping_options ?? []) : [];
-            const list = document.getElementById('shipping_list');
-            const preview = document.getElementById('shipping_preview');
-            preview.classList.remove('hidden');
-
-            if (!data.length) {
-                list.innerHTML = '<p class="text-gray-500">Aucune option d\'expédition définie pour ce pays.</p>';
-                return;
-            }
-
-            list.innerHTML = data.map(s => {
-                const mode = s.mode ?? s.type ?? '';
-                const rateType = s.rate_type ?? s.rateType ?? '';
-                const rateAmount = s.rate_amount ?? s.rateAmount ?? s.price ?? 0;
-                const leadTime = s.lead_time_days ?? s.leadTimeDays ?? s.delay ?? '?';
-                const note = s.expedition_note ?? s.expeditionNote ?? s.note ?? '';
-
-                const priceLabel = rateType === 'flat'
-                    ? Number(rateAmount).toLocaleString() + ' FCFA (forfait)'
-                    : Number(rateAmount).toLocaleString() + ' FCFA/kg';
-
-                return `<div>• <strong>${String(mode).toUpperCase()}</strong> — ${priceLabel} — ${leadTime}j${note ? ' · ' + note : ''}</div>`;
-            }).join('');
-        })
-        .catch(() => {
-            document.getElementById('shipping_preview')?.classList.add('hidden');
-        });
-}
-
+};
 
 // Initialize on load
 document.addEventListener('DOMContentLoaded', function() {
@@ -572,29 +358,8 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('subcategory_id').value = '{{ old("subcategory_id") }}';
         }, 500);
     }
-    @foreach(old('tiers', []) as $tier)
-        addTierRow({
-            label: @json($tier['label'] ?? ''),
-            unit_price: {{ $tier['unit_price'] ?? 0 }},
-            min_quantity: {{ $tier['min_quantity'] ?? 1 }},
-            pack_size: {{ $tier['pack_size'] ?? 1 }},
-            weight_kg: @json($tier['weight_kg'] ?? null),
-            length_cm: @json($tier['length_cm'] ?? null),
-            width_cm: @json($tier['width_cm'] ?? null),
-            height_cm: @json($tier['height_cm'] ?? null),
-            cbm: @json($tier['cbm'] ?? null)
-        });
-    @endforeach
 
-    document.querySelector('select[name="origin_country"]')?.addEventListener('change', () => {
-        toggleWholesaleSection();
-        syncImportWeightSection();
-    });
-    document.getElementById('is_wholesale')?.addEventListener('change', toggleTiersContainer);
-
-    toggleWholesaleSection();
     syncImportWeightSection();
-    toggleTiersContainer();
 
 });
 </script>

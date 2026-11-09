@@ -66,7 +66,7 @@ class ProductOriginTest extends TestCase
 
     private function adminPayload(string $name, ?string $origin): array
     {
-        return [
+        return $this->productPhoto() + [
             'shop_id' => $this->shop->id,
             'category_id' => $this->category->id,
             'name' => $name,

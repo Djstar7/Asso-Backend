@@ -69,6 +69,7 @@ class ImportFreightRulesTest extends TestCase
             'name' => 'Carton', 'slug' => 'carton-'.uniqid(), 'price' => 1000, 'currency' => 'XAF',
             'stock' => 0, 'status' => 'active', 'is_wholesale' => true, 'origin_country' => 'CN', 'weight' => '8',
         ]);
+        $this->withProductPhoto($this->product);
         $this->tier = ProductPriceTier::create([
             'product_id' => $this->product->id, 'label' => 'Unité', 'unit_price' => 1000,
             'currency' => 'XAF', 'min_quantity' => 1, 'is_active' => true,
@@ -403,10 +404,10 @@ class ImportFreightRulesTest extends TestCase
             ->assertSessionHasNoErrors();
         $this->assertEquals(450, $this->product->refresh()->length_cm);
 
-        // Dimensions vides : acceptées, le bloc reste mis en avant.
+        // Dimensions vides : acceptées. Un produit en gros se saisit par son carton.
         $this->actingAs($this->admin)->put(route('admin.products.update', $this->product), $body([]))->assertSessionHasNoErrors();
         $this->actingAs($this->admin)->get(route('admin.products.edit', $this->product))->assertOk()
-            ->assertSee('Dimensions du colis')->assertSee('Nouveau')->assertSee('data-add-dimension', false)->assertSee('Longueur (cm)');
+            ->assertSee('Pièces par carton')->assertSee('Volume du carton (CBM)')->assertSee('data-add-dimension', false)->assertSee('Longueur (cm)');
     }
 
     /** Devis Smile Bella, MX-6030 : 8 pièces par carton, 0,139 CBM, 18,5 kg le carton. */
@@ -485,5 +486,85 @@ class ImportFreightRulesTest extends TestCase
         // Hors gros, le CBM n'est pas gardé.
         $update(['is_wholesale' => 0, 'tiers' => [], 'cbm' => 0.2] + $body([]))->assertSessionHasNoErrors();
         $this->assertNull($this->product->refresh()->cbm);
+    }
+
+    /** Formulaire simplifié : une ligne du devis (carton) et des prix par pièce. */
+    private function cartonForm(array $extra = []): array
+    {
+        return $extra + [
+            'name' => 'Mixeur', 'description' => 'MX-6030', 'stock' => 1, 'status' => 'active', 'type' => 'article',
+            'is_wholesale' => 1, 'origin_country' => 'CN',
+            'category_id' => $this->product->category_id, 'shop_id' => $this->product->shop_id,
+            'pieces_per_carton' => 8, 'carton_weight_kg' => 18.5, 'cbm' => 0.139,
+            'tiers' => [['min_quantity' => 8, 'unit_price' => 1000], ['min_quantity' => 80, 'unit_price' => 900]],
+        ];
+    }
+
+    public function test_admin_enters_a_wholesale_product_as_a_quote_line(): void
+    {
+        $this->actingAs($this->admin)->put(route('admin.products.update', $this->product), $this->cartonForm())
+            ->assertSessionHasNoErrors();
+
+        $product = $this->product->refresh();
+        // Poids d'une pièce et prix affiché déduits ; libellés par défaut.
+        $this->assertSame(8, $product->pieces_per_carton);
+        $this->assertEquals(18.5, $product->carton_weight_kg);
+        $this->assertEquals(2.3125, $product->weightKg());
+        $this->assertEquals(1000, $product->price);
+        $tiers = $product->priceTiers()->orderBy('min_quantity')->get();
+        $this->assertSame(['À partir de 8 pièces', 'À partir de 80 pièces'], $tiers->pluck('label')->all());
+        $this->assertSame([8, 8], $tiers->pluck('pack_size')->all());
+
+        // 9 pièces = 2 cartons de 0,139 CBM.
+        $this->tier = $tiers->first();
+        $this->assertEquals(91740, Order::find($this->order($this->sea, 9)->assertCreated()->json('order_id'))->import_shipping_fee);
+    }
+
+    public function test_quote_line_needs_its_carton_and_a_cbm_above_100_kg(): void
+    {
+        $update = fn (array $data) => $this->actingAs($this->admin)->put(route('admin.products.update', $this->product), $data);
+
+        $update($this->cartonForm(['pieces_per_carton' => null, 'carton_weight_kg' => null]))
+            ->assertSessionHasErrors(['pieces_per_carton', 'carton_weight_kg'])->assertSessionDoesntHaveErrors('weight');
+        $update($this->cartonForm(['carton_weight_kg' => 120, 'cbm' => null]))->assertSessionHasErrors('cbm');
+        $update($this->cartonForm(['carton_weight_kg' => 99, 'cbm' => null]))->assertSessionHasNoErrors();
+
+        // Hors gros, le carton n'est pas gardé.
+        $update(['is_wholesale' => 0, 'tiers' => [], 'price_type' => 'fixed', 'price' => 1000, 'weight' => 2] + $this->cartonForm())
+            ->assertSessionHasNoErrors();
+        $this->assertNull($this->product->refresh()->pieces_per_carton);
+        $this->assertNull($this->product->carton_weight_kg);
+    }
+
+    public function test_a_product_needs_at_least_one_photo(): void
+    {
+        $body = [
+            'name' => 'Sans photo', 'price_type' => 'fixed', 'price' => 1000, 'stock' => 1, 'status' => 'active', 'type' => 'article',
+            'weight' => 1, 'category_id' => $this->product->category_id, 'shop_id' => $this->product->shop_id,
+        ];
+        $this->actingAs($this->admin)->post(route('admin.products.store'), $body)
+            ->assertSessionHasErrors(['images' => 'Ajoutez au moins une photo du produit.']);
+        $this->actingAs($this->admin)->post(route('admin.products.store'), $body + $this->productPhoto())->assertSessionHasNoErrors();
+
+        // En édition : exigée tant que le produit n'en a aucune ; la dernière ne se supprime pas.
+        $created = Product::where('name', 'Sans photo')->firstOrFail();
+        $this->actingAs($this->admin)->put(route('admin.products.update', $created), $body)->assertSessionHasNoErrors();
+        $bare = $this->product->replicate()->fill(['slug' => 'sans-photo-'.uniqid()]);
+        $bare->save();
+        $this->actingAs($this->admin)->put(route('admin.products.update', $bare), $body)->assertSessionHasErrors('images');
+        $this->actingAs($this->admin)->deleteJson(route('admin.products.images.delete', [$created, $created->images()->first()]))
+            ->assertStatus(422)->assertJsonPath('success', false);
+        $this->assertSame(1, $created->images()->count());
+    }
+
+    public function test_import_country_currencies_are_available(): void
+    {
+        $this->assertSame(['AED', 'CNY', 'TRY'], \App\Models\Currency::active()->whereIn('code', ['CNY', 'AED', 'TRY'])->orderBy('code')->pluck('code')->all());
+
+        $this->actingAs($this->admin)->put(route('admin.products.update', $this->product), $this->cartonForm(['currency' => 'CNY']))
+            ->assertSessionHasNoErrors();
+        $this->assertSame('CNY', $this->product->refresh()->currency);
+        $this->assertSame(['CNY', 'CNY'], $this->product->priceTiers()->pluck('currency')->all());
+        $this->actingAs($this->admin)->get(route('admin.products.edit', $this->product))->assertOk()->assertSee('CNY — Yuan chinois');
     }
 }

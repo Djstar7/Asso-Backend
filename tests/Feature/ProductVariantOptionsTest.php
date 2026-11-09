@@ -36,7 +36,7 @@ class ProductVariantOptionsTest extends TestCase
 
     private function payload(array $overrides = []): array
     {
-        return array_merge([
+        return array_merge($this->productPhoto(), [
             'shop_id' => $this->shop->id,
             'category_id' => $this->category->id,
             'name' => 'Basket locale',

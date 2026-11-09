@@ -26,7 +26,7 @@ class AdminProductVariantTest extends TestCase
         ]);
         $category = Category::create(['name' => 'Mode', 'slug' => 'mode']);
 
-        $response = $this->actingAs($admin)->post('/admin/products', [
+        $response = $this->actingAs($admin)->post('/admin/products', $this->productPhoto() + [
             'shop_id' => $shop->id,
             'category_id' => $category->id,
             'name' => 'Basket importée',
@@ -91,7 +91,7 @@ class AdminProductVariantTest extends TestCase
         $this->actingAs($admin)->post('/admin/products', $payload)
             ->assertSessionHasErrors('weight');
 
-        $this->actingAs($admin)->post('/admin/products', $payload + ['weight' => 2.5])
+        $this->actingAs($admin)->post('/admin/products', $payload + ['weight' => 2.5] + $this->productPhoto())
             ->assertSessionHasNoErrors()
             ->assertRedirect(route('admin.products.index'));
 
