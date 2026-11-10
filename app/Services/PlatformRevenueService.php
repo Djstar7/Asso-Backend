@@ -20,6 +20,13 @@ class PlatformRevenueService
     public const REVENUE = 'revenue';
     public const LOSS = 'loss';
 
+    /**
+     * Fin de la période de test (remise à zéro du Wallet ASSO, UTC). Les frais
+     * ElgioPay antérieurs, déjà soldés par cette remise à zéro, sont laissés tels
+     * quels ; après, seuls comptent ceux des encaissements initiés par ASSO.
+     */
+    public const ELGIOPAY_FEES_OWNED_SINCE = '2026-10-31 01:31:51';
+
     /** Sources dans l'ordre d'affichage : [type, groupe, libellé, explication]. */
     public const SOURCES = [
         'package_certification' => [self::REVENUE, 'Forfaits', 'Certification', 'Forfaits « boutique certifiée » payés par les vendeurs.'],
@@ -299,6 +306,11 @@ class PlatformRevenueService
         return DB::table('payment_gateway_fees as f')
             ->where('f.direction', 'payin')
             ->where('f.fee_amount', '>', 0)
+            // Le compte ElgioPay porte aussi des encaissements étrangers à ASSO
+            // (paiements carte d'un autre site) : leurs frais ne sont pas ceux d'ASSO.
+            ->where(fn (Builder $q) => $q->where('f.gateway', '<>', 'elgiopay')
+                ->orWhere('f.completed_at', '<', self::ELGIOPAY_FEES_OWNED_SINCE)
+                ->orWhere(fn (Builder $own) => GatewayPaymentOwnership::whereKnown($own, 'f.gateway_id')))
             ->selectRaw("f.completed_at as occurred_at,
                 coalesce(f.fee_amount_xaf, case when f.currency = 'XAF' then f.fee_amount end, 0) as amount,
                 f.gateway_id as reference, f.id as source_id, 'gateway_fee' as subject_type, f.id as subject_id,

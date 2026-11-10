@@ -34,6 +34,13 @@ class ElgioPayWebhookController extends Controller
             return response()->json(['message' => 'Invalid signature'], 401);
         }
 
+        // ElgioPay désactivé par l'admin : aucune notification n'est traitée (200 pour
+        // qu'ElgioPay cesse de ré-émettre). Les opérations ASSO restées en cours sur
+        // ce rail sont finalisées par le scheduler, via leur référence stockée.
+        if (!$elgiopay->isConfigured()) {
+            return response()->json(['message' => 'Ignored (ElgioPay disabled)']);
+        }
+
         $payload = json_decode($raw, true);
         if (!is_array($payload)) {
             return response()->json(['message' => 'Invalid payload'], 400);

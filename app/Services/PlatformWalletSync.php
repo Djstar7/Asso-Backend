@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\PaymentGatewayFee;
 use App\Models\User;
 use App\Models\WalletBalance;
 use App\Models\WalletTransaction;
@@ -98,10 +99,16 @@ class PlatformWalletSync
                         continue;
                     }
 
-                    $reference = $references[$id] ?? (string) $id;
+                    // Frais sortis des Revenus (encaissement étranger à ASSO) : le
+                    // débit reporté est annulé, sous un libellé qui le dit.
+                    $voided = $source === 'gateway_fees' && !isset($expected[$id]);
+                    // Prestataire réel des frais ; aucun pour un report interne
+                    // (forfait, commission, course) qui ne passe chez aucun prestataire.
+                    $fee = $source === 'gateway_fees' ? PaymentGatewayFee::find($id, ['gateway', 'gateway_id']) : null;
+                    $reference = $references[$id] ?? ($voided ? $fee?->gateway_id : null) ?? (string) $id;
                     $entries[] = ['source' => $source, 'source_id' => $id, 'reference' => $reference, 'type' => $delta > 0 ? 'credit' : 'debit', 'amount' => abs($delta)];
                     if (!$dryRun) {
-                        $this->post($platform, $row, $source, $id, $delta, WalletTransaction::label($labelKey, ['reference' => $reference]));
+                        $this->post($platform, $row, $source, $id, $delta, WalletTransaction::label($voided ? 'asso_gateway_fee_voided' : $labelKey, ['reference' => $reference]), $fee?->gateway);
                     }
                 }
             }
@@ -115,7 +122,7 @@ class PlatformWalletSync
     }
 
     /** Écriture signée ; un débit peut rendre le solde négatif (déduction réelle). */
-    private function post(User $platform, WalletBalance $row, string $source, int $id, float $delta, LocalizedText $label): void
+    private function post(User $platform, WalletBalance $row, string $source, int $id, float $delta, LocalizedText $label, ?string $provider): void
     {
         $before = (float) $row->balance;
         $row->balance = $before + $delta;
@@ -132,7 +139,8 @@ class PlatformWalletSync
             'reference_id' => $id,
             'metadata' => ['asso_revenue_source' => $source, 'source_id' => $id],
             'status' => 'completed',
-            'provider' => 'kpay',
+            // Explicite : la colonne vaut « kpay » par défaut en base.
+            'provider' => $provider,
         ]);
     }
 
