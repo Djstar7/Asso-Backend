@@ -201,6 +201,7 @@
                 'longitude' => old('longitude', $shop->longitude),
                 'address' => old('address', $shop->address),
                 'zoom' => 15,
+                'required' => true,
                 'wrapperClass' => '',
             ])
 

@@ -6,7 +6,11 @@
     <h4 class="text-lg font-semibold text-white mb-3 flex items-center gap-2">
         <i class="fas fa-map-marker-alt text-orange-500"></i>
         {{ $label ?? 'Localisation GPS (Optionnel)' }}
+        @if(!empty($required))<span class="text-red-400">*</span>@endif
     </h4>
+    @if(!empty($required) && ($errors->has('latitude') || $errors->has('longitude') || $errors->has('address')))
+        <p class="mb-3 text-sm text-red-400">{{ $errors->first('latitude') ?: $errors->first('longitude') ?: $errors->first('address') }}</p>
+    @endif
     <p class="text-sm text-gray-400 mb-4">
         <i class="fas fa-info-circle text-blue-500 mr-1"></i>
         Utilisez « Ma position », saisissez les coordonnées, ou recherchez une adresse : les autres champs se remplissent automatiquement.
@@ -25,6 +29,7 @@
                    class="w-full px-4 py-2 bg-dark-50 border border-dark-400 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-white placeholder-gray-500"
                    value="{{ $latitude ?? '' }}"
                    placeholder="Ex: 6.3703"
+                   @if(!empty($required)) required @endif
                    onchange="updateMapPreview_{{ $fn }}(true)">
         </div>
 
@@ -40,6 +45,7 @@
                    class="w-full px-4 py-2 bg-dark-50 border border-dark-400 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-white placeholder-gray-500"
                    value="{{ $longitude ?? '' }}"
                    placeholder="Ex: 2.3912"
+                   @if(!empty($required)) required @endif
                    onchange="updateMapPreview_{{ $fn }}(true)">
         </div>
 
@@ -75,6 +81,7 @@
                        aria-controls="{{ $id }}_suggestions"
                        class="w-full px-4 py-2 bg-dark-50 border border-dark-400 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-white placeholder-gray-500"
                        value="{{ $address ?? '' }}"
+                       @if(!empty($required)) required @endif
                        placeholder="Ex: Bonabéri, Douala">
                 <ul id="{{ $id }}_suggestions"
                     role="listbox"

@@ -1107,6 +1107,7 @@
         "unavailable": "Cette boutique n'est pas disponible",
         "invalid_address": "L'adresse fournie est invalide. Veuillez réessayer.",
         "location_change_requires_request": "L'emplacement de la boutique ne se modifie plus directement : envoyez une demande de changement, l'équipe ASSO la valide.",
+        "location_required": "Placez la boutique sur la carte : sa position et son adresse sont obligatoires.",
         "updated": "Boutique mise à jour avec succès",
         "update_error": "Erreur lors de la mise à jour de la boutique",
         "free_delivery_enabled": "Livraison gratuite activée sur toute la boutique",

@@ -140,6 +140,9 @@ class CatalogAuditFixesTest extends TestCase
         $this->actingAs($admin)->post('/admin/shops', [
             'user_id' => $this->seller->id,
             'name' => 'Boutique Dashboard',
+            'address' => 'Akwa, Douala, Cameroun',
+            'latitude' => 4.0511,
+            'longitude' => 9.7679,
         ])->assertSessionHasNoErrors()->assertRedirect(route('admin.shops.index'));
 
         $shop = Shop::where('name', 'Boutique Dashboard')->firstOrFail();

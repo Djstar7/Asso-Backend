@@ -140,7 +140,8 @@ class ContentTranslationTest extends TestCase
     {
         $this->category();
         $vendor = User::factory()->create(['role' => 'vendeur']);
-        Shop::create(['user_id' => $vendor->id, 'name' => 'Ma boutique', 'slug' => 'ma-boutique', 'status' => 'active', 'verified_at' => now()]);
+        Shop::create(['user_id' => $vendor->id, 'name' => 'Ma boutique', 'slug' => 'ma-boutique', 'status' => 'active', 'verified_at' => now(),
+            'address' => 'Akwa, Douala, Cameroun', 'latitude' => 4.0511, 'longitude' => 9.7679]);
         Sanctum::actingAs($vendor);
 
         $this->withHeader('Accept-Language', 'en')

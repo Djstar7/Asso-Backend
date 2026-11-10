@@ -234,6 +234,7 @@ class ShopLocationTest extends TestCase
             'slug' => 'boutique',
             'status' => 'active', 'verified_at' => now(),
             'address' => 'Akwa, Douala, Cameroun',
+            'latitude' => 4.0511, 'longitude' => 9.7679,
             'description' => 'Ancienne description',
             'categories' => ['Électronique', 'Mode & Vêtements'],
         ]);
@@ -261,5 +262,61 @@ class ShopLocationTest extends TestCase
         ])->assertOk()
             ->assertJsonPath('shop.description', 'Nouvelle description')
             ->assertJsonPath('shop.categories', ['Électronique']);
+    }
+
+    public function test_vendor_apply_requires_the_shop_location(): void
+    {
+        $user = User::factory()->create(['role' => 'client']);
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/v1/vendor/apply', ['shop_name' => 'Sans position'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['shop_address', 'shop_latitude', 'shop_longitude']);
+
+        // (0, 0) : l'app n'a pas eu de position, ce n'est pas un emplacement.
+        $this->postJson('/api/v1/vendor/apply', [
+            'shop_name' => 'Position vide',
+            'shop_address' => 'Douala',
+            'shop_latitude' => 0,
+            'shop_longitude' => 0,
+        ])->assertUnprocessable()->assertJsonValidationErrors(['shop_latitude']);
+
+        $this->assertDatabaseCount('shops', 0);
+    }
+
+    public function test_an_unplaced_shop_must_be_placed_before_any_change(): void
+    {
+        $vendor = User::factory()->create(['role' => 'vendeur']);
+        $shop = Shop::create([
+            'user_id' => $vendor->id, 'name' => 'Ancienne', 'slug' => 'ancienne',
+            'status' => 'active', 'verified_at' => now(),
+        ]);
+        Sanctum::actingAs($vendor);
+
+        $this->putJson('/api/v1/vendor/shop', ['shop_name' => 'Nouveau nom'])
+            ->assertUnprocessable()
+            ->assertJsonPath('code', 'location_required');
+        $this->assertSame('Ancienne', $shop->fresh()->name);
+
+        $this->putJson('/api/v1/vendor/shop', [
+            'shop_name' => 'Nouveau nom',
+            'shop_address' => 'Akwa, Douala, Cameroun',
+            'shop_latitude' => 4.0511,
+            'shop_longitude' => 9.7679,
+        ])->assertOk();
+        $this->assertTrue($shop->fresh()->hasLocation());
+    }
+
+    public function test_the_dashboard_requires_the_shop_location(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $seller = User::factory()->create(['role' => 'vendeur']);
+
+        $this->actingAs($admin)->post('/admin/shops', [
+            'user_id' => $seller->id,
+            'name' => 'Sans position',
+        ])->assertSessionHasErrors(['address', 'latitude', 'longitude']);
+
+        $this->assertDatabaseMissing('shops', ['name' => 'Sans position']);
     }
 }

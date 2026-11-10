@@ -225,6 +225,19 @@ class ShopController extends Controller
             }
         }
 
+        // Boutique jamais placée : la modifier impose de la placer sur la carte.
+        if (! $shop->hasLocation() && ! Shop::isPlaced(
+            $validated['shop_latitude'] ?? null,
+            $validated['shop_longitude'] ?? null,
+            $validated['shop_address'] ?? null,
+        )) {
+            return response()->json([
+                'success' => false,
+                'code' => 'location_required',
+                'message' => __('shops.location_required'),
+            ], 422);
+        }
+
         // Emplacement verrouillé une fois la boutique placée : le changer passe par une
         // demande que l'admin valide (POST vendor/shop/location-requests). Les valeurs
         // renvoyées telles quelles avec le reste du formulaire sont simplement ignorées.

@@ -79,13 +79,13 @@ class ShopController extends Controller
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'shop_link' => 'nullable|url',
-            'address' => 'nullable|string',
-            'latitude' => 'nullable|numeric|between:-90,90',
-            'longitude' => 'nullable|numeric|between:-180,180',
+            'address' => 'required|string',
+            'latitude' => ['required', 'numeric', 'between:-90,90', Shop::placedRule('longitude')],
+            'longitude' => 'required|numeric|between:-180,180',
             'logo' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
             'categories' => 'nullable|array',
             'categories.*' => 'string',
-        ]);
+        ], Shop::locationMessages());
 
         $validated['slug'] = Str::slug($validated['name']).'-'.time();
 
@@ -160,13 +160,13 @@ class ShopController extends Controller
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'shop_link' => 'nullable|url',
-            'address' => 'nullable|string',
+            'address' => 'required|string',
             'city' => 'nullable|string|max:120',
             'country' => 'nullable|string|max:120',
             'phone' => 'nullable|string|max:30',
             'email' => 'nullable|email|max:255',
-            'latitude' => 'nullable|numeric|between:-90,90',
-            'longitude' => 'nullable|numeric|between:-180,180',
+            'latitude' => ['required', 'numeric', 'between:-90,90', Shop::placedRule('longitude')],
+            'longitude' => 'required|numeric|between:-180,180',
             'status' => 'required|in:active,inactive',
             'free_delivery' => 'nullable|boolean',
             'verification_status' => 'required|in:pending,verified,rejected',
@@ -174,7 +174,7 @@ class ShopController extends Controller
             'logo' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
             'categories' => 'nullable|array',
             'categories.*' => 'string',
-        ]);
+        ], Shop::locationMessages());
 
         Log::info('[ADMIN-SHOP-UPDATE] Validation passed', [
             'validated_fields' => array_keys($validated),

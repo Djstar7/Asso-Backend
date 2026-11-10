@@ -126,7 +126,8 @@
                         'latitude' => old('latitude'),
                         'longitude' => old('longitude'),
                         'address' => old('address'),
-                        'zoom' => 15
+                        'zoom' => 15,
+                        'required' => true,
                     ])
                 </div>
 

@@ -193,6 +193,32 @@ class Shop extends Model
      * Boutique déjà placée sur la carte : son emplacement ne change plus que par
      * une demande validée par l'admin (le premier placement reste libre).
      */
+    /** Coordonnées et adresse d'un emplacement réel (0, 0 = position non choisie). */
+    public static function isPlaced(mixed $latitude, mixed $longitude, ?string $address): bool
+    {
+        return is_numeric($latitude) && is_numeric($longitude)
+            && ((float) $latitude != 0 || (float) $longitude != 0)
+            && trim((string) $address) !== '';
+    }
+
+    /** Règle de la latitude : refuse le point (0, 0) envoyé faute de position choisie. */
+    public static function placedRule(string $longitudeField): \Closure
+    {
+        return function (string $attribute, mixed $value, \Closure $fail) use ($longitudeField) {
+            if ((float) $value == 0 && (float) request($longitudeField) == 0) {
+                $fail(__('shops.location_required'));
+            }
+        };
+    }
+
+    /** Messages de validation de l'emplacement ($prefix : « shop_ » pour l'API). */
+    public static function locationMessages(string $prefix = ''): array
+    {
+        return collect(['address', 'latitude', 'longitude'])
+            ->mapWithKeys(fn ($field) => [$prefix.$field.'.required' => __('shops.location_required')])
+            ->all();
+    }
+
     public function hasLocation(): bool
     {
         return $this->latitude !== null && $this->longitude !== null

@@ -24,12 +24,13 @@ class ProfileController extends Controller
             $request->validate([
                 'shop_name' => 'required|string|max:255',
                 'shop_description' => 'nullable|string',
-                'shop_address' => 'nullable|string',
+                // Position obligatoire : la livraison part de la boutique.
+                'shop_address' => 'required|string',
                 'shop_city' => 'nullable|string|max:120',
                 'shop_country' => 'nullable|string|max:120',
                 'shop_logo' => 'nullable|image|max:2048',
-                'shop_latitude' => 'nullable|numeric',
-                'shop_longitude' => 'nullable|numeric',
+                'shop_latitude' => ['required', 'numeric', 'between:-90,90', \App\Models\Shop::placedRule('shop_longitude')],
+                'shop_longitude' => 'required|numeric|between:-180,180',
                 'categories' => 'nullable|array',
                 'categories.*' => 'string',
                 'company_name' => 'nullable|string|max:255',
@@ -37,7 +38,7 @@ class ProfileController extends Controller
                 'last_name' => 'nullable|string|max:255',
                 'gender' => 'nullable|string|max:50',
                 'account_type' => 'nullable|string|max:50',
-            ]);
+            ], \App\Models\Shop::locationMessages('shop_'));
             \Log::info('[VENDOR_APPLY] Validation passed');
 
             // Validation supplémentaire pour l'adresse

@@ -30,6 +30,9 @@ class AdminShopEditTest extends TestCase
             'name' => $shop->name,
             'status' => 'active',
             'verification_status' => 'pending',
+            'address' => 'Akwa, Douala, Cameroun',
+            'latitude' => 4.0511,
+            'longitude' => 9.7679,
         ];
     }
 

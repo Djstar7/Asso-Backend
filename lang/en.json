@@ -1107,6 +1107,7 @@
         "unavailable": "This shop is not available",
         "invalid_address": "The address provided is invalid. Please try again.",
         "location_change_requires_request": "The shop location can no longer be changed directly: submit a change request, and the ASSO team will approve it.",
+        "location_required": "Place the shop on the map: its location and address are required.",
         "updated": "Shop updated successfully",
         "update_error": "Error while updating the shop",
         "free_delivery_enabled": "Free delivery enabled for the whole shop",
