@@ -58,12 +58,8 @@ foreach ($manifest['products'] as $entry) {
         'weight' => 'nullable|numeric|gt:0',
         'stock' => 'required|integer|in:0',
         'status' => 'required|in:active,inactive',
-        'requires_quote' => 'required_if:status,active|boolean',
         'is_wholesale' => 'required|accepted',
     ])->validate();
-    if ($p['status'] === 'active' && empty($p['requires_quote'])) {
-        throw new RuntimeException('Une référence de repérage visible doit exiger la confirmation ASSO.');
-    }
     if (isset($references[$p['client_reference']])) {
         throw new RuntimeException('Référence répétée dans le lot.');
     }
@@ -145,6 +141,7 @@ DB::transaction(function () use ($plan, $hub, $archive, $batch, $tables, $snapsh
         if (Product::withoutGlobalScopes()->where('user_id', $hub->user_id)->where('client_reference', $entry['product']['client_reference'])->exists()) {
             continue;
         }
+        $entry['product']['requires_quote'] = false;
         $product = Product::create($entry['product'] + ['user_id' => $hub->user_id, 'shop_id' => $hub->id]);
         foreach ($entry['tiers'] as $tier) {
             unset($tier['source_price']);

@@ -34,36 +34,48 @@ class SourcedCatalogVisibilityTest extends TestCase
         return $product;
     }
 
-    public function test_reference_is_visible_and_filterable_with_category_and_quote_information(): void
+    public function test_reference_is_visible_without_a_confirmation_requirement(): void
     {
         $product = $this->product();
         $this->getJson('/api/v1/import/CN/products?page=1&category_id='.$product->category_id)
             ->assertOk()->assertJsonPath('products.0.id', $product->id)
             ->assertJsonPath('products.0.category.id', $product->category_id)
-            ->assertJsonPath('products.0.requires_quote', true)
-            ->assertJsonPath('products.0.price_is_indicative', true)
+            ->assertJsonPath('products.0.requires_quote', false)
+            ->assertJsonPath('products.0.price_is_indicative', false)
+            ->assertJsonPath('products.0.availability_label', null)
             ->assertJsonPath('products.0.price_tiers.0.unit_price', 1500);
         $other = Category::create(['name' => 'Autre', 'slug' => 'autre']);
         $this->getJson('/api/v1/import/CN/products?page=1&category_id='.$other->id)
             ->assertOk()->assertJsonCount(0, 'products');
         $this->getJson('/api/v1/import/products/'.$product->id)->assertOk()
-            ->assertJsonPath('product.requires_quote', true);
+            ->assertJsonPath('product.requires_quote', false);
     }
 
-    public function test_unconfirmed_reference_cannot_create_an_order_or_debit_money(): void
+    public function test_legacy_confirmation_flag_does_not_block_wholesale_order_validation(): void
     {
         $product = $this->product();
         $buyer = User::factory()->create();
         $this->mock(WalletService::class);
         $this->mock(FirebaseMessagingService::class);
+
+        // L'option de livraison absente est vérifiée après les produits et les paliers.
+        $this->expectException(\Illuminate\Database\Eloquent\ModelNotFoundException::class);
+        app(OrderService::class)->createWholesaleOrder($buyer, [['product_id' => $product->id, 'quantity' => 10]], 999);
+    }
+
+    public function test_legacy_confirmation_flag_does_not_bypass_stock_validation(): void
+    {
+        $product = $this->product();
+        $buyer = User::factory()->create();
+        $this->mock(WalletService::class);
+        $this->mock(FirebaseMessagingService::class);
+
         try {
-            app(OrderService::class)->createWholesaleOrder($buyer, [['product_id' => $product->id, 'quantity' => 10]], 999);
-            $this->fail('Unconfirmed source reference was orderable.');
+            app(OrderService::class)->createOrder($buyer, [['product_id' => $product->id, 'quantity' => 1]], 999, null, 'wallet');
+            $this->fail('A product with zero stock was orderable.');
         } catch (\Exception $exception) {
-            $this->assertSame(__('orders.quote_required', ['product' => $product->name]), $exception->getMessage());
+            $this->assertSame(__('orders.insufficient_stock', ['product' => $product->name, 'available' => 0]), $exception->getMessage());
         }
         $this->assertSame(0, DB::table('orders')->count());
-        $this->assertSame(0, DB::table('wallet_transactions')->count());
-        $this->assertSame(0, $product->fresh()->stock);
     }
 }

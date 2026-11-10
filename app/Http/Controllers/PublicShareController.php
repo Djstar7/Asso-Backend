@@ -169,10 +169,6 @@ class PublicShareController extends Controller
 
     private function priceLabel(Product $product): ?string
     {
-        if ($product->requires_quote) {
-            return __('share.price_on_quote');
-        }
-
         $tier = $product->is_wholesale
             ? $product->priceTiers->where('is_active', true)->sortBy('unit_price')->first()
             : null;

@@ -274,7 +274,6 @@
                 @include('admin.products._free_delivery')
                 @include('admin.products._delivery_delay')
                 @include('admin.products._deposit')
-                @include('admin.products._quote')
 
                 <!-- Status -->
                 <div class="bg-dark-100 rounded-xl shadow-lg p-6">

@@ -300,7 +300,7 @@ def build(target, batch_size):
         if facts:
             product['description'] = f"{label}.\n\nCaractéristiques annoncées par le fournisseur :\n" + '\n'.join('• ' + fact for fact in facts) + f"\n\nModèle proposé par {record['supplier']}, fournisseur référencé en {COUNTRIES[country]}. Les photos présentent la référence de son catalogue. Le prix final, les options et la disponibilité sont à confirmer par ASSO avant commande."
         product['status'] = 'active' if public else 'inactive'
-        product['requires_quote'] = True
+        product['requires_quote'] = False
         product['commercial_information'] = product['commercial_information'].replace('Fiche en préparation :', 'Référence sur devis :').replace('avant activation.', 'avant commande.')
         source['category_path'] = record.get('category_path', [])
         selected.append({'key': 'alibaba-' + record['id'], 'source': source, 'product': product, 'tiers': tiers, 'images': record['images']})
