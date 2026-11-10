@@ -268,7 +268,6 @@
                 @include('admin.products._free_delivery')
                 @include('admin.products._delivery_delay')
                 @include('admin.products._deposit')
-                @include('admin.products._quote')
 
                 <!-- Submit Button -->
                 <div class="bg-gradient-to-r from-primary-500 to-primary-600 rounded-xl shadow-lg p-6 text-white">

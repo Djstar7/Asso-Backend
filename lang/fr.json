@@ -1470,6 +1470,7 @@
             "asso_sales_commission": "Commission commercial — code :reference",
             "asso_affiliate_commission": "Commission d'affiliation #:reference",
             "asso_gateway_fee": "Frais Mobile Money — :reference",
+            "asso_gateway_fee_voided": "Frais annulés — encaissement étranger à ASSO :reference",
             "package_certification": "Certification — :name",
             "package_boost": "Sponsoring — :name",
             "package_plan": "Forfait — :name",

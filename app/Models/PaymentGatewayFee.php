@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Services\ExchangeRateService;
+use App\Services\GatewayPaymentOwnership;
 use App\Services\MobileMoneyGateway;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
@@ -76,9 +77,17 @@ class PaymentGatewayFee extends Model
             return null;
         }
 
+        // Le compte ElgioPay porte aussi des encaissements étrangers à ASSO (autre
+        // site sur les mêmes clés, paiements carte) : leurs frais ne sont pas ceux
+        // d'ASSO et ne doivent jamais atteindre les Revenus ni le Wallet plateforme.
+        $gatewayId = MobileMoneyGateway::ELGIOPAY_PREFIX . $body['transaction_id'];
+        if (!GatewayPaymentOwnership::isKnown($gatewayId)) {
+            return null;
+        }
+
         $amount = is_array($body['amount'] ?? null) ? $body['amount'] : ['total' => $body['amount'] ?? null];
 
-        return self::record('elgiopay', self::PAYIN, MobileMoneyGateway::ELGIOPAY_PREFIX . $body['transaction_id'], [
+        return self::record('elgiopay', self::PAYIN, $gatewayId, [
             'amount' => $amount['total'] ?? null,
             'net' => $amount['net_amount'] ?? null,
             'fee' => $amount['fees'] ?? null,

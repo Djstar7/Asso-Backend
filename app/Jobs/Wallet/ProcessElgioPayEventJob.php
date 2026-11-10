@@ -52,13 +52,32 @@ class ProcessElgioPayEventJob implements ShouldQueue
 
     public function handle(ElgioPayService $elgiopay, MobileMoneyGateway $gateway): void
     {
+        // Désactivé entre-temps (job déjà en file) : rien n'est lu ni écrit.
+        if (!$elgiopay->isConfigured()) {
+            return;
+        }
+
         $reference = $this->reference;
 
-        // Référence absente du webhook : on la relit chez ElgioPay.
+        // Encaissement : ASSO doit l'avoir initié (id ElgioPay stocké). Le compte
+        // marchand en notifie d'autres (paiements carte d'un autre site…) : ceux-là
+        // sont écartés AVANT tout appel à l'API, dont la lecture enregistrerait
+        // leurs frais comme s'ils étaient ceux d'ASSO.
+        if ($this->kind === 'payment') {
+            if (!$reference && $this->elgiopayId) {
+                $reference = $this->referenceFromStoredId(MobileMoneyGateway::ELGIOPAY_PREFIX . $this->elgiopayId);
+            }
+            if (!$reference) {
+                Log::warning('[ElgioPay event] Paiement étranger à ASSO ignoré', ['id' => $this->elgiopayId]);
+                return;
+            }
+            $this->handlePayment((string) $reference, $gateway);
+            return;
+        }
+
+        // Retrait : référence absente du webhook, on la relit chez ElgioPay.
         if (!$reference && $this->elgiopayId) {
-            $status = $this->kind === 'payout'
-                ? $elgiopay->checkDisbursementStatus($this->elgiopayId)
-                : $elgiopay->checkPaymentStatus($this->elgiopayId);
+            $status = $elgiopay->checkDisbursementStatus($this->elgiopayId);
             if (($status['status'] ?? null) === 'ERROR') {
                 throw new \RuntimeException('ElgioPay indisponible : ' . ($status['message'] ?? ''));
             }
@@ -72,18 +91,7 @@ class ProcessElgioPayEventJob implements ShouldQueue
             'attempt' => $this->attempts(),
         ]);
 
-        if ($this->kind === 'payout') {
-            $this->handlePayout($reference);
-            return;
-        }
-
-        // En pratique ElgioPay ne renvoie PAS notre référence (ni à la création,
-        // ni au statut, ni dans le webhook) : on retrouve l'objet par l'id stocké.
-        if (!$reference && $this->elgiopayId) {
-            $reference = $this->referenceFromStoredId(MobileMoneyGateway::ELGIOPAY_PREFIX . $this->elgiopayId);
-        }
-
-        $this->handlePayment((string) $reference, $gateway);
+        $this->handlePayout($reference);
     }
 
     private function handlePayout(?string $reference): void
@@ -198,6 +206,9 @@ class ProcessElgioPayEventJob implements ShouldQueue
         }
         if ($id = PackageSubscription::where('payment_reference', $stored)->value('id')) {
             return "SUB-{$id}";
+        }
+        if ($ref = \App\Models\RealEstate\Reservation::where('payment_reference', $stored)->value('reference')) {
+            return $ref;
         }
         if ($id = DisputeShipment::where('payment_reference', $stored)->value('id')) {
             return DisputeService::KPAY_PREFIX . $id;

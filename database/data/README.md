@@ -98,9 +98,9 @@ taux ASSO utilisés, paliers, dates et empreintes des photos sont conservés.
 Les produits Amazon portent un prix de détail de référence, sans remise de gros
 inventée. Les prix XAF sont indicatifs, arrondis au multiple de 50 supérieur,
 hors transport, droits et taxes ; le stock reste à zéro jusqu'à confirmation.
-Les fiches sont visibles avec `requires_quote=true` : ASSO confirme le prix final
-et l'approvisionnement avant paiement. Le contrôle est appliqué aux commandes
-locales et aux commandes en gros, car un stock à zéro ne bloque pas le gros.
+Les anciens manifestes conservent le champ historique `requires_quote`, mais
+l’import et les commandes ne demandent plus de confirmation ASSO. Le stock à
+zéro bloque les commandes locales ; le parcours de gros utilise ses propres règles.
 Les poids estimatifs et les poids nets sans emballage sont signalés dans les fiches.
 
 Prévisualisation puis application, uniquement avec les images déjà vérifiées
@@ -151,12 +151,11 @@ GET /api/v1/import/products/{id}
 ```
 
 Les listes acceptent `category_id` et `subcategory_id`. Chaque fiche expose la
-catégorie, la sous-catégorie, `requires_quote`, `price_is_indicative` et le libellé
-de disponibilité. Le catalogue local et les routes locales récents/proximité
+catégorie et la sous-catégorie. Les champs historiques `requires_quote` et
+`price_is_indicative` valent désormais `false`, et le libellé de disponibilité est vide. Le catalogue local et les routes locales récents/proximité
 conservent leur périmètre. Les données existantes d'import restent dans les listes :
 le contrôle en ligne compte donc 1 004 références Chine, 1 230 Turquie et 1 001 Dubaï.
 Les 67 pages ont été parcourues sans doublon, avec les 3 000 nouvelles références.
 
-Le gestionnaire peut confirmer une offre dans l'édition du produit, après mise à
-jour du prix et des informations d'approvisionnement, en décochant « Prix et
-disponibilité à confirmer ». Les autres produits ne changent pas de comportement.
+Le gestionnaire peut mettre à jour le prix et les informations d’approvisionnement
+dans l’édition du produit.

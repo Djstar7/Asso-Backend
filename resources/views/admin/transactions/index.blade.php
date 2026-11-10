@@ -256,15 +256,21 @@
                                 </td>
                                 <td class="px-6 py-4">
                                     @if($transaction->provider)
+                                        @php
+                                            [$providerLabel, $providerIcon] = match ($transaction->provider) {
+                                                'kpay' => ['KPay', 'fas fa-mobile-alt'],
+                                                'elgiopay' => ['ElgioPay', 'fas fa-mobile-alt'],
+                                                'paypal' => ['PayPal', 'fab fa-paypal'],
+                                                'stripe' => ['Stripe', 'fas fa-credit-card'],
+                                                'manual' => ['Manuel', 'fas fa-user-cog'],
+                                                default => [ucfirst($transaction->provider), 'fas fa-exchange-alt'],
+                                            };
+                                        @endphp
                                         <span class="px-3 py-1 text-xs font-semibold rounded-full
                                             @if($transaction->provider == 'paypal') bg-blue-500/20 text-blue-300 border border-blue-500/50
                                             @else bg-orange-500/20 text-orange-300 border border-orange-500/50
                                             @endif">
-                                            @if($transaction->provider == 'paypal')
-                                                <i class="fab fa-paypal mr-1"></i> PayPal
-                                            @else
-                                                <i class="fas fa-mobile-alt mr-1"></i> KPay
-                                            @endif
+                                            <i class="{{ $providerIcon }} mr-1"></i> {{ $providerLabel }}
                                         </span>
                                     @else
                                         <span class="text-xs text-gray-500">-</span>

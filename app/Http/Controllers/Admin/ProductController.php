@@ -167,7 +167,6 @@ class ProductController extends Controller
             'sizes.*' => 'string|in:'.implode(',', Product::AVAILABLE_SIZES),
             'stock' => 'required|integer|min:0',
             'status' => 'required|in:active,inactive',
-            'requires_quote' => 'sometimes|boolean',
             // Au moins une photo : un produit sans image ne se vend pas.
             'images' => 'required|array|min:1|max:15',
             'images.*' => 'image|mimes:jpeg,png,jpg,gif,webp|max:5120',
@@ -370,7 +369,6 @@ class ProductController extends Controller
             'sizes.*' => 'string|in:'.implode(',', Product::AVAILABLE_SIZES),
             'stock' => 'required|integer|min:0',
             'status' => 'required|in:active,inactive',
-            'requires_quote' => 'sometimes|boolean',
             // Au moins une photo : celles déjà enregistrées comptent.
             'images' => [Rule::requiredIf(fn () => ! $product->images()->exists()), 'nullable', 'array', 'max:15'],
             'images.*' => 'image|mimes:jpeg,png,jpg,gif,webp|max:5120',

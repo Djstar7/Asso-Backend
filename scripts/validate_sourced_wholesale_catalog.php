@@ -33,11 +33,14 @@ $ids = [];
 $sourceIds = [];
 foreach ($entries as $reference => $entry) {
     $p = Product::withoutGlobalScopes()->where('user_id', $hub->user_id)->where('client_reference', $reference)->first();
-    if (! $p || $p->status !== 'active' || ! $p->requires_quote || $p->stock !== 0 || $p->shop_id !== $hub->id
+    if (! $p || $p->status !== 'active' || $p->stock !== 0 || $p->shop_id !== $hub->id
         || $p->origin_country !== $entry['product']['origin_country'] || ! $p->is_wholesale) {
         throw new RuntimeException('Fiche absente ou incohérente : '.$reference);
     }
     foreach ($entry['product'] as $key => $expected) {
+        if ($key === 'requires_quote') {
+            continue; // Ancien statut ignoré depuis sa suppression.
+        }
         $actual = $p->getAttribute($key);
         if (is_int($expected) || is_float($expected)) {
             if (! is_numeric($actual) || abs((float) $actual - $expected) > 0.0001) {

@@ -1470,6 +1470,7 @@
             "asso_sales_commission": "Sales agent commission — code :reference",
             "asso_affiliate_commission": "Affiliate commission #:reference",
             "asso_gateway_fee": "Mobile Money fees — :reference",
+            "asso_gateway_fee_voided": "Fees cancelled — payment not made on ASSO :reference",
             "package_certification": "Certification — :name",
             "package_boost": "Sponsorship — :name",
             "package_plan": "Plan — :name",
