@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\User;
 use App\Models\Product;
-use App\Models\Transaction;
+use App\Models\WalletTransaction;
 use App\Models\Exchange;
 use App\Models\Category;
 use App\Models\Shop;
@@ -36,9 +36,13 @@ class DashboardController extends Controller
             'total' => Product::count(),
         ];
 
-        // Transactions statistics
+        // Transactions : mêmes données que Finance → Transactions (portefeuilles), depuis
+        // la dernière remise à zéro des compteurs. L'ancienne table `transactions` n'est
+        // plus alimentée par les paiements.
+        $walletTransactions = fn () => WalletTransaction::query()
+            ->when(\App\Support\FinanceStatsReset::since(), fn ($q, $since) => $q->where('created_at', '>=', $since));
         $stats['transactions'] = [
-            'total' => Transaction::count(),
+            'total' => $walletTransactions()->count(),
         ];
 
         // Exchanges statistics
@@ -62,7 +66,7 @@ class DashboardController extends Controller
             ],
             'transactions' => [
                 'labels' => $this->getLast30DaysLabels(),
-                'data' => $this->getLast30DaysData(Transaction::query()),
+                'data' => $this->getLast30DaysData($walletTransactions()),
             ],
             'exchanges' => [
                 'labels' => $this->getLast30DaysLabels(),
@@ -80,7 +84,7 @@ class DashboardController extends Controller
         $recentProducts = Product::latest()->take(5)->get();
 
         // Recent transactions
-        $recentTransactions = Transaction::latest()->take(5)->get();
+        $recentTransactions = $walletTransactions()->with('user')->latest()->take(5)->get();
 
         // Pending shops (awaiting verification)
         $pendingShops = Shop::pending()

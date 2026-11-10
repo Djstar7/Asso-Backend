@@ -318,6 +318,7 @@
         <h3 class="text-lg font-semibold text-white mb-4 flex items-center">
             <i class="fas fa-receipt text-green-500 mr-2"></i>
             Transactions Récentes
+            <a href="{{ route('admin.transactions.index') }}" class="ml-auto text-xs font-normal text-primary-400 hover:text-primary-300">Tout voir</a>
         </h3>
         <div class="space-y-3">
             @forelse($recentTransactions ?? [] as $transaction)
@@ -327,11 +328,15 @@
                             <i class="fas fa-exchange-alt"></i>
                         </div>
                         <div>
-                            <p class="font-medium text-white text-sm">{{ $transaction->reference ?? 'TRX-XXX' }}</p>
-                            <p class="text-xs text-gray-400">{{ $transaction->created_at?->diffForHumans() }}</p>
+                            <p class="font-medium text-white text-sm">{{ $transaction->type_label }} · {{ $transaction->user?->name ?? 'N/A' }}</p>
+                            <p class="text-xs text-gray-400">#{{ $transaction->id }} · {{ $transaction->created_at?->diffForHumans() }}</p>
                         </div>
                     </div>
-                    <span class="text-xs font-semibold text-green-400">{{ number_format($transaction->amount ?? 0) }} FCFA</span>
+                    @if($transaction->isCredit())
+                        <span class="text-xs font-semibold text-green-400">+{{ number_format($transaction->amount, 0, ',', ' ') }} FCFA</span>
+                    @else
+                        <span class="text-xs font-semibold text-red-400">-{{ number_format(abs($transaction->amount), 0, ',', ' ') }} FCFA</span>
+                    @endif
                 </div>
             @empty
                 <div class="text-center py-8 text-gray-500">

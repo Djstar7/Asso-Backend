@@ -117,6 +117,21 @@ class AdminDashboardHardeningTest extends TestCase
         $this->get('/admin/transactions/'.$transaction->id)->assertOk()->assertSee('WAL-'.$transaction->id)->assertSee('Solde après');
     }
 
+    public function test_home_shows_the_wallet_transactions_listed_in_finance(): void
+    {
+        $user = $this->admin();
+        $client = User::factory()->create(['role' => 'client', 'first_name' => 'Client', 'last_name' => 'Recharge']);
+        WalletTransaction::create(['user_id' => $client->id, 'type' => 'credit', 'amount' => 25000, 'balance_before' => 0, 'balance_after' => 25000, 'description' => 'Recharge', 'status' => 'completed', 'provider' => 'kpay']);
+
+        $this->actingAs($user)->get(route('admin.dashboard'))
+            ->assertOk()
+            ->assertViewHas('stats', fn ($stats) => $stats['transactions']['total'] === 1)
+            ->assertViewHas('chartData', fn ($chart) => end($chart['transactions']['data']) === 1)
+            ->assertSee('Client Recharge')
+            ->assertSee('+25 000 FCFA')
+            ->assertDontSee('Aucune transaction');
+    }
+
     public function test_documents_are_private_on_disk_and_active_content_is_rejected(): void
     {
         Storage::fake('local');
