@@ -89,6 +89,15 @@ class Dispute extends Model
     protected static function boot()
     {
         parent::boot();
+
+        // Litige ouvert, tranché ou remboursé : la commission du chef de rubrique
+        // de la ligne suit (attente, versement, annulation, reprise).
+        static::saved(function (Dispute $dispute) {
+            if ($dispute->order_id && ($dispute->wasRecentlyCreated || $dispute->wasChanged(['status', 'refunded_at', 'refund_amount']))) {
+                \App\Services\DivisionCommissionService::syncOrderAfterCommit((int) $dispute->order_id);
+            }
+        });
+
         static::creating(function (Dispute $dispute) {
             if (empty($dispute->number)) {
                 do {

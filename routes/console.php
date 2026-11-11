@@ -272,3 +272,7 @@ Schedule::command('backup:database')
     ->dailyAt(config('backup.time'))
     ->timezone(config('backup.timezone'))
     ->withoutOverlapping(120);
+
+// Commissions des chefs de rubrique : rattrape un règlement, un déblocage ou un
+// remboursement manqué par les événements (voir DivisionCommissionService).
+Schedule::command('division:sync-commissions --days=120')->hourly()->withoutOverlapping(30);

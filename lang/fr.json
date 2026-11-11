@@ -1447,6 +1447,8 @@
             "sale_released": "Vente commande #:order_number — fonds débloqués",
             "delivery_commission": "Commission livraison #:order_number",
             "asso_commission_order": "Commission ASSO — Commande #:order_number",
+            "division_commission": "Commission chef de rubrique :division — commande #:order_number",
+            "division_commission_clawback": "Reprise commission chef de rubrique :division — commande #:order_number",
             "sales_commission": "Commission commercial — forfait :package",
             "balance_locked": "Solde commande #:order_number",
             "balance_paid": "Solde - Commande #:order_number",
