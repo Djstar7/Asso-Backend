@@ -98,6 +98,8 @@ class User extends Authenticatable implements HasLocalePreference
             'preferences' => 'array',
             'roles' => 'array',
             'admin_permissions' => 'array',
+            // Compte supprimé par son titulaire ou l'admin : anonymisé, jamais effacé.
+            'anonymized_at' => 'datetime',
             'notification_preferences' => 'array',
             'is_profile_complete' => 'boolean',
             'otp_expires_at' => 'datetime',

@@ -891,9 +891,18 @@ class AuthController extends Controller
 
         Log::info('[AUTH] ========== DELETE ACCOUNT ==========', ['user_id' => $userId]);
 
-        \App\Models\DeviceToken::where('user_id', $userId)->delete();
-        $user->tokens()->delete();
-        $user->delete();
+        // Anonymisation : données personnelles effacées, historique financier conservé.
+        $blockers = app(\App\Services\AccountDeletionService::class)->delete($user);
+        if ($blockers !== []) {
+            $reasons = array_map(fn ($key) => __('auth.account_deletion_blockers.'.$key), $blockers);
+            Log::info('[AUTH] Account deletion refused', ['user_id' => $userId, 'blockers' => $blockers]);
+
+            return response()->json([
+                'success' => false,
+                'message' => __('auth.account_deletion_blocked', ['reasons' => implode(' ', $reasons)]),
+                'blockers' => $blockers,
+            ], 422);
+        }
 
         Log::info('[AUTH] Account deleted', ['user_id' => $userId]);
 

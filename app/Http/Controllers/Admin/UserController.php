@@ -176,10 +176,15 @@ class UserController extends Controller
                 ->with('error', 'Impossible de supprimer un administrateur!');
         }
 
-        $user->delete();
+        // Anonymisation, jamais effacement : l'historique financier reste intact.
+        $blockers = app(\App\Services\AccountDeletionService::class)->delete($user, request()->user());
+        if ($blockers !== []) {
+            return back()->with('error', 'Suppression impossible : '.implode(' ', array_map(
+                fn ($key) => __('auth.account_deletion_blockers.'.$key, [], 'fr'), $blockers)));
+        }
 
         return redirect()->route('admin.users.index')
-            ->with('success', 'Utilisateur supprimé avec succès!');
+            ->with('success', 'Compte anonymisé : ses données personnelles sont effacées, ses commandes et mouvements restent dans l\'historique.');
     }
 
     /**
