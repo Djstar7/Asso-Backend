@@ -400,7 +400,8 @@ class ProductBoostTest extends TestCase
         $boost = app(ProductBoostService::class)
             ->startCampaign($vendor, $product, $this->boostPackage(reach: 100, price: 2500));
 
-        $product->delete();
+        // Suppression définitive (un produit retiré par le vendeur est seulement archivé).
+        $product->forceDelete();
 
         // La campagne reste en base : le chiffre d'affaires ne doit pas
         // disparaître rétroactivement de la comptabilité.

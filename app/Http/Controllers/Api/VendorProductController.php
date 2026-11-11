@@ -407,6 +407,19 @@ class VendorProductController extends Controller
         }
 
         try {
+            // Déjà vendu : archivé, photos gardées pour l'historique des commandes
+            // (l'espace du forfait n'est donc pas rendu).
+            if ($product->hasSalesHistory()) {
+                $product->update(['status' => 'inactive']);
+                $product->delete();
+
+                return response()->json([
+                    'success' => true,
+                    'message' => __('products.deleted'),
+                    'storage_restored_mb' => 0,
+                ]);
+            }
+
             // Calculate total image size to restore to package
             $totalImageSizeMb = 0;
             foreach ($product->images as $image) {
@@ -433,7 +446,7 @@ class VendorProductController extends Controller
 
             // Delete product (images will be deleted via cascade or manually)
             $product->images()->delete();
-            $product->delete();
+            $product->forceDelete();
 
             // Restore storage to vendor package
             $vendorPackage = $user->activeVendorPackage;

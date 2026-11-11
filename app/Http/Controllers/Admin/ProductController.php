@@ -497,6 +497,18 @@ class ProductController extends Controller
     public function destroy(Request $request, Product $product)
     {
         $this->guardLibrary($request, $product->isBook());
+        $wasBook = $product->book()->exists();
+
+        // Déjà vendu : archivé (invisible, plus vendable), photos gardées pour
+        // l'historique des commandes, des litiges et des factures.
+        if ($product->hasSalesHistory()) {
+            $product->update(['status' => 'inactive']);
+            $product->delete();
+
+            return $wasBook
+                ? redirect()->route('admin.library.books.index')->with('success', 'Livre déjà vendu : archivé, ses commandes restent consultables.')
+                : redirect()->route('admin.products.index')->with('success', 'Produit déjà vendu : archivé, ses commandes restent consultables.');
+        }
 
         foreach ($product->images as $image) {
             if (File::exists(public_path($image->image_path))) {
@@ -507,8 +519,7 @@ class ProductController extends Controller
         // La cascade SQL supprimerait les lignes sans leurs fichiers : on passe par le modèle.
         ProductVideo::where('product_id', $product->id)->get()->each->delete();
 
-        $wasBook = $product->book()->exists();
-        $product->delete();
+        $product->forceDelete();
 
         return $wasBook
             ? redirect()->route('admin.library.books.index')->with('success', 'Livre supprimé.')

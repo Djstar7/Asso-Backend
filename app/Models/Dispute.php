@@ -135,7 +135,7 @@ class Dispute extends Model
 
     public function order(): BelongsTo { return $this->belongsTo(Order::class); }
     public function item(): BelongsTo { return $this->belongsTo(OrderItem::class, 'order_item_id'); }
-    public function product(): BelongsTo { return $this->belongsTo(Product::class); }
+    public function product(): BelongsTo { return $this->belongsTo(Product::class)->withTrashed(); }
     public function client(): BelongsTo { return $this->belongsTo(User::class, 'client_id'); }
     public function seller(): BelongsTo { return $this->belongsTo(User::class, 'seller_id'); }
     public function decider(): BelongsTo { return $this->belongsTo(User::class, 'decided_by'); }

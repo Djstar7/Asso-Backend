@@ -7,11 +7,16 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 
 class Product extends Model
 {
     use HasTranslations;
+
+    // Un produit déjà vendu est archivé, jamais supprimé : ses lignes de commande
+    // et transactions restent lisibles (voir Admin\ProductController::destroy).
+    use SoftDeletes;
 
     /** Champs traduisibles (voir HasTranslations). */
     protected array $translatable = ['name', 'description', 'characteristics', 'commercial_information'];
@@ -190,7 +195,8 @@ class Product extends Model
         $base = Str::limit(Str::slug($name), 240, '') ?: 'produit';
 
         // Tous les produits, y compris ceux qu'un gestionnaire ne voit pas (AssoScope).
-        $taken = static::query()->withoutGlobalScope(\App\Support\AssoScope::NAME)
+        // Produits archivés compris : la colonne reste unique en base.
+        $taken = static::query()->withTrashed()->withoutGlobalScope(\App\Support\AssoScope::NAME)
             ->where(fn ($q) => $q->where('slug', $base)->orWhere('slug', 'like', $base.'-%'))
             ->when($ignoreId, fn ($q) => $q->whereKeyNot($ignoreId))
             ->pluck('slug')
@@ -212,6 +218,11 @@ class Product extends Model
         parent::boot();
 
         static::creating(function ($product) {
+            // Créateur de la fiche (admin, gestionnaire ou vendeur connecté). Hors
+            // $fillable : jamais fourni par un formulaire.
+            if ($product->created_by === null && ($authorId = \Illuminate\Support\Facades\Auth::id())) {
+                $product->created_by = $authorId;
+            }
             if (empty($product->slug)) {
                 $product->slug = static::uniqueSlug($product->name);
             }
@@ -325,6 +336,19 @@ class Product extends Model
     /**
      * Get the user that owns this product
      */
+    /** Compte qui a créé la fiche (périmètre d'un gestionnaire produits). */
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /** Le produit a-t-il déjà été vendu ou payé ? Il est alors archivé, pas supprimé. */
+    public function hasSalesHistory(): bool
+    {
+        return \Illuminate\Support\Facades\DB::table('order_items')->where('product_id', $this->id)->exists()
+            || \Illuminate\Support\Facades\DB::table('transactions')->where('product_id', $this->id)->exists();
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);

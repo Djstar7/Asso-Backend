@@ -1,0 +1,77 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+
+/**
+ * Historique des ventes protégé de la suppression des produits.
+ *
+ * - products.deleted_at : un produit déjà vendu est archivé, plus supprimé.
+ * - products.created_by : compte qui a créé la fiche (périmètre des gestionnaires).
+ * - order_items : nom, catégorie et sous-catégorie figés à la commande ; la
+ *   rubrique d'une vente ne change plus si le produit change de catégorie.
+ * - order_items.product_id / transactions.product_id : la suppression définitive
+ *   d'un produit (compte ou boutique supprimés) ne supprime plus les lignes de
+ *   commande ni les transactions, elle vide seulement le lien.
+ */
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::table('products', function (Blueprint $table) {
+            $table->softDeletes();
+            $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
+        });
+
+        Schema::table('order_items', function (Blueprint $table) {
+            $table->string('product_name')->nullable()->after('product_id');
+            $table->unsignedBigInteger('category_id')->nullable()->after('product_name')->index();
+            $table->unsignedBigInteger('subcategory_id')->nullable()->after('category_id');
+        });
+
+        // Rattrapage : instantané pris sur la fiche actuelle du produit.
+        DB::table('order_items')->whereNull('category_id')->orderBy('id')->chunkById(500, function ($items) {
+            $products = DB::table('products')->whereIn('id', $items->pluck('product_id')->filter())
+                ->get(['id', 'name', 'category_id', 'subcategory_id'])->keyBy('id');
+            foreach ($items as $item) {
+                if ($product = $products->get($item->product_id)) {
+                    DB::table('order_items')->where('id', $item->id)->update([
+                        'product_name' => mb_substr((string) $product->name, 0, 255),
+                        'category_id' => $product->category_id,
+                        'subcategory_id' => $product->subcategory_id,
+                    ]);
+                }
+            }
+        });
+
+        if (DB::getDriverName() === 'pgsql') {
+            foreach (['order_items', 'transactions'] as $table) {
+                DB::statement("ALTER TABLE {$table} DROP CONSTRAINT IF EXISTS {$table}_product_id_foreign");
+                DB::statement("ALTER TABLE {$table} ALTER COLUMN product_id DROP NOT NULL");
+                DB::statement("ALTER TABLE {$table} ADD CONSTRAINT {$table}_product_id_foreign FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL");
+            }
+        }
+    }
+
+    public function down(): void
+    {
+        if (DB::getDriverName() === 'pgsql') {
+            foreach (['order_items', 'transactions'] as $table) {
+                DB::statement("ALTER TABLE {$table} DROP CONSTRAINT IF EXISTS {$table}_product_id_foreign");
+                DB::statement("ALTER TABLE {$table} ADD CONSTRAINT {$table}_product_id_foreign FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE");
+            }
+        }
+
+        Schema::table('order_items', function (Blueprint $table) {
+            $table->dropIndex(['category_id']);
+            $table->dropColumn(['product_name', 'category_id', 'subcategory_id']);
+        });
+
+        Schema::table('products', function (Blueprint $table) {
+            $table->dropConstrainedForeignId('created_by');
+            $table->dropSoftDeletes();
+        });
+    }
+};
