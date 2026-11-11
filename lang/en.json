@@ -1447,6 +1447,8 @@
             "sale_released": "Sale — order #:order_number — funds released",
             "delivery_commission": "Delivery commission #:order_number",
             "asso_commission_order": "ASSO commission — Order #:order_number",
+            "division_commission": "Division head commission :division — order #:order_number",
+            "division_commission_clawback": "Division head commission reversal :division — order #:order_number",
             "sales_commission": "Sales commission — :package plan",
             "balance_locked": "Order balance #:order_number",
             "balance_paid": "Balance - Order #:order_number",
@@ -1904,6 +1906,7 @@
     },
     "admin_nav": {
         "groups": {
+            "division": "My division",
             "overview": "Overview",
             "orders": "Orders",
             "catalog": "Catalog and shops",
@@ -1918,6 +1921,14 @@
             "help": "Help"
         },
         "items": {
+            "division_dashboard": "Dashboard",
+            "division_orders": "Orders",
+            "division_products": "Products",
+            "division_traffic": "Traffic",
+            "division_disputes": "Disputes",
+            "division_earnings": "My earnings",
+            "division_withdrawal": "Withdrawal",
+            "divisions": "Divisions and heads",
             "dashboard": "Dashboard",
             "statistics": "Shop statistics",
             "asso_orders": "ASSO orders",

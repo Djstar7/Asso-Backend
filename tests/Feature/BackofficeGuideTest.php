@@ -84,7 +84,9 @@ class BackofficeGuideTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin']);
         $response = $this->actingAs($admin)->get('/admin/guide')->assertOk();
         $groups = $response->viewData('guideNavigation');
-        $this->assertSame(array_column(config('admin_navigation'), 'id'), array_column($groups, 'id'));
+        // Le groupe « Ma rubrique » n'est montré qu'aux chefs de rubrique.
+        $adminGroups = array_filter(config('admin_navigation'), fn ($g) => ! ($g['division_head_only'] ?? false));
+        $this->assertSame(array_column($adminGroups, 'id'), array_column($groups, 'id'));
         $articles = [];
         $existing = file_get_contents(resource_path('views/admin/guide/index.blade.php'));
         $supplementary = file_get_contents(resource_path('views/admin/guide/_menu_articles.blade.php'));
@@ -125,6 +127,7 @@ class BackofficeGuideTest extends TestCase
         $reordered = array_reverse(config('admin_navigation'));
         config(['admin_navigation' => $reordered]);
         $this->actingAs($admin)->get('/admin/guide')->assertOk()
-            ->assertViewHas('guideNavigation', fn ($groups) => array_column($groups, 'id') === array_column($reordered, 'id'));
+            ->assertViewHas('guideNavigation', fn ($groups) => array_column($groups, 'id')
+                === array_values(array_column(array_filter($reordered, fn ($g) => ! ($g['division_head_only'] ?? false)), 'id')));
     }
 }

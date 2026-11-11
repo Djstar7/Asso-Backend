@@ -89,10 +89,10 @@
                                                 <div class="w-10 h-10 rounded bg-dark-200 flex items-center justify-center flex-shrink-0"><i class="fas fa-box text-gray-500"></i></div>
                                             @endif
                                             <div>
-                                                @if($item->product && auth()->user()->canAccessAdminRoute('admin.products.show'))
+                                                @if($item->product?->isOpenableBy(auth()->user()))
                                                     <a href="{{ route('admin.products.show', $item->product) }}" class="text-white hover:text-primary-400">{{ $item->product->name }}</a>
                                                 @else
-                                                    <span class="text-white">{{ $item->product?->name ?? 'Produit supprimé' }}</span>
+                                                    <span class="text-white">{{ $item->product?->name ?? $item->product_name ?? 'Produit supprimé' }}</span>
                                                 @endif
                                                 @if($item->variant_attributes)
                                                     <div class="text-xs text-gray-400">{{ collect($item->variant_attributes)->map(fn ($v, $k) => "{$k} : {$v}")->implode(' · ') }}</div>

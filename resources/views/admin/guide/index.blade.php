@@ -360,7 +360,8 @@ const ARTICLE_GROUPS = [
    ${fig('managers')}
    ${steps(['Cliquez sur '+k('Nouveau gestionnaire')+'.','Saisissez son identité et son e-mail.','Cochez ses droits sur les produits, puis chaque section qu’il pourra voir.','Enregistrez : il reçoit son mot de passe par e-mail.'])}
    ${fig('manager_create')}
-   ${note('tip','Le juste nécessaire','N’ouvrez que les sections utiles au poste. Vous pourrez en ajouter plus tard depuis la liste.')}`},
+   ${note('tip','Le juste nécessaire','N’ouvrez que les sections utiles au poste. Vous pourrez en ajouter plus tard depuis la liste.')}
+   ${note('info','Chacun ses produits','Un gestionnaire ne voit, ne modifie et ne supprime que les produits qu’il a créés. Pour lui confier une fiche existante, ouvrez-la en modification et choisissez-le dans '+k('Gestionnaire responsable')+'. Un produit déjà vendu n’est jamais effacé : il est archivé et ses commandes restent consultables.')}`},
   {id:'preferences', title:'Préférences', path:["Menu", "Marketing et réseau commercial", "Centres d’intérêt clients"], lead:'Les catégories qui intéressent les utilisateurs, telles qu’ils les ont choisies dans l’application.', body:()=>`${fig('preferences')}<p>Utilisez cette page pour orienter les achats en gros, les bannières et le recrutement de vendeurs.</p>`},
   {id:'carte', title:'Carte', path:["Menu", "Livraison et transport", "Carte des activités"], lead:'Où se trouvent vos utilisateurs.', body:()=>`${fig('map')}`}
  ]},

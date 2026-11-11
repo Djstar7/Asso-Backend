@@ -675,6 +675,12 @@ class User extends Authenticatable implements HasLocalePreference
         return $this->role === 'admin';
     }
 
+    /** Chef de rubrique (espace « Ma rubrique » du back-office). */
+    public function isDivisionHead(): bool
+    {
+        return ! $this->isAdmin() && $this->hasRole('division_head');
+    }
+
     /**
      * Comptes techniques en rôle admin (messages automatiques, support) : ni
      * boîte mail ni téléphone réels, ils ne reçoivent pas les alertes du staff.
@@ -778,6 +784,9 @@ class User extends Authenticatable implements HasLocalePreference
     {
         if ($this->isAdmin()) {
             return 'Administrateur';
+        }
+        if ($this->hasRole('division_head')) {
+            return config('admin_access.division_head_label', 'Chef de rubrique');
         }
         foreach (config('admin_access.manager_roles', []) as $role => $label) {
             if ($this->hasRole($role)) {

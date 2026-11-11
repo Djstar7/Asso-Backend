@@ -1,5 +1,38 @@
 /* Fiches des entrées ajoutées au menu : les titres, chemins et accès viennent du serveur. */
 const MENU_ARTICLES = {
+  divisions: {
+    lead:'Les rubriques de la plateforme (Électronique, Immobilier…) et leurs chefs. Un chef ne voit que sa rubrique et touche un pourcentage de la commission ASSO de ses ventes.',
+    body:()=>`${steps(['Cliquez sur '+k('Nouvelle rubrique')+', nommez-la et cochez ses catégories (ou choisissez Immobilier).','Ouvrez la rubrique et nommez son chef : nouveau compte (identifiants envoyés par e-mail) ou chef existant, avec son pourcentage.','Pour changer de taux, de chef ou mettre fin au mandat, utilisez les actions de la fiche : les ventes passées gardent leur chef et leur taux.','Le bouton '+k('Voir son espace')+' montre exactement ce que voit le chef.'])}
+   ${note('info','Comment se calcule la commission','Le pourcentage porte sur la commission ASSO de chaque vente (prix acheteur moins part vendeur), jamais sur le prix payé : ASSO ne verse jamais plus qu’elle ne gagne. La commission est versée sur le Wallet du chef quand la vente est acquise (fin du délai de contrôle, sans litige ouvert), annulée si la vente est remboursée avant, reprise si elle l’est après.')}`
+  },
+  division_dashboard: {
+    lead:'Les chiffres de votre rubrique : ventes réglées, commission ASSO, commandes en cours, vues des produits et vos commissions.',
+    body:()=>steps(['Choisissez la période en haut de la page.','Si vous dirigez plusieurs rubriques, changez de rubrique avec le sélecteur.','Suivez vos commissions en attente et versées dans le bloc '+k('Mes commissions')+'.'])
+  },
+  division_orders: {
+    lead:'Les commandes qui contiennent un article de votre rubrique. Seules vos lignes sont affichées.',
+    body:()=>steps(['Recherchez une commande par numéro ou filtrez par statut.','Ouvrez le détail pour voir chaque article, la commission ASSO et votre commission.','Une commande mêlant d’autres rubriques n’en montre ni les articles ni le total.'])
+  },
+  division_products: {
+    lead:'Tous les produits de votre rubrique, toutes boutiques confondues, avec leurs vues et leurs ventes.',
+    body:()=>steps(['Recherchez un produit par nom ou filtrez les produits en ligne ou masqués.','Comparez vues et ventes pour repérer les produits à mettre en avant.'])
+  },
+  division_traffic: {
+    lead:'Les vues des fiches produit de votre rubrique, leur provenance et leur conversion en ventes.',
+    body:()=>`<p>Seules les vues des fiches produit sont rattachées à une rubrique ; les visites des pages boutique ne le sont pas.</p>`
+  },
+  division_disputes: {
+    lead:'Les réclamations portant sur un article de votre rubrique, traitées par l’équipe ASSO.',
+    body:()=>`<p>Tant qu’un litige est ouvert, la commission de l’article reste en attente. Remboursé, elle est annulée.</p>`
+  },
+  division_earnings: {
+    lead:'Le relevé de vos commissions, vente par vente : base, taux, montant et statut.',
+    body:()=>steps(['« En attente » : la vente n’est pas encore acquise.','« Versée » : le montant est sur votre Wallet.','« Annulée » ou « Reprise » : la vente a été remboursée.'])
+  },
+  division_withdrawal: {
+    lead:'Retirez vos gains vers Mobile Money, ou par virement sur votre IBAN une fois validé par ASSO.',
+    body:()=>steps(['Choisissez le pays, l’opérateur et le numéro bénéficiaire.','Saisissez le montant et votre mot de passe pour confirmer.','Suivez le statut du retrait dans l’historique.'])
+  },
   asso_orders: {
     lead:'Les commandes des boutiques détenues par ASSO, à traiter par l’équipe.',
     body:()=>steps(['Recherchez la commande par numéro, client ou téléphone.','Ouvrez le dossier dans son étape actuelle et vérifiez les articles et le paiement.','Effectuez l’action proposée pour confirmer, préparer ou suivre la livraison.'])

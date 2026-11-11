@@ -25,14 +25,14 @@ class ProductManagerAccessTest extends TestCase
         ]);
     }
 
-    private function product(string $status = 'active', ?User $vendor = null): Product
+    private function product(string $status = 'active', ?User $vendor = null, ?User $creator = null): Product
     {
         // Managers can work only on the platform account's ASSO shops.
         $vendor ??= \App\Services\CommissionService::platformAccount();
         $shop = Shop::create(['user_id' => $vendor->id, 'name' => 'Boutique', 'slug' => 'boutique-'.uniqid(), 'status' => 'active']);
         $category = Category::create(['name' => 'Mode', 'slug' => 'mode-'.uniqid()]);
 
-        return Product::create([
+        $product = Product::create([
             'shop_id' => $shop->id,
             'user_id' => $vendor->id,
             'category_id' => $category->id,
@@ -42,6 +42,9 @@ class ProductManagerAccessTest extends TestCase
             'stock' => 3,
             'status' => $status,
         ]);
+        $product->forceFill(['created_by' => $creator?->id])->save();
+
+        return $product;
     }
 
     public function test_admin_creates_manager_and_credentials_are_emailed(): void
@@ -171,7 +174,7 @@ class ProductManagerAccessTest extends TestCase
     public function test_product_manager_only_reaches_the_products_section(): void
     {
         $pm = $this->productManager();
-        $product = $this->product();
+        $product = $this->product(creator: $pm);
 
         $this->actingAs($pm)->get('/admin/products')->assertOk();
         $this->actingAs($pm)->get("/admin/products/{$product->id}")->assertOk();
@@ -208,7 +211,7 @@ class ProductManagerAccessTest extends TestCase
     public function test_product_manager_can_hide_show_and_delete_products(): void
     {
         $pm = $this->productManager();
-        $product = $this->product();
+        $product = $this->product(creator: $pm);
 
         $this->actingAs($pm)->patch("/admin/products/{$product->id}/toggle-status")->assertRedirect();
         $this->assertSame('inactive', $product->fresh()->status);
@@ -296,5 +299,65 @@ class ProductManagerAccessTest extends TestCase
             ->assertSee('Masquer / afficher des produits')->assertDontSee('value="database"', false);
         $this->actingAs($admin)->get("/admin/managers/{$pm->id}/edit")->assertOk();
         $this->actingAs($admin)->get('/admin/dashboard')->assertOk()->assertSee(route('admin.managers.index'), false);
+    }
+
+    public function test_manager_neither_sees_nor_changes_another_managers_product(): void
+    {
+        $mine = $this->productManager();
+        $other = $this->productManager();
+        $own = $this->product(creator: $mine);
+        $foreign = $this->product(creator: $other);
+        $foreign->update(['name' => 'Produit de l autre']);
+
+        $this->actingAs($mine)->get('/admin/products')->assertOk()
+            ->assertSee(route('admin.products.show', $own), false)
+            ->assertDontSee('Produit de l autre');
+
+        foreach (['get' => "/admin/products/{$foreign->id}", 'get ' => "/admin/products/{$foreign->id}/edit"] as $url) {
+            $this->actingAs($mine)->get($url)->assertNotFound();
+        }
+        $this->actingAs($mine)->put("/admin/products/{$foreign->id}", ['name' => 'Piraté'])->assertNotFound();
+        $this->actingAs($mine)->patch("/admin/products/{$foreign->id}/toggle-status")->assertNotFound();
+        $this->actingAs($mine)->delete("/admin/products/{$foreign->id}")->assertNotFound();
+
+        $this->assertSame('Produit de l autre', $foreign->fresh()->name);
+        $this->assertSame('active', $foreign->fresh()->status);
+        $this->assertDatabaseHas('products', ['id' => $foreign->id, 'deleted_at' => null]);
+    }
+
+    public function test_products_without_creator_are_reserved_to_the_admin(): void
+    {
+        $pm = $this->productManager();
+        $legacy = $this->product();
+
+        $this->actingAs($pm)->get("/admin/products/{$legacy->id}")->assertNotFound();
+        $this->actingAs(User::factory()->create(['role' => 'admin']))->get("/admin/products/{$legacy->id}")->assertOk();
+    }
+
+    public function test_shop_page_lists_only_the_managers_products(): void
+    {
+        $pm = $this->productManager(['shops']);
+        $other = $this->productManager();
+        $own = $this->product(creator: $pm);
+        $foreign = $this->product(creator: $other);
+        $foreign->update(['shop_id' => $own->shop_id, 'name' => 'Fiche cachée']);
+
+        $this->actingAs($pm)->get(route('admin.shops.show', $own->shop_id))->assertOk()
+            ->assertDontSee('Fiche cachée')
+            ->assertDontSee(route('admin.products.show', $foreign), false);
+    }
+
+    public function test_admin_reassigns_a_product_to_a_manager(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $pm = $this->productManager();
+        $product = $this->product();
+
+        $this->actingAs($admin)->get("/admin/products/{$product->id}/edit")->assertOk()->assertSee('Gestionnaire responsable');
+
+        // Un gestionnaire ne peut pas s'attribuer la fiche d'un autre.
+        $mine = $this->product(creator: $pm);
+        $this->actingAs($pm)->put("/admin/products/{$mine->id}", ['created_by' => $admin->id]);
+        $this->assertSame($pm->id, $mine->fresh()->created_by);
     }
 }

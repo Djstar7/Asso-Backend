@@ -3,6 +3,19 @@
 // Navigation only: route authorization remains in admin_access.php and the middleware.
 return [
     [
+        // Espace du chef de rubrique ; masqué à l'admin (qui l'ouvre depuis Rubriques).
+        'id' => 'division', 'icon' => 'fa-sitemap', 'division_head_only' => true,
+        'items' => [
+            ['id' => 'division_dashboard', 'route' => 'admin.division.dashboard', 'icon' => 'fa-gauge', 'match' => ['admin.division.dashboard']],
+            ['id' => 'division_orders', 'route' => 'admin.division.orders.index', 'icon' => 'fa-receipt', 'match' => ['admin.division.orders.*']],
+            ['id' => 'division_products', 'route' => 'admin.division.products.index', 'icon' => 'fa-box', 'match' => ['admin.division.products.*']],
+            ['id' => 'division_traffic', 'route' => 'admin.division.traffic.index', 'icon' => 'fa-chart-line', 'match' => ['admin.division.traffic.*']],
+            ['id' => 'division_disputes', 'route' => 'admin.division.disputes.index', 'icon' => 'fa-scale-balanced', 'match' => ['admin.division.disputes.*']],
+            ['id' => 'division_earnings', 'route' => 'admin.division.earnings.index', 'icon' => 'fa-coins', 'match' => ['admin.division.earnings.*']],
+            ['id' => 'division_withdrawal', 'route' => 'admin.division.withdrawal.index', 'icon' => 'fa-arrow-up-from-bracket', 'match' => ['admin.division.withdrawal.*']],
+        ],
+    ],
+    [
         'id' => 'overview', 'icon' => 'fa-chart-pie',
         'items' => [
             ['id' => 'dashboard', 'route' => 'admin.dashboard', 'icon' => 'fa-chart-pie', 'match' => ['admin.dashboard']],
@@ -110,6 +123,7 @@ return [
         'items' => [
             ['id' => 'users', 'route' => 'admin.users.index', 'icon' => 'fa-users', 'match' => ['admin.users.*']],
             ['id' => 'managers', 'route' => 'admin.managers.index', 'icon' => 'fa-user-shield', 'match' => ['admin.managers.*']],
+            ['id' => 'divisions', 'route' => 'admin.divisions.index', 'icon' => 'fa-sitemap', 'match' => ['admin.divisions.*']],
             ['id' => 'settings', 'route' => 'admin.settings.index', 'icon' => 'fa-cog', 'match' => ['admin.settings.index', 'admin.settings.update', 'admin.settings.account.*']],
             ['id' => 'payment_settings', 'route' => 'admin.settings.payments', 'icon' => 'fa-credit-card', 'match' => ['admin.settings.payments*']],
             ['id' => 'services', 'route' => 'admin.settings.services', 'icon' => 'fa-plug', 'match' => ['admin.settings.services*']],

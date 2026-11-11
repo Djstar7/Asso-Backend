@@ -89,6 +89,15 @@ class Dispute extends Model
     protected static function boot()
     {
         parent::boot();
+
+        // Litige ouvert, tranché ou remboursé : la commission du chef de rubrique
+        // de la ligne suit (attente, versement, annulation, reprise).
+        static::saved(function (Dispute $dispute) {
+            if ($dispute->order_id && ($dispute->wasRecentlyCreated || $dispute->wasChanged(['status', 'refunded_at', 'refund_amount']))) {
+                \App\Services\DivisionCommissionService::syncOrderAfterCommit((int) $dispute->order_id);
+            }
+        });
+
         static::creating(function (Dispute $dispute) {
             if (empty($dispute->number)) {
                 do {
@@ -135,7 +144,7 @@ class Dispute extends Model
 
     public function order(): BelongsTo { return $this->belongsTo(Order::class); }
     public function item(): BelongsTo { return $this->belongsTo(OrderItem::class, 'order_item_id'); }
-    public function product(): BelongsTo { return $this->belongsTo(Product::class); }
+    public function product(): BelongsTo { return $this->belongsTo(Product::class)->withTrashed()->withoutGlobalScope(\App\Support\AssoScope::OWN_PRODUCTS); }
     public function client(): BelongsTo { return $this->belongsTo(User::class, 'client_id'); }
     public function seller(): BelongsTo { return $this->belongsTo(User::class, 'seller_id'); }
     public function decider(): BelongsTo { return $this->belongsTo(User::class, 'decided_by'); }

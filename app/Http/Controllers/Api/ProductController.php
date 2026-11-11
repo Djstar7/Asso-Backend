@@ -394,7 +394,8 @@ class ProductController extends Controller
             ? (string) $request->input('client_reference')
             : null;
         if ($clientReference !== null) {
-            $existing = Product::where('user_id', $request->user()->id)
+            // Produit archivé compris : (user_id, client_reference) reste unique en base.
+            $existing = Product::withTrashed()->where('user_id', $request->user()->id)
                 ->where('client_reference', $clientReference)
                 ->first();
             if ($existing) {

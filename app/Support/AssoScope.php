@@ -28,12 +28,26 @@ class AssoScope
 {
     public const NAME = 'asso_shops_only';
 
+    /** Gestionnaire produits : seulement les fiches qu'il a créées (products.created_by). */
+    public const OWN_PRODUCTS = 'own_products_only';
+
     private static ?int $ownerId = null;
 
     /** Le compte doit-il être limité aux boutiques ASSO ? */
     public static function restricts(?User $user): bool
     {
-        return $user !== null && $user->isBackofficeStaff() && ! $user->isAdmin();
+        // Le chef de rubrique n'ouvre que son espace, filtré par sa rubrique sur
+        // toute la plateforme (DivisionScope) : pas de limite aux boutiques ASSO.
+        return $user !== null && $user->isBackofficeStaff() && ! $user->isAdmin() && ! $user->isDivisionHead();
+    }
+
+    /**
+     * Le compte ne voit-il que les produits qu'il a créés ? Vrai pour un
+     * gestionnaire produits, même s'il a reçu d'autres sections.
+     */
+    public static function restrictsToOwnProducts(?User $user): bool
+    {
+        return $user !== null && ! $user->isAdmin() && $user->hasRole('product_manager');
     }
 
     /** Le compte connecté est-il limité aux boutiques ASSO ? */
@@ -48,23 +62,35 @@ class AssoScope
         return static::$ownerId ??= (int) (CommissionService::platformAccount()?->id ?? 0);
     }
 
-    /** Filtre toutes les requêtes Eloquent de la requête HTTP en cours. */
+    /**
+     * Filtre toutes les requêtes Eloquent de la requête HTTP en cours.
+     *
+     * Les filtres sont statiques (enregistrés sur la classe du modèle) : chacun
+     * revérifie le compte connecté au moment de la requête, pour qu'un filtre
+     * posé pendant la requête d'un gestionnaire ne s'applique jamais à un autre
+     * compte servi par le même processus (tâche de fond, tests, Octane).
+     */
     public static function enable(): void
     {
-        $owner = static::ownerId();
+        Shop::addGlobalScope(self::NAME, fn (Builder $q) => static::active()
+            ? $q->where($q->qualifyColumn('user_id'), static::ownerId()) : $q);
 
-        Shop::addGlobalScope(self::NAME, fn (Builder $q) => $q->where($q->qualifyColumn('user_id'), $owner));
+        Product::addGlobalScope(self::NAME, fn (Builder $q) => static::active()
+            ? $q->whereIn(
+                $q->qualifyColumn('shop_id'),
+                fn ($shops) => $shops->select('id')->from('shops')->where('user_id', static::ownerId()),
+            ) : $q);
 
-        Product::addGlobalScope(self::NAME, fn (Builder $q) => $q->whereIn(
-            $q->qualifyColumn('shop_id'),
-            fn ($shops) => $shops->select('id')->from('shops')->where('user_id', $owner),
-        ));
+        Order::addGlobalScope(self::NAME, fn (Builder $q) => static::active() ? static::orders($q) : $q);
 
-        Order::addGlobalScope(self::NAME, fn (Builder $q) => static::orders($q));
+        // Fiches créées par un autre compte : invisibles, introuvables par leur
+        // adresse et absentes des boutiques, statistiques et listes.
+        Product::addGlobalScope(self::OWN_PRODUCTS, fn (Builder $q) => static::restrictsToOwnProducts($user = Auth::user())
+            ? $q->where($q->qualifyColumn('created_by'), (int) $user->id) : $q);
 
-        ShopLocationRequest::addGlobalScope(self::NAME, fn (Builder $q) => $q->whereHas('shop'));
-        Dispute::addGlobalScope(self::NAME, fn (Builder $q) => $q->whereHas('order'));
-        DisputeShipment::addGlobalScope(self::NAME, fn (Builder $q) => $q->whereHas('dispute'));
+        ShopLocationRequest::addGlobalScope(self::NAME, fn (Builder $q) => static::active() ? $q->whereHas('shop') : $q);
+        Dispute::addGlobalScope(self::NAME, fn (Builder $q) => static::active() ? $q->whereHas('order') : $q);
+        DisputeShipment::addGlobalScope(self::NAME, fn (Builder $q) => static::active() ? $q->whereHas('dispute') : $q);
     }
 
     /**

@@ -13,6 +13,9 @@ class AdminNavigation
         $groups = [];
         $hasActiveItem = false;
         foreach (config('admin_navigation', []) as $definition) {
+            if (($definition['division_head_only'] ?? false) && ! $user->isDivisionHead()) {
+                continue;
+            }
             $items = [];
             foreach ($definition['items'] as $item) {
                 if (! $user->canAccessAdminRoute($item['route'])) {

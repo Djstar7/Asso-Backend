@@ -10,6 +10,9 @@
 | - product_manager : section Produits uniquement, plus les sections que
 |   l'admin lui ouvre (colonne users.admin_permissions).
 |
+| Un gestionnaire produits ne voit en plus que les produits qu'il a créés
+| (products.created_by, réattribuable par l'admin depuis la fiche produit).
+|
 | Un gestionnaire ne voit que les boutiques ASSO : produits, boutiques,
 | commandes et litiges des vendeurs particuliers lui restent invisibles, même
 | dans les sections ouvertes (App\Support\AssoScope).
@@ -23,15 +26,23 @@
 return [
 
     // Rôles autorisés à se connecter au back-office.
-    'staff_roles' => ['admin', 'product_manager'],
+    'staff_roles' => ['admin', 'product_manager', 'division_head'],
 
     // Rôles que l'admin peut attribuer depuis la section Gestionnaires.
     'manager_roles' => [
         'product_manager' => 'Gestionnaire produits',
     ],
 
+    // Chef de rubrique : créé et géré depuis la section Rubriques (admin), jamais
+    // depuis Gestionnaires ; il ne reçoit aucune autre section que son espace.
+    'division_head_label' => 'Chef de rubrique',
+
     // Permissions données d'office par le rôle.
     'role_permissions' => [
+        'division_head' => [
+            'division.view',
+            'division.withdraw',
+        ],
         'product_manager' => [
             'products.view',
             'products.create',
@@ -94,7 +105,7 @@ return [
 
     // Avertissement affiché sous un groupe du formulaire.
     'permission_notes' => [
-        'Produits' => 'Limité aux boutiques ASSO.',
+        'Produits' => 'Limité aux boutiques ASSO et aux seuls produits que le gestionnaire a créés (ou que l\'admin lui a rattachés depuis la fiche produit).',
         'Boutiques ASSO' => 'Limité aux boutiques ASSO : rien des vendeurs particuliers n\'apparaît.',
         'Toute la plateforme' => 'Attention : ces sections affichent les données de tous les clients et vendeurs (comptes, paiements, messages, chiffres globaux). À n\'ouvrir qu\'en cas de besoin.',
     ],
@@ -108,6 +119,10 @@ return [
     | bypass OTP — ils permettraient de s'attribuer plus de droits.
     */
     'routes' => [
+        // Espace du chef de rubrique (ses seules données, voir App\Support\DivisionScope).
+        'admin.division.withdrawal*' => 'division.withdraw',
+        'admin.division.*' => 'division.view',
+
         // Produits
         'admin.products.index' => 'products.view',
         'admin.products.show' => 'products.view',
@@ -170,6 +185,7 @@ return [
     // Page d'arrivée d'un gestionnaire : première section accessible.
     'home_routes' => [
         'admin.dashboard',
+        'admin.division.dashboard',
         'admin.asso-orders.index',
         'admin.products.index',
         'admin.shops.index',

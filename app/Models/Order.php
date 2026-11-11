@@ -232,6 +232,15 @@ class Order extends Model
     protected static function boot()
     {
         parent::boot();
+
+        // Commissions des chefs de rubrique : règlement, déblocage de la part
+        // vendeur, remboursement ou annulation (rattrapé aussi par division:sync-commissions).
+        static::updated(function (Order $order) {
+            if ($order->wasChanged(['settled_at', 'vendor_funds_status', 'refunded_at', 'payment_status', 'status'])) {
+                \App\Services\DivisionCommissionService::syncOrderAfterCommit($order->id);
+            }
+        });
+
         static::creating(function ($order) {
             if (empty($order->order_number)) {
                 $order->order_number = 'CMD'.str_pad(random_int(1, 999999), 6, '0', STR_PAD_LEFT);
