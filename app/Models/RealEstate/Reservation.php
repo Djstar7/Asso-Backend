@@ -16,6 +16,16 @@ class Reservation extends Model
 {
     protected $table = 'real_estate_reservations';
 
+    protected static function booted(): void
+    {
+        // Commission du chef de la rubrique Immobilier : paiement, déblocage, remboursement.
+        static::saved(function (Reservation $reservation) {
+            if ($reservation->paid_at && $reservation->wasChanged(['status', 'paid_at', 'released_at'])) {
+                \App\Services\DivisionCommissionService::syncReservationAfterCommit($reservation->id);
+            }
+        });
+    }
+
     /** Statuts dans lesquels le paiement a été encaissé. */
     public const PAID_STATUSES = ['paid', 'confirmed', 'disputed', 'released'];
 

@@ -124,6 +124,8 @@ class DivisionCommissionTest extends TestCase
         $this->assertSame(DivisionCommission::STATUS_AVAILABLE, $commission->status);
         $this->assertNotNull($commission->wallet_transaction_id);
         $this->assertEquals(2000, $this->balance($this->chief));
+        // Déduite des Revenus ASSO.
+        $this->assertEquals(2000, app(\App\Services\PlatformRevenueService::class)->sourceTotal('division_commissions', 'all')['amount']);
 
         // Rejouer ne verse rien de plus.
         app(DivisionCommissionService::class)->sync();
@@ -213,5 +215,35 @@ class DivisionCommissionTest extends TestCase
         $this->validate($seller, $order);
 
         $this->assertSame(0, DivisionCommission::count());
+    }
+
+    public function test_real_estate_chief_earns_on_the_asso_share_of_reservations(): void
+    {
+        $immo = Division::create(['name' => 'Immobilier', 'type' => Division::TYPE_REAL_ESTATE]);
+        $estateChief = User::factory()->create(['role' => 'division_head', 'roles' => ['division_head']]);
+        DivisionHead::create(['division_id' => $immo->id, 'user_id' => $estateChief->id, 'commission_rate' => 10, 'started_at' => now()->subDay()]);
+
+        $listing = \App\Models\RealEstate\Listing::create(['type' => 'rent', 'title' => 'Studio', 'city' => 'Douala']);
+        $make = fn (string $ref) => \App\Models\RealEstate\Reservation::create([
+            'reference' => $ref, 'listing_id' => $listing->id, 'tenant_id' => User::factory()->create()->id,
+            'payee_id' => User::factory()->create()->id, 'kind' => 'rent', 'status' => 'pending_payment',
+            'total_amount' => 230000, 'platform_amount' => 30000,
+        ]);
+
+        $released = $make('IMMO-1');
+        $released->update(['status' => 'paid', 'paid_at' => now()]);
+        $row = DivisionCommission::where('source_id', $released->id)->sole();
+        $this->assertSame(DivisionCommission::STATUS_PENDING, $row->status);
+        $this->assertEquals(3000, (float) $row->amount);
+
+        $released->update(['status' => 'released', 'released_at' => now()]);
+        $this->assertSame(DivisionCommission::STATUS_AVAILABLE, $row->fresh()->status);
+        $this->assertEquals(3000, $this->balance($estateChief));
+
+        $refunded = $make('IMMO-2');
+        $refunded->update(['status' => 'paid', 'paid_at' => now()]);
+        $refunded->update(['status' => 'refunded']);
+        $this->assertSame(DivisionCommission::STATUS_CANCELLED, DivisionCommission::where('source_id', $refunded->id)->sole()->status);
+        $this->assertEquals(3000, $this->balance($estateChief));
     }
 }

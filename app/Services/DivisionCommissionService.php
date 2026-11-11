@@ -216,6 +216,82 @@ class DivisionCommissionService
         });
     }
 
+    /**
+     * Réservation immobilière (rubrique de type real_estate) : base = commission
+     * ASSO de la réservation (platform_amount), chef en poste au paiement ; versée
+     * au déblocage de la part du bailleur, annulée si la réservation est remboursée.
+     */
+    public static function syncReservationAfterCommit(int $reservationId): void
+    {
+        if (! self::hasHeads()) {
+            return;
+        }
+
+        DB::afterCommit(function () use ($reservationId) {
+            try {
+                app(self::class)->syncReservation($reservationId);
+            } catch (\Throwable $e) {
+                Log::error('[DivisionCommission] Synchronisation de la réservation impossible', [
+                    'reservation_id' => $reservationId,
+                    'exception' => $e::class,
+                    'message' => $e->getMessage(),
+                ]);
+            }
+        });
+    }
+
+    public function syncReservation(int $reservationId): void
+    {
+        $reservation = \App\Models\RealEstate\Reservation::find($reservationId);
+        if (! $reservation || ! $reservation->paid_at) {
+            return;
+        }
+
+        $division = Division::active()->where('type', Division::TYPE_REAL_ESTATE)->orderBy('id')->first();
+        $paidAt = Carbon::parse($reservation->paid_at);
+        $head = $division ? DivisionHead::where('division_id', $division->id)->at($paidAt)->latest('started_at')->first() : null;
+        $base = round((float) $reservation->platform_amount, 2);
+
+        DB::transaction(function () use ($reservation, $division, $head, $base, $paidAt) {
+            $row = DivisionCommission::where('source_type', DivisionCommission::SOURCE_REAL_ESTATE)
+                ->where('source_id', $reservation->id)->lockForUpdate()->first();
+
+            if (! $row) {
+                $amount = $head ? self::compute($base, (float) $head->commission_rate) : 0;
+                if (! $head || $amount <= 0 || ! in_array($reservation->status, \App\Models\RealEstate\Reservation::PAID_STATUSES, true)) {
+                    return;
+                }
+                $row = DivisionCommission::create([
+                    'division_id' => $division->id,
+                    'division_head_id' => $head->id,
+                    'user_id' => $head->user_id,
+                    'source_type' => DivisionCommission::SOURCE_REAL_ESTATE,
+                    'source_id' => $reservation->id,
+                    'reference' => $reservation->reference,
+                    'sold_at' => $paidAt,
+                    'sale_amount' => (float) $reservation->total_amount,
+                    'base_amount' => $base,
+                    'rate' => (float) $head->commission_rate,
+                    'amount' => $amount,
+                    'currency' => 'XAF',
+                    'status' => DivisionCommission::STATUS_PENDING,
+                ]);
+            }
+
+            $refunded = $reservation->status === 'refunded';
+            if ($row->status === DivisionCommission::STATUS_PENDING) {
+                if ($refunded) {
+                    $row->update(['status' => DivisionCommission::STATUS_CANCELLED, 'amount' => 0,
+                        'cancelled_at' => now(), 'cancel_reason' => 'Réservation remboursée']);
+                } elseif ($reservation->status === 'released') {
+                    $this->makeAvailable($row, (float) $row->amount);
+                }
+            } elseif ($row->status === DivisionCommission::STATUS_AVAILABLE && $refunded) {
+                $this->clawBack($row, (float) $row->amount);
+            }
+        });
+    }
+
     /** Commandes à rejouer : à créer (réglées depuis la première prise de poste) ou à mettre à jour. */
     public function sync(?Carbon $since = null): array
     {
@@ -248,6 +324,17 @@ class DivisionCommissionService
                 $this->reconcileOrder((int) $orderId);
                 $reconciled++;
             });
+
+        // Immobilier : réservations payées depuis la première prise de poste.
+        if ($firstStart && Division::active()->where('type', Division::TYPE_REAL_ESTATE)->exists()) {
+            \App\Models\RealEstate\Reservation::whereNotNull('paid_at')
+                ->where('paid_at', '>=', max(Carbon::parse($firstStart), $since ?? Carbon::parse($firstStart)))
+                ->pluck('id')
+                ->each(function ($id) use (&$reconciled) {
+                    $this->syncReservation((int) $id);
+                    $reconciled++;
+                });
+        }
 
         return ['recorded' => $recorded, 'reconciled' => $reconciled];
     }

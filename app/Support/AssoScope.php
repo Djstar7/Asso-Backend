@@ -36,7 +36,9 @@ class AssoScope
     /** Le compte doit-il être limité aux boutiques ASSO ? */
     public static function restricts(?User $user): bool
     {
-        return $user !== null && $user->isBackofficeStaff() && ! $user->isAdmin();
+        // Le chef de rubrique n'ouvre que son espace, filtré par sa rubrique sur
+        // toute la plateforme (DivisionScope) : pas de limite aux boutiques ASSO.
+        return $user !== null && $user->isBackofficeStaff() && ! $user->isAdmin() && ! $user->isDivisionHead();
     }
 
     /**

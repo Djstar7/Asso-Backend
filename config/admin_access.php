@@ -26,15 +26,23 @@
 return [
 
     // Rôles autorisés à se connecter au back-office.
-    'staff_roles' => ['admin', 'product_manager'],
+    'staff_roles' => ['admin', 'product_manager', 'division_head'],
 
     // Rôles que l'admin peut attribuer depuis la section Gestionnaires.
     'manager_roles' => [
         'product_manager' => 'Gestionnaire produits',
     ],
 
+    // Chef de rubrique : créé et géré depuis la section Rubriques (admin), jamais
+    // depuis Gestionnaires ; il ne reçoit aucune autre section que son espace.
+    'division_head_label' => 'Chef de rubrique',
+
     // Permissions données d'office par le rôle.
     'role_permissions' => [
+        'division_head' => [
+            'division.view',
+            'division.withdraw',
+        ],
         'product_manager' => [
             'products.view',
             'products.create',
@@ -111,6 +119,10 @@ return [
     | bypass OTP — ils permettraient de s'attribuer plus de droits.
     */
     'routes' => [
+        // Espace du chef de rubrique (ses seules données, voir App\Support\DivisionScope).
+        'admin.division.withdrawal*' => 'division.withdraw',
+        'admin.division.*' => 'division.view',
+
         // Produits
         'admin.products.index' => 'products.view',
         'admin.products.show' => 'products.view',
@@ -173,6 +185,7 @@ return [
     // Page d'arrivée d'un gestionnaire : première section accessible.
     'home_routes' => [
         'admin.dashboard',
+        'admin.division.dashboard',
         'admin.asso-orders.index',
         'admin.products.index',
         'admin.shops.index',

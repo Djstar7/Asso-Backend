@@ -129,6 +129,38 @@ Route::prefix('admin')->name('admin.')->group(function () {
             ->parameters(['managers' => 'manager'])
             ->except(['show']);
 
+        // Rubriques et chefs de rubrique (admin uniquement : absentes de admin_access.routes)
+        Route::prefix('divisions')->name('divisions.')->controller(\App\Http\Controllers\Admin\DivisionController::class)->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::get('/create', 'create')->name('create');
+            Route::post('/', 'store')->name('store');
+            Route::get('/{division}', 'show')->name('show');
+            Route::get('/{division}/edit', 'edit')->name('edit');
+            Route::put('/{division}', 'update')->name('update');
+            Route::post('/{division}/heads', 'appoint')->name('heads.store');
+            Route::post('/{division}/heads/rate', 'changeRate')->name('heads.rate');
+            Route::post('/{division}/heads/end', 'endHead')->name('heads.end');
+            Route::post('/{division}/heads/{head}/resend', 'resendCredentials')->name('heads.resend');
+        });
+
+        // Espace du chef de rubrique (ses seules données, voir App\Support\DivisionScope)
+        Route::prefix('ma-rubrique')->name('division.')->group(function () {
+            Route::get('/', [\App\Http\Controllers\Admin\Division\DivisionSpaceController::class, 'dashboard'])->name('dashboard');
+            Route::get('/commandes', [\App\Http\Controllers\Admin\Division\DivisionSpaceController::class, 'orders'])->name('orders.index');
+            Route::get('/commandes/{order}', [\App\Http\Controllers\Admin\Division\DivisionSpaceController::class, 'order'])->name('orders.show');
+            Route::get('/produits', [\App\Http\Controllers\Admin\Division\DivisionSpaceController::class, 'products'])->name('products.index');
+            Route::get('/trafic', [\App\Http\Controllers\Admin\Division\DivisionSpaceController::class, 'traffic'])->name('traffic.index');
+            Route::get('/litiges', [\App\Http\Controllers\Admin\Division\DivisionSpaceController::class, 'disputes'])->name('disputes.index');
+            Route::get('/gains', [\App\Http\Controllers\Admin\Division\DivisionSpaceController::class, 'earnings'])->name('earnings.index');
+            Route::prefix('retrait')->name('withdrawal.')->controller(\App\Http\Controllers\Admin\Division\DivisionWithdrawalController::class)->group(function () {
+                Route::get('/', 'index')->name('index');
+                Route::post('/mobile', 'mobile')->name('mobile');
+                Route::post('/bank', 'bank')->name('bank');
+                Route::post('/iban', 'iban')->name('iban');
+                Route::post('/{withdrawal}/refresh', 'refresh')->name('refresh');
+            });
+        });
+
         // Users management
         Route::resource('users', UserController::class);
 

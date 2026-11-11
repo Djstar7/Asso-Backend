@@ -134,6 +134,13 @@
                                     <label class="block text-sm text-gray-300 mb-1">Note (facultatif)</label>
                                     <input type="text" name="notes" maxlength="300" value="{{ $opened ? old('notes') : '' }}" class="{{ $inputClass }}">
                                 </div>
+                                @if(!empty($requirePassword))
+                                    <div>
+                                        <label class="block text-sm text-gray-300 mb-1">Votre mot de passe</label>
+                                        <input type="password" name="password" required autocomplete="current-password" class="{{ $inputClass }}">
+                                        @error('password')<p class="text-xs text-red-400 mt-1">{{ $message }}</p>@enderror
+                                    </div>
+                                @endif
                                 <button type="submit"
                                         class="w-full px-4 py-2 rounded-lg bg-primary-600 hover:bg-primary-700 text-white font-semibold">
                                     Confirmer le retrait
@@ -193,14 +200,18 @@
                 @elseif($ibanStatus === 'pending')
                     <div class="space-y-3">
                         <p class="text-sm text-amber-200">
-                            IBAN •••• {{ $account->stripe_external_last4 }} enregistré. Validez-le pour activer le virement bancaire.
+                            IBAN •••• {{ $account->stripe_external_last4 }} enregistré. {{ isset($routes['approve']) ? 'Validez-le pour activer le virement bancaire.' : 'En attente de validation.' }}
                         </p>
-                        <form method="POST" action="{{ $routes['approve'] }}">
-                            @csrf
-                            <button class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold">
-                                <i class="fas fa-check mr-1"></i>Valider l'IBAN
-                            </button>
-                        </form>
+                        @isset($routes['approve'])
+                            <form method="POST" action="{{ $routes['approve'] }}">
+                                @csrf
+                                <button class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold">
+                                    <i class="fas fa-check mr-1"></i>Valider l'IBAN
+                                </button>
+                            </form>
+                        @else
+                            <p class="text-xs text-gray-400">L'équipe ASSO le vérifie avant d'activer le virement.</p>
+                        @endisset
                     </div>
                 @elseif(!($bank['eligible'] ?? false))
                     @include('admin.withdrawals.iban-form')
@@ -220,6 +231,13 @@
                             <label class="block text-sm text-gray-300 mb-1">Note (facultatif)</label>
                             <input type="text" name="notes" maxlength="300" class="{{ $inputClass }}">
                         </div>
+                        @if(!empty($requirePassword))
+                            <div>
+                        <label class="block text-sm text-gray-300 mb-1">Votre mot de passe</label>
+                        <input type="password" name="password" required autocomplete="current-password" class="{{ $inputClass }}">
+                        @error('password')<p class="text-xs text-red-400 mt-1">{{ $message }}</p>@enderror
+                            </div>
+                        @endif
                         <button type="submit"
                                 class="w-full px-4 py-2 rounded-lg bg-primary-600 hover:bg-primary-700 text-white font-semibold">
                             Virer sur l'IBAN

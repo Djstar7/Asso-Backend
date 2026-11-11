@@ -1906,6 +1906,7 @@
     },
     "admin_nav": {
         "groups": {
+            "division": "Ma rubrique",
             "overview": "Vue d’ensemble",
             "orders": "Commandes",
             "catalog": "Catalogue et boutiques",
@@ -1920,6 +1921,14 @@
             "help": "Aide"
         },
         "items": {
+            "division_dashboard": "Tableau de bord",
+            "division_orders": "Commandes",
+            "division_products": "Produits",
+            "division_traffic": "Trafic",
+            "division_disputes": "Litiges",
+            "division_earnings": "Mes gains",
+            "division_withdrawal": "Retrait",
+            "divisions": "Rubriques et chefs",
             "dashboard": "Tableau de bord",
             "statistics": "Statistiques des boutiques",
             "asso_orders": "Commandes ASSO",

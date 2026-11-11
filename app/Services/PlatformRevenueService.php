@@ -47,6 +47,7 @@ class PlatformRevenueService
         'asso_shipments' => [self::LOSS, 'Retours', 'Courses de litige payées par ASSO', 'Courses de retour ou de remplacement prises en charge par ASSO (commandes en gros).'],
         'sales_commissions' => [self::LOSS, 'Commissions versées', 'Commissions des commerciaux', 'Dues dès l\'activation du forfait vendu avec un code commercial.'],
         'affiliate_commissions' => [self::LOSS, 'Commissions versées', 'Commissions d\'affiliation', 'Commissions approuvées ou payées aux parrains.'],
+        'division_commissions' => [self::LOSS, 'Commissions versées', 'Commissions des chefs de rubrique', 'Pourcentage de la commission ASSO versé au chef de la rubrique, une fois la vente acquise (net des reprises sur ventes remboursées).'],
         'gateway_fees' => [self::LOSS, 'Frais de paiement', 'Frais Mobile Money (KPay, ElgioPay)', 'Frais réellement prélevés sur les encaissements : feeAmount chez KPay, amount.fees chez ElgioPay.'],
     ];
 
@@ -182,6 +183,7 @@ class PlatformRevenueService
             'asso_shipments' => $this->assoShipments(),
             'sales_commissions' => $this->salesCommissions(),
             'affiliate_commissions' => $this->affiliateCommissions(),
+            'division_commissions' => $this->divisionCommissions(),
             'gateway_fees' => $this->gatewayFees(),
             default => throw new \InvalidArgumentException("Source inconnue : {$source}"),
         };
@@ -290,6 +292,17 @@ class PlatformRevenueService
             ->selectRaw("c.sold_at as occurred_at, c.commission_amount as amount, c.sales_code as reference, c.id as source_id,
                 'sales_agent' as subject_type, c.sales_agent_id as subject_id,
                 " . $this->concat(["coalesce(a.first_name, '')", "' '", "coalesce(a.last_name, '')", "' · '", 'c.package_name', "' · '", 'c.status']) . ' as detail');
+    }
+
+    private function divisionCommissions(): Builder
+    {
+        return DB::table('division_commissions as c')
+            ->leftJoin('divisions as d', 'd.id', '=', 'c.division_id')
+            ->leftJoin('users as u', 'u.id', '=', 'c.user_id')
+            ->where('c.status', 'available')
+            ->selectRaw("c.available_at as occurred_at, c.amount as amount, c.reference as reference, c.id as source_id,
+                'user' as subject_type, c.user_id as subject_id,
+                " . $this->concat(["coalesce(d.name, '')", "' · '", "coalesce(u.first_name, '')", "' '", "coalesce(u.last_name, '')"]) . ' as detail');
     }
 
     private function affiliateCommissions(): Builder

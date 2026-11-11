@@ -1906,6 +1906,7 @@
     },
     "admin_nav": {
         "groups": {
+            "division": "My division",
             "overview": "Overview",
             "orders": "Orders",
             "catalog": "Catalog and shops",
@@ -1920,6 +1921,14 @@
             "help": "Help"
         },
         "items": {
+            "division_dashboard": "Dashboard",
+            "division_orders": "Orders",
+            "division_products": "Products",
+            "division_traffic": "Traffic",
+            "division_disputes": "Disputes",
+            "division_earnings": "My earnings",
+            "division_withdrawal": "Withdrawal",
+            "divisions": "Divisions and heads",
             "dashboard": "Dashboard",
             "statistics": "Shop statistics",
             "asso_orders": "ASSO orders",
