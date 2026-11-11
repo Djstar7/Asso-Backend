@@ -249,6 +249,25 @@ class DeployIntegrityCheck extends Command
             }
         }
 
+        // Comptes anonymisés, jamais effacés : plus aucune suppression en cascade
+        // de l'historique financier depuis users.
+        if (Schema::hasColumn('users', 'anonymized_at')) {
+            $cascades = DB::select(<<<'SQL'
+                SELECT c.conrelid::regclass::text AS t, a.attname AS col FROM pg_constraint c
+                JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = ANY (c.conkey)
+                WHERE c.contype = 'f' AND c.confrelid = 'users'::regclass AND c.confdeltype = 'c'
+                SQL);
+            $protected = array_keys(\App\Support\ProtectedUserHistory::COLUMNS);
+            foreach ($cascades as $fk) {
+                if (in_array($fk->t, $protected, true)) {
+                    $problems[] = "{$fk->t}.{$fk->col} : supprimer un utilisateur effacerait encore ces lignes.";
+                }
+            }
+            if ($n = DB::table('users')->whereNotNull('anonymized_at')->count()) {
+                $problems[] = "{$n} compte(s) anonymisé(s) juste après la migration (attendu : 0).";
+            }
+        }
+
         return $problems;
     }
 

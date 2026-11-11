@@ -46,6 +46,17 @@
         "phone_change_code_sent": "A verification code has been sent to the new number.",
         "verification_code_expired": "Verification code expired",
         "phone_updated": "Phone number updated",
+        "account_deletion_blocked": "Your account cannot be deleted yet. :reasons",
+        "account_deletion_blockers": {
+            "staff_account": "This account belongs to the ASSO team.",
+            "wallet_balance": "Your Wallet still holds money (available or on hold): withdraw it first.",
+            "buyer_orders": "One of your orders is not finished.",
+            "seller_orders": "An order from your customers is not finished.",
+            "open_disputes": "A claim is still open.",
+            "pending_withdrawals": "A withdrawal is in progress.",
+            "active_bookings": "A DIASPO or Maritime booking is in progress.",
+            "active_reservations": "A real estate reservation is in progress."
+        },
         "account_deleted": "Account deleted successfully",
         "unauthenticated": "User not authenticated",
         "phone_already_registered": "This phone number is already linked to an account.",

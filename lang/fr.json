@@ -46,6 +46,17 @@
         "phone_change_code_sent": "Un code de vérification a été envoyé au nouveau numéro.",
         "verification_code_expired": "Code de vérification expiré",
         "phone_updated": "Numéro de téléphone mis à jour",
+        "account_deletion_blocked": "Suppression impossible pour le moment. :reasons",
+        "account_deletion_blockers": {
+            "staff_account": "Ce compte appartient à l'équipe ASSO.",
+            "wallet_balance": "Votre Wallet contient encore de l'argent (disponible ou bloqué) : retirez-le d'abord.",
+            "buyer_orders": "Une de vos commandes n'est pas terminée.",
+            "seller_orders": "Une commande de vos clients n'est pas terminée.",
+            "open_disputes": "Une réclamation est en cours.",
+            "pending_withdrawals": "Un retrait est en cours.",
+            "active_bookings": "Une réservation DIASPO ou Maritime est en cours.",
+            "active_reservations": "Une réservation immobilière est en cours."
+        },
         "account_deleted": "Compte supprimé avec succès",
         "unauthenticated": "Utilisateur non authentifié",
         "phone_already_registered": "Ce numéro de téléphone est déjà associé à un compte.",

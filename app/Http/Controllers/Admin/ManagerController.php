@@ -141,8 +141,17 @@ class ManagerController extends Controller
         $this->ensureManager($manager);
 
         $name = $manager->name;
-        $manager->tokens()->delete();
-        $manager->delete();
+        try {
+            DB::transaction(function () use ($manager) {
+                $manager->tokens()->delete();
+                $manager->delete();
+            });
+        } catch (\Illuminate\Database\QueryException $e) {
+            // Compte rattaché à un historique financier (Wallet, commandes…) : la base refuse.
+            Log::warning('Suppression gestionnaire refusée par la base', ['user_id' => $manager->id, 'error' => $e->getMessage()]);
+
+            return back()->with('error', "{$name} a un historique financier : son compte ne peut pas être supprimé. Retirez-lui ses accès à la place.");
+        }
 
         return redirect()->route('admin.managers.index')
             ->with('success', "Le gestionnaire {$name} a été supprimé.");
