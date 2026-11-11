@@ -48,18 +48,52 @@ return new class extends Migration
 
         if (DB::getDriverName() === 'pgsql') {
             foreach (['order_items', 'transactions'] as $table) {
-                DB::statement("ALTER TABLE {$table} DROP CONSTRAINT IF EXISTS {$table}_product_id_foreign");
+                // Contraintes réelles, quel que soit leur nom (il peut différer d'une base à l'autre).
+                foreach ($this->productForeignKeys($table) as $constraint) {
+                    DB::statement('ALTER TABLE '.$table.' DROP CONSTRAINT "'.str_replace('"', '""', $constraint->name).'"');
+                }
                 DB::statement("ALTER TABLE {$table} ALTER COLUMN product_id DROP NOT NULL");
                 DB::statement("ALTER TABLE {$table} ADD CONSTRAINT {$table}_product_id_foreign FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL");
+
+                // Contrôle : une seule contrainte, en SET NULL. Sinon la migration échoue et
+                // la transaction est annulée (rien n'est modifié).
+                $rules = collect($this->productForeignKeys($table))->pluck('delete_rule')->all();
+                if ($rules !== ['n']) {
+                    throw new \RuntimeException("{$table}.product_id : contrainte inattendue après migration (".json_encode($rules).').');
+                }
             }
         }
+
+        // Contrôle : le rattrapage n'a modifié que les nouvelles colonnes.
+        $missing = DB::table('order_items')->whereNotNull('product_id')->whereNull('category_id')
+            ->whereExists(fn ($q) => $q->select(DB::raw(1))->from('products')->whereColumn('products.id', 'order_items.product_id')->whereNotNull('products.category_id'))
+            ->count();
+        if ($missing > 0) {
+            throw new \RuntimeException("{$missing} ligne(s) de commande sans catégorie figée après rattrapage.");
+        }
+    }
+
+    /** Clés étrangères de {$table}.product_id vers products : nom et règle de suppression (a, r, c, n, d). */
+    private function productForeignKeys(string $table): array
+    {
+        return DB::select(<<<'SQL'
+            SELECT c.conname AS name, c.confdeltype AS delete_rule
+            FROM pg_constraint c
+            JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = ANY (c.conkey)
+            WHERE c.contype = 'f'
+              AND c.conrelid = ?::regclass
+              AND c.confrelid = 'products'::regclass
+              AND a.attname = 'product_id'
+            SQL, [$table]);
     }
 
     public function down(): void
     {
         if (DB::getDriverName() === 'pgsql') {
             foreach (['order_items', 'transactions'] as $table) {
-                DB::statement("ALTER TABLE {$table} DROP CONSTRAINT IF EXISTS {$table}_product_id_foreign");
+                foreach ($this->productForeignKeys($table) as $constraint) {
+                    DB::statement('ALTER TABLE '.$table.' DROP CONSTRAINT "'.str_replace('"', '""', $constraint->name).'"');
+                }
                 DB::statement("ALTER TABLE {$table} ADD CONSTRAINT {$table}_product_id_foreign FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE");
             }
         }
