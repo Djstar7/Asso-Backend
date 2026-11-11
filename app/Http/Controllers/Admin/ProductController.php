@@ -312,8 +312,12 @@ class ProductController extends Controller
         $subcategories = Subcategory::with('category')->orderBy('name')->get();
         $importCountries = ImportCountry::activeOrdered()->get();
         $currencies = Currency::active()->orderBy('code')->get();
+        // Admin seulement : rattacher la fiche à un gestionnaire (seul lui la verra).
+        $managers = $request->user()->isAdmin()
+            ? \App\Models\User::where('role', 'product_manager')->orderBy('first_name')->get(['id', 'first_name', 'last_name', 'email'])
+            : collect();
 
-        return view('admin.products.edit', compact('product', 'shops', 'categories', 'subcategories', 'importCountries', 'currencies', 'libraryMode'));
+        return view('admin.products.edit', compact('product', 'shops', 'categories', 'subcategories', 'importCountries', 'currencies', 'libraryMode', 'managers'));
     }
 
     /**
@@ -321,6 +325,13 @@ class ProductController extends Controller
      */
     public function update(Request $request, Product $product)
     {
+        // Réattribution par l'admin : vide = fiche réservée à l'admin.
+        if ($request->user()->isAdmin() && $request->has('created_by')) {
+            $request->validate(['created_by' => ['nullable', 'integer',
+                \Illuminate\Validation\Rule::exists('users', 'id')->where('role', 'product_manager')]]);
+            $product->forceFill(['created_by' => $request->integer('created_by') ?: null]);
+        }
+
         $this->guardLibrary($request, $product->isBook()
             || ProductBookService::isLibraryCategory($request->integer('category_id') ?: null));
 

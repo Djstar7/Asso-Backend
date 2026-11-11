@@ -42,7 +42,7 @@ class OrderItem extends Model
 
     public function order(): BelongsTo { return $this->belongsTo(Order::class); }
     // Produit archivé compris : l'historique de la commande reste lisible.
-    public function product(): BelongsTo { return $this->belongsTo(Product::class)->withTrashed(); }
+    public function product(): BelongsTo { return $this->belongsTo(Product::class)->withTrashed()->withoutGlobalScope(\App\Support\AssoScope::OWN_PRODUCTS); }
     public function variant(): BelongsTo { return $this->belongsTo(ProductVariant::class, 'product_variant_id'); }
     public function seller(): BelongsTo { return $this->belongsTo(User::class, 'seller_id'); }
 

@@ -56,8 +56,10 @@
                                                 <div class="w-10 h-10 rounded bg-dark-200 flex items-center justify-center flex-shrink-0"><i class="fas fa-box text-gray-500"></i></div>
                                             @endif
                                             <div>
-                                                @if($item->product)
+                                                @if($item->product?->isOpenableBy(auth()->user()))
                                                     <a href="{{ route('admin.products.show', $item->product) }}" class="text-white hover:text-primary-400">{{ $item->product->name }}</a>
+                                                @elseif($item->product || $item->product_name)
+                                                    <span class="text-white">{{ $item->product?->name ?? $item->product_name }}</span>
                                                 @else
                                                     <span class="text-gray-500">Produit supprimé</span>
                                                 @endif

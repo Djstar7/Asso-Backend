@@ -196,7 +196,7 @@ class Product extends Model
 
         // Tous les produits, y compris ceux qu'un gestionnaire ne voit pas (AssoScope).
         // Produits archivés compris : la colonne reste unique en base.
-        $taken = static::query()->withTrashed()->withoutGlobalScope(\App\Support\AssoScope::NAME)
+        $taken = static::query()->withTrashed()->withoutGlobalScopes([\App\Support\AssoScope::NAME, \App\Support\AssoScope::OWN_PRODUCTS])
             ->where(fn ($q) => $q->where('slug', $base)->orWhere('slug', 'like', $base.'-%'))
             ->when($ignoreId, fn ($q) => $q->whereKeyNot($ignoreId))
             ->pluck('slug')
@@ -340,6 +340,19 @@ class Product extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /**
+     * Le compte peut-il ouvrir la fiche admin du produit ? Une ligne de commande
+     * montre le nom d'un produit qu'un gestionnaire n'a pas créé, sans lien.
+     */
+    public function isOpenableBy(?User $user): bool
+    {
+        if (! $user || $this->trashed() || ! $user->canAccessAdminRoute('admin.products.show')) {
+            return false;
+        }
+
+        return ! \App\Support\AssoScope::restrictsToOwnProducts($user) || (int) $this->created_by === (int) $user->id;
     }
 
     /** Le produit a-t-il déjà été vendu ou payé ? Il est alors archivé, pas supprimé. */

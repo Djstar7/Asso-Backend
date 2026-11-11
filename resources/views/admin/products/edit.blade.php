@@ -43,6 +43,21 @@
                         </select>
                     </div>
 
+                    @if(auth()->user()->isAdmin() && $managers->isNotEmpty())
+                        <div class="mb-4">
+                            <label for="created_by" class="block text-sm font-medium text-white mb-2">Gestionnaire responsable</label>
+                            <select name="created_by" id="created_by" class="w-full px-4 py-2 bg-dark-50 border border-dark-300 rounded-lg text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent">
+                                <option value="">Aucun (réservé à l'admin)</option>
+                                @foreach($managers as $manager)
+                                    <option value="{{ $manager->id }}" {{ (string) old('created_by', $product->created_by) === (string) $manager->id ? 'selected' : '' }}>
+                                        {{ $manager->first_name }} {{ $manager->last_name }} ({{ $manager->email }})
+                                    </option>
+                                @endforeach
+                            </select>
+                            <p class="text-xs text-gray-400 mt-1">Un gestionnaire ne voit, ne modifie et ne supprime que les produits qui lui sont rattachés.</p>
+                        </div>
+                    @endif
+
                     <!-- Product Name / Description (FR + EN) -->
                     <x-admin.translatable class="mb-4" name="name" label="Nom du produit" :model="$product" required placeholder="Ex: iPhone 15 Pro" />
                     <x-admin.translatable class="mb-4" name="description" label="Description" :model="$product" type="textarea" placeholder="Décrivez le produit..." />

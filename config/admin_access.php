@@ -10,6 +10,9 @@
 | - product_manager : section Produits uniquement, plus les sections que
 |   l'admin lui ouvre (colonne users.admin_permissions).
 |
+| Un gestionnaire produits ne voit en plus que les produits qu'il a créés
+| (products.created_by, réattribuable par l'admin depuis la fiche produit).
+|
 | Un gestionnaire ne voit que les boutiques ASSO : produits, boutiques,
 | commandes et litiges des vendeurs particuliers lui restent invisibles, même
 | dans les sections ouvertes (App\Support\AssoScope).
@@ -94,7 +97,7 @@ return [
 
     // Avertissement affiché sous un groupe du formulaire.
     'permission_notes' => [
-        'Produits' => 'Limité aux boutiques ASSO.',
+        'Produits' => 'Limité aux boutiques ASSO et aux seuls produits que le gestionnaire a créés (ou que l\'admin lui a rattachés depuis la fiche produit).',
         'Boutiques ASSO' => 'Limité aux boutiques ASSO : rien des vendeurs particuliers n\'apparaît.',
         'Toute la plateforme' => 'Attention : ces sections affichent les données de tous les clients et vendeurs (comptes, paiements, messages, chiffres globaux). À n\'ouvrir qu\'en cas de besoin.',
     ],
