@@ -61,6 +61,8 @@ class DeliveryPresenter
             'international_export' => $order->isInternationalExport(),
             'solex_agency' => $snapshot['solex_agency'] ?? null,
             'destination_country' => $snapshot['destination_country'] ?? null,
+            // Produits d'un fournisseur international (CJ…) : colis attendu à Douala.
+            'international_shipment' => \App\Support\SupplierShipmentPresenter::forOrder($order),
             'carrier_tracking_number' => $order->carrier_tracking_number,
             'show_tracking_pending' => $order->status === 'pending' && !$order->confirmed_at,
             'carrier_tracking_url' => $trackingUrl,

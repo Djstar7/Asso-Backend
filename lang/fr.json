@@ -1026,6 +1026,7 @@
         "rating_thanks": "Merci pour votre note !",
         "cannot_be_validated": "Cette commande ne peut plus être validée",
         "payment_not_confirmed": "Le paiement de cette commande n'est pas encore confirmé.",
+        "supplier_validation_required": "Cette commande contient des produits expédiés depuis l’étranger : ASSO la valide après l’avoir passée chez le fournisseur.",
         "validated_funds_credited": "Commande validée. Votre part est créditée et bloquée jusqu'à la validation du client (48 h au plus après la livraison).",
         "cannot_be_rejected": "Cette commande ne peut plus être refusée",
         "rejected_refunded": "Commande refusée. Le client a été remboursé sur son Wallet ASSO.",
@@ -1183,6 +1184,15 @@
         "not_found_short": "Boutique introuvable"
     },
     "delivery": {
+        "international": {
+            "stages": {
+                "ordering": "Commande en cours auprès du fournisseur international",
+                "preparing": "En préparation chez le fournisseur international",
+                "in_transit": "En route vers l’entrepôt ASSO de Douala",
+                "arrived": "Arrivé à l’entrepôt ASSO de Douala",
+                "issue": "Incident chez le fournisseur : ASSO vous contacte"
+            }
+        },
         "export": {
             "collection": "Collecte Solex chez le vendeur → :agency",
             "transport": ":carrier → :destination",

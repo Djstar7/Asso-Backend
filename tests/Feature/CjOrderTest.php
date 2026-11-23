@@ -478,4 +478,36 @@ class CjOrderTest extends TestCase
         ])->assertSessionHas('error');
         $this->assertSame([], $this->sent('disputes/create'));
     }
+
+    public function test_the_buyer_api_shows_the_international_parcel(): void
+    {
+        [$order, $orders] = $this->paidAtCj();
+        $api = fn () => $this->actingAs($this->client, 'sanctum')->getJson("/api/v1/orders/{$order->id}")->assertOk()->json();
+        $find = fn (array $json) => data_get($json, 'order.delivery.international_shipment') ?? data_get($json, 'data.delivery.international_shipment');
+
+        $shipment = $find($api());
+        $this->assertSame('preparing', $shipment['stage']);
+        $this->assertSame(now()->addDays(23)->toDateString(), $shipment['expected_hub_date']);
+        $this->assertNull($shipment['tracking_number']);
+        $this->assertStringNotContainsString('CJ', json_encode($shipment));
+
+        $orders->onWebhook(['cjOrderId' => 'CJ-100', 'orderStatus' => 'SHIPPED', 'trackNumber' => 'YT777', 'logisticName' => 'YunExpress'], 'UPDATE');
+        $shipment = $find($api());
+        $this->assertSame(['in_transit', 'YT777', 'YunExpress'], [$shipment['stage'], $shipment['tracking_number'], $shipment['carrier_name']]);
+    }
+
+    public function test_the_vendor_app_cannot_confirm_an_order_waiting_for_cj(): void
+    {
+        $order = $this->paidOrder();
+        $platform = User::where('email', 'admin@asso.com')->first();
+
+        $this->actingAs($platform, 'sanctum')->postJson("/api/v1/vendor/orders/{$order->id}/validate")
+            ->assertStatus(422)->assertJsonPath('message', __('orders.supplier_validation_required'));
+        $this->assertSame('pending', $order->fresh()->status);
+    }
+
+    public function test_product_detail_says_it_ships_from_abroad(): void
+    {
+        $this->getJson("/api/v1/products/{$this->product->id}")->assertOk()->assertJsonPath('product.ships_from_abroad', true);
+    }
 }

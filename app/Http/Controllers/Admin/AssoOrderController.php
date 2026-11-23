@@ -83,7 +83,7 @@ class AssoOrderController extends Controller
 
         // Produits CJ : la commande est confirmée après son paiement chez CJ, et le
         // livreur n'est appelé qu'à l'arrivée du colis à Douala.
-        if (\App\Models\SupplierOrder::where('order_id', $order->id)->where('status', '!=', \App\Models\SupplierOrder::CANCELLED)->exists()) {
+        if ($order->awaitsSupplierValidation()) {
             return back()->with('error', 'Cette commande contient des produits CJ : validez-la depuis Fournisseurs > Commandes CJ.');
         }
 

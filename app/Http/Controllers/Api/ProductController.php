@@ -731,6 +731,9 @@ class ProductController extends Controller
             'delivery_delay' => \App\Support\DeliveryDelay::forProduct($product),
             'delivery_days_min' => $product->delivery_days_min,
             'delivery_days_max' => $product->delivery_days_max,
+            // Produit expédié depuis l'étranger par un fournisseur (CJ…) : délai plus long
+            // annoncé sur la fiche. Calculé seulement sur la fiche détaillée (une requête).
+            'ships_from_abroad' => $detailed ? \App\Models\SupplierProduct::where('product_id', $product->id)->exists() : null,
             // Commande avec acompte : % du prix payé à la commande, solde après vérification ASSO.
             ...\App\Services\DepositOrderService::productInfo($product),
             'primary_image' => $product->primaryImage ? $this->getImageUrl($product->primaryImage->image_path) : null,
