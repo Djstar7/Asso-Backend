@@ -1026,6 +1026,7 @@
         "rating_thanks": "Thank you for your rating!",
         "cannot_be_validated": "This order can no longer be validated",
         "payment_not_confirmed": "The payment for this order has not been confirmed yet.",
+        "supplier_validation_required": "This order contains products shipped from abroad: ASSO confirms it once it has been placed with the supplier.",
         "validated_funds_credited": "Order confirmed. Your share is credited and held until the customer validates it (at most 48 h after delivery).",
         "cannot_be_rejected": "This order can no longer be rejected",
         "rejected_refunded": "Order rejected. The customer has been refunded to their ASSO Wallet.",
@@ -1183,6 +1184,15 @@
         "not_found_short": "Shop not found"
     },
     "delivery": {
+        "international": {
+            "stages": {
+                "ordering": "Being ordered from the international supplier",
+                "preparing": "Being prepared by the international supplier",
+                "in_transit": "On its way to the ASSO warehouse in Douala",
+                "arrived": "Arrived at the ASSO warehouse in Douala",
+                "issue": "Supplier issue: ASSO will contact you"
+            }
+        },
         "export": {
             "collection": "Solex collection from seller → :agency",
             "transport": ":carrier → :destination",

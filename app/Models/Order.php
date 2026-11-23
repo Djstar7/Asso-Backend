@@ -171,6 +171,13 @@ class Order extends Model
             ->whereIn('supplier_orders.status', \App\Models\SupplierOrder::RECEIVABLE));
     }
 
+    /** Commande fournisseur pas encore payée : la commande se valide depuis Fournisseurs > Commandes CJ. */
+    public function awaitsSupplierValidation(): bool
+    {
+        return \App\Models\SupplierOrder::where('order_id', $this->id)
+            ->whereIn('status', \App\Models\SupplierOrder::UNPAID)->exists();
+    }
+
     public function scopeAwaitingCourier($query)
     {
         return $query->where(fn ($q) => $q->where(fn ($local) => $local->where('delivery_mode', self::DELIVERY_LOCAL)->whereIn('status', ['confirmed', 'preparing'])->notAwaitingSupplier())

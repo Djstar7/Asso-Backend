@@ -93,6 +93,11 @@ class VendorOrderController extends Controller
             return response()->json(['success' => false, 'message' => __('orders.payment_not_confirmed')], 422);
         }
 
+        // Produits d'un fournisseur international : confirmée après le paiement chez le fournisseur.
+        if ($order->awaitsSupplierValidation()) {
+            return response()->json(['success' => false, 'message' => __('orders.supplier_validation_required')], 422);
+        }
+
         try {
             // Confirmation + règlement (vendeur, livreur, ASSO) + acheteur prévenu.
             $this->orderService->confirmBySeller($order, $vendor, 'vendor', $vendor->id);
