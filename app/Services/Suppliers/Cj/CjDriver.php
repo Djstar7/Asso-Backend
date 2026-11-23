@@ -37,6 +37,11 @@ class CjDriver implements SupplierDriver
         return new CjCatalog($this->supplier, $this->client);
     }
 
+    public function disputes(): CjDisputes
+    {
+        return new CjDisputes($this);
+    }
+
     public function orders(): CjOrders
     {
         return new CjOrders($this);

@@ -92,6 +92,13 @@ class CjOrderTest extends TestCase
             'shopping/pay/getBalance' => ['amount' => 500, 'freezeAmount' => 0],
             'shopping/order/deleteOrder' => 'CJ-100',
             'shopping/order/getOrderDetail' => ['orderId' => 'CJ-100', 'orderStatus' => 'SHIPPED', 'trackNumber' => 'YT123', 'logisticName' => 'CJPacket Ordinary'],
+            'disputes/disputeProducts' => ['orderId' => 'CJ-100', 'productInfoList' => [
+                ['lineItemId' => 'L1', 'cjVariantId' => 'VID-M', 'canChoose' => true, 'price' => 10.0, 'quantity' => 2, 'cjProductName' => 'Cat Ear Hoody', 'sku' => 'CJ-BLK-M'],
+            ]],
+            'disputes/disputeConfirmInfo' => ['maxAmount' => 20.0, 'expectResultOptionList' => ['1', '2'],
+                'disputeReasonList' => [['disputeReasonId' => 4, 'reasonName' => 'Damaged item']]],
+            'disputes/create' => true,
+            'disputes/getDisputeList' => ['total' => 1, 'list' => [['disputeId' => 'SH-1', 'status' => 'Processing', 'refundMoney' => 0, 'finallyDeal' => null, 'createDate' => '1736937000000']]],
         ];
         Http::fake(function (HttpRequest $request) {
             $path = \Illuminate\Support\Str::after(strtok($request->url(), '?'), self::BASE);
@@ -121,6 +128,7 @@ class CjOrderTest extends TestCase
                 'user_id' => $this->client->id, 'status' => 'pending', 'subtotal' => 12000 * $quantity,
                 'delivery_fee' => 1500, 'base_delivery_price' => 1200, 'delivery_commission' => 300, 'total' => $total,
                 'delivery_company_id' => $company->id, 'payment_method' => 'wallet_kpay', 'payment_status' => 'paid',
+                'delivery_mode' => Order::DELIVERY_LOCAL,
             ]);
             $order->items()->create([
                 'product_id' => $product->id, 'product_name' => $product->name, 'product_variant_id' => $variantId,
@@ -351,5 +359,123 @@ class CjOrderTest extends TestCase
         $this->assertSame(SupplierOrder::PAID, $supplierOrder->status);
         $this->assertNull($supplierOrder->approved_by);
         $this->assertSame('confirmed', $order->fresh()->status);
+    }
+
+    /** Commande payée chez CJ (état « Payée, en préparation »). */
+    private function paidAtCj(): array
+    {
+        $order = $this->paidOrder();
+        $orders = app(SupplierManager::class)->driver(Supplier::CJ)->orders();
+        $orders->queueSubmission($this->supplierOrder($order), $this->admin->id);
+        $this->assertSame(SupplierOrder::PAID, $this->supplierOrder($order)->status);
+
+        return [$order, $orders];
+    }
+
+    public function test_no_courier_sees_the_order_before_the_parcel_reaches_douala(): void
+    {
+        \Illuminate\Support\Facades\Queue::fake([\App\Jobs\CheckDeliveryAcceptanceJob::class]);
+        [$order, $orders] = $this->paidAtCj();
+
+        $this->assertSame('confirmed', $order->fresh()->status);
+        $this->assertFalse(Order::withoutGlobalScopes()->awaitingCourier()->whereKey($order->id)->exists());
+        // Date prévue : paiement + 20 jours (CJPacket « 12-20 ») + 3 jours de préparation.
+        $this->assertTrue($this->supplierOrder($order)->expected_hub_at->between(now()->addDays(23)->subMinute(), now()->addDays(23)->addMinute()));
+        \Illuminate\Support\Facades\Queue::assertNotPushed(\App\Jobs\CheckDeliveryAcceptanceJob::class);
+
+        $orders->onWebhook(['cjOrderId' => 'CJ-100', 'orderStatus' => 'SHIPPED', 'trackNumber' => 'YT777', 'logisticName' => 'CJPacket Ordinary'], 'UPDATE');
+        $this->actingAs($this->admin)->post('/admin/suppliers/cj/orders/receive', ['code' => 'YT777'])
+            ->assertSessionHas('success', fn ($m) => str_contains($m, 'course est partie'));
+
+        $supplierOrder = $this->supplierOrder($order);
+        $this->assertSame(SupplierOrder::RECEIVED, $supplierOrder->status);
+        $this->assertSame($this->admin->id, $supplierOrder->hub_received_by);
+        $this->assertSame('arrived_hub', $order->fresh()->tracking_status);
+        $this->assertTrue(Order::withoutGlobalScopes()->awaitingCourier()->whereKey($order->id)->exists());
+        \Illuminate\Support\Facades\Queue::assertPushed(\App\Jobs\CheckDeliveryAcceptanceJob::class);
+
+        // Un second scan ne refait rien.
+        $this->actingAs($this->admin)->post('/admin/suppliers/cj/orders/receive', ['code' => 'YT777'])->assertSessionHas('error');
+    }
+
+    public function test_the_buyer_follows_the_parcel_from_china(): void
+    {
+        [$order, $orders] = $this->paidAtCj();
+
+        $orders->onWebhook(['cjOrderId' => 'CJ-100', 'orderStatus' => 'SHIPPED', 'trackNumber' => 'YT777', 'logisticName' => 'CJPacket Ordinary'], 'UPDATE');
+        $orders->onLogistics(['orderId' => 'CJ-100', 'trackingNumber' => 'YT777', 'trackingStatus' => 7,
+            'logisticsTrackEvents' => json_encode([['status' => 7, 'activity' => 'Customs clearance', 'location' => 'Douala', 'eventTime' => '2026-12-05 10:00:00']])]);
+        $orders->onLogistics(['orderId' => 'CJ-100', 'trackingStatus' => 8]);
+
+        $steps = $order->trackingEvents()->pluck('note', 'step')->all();
+        $this->assertArrayHasKey('in_transit', $steps);
+        $this->assertStringContainsString('suivi YT777', $steps['in_transit']);
+        $this->assertSame(1, $order->trackingEvents()->where('step', 'customs')->count());
+        $this->assertStringContainsString('Customs clearance', $this->supplierOrder($order)->logistics_event);
+
+        $orders->onLogistics(['orderId' => 'CJ-100', 'trackingStatus' => 13]);
+        $this->assertStringContainsString('Incident transporteur', $this->supplierOrder($order)->last_error);
+        $orders->onLogistics(['orderId' => 'CJ-100', 'trackingStatus' => 12]);
+        $this->assertSame(SupplierOrder::DELIVERED, $this->supplierOrder($order)->status);
+        // Livré selon CJ : pas encore « arrivé à l'entrepôt » tant qu'ASSO n'a pas réceptionné.
+        $this->assertNotSame('arrived_hub', $order->fresh()->tracking_status);
+    }
+
+    public function test_late_parcels_are_flagged(): void
+    {
+        [$order] = $this->paidAtCj();
+        $this->assertSame(0, SupplierOrder::late()->count());
+
+        $this->travel(24)->days();
+
+        $this->assertTrue($this->supplierOrder($order)->isLate());
+        $this->actingAs($this->admin)->get('/admin/suppliers/cj/orders?status=late')->assertOk()->assertSee('En retard')->assertSee($order->order_number);
+    }
+
+    public function test_an_unpaid_order_cannot_be_received(): void
+    {
+        $order = $this->paidOrder();
+
+        $this->actingAs($this->admin)->post('/admin/suppliers/cj/orders/'.$this->supplierOrder($order)->id.'/receive')->assertSessionHas('error');
+        $this->assertSame(SupplierOrder::AWAITING_APPROVAL, $this->supplierOrder($order)->status);
+    }
+
+    public function test_admin_opens_a_cj_dispute_and_follows_it(): void
+    {
+        [$order] = $this->paidAtCj();
+        $supplierOrder = $this->supplierOrder($order);
+
+        $this->actingAs($this->admin)->get("/admin/suppliers/cj/orders/{$supplierOrder->id}/dispute")
+            ->assertOk()->assertSee('Damaged item')->assertSee('Cat Ear Hoody');
+        $this->actingAs($this->admin)->post("/admin/suppliers/cj/orders/{$supplierOrder->id}/dispute", [
+            'reason_id' => 4, 'expect_type' => 1, 'message' => 'Parcel received damaged at our Douala warehouse.', 'quantities' => ['L1' => 1],
+        ])->assertSessionHas('success');
+
+        $dispute = $supplierOrder->disputes()->firstOrFail();
+        $this->assertSame(['SH-1', 'Damaged item', '10.00'], [$dispute->external_dispute_id, $dispute->reason_name, $dispute->amount_usd]);
+        $create = $this->sent('disputes/create')[0];
+        $this->assertSame([['lineItemId' => 'L1', 'quantity' => 1, 'price' => 10.0]], $create['productInfoList']);
+        $this->assertSame([1, 1, 4], [$create['expectType'], $create['refundType'], $create['disputeReasonId']]);
+
+        $this->responses['disputes/getDisputeList'] = ['list' => [['disputeId' => 'SH-1', 'status' => 'Completed', 'refundMoney' => 10, 'finallyDeal' => 1]]];
+        $dispute->forceFill(['last_synced_at' => now()->subHours(4)])->save();
+        $this->artisan('cj:sync-orders')->assertSuccessful();
+
+        $dispute->refresh();
+        $this->assertSame([1, '10.00'], [$dispute->final_result, $dispute->refund_usd]);
+        $this->assertNotNull($dispute->closed_at);
+        $this->assertSame('Remboursé', $dispute->stateLabel());
+    }
+
+    public function test_a_dispute_needs_a_paid_order_and_a_valid_reason(): void
+    {
+        $order = $this->paidOrder();
+        $this->actingAs($this->admin)->get('/admin/suppliers/cj/orders/'.$this->supplierOrder($order)->id.'/dispute')->assertOk()->assertSee('commande payée chez CJ');
+
+        app(SupplierManager::class)->driver(Supplier::CJ)->orders()->queueSubmission($this->supplierOrder($order), $this->admin->id);
+        $this->actingAs($this->admin)->post('/admin/suppliers/cj/orders/'.$this->supplierOrder($order)->id.'/dispute', [
+            'reason_id' => 99, 'expect_type' => 1, 'message' => 'Parcel never arrived here.', 'quantities' => ['L1' => 1],
+        ])->assertSessionHas('error');
+        $this->assertSame([], $this->sent('disputes/create'));
     }
 }

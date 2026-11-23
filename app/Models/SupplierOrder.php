@@ -24,6 +24,8 @@ class SupplierOrder extends Model
 
     public const DELIVERED = 'delivered';
 
+    public const RECEIVED = 'received';
+
     public const CANCELLED = 'cancelled';
 
     public const SUPPLIER_CANCELLED = 'supplier_cancelled';
@@ -37,7 +39,8 @@ class SupplierOrder extends Model
         self::AWAITING_BALANCE => 'Solde CJ insuffisant',
         self::PAID => 'Payée, en préparation chez CJ',
         self::SHIPPED => 'Expédiée par CJ',
-        self::DELIVERED => 'Livrée à l’entrepôt',
+        self::DELIVERED => 'Livrée selon CJ, à réceptionner',
+        self::RECEIVED => 'Reçue à l’entrepôt de Douala',
         self::CANCELLED => 'Annulée',
         self::SUPPLIER_CANCELLED => 'Annulée par CJ après paiement',
         self::FAILED => 'En erreur',
@@ -52,11 +55,18 @@ class SupplierOrder extends Model
     /** États suivis auprès du fournisseur jusqu'à la livraison. */
     public const OPEN = [self::PAID, self::SHIPPED];
 
+    /** États où le colis peut être réceptionné à l'entrepôt. */
+    public const RECEIVABLE = [self::PAID, self::SHIPPED, self::DELIVERED];
+
+    /** États où un litige peut être ouvert chez le fournisseur (commande payée). */
+    public const DISPUTABLE = [self::PAID, self::SHIPPED, self::DELIVERED, self::RECEIVED];
+
     protected $fillable = [
         'supplier_id', 'order_id', 'status', 'is_sandbox', 'external_number', 'external_order_id',
         'shipment_order_id', 'pay_id', 'external_status', 'logistic_name', 'tracking_number', 'tracking_url',
         'expected_cost_usd', 'quoted_cost_usd', 'paid_cost_usd', 'approved_by', 'approved_at',
         'submitted_at', 'paid_at', 'shipped_at', 'delivered_at', 'cancelled_at', 'last_synced_at',
+        'expected_hub_at', 'hub_received_at', 'hub_received_by', 'logistics_status', 'logistics_event',
         'last_error', 'payload',
     ];
 
@@ -72,6 +82,9 @@ class SupplierOrder extends Model
         'delivered_at' => 'datetime',
         'cancelled_at' => 'datetime',
         'last_synced_at' => 'datetime',
+        'expected_hub_at' => 'datetime',
+        'hub_received_at' => 'datetime',
+        'logistics_status' => 'integer',
         'payload' => 'array',
     ];
 
@@ -91,6 +104,29 @@ class SupplierOrder extends Model
     public function items(): HasMany
     {
         return $this->hasMany(SupplierOrderItem::class);
+    }
+
+    public function disputes(): HasMany
+    {
+        return $this->hasMany(SupplierDispute::class)->latest('id');
+    }
+
+    public function receiver(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'hub_received_by');
+    }
+
+    /** Colis attendu à Douala et toujours pas réceptionné après la date prévue. */
+    public function isLate(): bool
+    {
+        return in_array($this->status, self::RECEIVABLE, true)
+            && $this->expected_hub_at !== null && $this->expected_hub_at->isPast();
+    }
+
+    /** Commandes en retard (requête). */
+    public function scopeLate($query)
+    {
+        return $query->whereIn('status', self::RECEIVABLE)->whereNotNull('expected_hub_at')->where('expected_hub_at', '<', now());
     }
 
     public function approver(): BelongsTo

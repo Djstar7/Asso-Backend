@@ -21,10 +21,15 @@ class SupplierOrderController extends Controller
     {
         $cj = Supplier::forCode(Supplier::CJ);
         $query = SupplierOrder::where('supplier_id', $cj->id)
-            ->with(['order.user', 'items.orderItem', 'approver'])->latest('id');
+            ->with(['order.user', 'items.orderItem', 'approver', 'receiver', 'disputes'])->latest('id');
         $status = $request->input('status');
         if ($status === 'todo' || $status === null) {
-            $query->whereIn('status', [...SupplierOrder::SUBMITTABLE, SupplierOrder::SUBMITTING, SupplierOrder::SUPPLIER_CANCELLED]);
+            $query->where(fn ($q) => $q->whereIn('status', [...SupplierOrder::SUBMITTABLE, SupplierOrder::SUBMITTING, SupplierOrder::SUPPLIER_CANCELLED, SupplierOrder::DELIVERED])
+                ->orWhere(fn ($late) => $late->late()));
+        } elseif ($status === 'late') {
+            $query->late();
+        } elseif ($status === 'transit') {
+            $query->whereIn('status', SupplierOrder::RECEIVABLE);
         } elseif ($status !== 'all') {
             $query->where('status', $status);
         }
@@ -38,6 +43,8 @@ class SupplierOrderController extends Controller
             'orders' => $query->paginate(25)->withQueryString(),
             'status' => $status ?? 'todo',
             'counts' => SupplierOrder::where('supplier_id', $cj->id)->selectRaw('status, count(*) as n')->groupBy('status')->pluck('n', 'status')->all(),
+            'lateCount' => SupplierOrder::where('supplier_id', $cj->id)->late()->count(),
+            'transitCount' => SupplierOrder::where('supplier_id', $cj->id)->whereIn('status', SupplierOrder::RECEIVABLE)->count(),
         ]);
     }
 
@@ -119,6 +126,81 @@ class SupplierOrderController extends Controller
         }
 
         return back()->with('success', "Commande de test passée à l’état « {$step} » chez CJ.");
+    }
+
+    /** Réception à l'entrepôt par numéro scanné ou saisi (suivi, n° CJ, ASSO-…, n° de commande). */
+    public function receiveByCode(Request $request)
+    {
+        $code = trim((string) $request->validate(['code' => 'required|string|max:100'])['code']);
+        $matches = $this->suppliers->driver(Supplier::CJ)->orders()->findByCode($code)
+            ->filter(fn ($o) => in_array($o->status, SupplierOrder::RECEIVABLE, true));
+        if ($matches->count() !== 1) {
+            return back()->withInput()->with('error', $matches->isEmpty()
+                ? "Aucun colis CJ attendu ne correspond à « {$code} »."
+                : "Plusieurs colis correspondent à « {$code} » : réceptionnez-les depuis leur ligne.");
+        }
+
+        return $this->receiveOne($request, $matches->first());
+    }
+
+    /** Réception à l'entrepôt depuis la ligne de la commande. */
+    public function receiveOne(Request $request, SupplierOrder $supplierOrder)
+    {
+        $this->ensureCj($supplierOrder);
+        try {
+            $message = $this->suppliers->driver(Supplier::CJ)->orders()->receive($supplierOrder, $request->user());
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', 'Commande #'.($supplierOrder->order?->order_number ?? $supplierOrder->external_number).' : '.$message);
+    }
+
+    public function disputeForm(SupplierOrder $supplierOrder)
+    {
+        $this->ensureCj($supplierOrder);
+        $form = null;
+        $error = null;
+        try {
+            $form = $this->suppliers->driver(Supplier::CJ)->disputes()->prepare($supplierOrder);
+        } catch (CjApiException $e) {
+            $error = 'CJ ne propose pas de litige pour cette commande : '.$e->describe();
+        } catch (\InvalidArgumentException $e) {
+            $error = $e->getMessage();
+        }
+
+        return view('admin.suppliers.dispute', [
+            'cj' => Supplier::forCode(Supplier::CJ),
+            'supplierOrder' => $supplierOrder->load(['order', 'items.orderItem', 'disputes.opener']),
+            'form' => $form,
+            'error' => $error,
+        ]);
+    }
+
+    public function openDispute(Request $request, SupplierOrder $supplierOrder)
+    {
+        $this->ensureCj($supplierOrder);
+        $data = $request->validate([
+            'reason_id' => 'required|integer',
+            'expect_type' => 'required|integer|in:1,2',
+            'message' => 'required|string|min:10|max:500',
+            'quantities' => 'required|array',
+            'quantities.*' => 'nullable|integer|min:0|max:1000',
+        ]);
+
+        try {
+            $dispute = $this->suppliers->driver(Supplier::CJ)->disputes()->open(
+                $supplierOrder, (int) $data['reason_id'], (int) $data['expect_type'], $data['message'],
+                array_map('intval', array_filter($data['quantities'], fn ($q) => $q !== null)), $request->user()
+            );
+        } catch (\InvalidArgumentException $e) {
+            return back()->withInput()->with('error', $e->getMessage());
+        } catch (CjApiException $e) {
+            return back()->withInput()->with('error', 'CJ a refusé le litige : '.$e->describe());
+        }
+
+        return redirect()->route('admin.suppliers.cj.orders.dispute', $supplierOrder)
+            ->with('success', 'Litige envoyé à CJ'.($dispute->external_dispute_id ? ' (n° '.$dispute->external_dispute_id.')' : '').'. Sa réponse s’affichera ici.');
     }
 
     private function ensureCj(SupplierOrder $supplierOrder): void

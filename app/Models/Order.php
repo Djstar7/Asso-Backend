@@ -160,9 +160,20 @@ class Order extends Model
             ->orWhere(fn ($carrier) => $carrier->where('delivery_mode', self::DELIVERY_CARRIER)->whereNotNull('carrier_courier_requested_at')));
     }
 
+    /**
+     * Exclut les commandes dont le colis fournisseur (CJ…) n'est pas encore
+     * arrivé à l'entrepôt de Douala : aucun livreur ne peut les prendre avant.
+     */
+    public function scopeNotAwaitingSupplier($query)
+    {
+        return $query->whereNotExists(fn ($q) => $q->selectRaw('1')->from('supplier_orders')
+            ->whereColumn('supplier_orders.order_id', 'orders.id')
+            ->whereIn('supplier_orders.status', \App\Models\SupplierOrder::RECEIVABLE));
+    }
+
     public function scopeAwaitingCourier($query)
     {
-        return $query->where(fn ($q) => $q->where(fn ($local) => $local->where('delivery_mode', self::DELIVERY_LOCAL)->whereIn('status', ['confirmed', 'preparing']))
+        return $query->where(fn ($q) => $q->where(fn ($local) => $local->where('delivery_mode', self::DELIVERY_LOCAL)->whereIn('status', ['confirmed', 'preparing'])->notAwaitingSupplier())
             ->orWhere(fn ($carrier) => $carrier->where('delivery_mode', self::DELIVERY_CARRIER)
                 ->whereNotNull('carrier_courier_requested_at')->whereNull('delivery_person_id')
                 ->whereHas('deliveryCompany', fn ($company) => $company->where('is_active', true))

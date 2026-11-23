@@ -44,6 +44,9 @@ return [
             // Écart toléré entre le coût CJ réel et le coût prévu à l'import avant
             // de bloquer la commande pour vérification.
             'cost_tolerance_percent' => 15,
+            // Jours de préparation chez CJ avant l'expédition, ajoutés au délai du
+            // transporteur pour la date d'arrivée prévue à Douala.
+            'supplier_processing_days' => 3,
             // Adresse de livraison des colis CJ ; vide = celle de la boutique ASSO Import Douala.
             'ship_to_name' => null,
             'ship_to_phone' => null,
