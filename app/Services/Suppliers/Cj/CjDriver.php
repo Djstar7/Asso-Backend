@@ -3,7 +3,9 @@
 namespace App\Services\Suppliers\Cj;
 
 use App\Models\Supplier;
+use App\Services\ProductVariantService;
 use App\Services\Suppliers\SupplierDriver;
+use App\Services\Suppliers\SupplierImageStore;
 
 /** Fournisseur CJdropshipping. */
 class CjDriver implements SupplierDriver
@@ -28,6 +30,21 @@ class CjDriver implements SupplierDriver
     public function client(): CjClient
     {
         return $this->client;
+    }
+
+    public function catalog(): CjCatalog
+    {
+        return new CjCatalog($this->supplier, $this->client);
+    }
+
+    public function importer(): CjProductImporter
+    {
+        return new CjProductImporter(
+            $this->supplier,
+            $this->catalog(),
+            app(SupplierImageStore::class),
+            app(ProductVariantService::class),
+        );
     }
 
     public function testConnection(): array
