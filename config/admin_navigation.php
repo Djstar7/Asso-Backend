@@ -40,6 +40,7 @@ return [
             ['id' => 'product_references', 'route' => 'admin.product-references.index', 'icon' => 'fa-barcode', 'match' => ['admin.product-references.*']],
             ['id' => 'categories', 'route' => 'admin.settings.categories', 'icon' => 'fa-th-large', 'match' => ['admin.settings.categories*', 'admin.settings.subcategories*']],
             ['id' => 'import_countries', 'route' => 'admin.import-countries.index', 'icon' => 'fa-globe', 'match' => ['admin.import-countries.*']],
+            ['id' => 'suppliers', 'route' => 'admin.suppliers.index', 'icon' => 'fa-boxes-packing', 'match' => ['admin.suppliers.*']],
             ['id' => 'packages', 'route' => 'admin.packages.index', 'icon' => 'fa-cube', 'match' => ['admin.packages.*']],
         ],
     ],
