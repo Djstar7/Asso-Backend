@@ -115,10 +115,21 @@ class CjCatalog
      */
     public function freight(string $vid, int $quantity = 1): array
     {
+        return $this->freightFor([['quantity' => $quantity, 'vid' => $vid]]);
+    }
+
+    /**
+     * Lignes de transport pour un colis de plusieurs déclinaisons (une commande).
+     *
+     * @param  list<array{vid: string, quantity: int}>  $products
+     * @return list<array{name: string, price_usd: float, aging: ?string}>
+     */
+    public function freightFor(array $products): array
+    {
         $data = $this->client->post('logistic/freightCalculate', [
             'startCountryCode' => (string) $this->supplier->setting('from_country_code', 'CN'),
             'endCountryCode' => (string) $this->supplier->setting('to_country_code', 'CM'),
-            'products' => [['quantity' => $quantity, 'vid' => $vid]],
+            'products' => array_values($products),
         ]);
 
         $lines = [];

@@ -81,6 +81,12 @@ class AssoOrderController extends Controller
         $vendor = User::find(AssoScope::ownerId());
         abort_unless($vendor, 404);
 
+        // Produits CJ : la commande est confirmée après son paiement chez CJ, et le
+        // livreur n'est appelé qu'à l'arrivée du colis à Douala.
+        if (\App\Models\SupplierOrder::where('order_id', $order->id)->where('status', '!=', \App\Models\SupplierOrder::CANCELLED)->exists()) {
+            return back()->with('error', 'Cette commande contient des produits CJ : validez-la depuis Fournisseurs > Commandes CJ.');
+        }
+
         try {
             $this->orders->confirmBySeller($order, $vendor, 'admin', $request->user()->id);
             $this->orders->requestDelivery($order);

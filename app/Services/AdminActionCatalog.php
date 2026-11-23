@@ -95,6 +95,10 @@ class AdminActionCatalog
             }
         }
 
+        $add('supplier_orders', 'admin.suppliers.cj.orders.index', \App\Models\SupplierOrder::whereIn('status', [
+            ...\App\Models\SupplierOrder::SUBMITTABLE, \App\Models\SupplierOrder::SUPPLIER_CANCELLED,
+        ]), fn ($r) => [$r->external_number.' · '.$r->statusLabel(), ['status' => $r->status], $r->status]);
+
         $disputes = Dispute::withoutGlobalScope(AssoScope::NAME)->open();
         $shipments = DisputeShipment::withoutGlobalScope(AssoScope::NAME)
             ->where('payer', 'asso')->where('payment_status', '!=', DisputeShipment::PAYMENT_PAID);

@@ -285,3 +285,6 @@ Schedule::command('division:sync-commissions --days=120')->hourly()->withoutOver
  */
 Schedule::command('cj:subscribe-products')->everyFifteenMinutes()->withoutOverlapping(30);
 Schedule::command('cj:resync')->dailyAt('02:30')->timezone('Africa/Douala')->withoutOverlapping(60);
+// Commandes CJ : préparation des commandes payées manquantes, fermeture des
+// commandes annulées côté ASSO, état et suivi des commandes payées chez CJ.
+Schedule::command('cj:sync-orders')->everyTenMinutes()->withoutOverlapping(30);

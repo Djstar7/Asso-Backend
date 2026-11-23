@@ -161,6 +161,8 @@ class CjWebhooks
             'PRODUCT' => $this->onProduct(is_array($params) ? $params : []),
             'VARIANT' => $this->onVariant(is_array($params) ? $params : [], (string) $event->message_type),
             'STOCK' => $this->onStock(is_array($params) ? $params : [], $event->signature_verified),
+            'ORDER' => app(\App\Services\Suppliers\SupplierManager::class)->driver(Supplier::CJ)->orders()
+                ->onWebhook(is_array($params) ? $params : [], (string) $event->message_type),
             default => [SupplierWebhookEvent::IGNORED, 'Type d’alerte pas encore traité par ASSO.'],
         };
 

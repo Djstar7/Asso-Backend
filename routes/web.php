@@ -478,6 +478,12 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/suppliers/cj/sync/rotate-token', [\App\Http\Controllers\Admin\SupplierSyncController::class, 'rotateToken'])->name('suppliers.cj.sync.rotate');
         Route::post('/suppliers/cj/sync/subscribe', [\App\Http\Controllers\Admin\SupplierSyncController::class, 'subscribe'])->name('suppliers.cj.sync.subscribe');
         Route::post('/suppliers/cj/sync/resync', [\App\Http\Controllers\Admin\SupplierSyncController::class, 'resync'])->name('suppliers.cj.sync.resync');
+        Route::get('/suppliers/cj/orders', [\App\Http\Controllers\Admin\SupplierOrderController::class, 'index'])->name('suppliers.cj.orders.index');
+        Route::put('/suppliers/cj/orders/settings', [\App\Http\Controllers\Admin\SupplierOrderController::class, 'updateSettings'])->name('suppliers.cj.orders.settings');
+        Route::post('/suppliers/cj/orders/submit', [\App\Http\Controllers\Admin\SupplierOrderController::class, 'submit'])->name('suppliers.cj.orders.submit');
+        Route::post('/suppliers/cj/orders/{supplierOrder}/cancel', [\App\Http\Controllers\Admin\SupplierOrderController::class, 'cancel'])->name('suppliers.cj.orders.cancel');
+        Route::post('/suppliers/cj/orders/{supplierOrder}/sync', [\App\Http\Controllers\Admin\SupplierOrderController::class, 'sync'])->name('suppliers.cj.orders.sync');
+        Route::post('/suppliers/cj/orders/{supplierOrder}/sandbox-advance', [\App\Http\Controllers\Admin\SupplierOrderController::class, 'sandboxAdvance'])->name('suppliers.cj.orders.sandbox');
 
         Route::get('/import-countries', [ImportCountryController::class, 'index'])->name('import-countries.index');
         Route::put('/import-countries/freight-rules', [ImportCountryController::class, 'updateFreightRules'])->name('import-countries.freight-rules');
