@@ -16,6 +16,11 @@ return [
         'retries' => 2,
         // Jeton renouvelé un peu avant son expiration réelle.
         'token_refresh_margin_hours' => 24,
+        // Adresse publique (https) qui reçoit les alertes CJ. Vide = APP_URL.
+        // En local, mettre l'adresse d'un tunnel (ex. https://xxxx.ngrok-free.app).
+        'webhook_base_url' => env('CJ_WEBHOOK_BASE_URL'),
+        // Alertes CJ conservées ce nombre de jours (journal de la page Synchronisation).
+        'webhook_events_keep_days' => 30,
         'defaults' => [
             'margin_percent' => 25,
             'fx_buffer_percent' => 3,
@@ -29,6 +34,10 @@ return [
             'hub_handling_days' => 3,
             'images_per_product' => 4,
             'max_variants' => 100,
+            // Resynchronisation : fiches non mises à jour depuis ce nombre d'heures.
+            'resync_after_hours' => 20,
+            // Produits suivis par les alertes CJ : 1000 au niveau 1 du compte CJ.
+            'subscription_limit' => 1000,
         ],
     ],
 ];

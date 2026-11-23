@@ -66,6 +66,12 @@ class Supplier extends Model
             ?? config("suppliers.{$this->code}.defaults.{$key}", $default);
     }
 
+    /** Enregistre des réglages sans écraser les autres. */
+    public function putSettings(array $values): void
+    {
+        $this->forceFill(['settings' => array_merge((array) $this->settings, $values)])->save();
+    }
+
     public function hasApiKey(): bool
     {
         return filled($this->api_key);

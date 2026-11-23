@@ -187,6 +187,13 @@ Route::post('/v1/stripe/webhook', [App\Http\Controllers\Api\StripeWebhookControl
 // Endpoint Stripe « ASSO IBAN » (comptes connectés) : même traitement, secret dédié.
 Route::post('/v1/stripe/connect/webhook', [App\Http\Controllers\Api\StripeWebhookController::class, 'handle']);
 
+// Alertes CJdropshipping (produits, stocks, commandes, suivi) : jeton secret dans
+// l'adresse + signature HMAC (openId), réponse immédiate, traitement en file.
+Route::post('/v1/suppliers/cj/webhook/{token}', [App\Http\Controllers\Api\CjWebhookController::class, 'handle'])
+    ->where('token', '[A-Za-z0-9]{20,100}')
+    ->middleware('throttle:600,1')
+    ->name('suppliers.cj.webhook');
+
 // NOTE: Les routes /v1/currencies/* sont définies plus haut dans le groupe prefix('v1')
 // et servies par App\Http\Controllers\Api\CurrencyController (contrat mobile unifié +
 // endpoint /convert). Ne pas réintroduire un bloc v1/currencies dédié ici : il masquerait

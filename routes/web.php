@@ -472,6 +472,12 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/suppliers/cj/products', [\App\Http\Controllers\Admin\SupplierCatalogController::class, 'products'])->name('suppliers.cj.products');
         Route::post('/suppliers/cj/products/publish', [\App\Http\Controllers\Admin\SupplierCatalogController::class, 'publish'])->name('suppliers.cj.publish');
         Route::post('/suppliers/cj/products/{supplierProduct}/retry', [\App\Http\Controllers\Admin\SupplierCatalogController::class, 'retry'])->name('suppliers.cj.retry');
+        Route::get('/suppliers/cj/sync', [\App\Http\Controllers\Admin\SupplierSyncController::class, 'index'])->name('suppliers.cj.sync');
+        Route::post('/suppliers/cj/sync/enable', [\App\Http\Controllers\Admin\SupplierSyncController::class, 'enable'])->name('suppliers.cj.sync.enable');
+        Route::post('/suppliers/cj/sync/disable', [\App\Http\Controllers\Admin\SupplierSyncController::class, 'disable'])->name('suppliers.cj.sync.disable');
+        Route::post('/suppliers/cj/sync/rotate-token', [\App\Http\Controllers\Admin\SupplierSyncController::class, 'rotateToken'])->name('suppliers.cj.sync.rotate');
+        Route::post('/suppliers/cj/sync/subscribe', [\App\Http\Controllers\Admin\SupplierSyncController::class, 'subscribe'])->name('suppliers.cj.sync.subscribe');
+        Route::post('/suppliers/cj/sync/resync', [\App\Http\Controllers\Admin\SupplierSyncController::class, 'resync'])->name('suppliers.cj.sync.resync');
 
         Route::get('/import-countries', [ImportCountryController::class, 'index'])->name('import-countries.index');
         Route::put('/import-countries/freight-rules', [ImportCountryController::class, 'updateFreightRules'])->name('import-countries.freight-rules');
