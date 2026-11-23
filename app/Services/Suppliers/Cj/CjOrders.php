@@ -10,6 +10,7 @@ use App\Models\SupplierOrderItem;
 use App\Models\SupplierVariant;
 use App\Models\User;
 use App\Services\OrderService;
+use App\Services\OrderTrackingService as OrderTracking;
 use App\Support\AssoScope;
 use App\Support\ImportHub;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -210,6 +211,102 @@ class CjOrders
         return ['processed', 'Commande '.$supplierOrder->external_number.' : '.($params['orderStatus'] ?? 'mise à jour').'.'];
     }
 
+    /**
+     * Alerte CJ « LOGISTIC » : étape du transporteur (0 à 14). Le dédouanement
+     * est montré au client ; un incident est signalé à l'admin.
+     */
+    public function onLogistics(array $params): array
+    {
+        $cjId = (string) ($params['orderId'] ?? '');
+        $supplierOrder = $cjId !== ''
+            ? SupplierOrder::where('supplier_id', $this->driver->supplier()->id)->where('external_order_id', $cjId)->first()
+            : null;
+        if (! $supplierOrder) {
+            return ['ignored', 'Colis d’une commande CJ inconnue d’ASSO.'];
+        }
+
+        $code = is_numeric($params['trackingStatus'] ?? null) ? (int) $params['trackingStatus'] : null;
+        $events = json_decode((string) ($params['logisticsTrackEvents'] ?? ''), true);
+        $last = is_array($events) && $events !== [] ? end($events) : null;
+        $eventText = is_array($last) ? trim(implode(' · ', array_filter([
+            $last['eventTime'] ?? null, trim((string) ($last['activity'] ?? $last['statusDesc'] ?? '')), trim((string) ($last['location'] ?? '')),
+        ]))) : null;
+
+        $supplierOrder->fill(array_filter([
+            'logistics_status' => $code,
+            'logistics_event' => $eventText ? mb_substr($eventText, 0, 500) : null,
+            'tracking_number' => $params['trackingNumber'] ?? null,
+            'logistic_name' => $params['logisticName'] ?? null,
+            'tracking_url' => isset($params['trackingUrl']) ? mb_substr((string) $params['trackingUrl'], 0, 500) : null,
+        ], fn ($v) => $v !== null && $v !== ''));
+        if ($code !== null && $code >= 1 && $supplierOrder->status === SupplierOrder::PAID) {
+            $supplierOrder->fill(['status' => SupplierOrder::SHIPPED, 'shipped_at' => now()]);
+        }
+        if ($code === 12 && in_array($supplierOrder->status, SupplierOrder::OPEN, true)) {
+            $supplierOrder->fill(['status' => SupplierOrder::DELIVERED, 'delivered_at' => now()]);
+        }
+        if (in_array($code, [13, 14], true) && $supplierOrder->status !== SupplierOrder::RECEIVED) {
+            $supplierOrder->last_error = 'Incident transporteur signalé par CJ'.($eventText ? ' : '.$eventText : '').'. Suivez le colis et ouvrez un litige CJ si besoin.';
+        }
+        $supplierOrder->save();
+
+        if (in_array($supplierOrder->status, [SupplierOrder::SHIPPED, SupplierOrder::DELIVERED], true)) {
+            $this->recordStep($supplierOrder, 'in_transit', 'Chine', $this->shippedNote($supplierOrder));
+        }
+        if (in_array($code, [7, 8], true)) {
+            $this->recordStep($supplierOrder, 'customs', 'Cameroun', null);
+        }
+
+        return ['processed', 'Colis '.($supplierOrder->tracking_number ?? $supplierOrder->external_number).' : étape transporteur '.($code ?? '?').'.'];
+    }
+
+    /** Commande fournisseur retrouvée par un numéro scanné ou saisi (suivi, CJ, ASSO-…, commande ASSO). */
+    public function findByCode(string $code): \Illuminate\Support\Collection
+    {
+        $code = trim($code);
+        if ($code === '') {
+            return collect();
+        }
+
+        return SupplierOrder::where('supplier_id', $this->driver->supplier()->id)
+            ->where(fn ($q) => $q->where('tracking_number', $code)->orWhere('external_order_id', $code)
+                ->orWhere('external_number', $code)->orWhere('external_number', 'ASSO-'.$code))
+            ->get();
+    }
+
+    /**
+     * Colis reçu à l'entrepôt de Douala : le client est prévenu ; en livraison à
+     * domicile, la course part vers les livreurs ; en livraison par transporteur
+     * (SOLEX…), l'admin remet le colis depuis Expéditions. Renvoie un message.
+     */
+    public function receive(SupplierOrder $supplierOrder, User $admin): string
+    {
+        $updated = SupplierOrder::whereKey($supplierOrder->id)->whereIn('status', SupplierOrder::RECEIVABLE)
+            ->update(['status' => SupplierOrder::RECEIVED, 'hub_received_at' => now(), 'hub_received_by' => $admin->id,
+                'delivered_at' => $supplierOrder->delivered_at ?? now(), 'updated_at' => now()]);
+        if ($updated === 0) {
+            throw new \RuntimeException('Ce colis n’est pas attendu à l’entrepôt (déjà reçu, annulé ou pas encore payé chez CJ).');
+        }
+        $supplierOrder->refresh();
+
+        $order = Order::withoutGlobalScopes()->find($supplierOrder->order_id);
+        if (! $order || $order->status === 'cancelled') {
+            return 'Colis reçu, mais la commande ASSO est annulée : mettez-le de côté.';
+        }
+        $this->recordStep($supplierOrder, OrderTracking::IMPORT_HUB_STEP, ImportHub::CITY, null, $admin->id);
+
+        if ($order->isCarrierDelivery()) {
+            return 'Colis reçu, client prévenu. Remettez-le au transporteur depuis Expéditions.';
+        }
+        if (in_array($order->status, ['confirmed', 'preparing'], true)) {
+            app(OrderService::class)->requestDelivery($order);
+
+            return 'Colis reçu, client prévenu. La demande de course est partie vers les livreurs.';
+        }
+
+        return 'Colis reçu, client prévenu.';
+    }
+
     /** Bac à sable : fait avancer la commande d'une étape chez CJ (300 → 400 → 500 → 600). */
     public function sandboxAdvance(SupplierOrder $supplierOrder): string
     {
@@ -243,6 +340,8 @@ class CjOrders
             case 'SHIPPED':
                 if ($supplierOrder->status === SupplierOrder::PAID) {
                     $supplierOrder->fill(['status' => SupplierOrder::SHIPPED, 'shipped_at' => now()]);
+                    $supplierOrder->save();
+                    $this->recordStep($supplierOrder, 'in_transit', 'Chine', $this->shippedNote($supplierOrder));
                 }
                 break;
             case 'DELIVERED':
@@ -300,7 +399,11 @@ class CjOrders
 
             return false;
         }
-        $supplierOrder->forceFill(['submitted_at' => now(), 'logistic_name' => $line['name']])->save();
+        $supplierOrder->forceFill([
+            'submitted_at' => now(),
+            'logistic_name' => $line['name'],
+            'payload' => array_merge((array) $supplierOrder->payload, ['aging' => $line['aging']]),
+        ])->save();
 
         $address = $this->shippingAddress();
         $data = (array) $client->post('shopping/order/createOrderV2', $address + [
@@ -418,6 +521,7 @@ class CjOrders
         $supplierOrder->forceFill([
             'status' => SupplierOrder::PAID,
             'paid_at' => now(),
+            'expected_hub_at' => $this->expectedHubDate($supplierOrder),
             'paid_cost_usd' => $quote ?: null,
             'external_status' => 'UNSHIPPED',
             'last_error' => null,
@@ -479,6 +583,43 @@ class CjOrders
         ])->save();
 
         return $refunded;
+    }
+
+    /**
+     * Étape du parcours montrée au client (une seule fois par étape), au nom
+     * d'ASSO : seule ASSO peut enregistrer l'acheminement d'un colis transporteur.
+     */
+    private function recordStep(SupplierOrder $supplierOrder, string $step, ?string $location, ?string $note, ?int $actorId = null): void
+    {
+        $order = Order::withoutGlobalScopes()->find($supplierOrder->order_id);
+        if (! $order || in_array($order->status, ['pending', 'cancelled', 'delivered'], true)
+            || $order->trackingEvents()->where('step', $step)->exists()) {
+            return;
+        }
+        try {
+            app(OrderTracking::class)->record($order, $step, $location, $note, 'admin', $actorId ?? $supplierOrder->approved_by, true);
+        } catch (\Throwable $e) {
+            Log::warning('[CjOrders] Étape de suivi non enregistrée', ['order_id' => $order->id, 'step' => $step, 'error' => $e->getMessage()]);
+        }
+    }
+
+    private function shippedNote(SupplierOrder $supplierOrder): string
+    {
+        return trim('Expédié par le fournisseur'.($supplierOrder->logistic_name ? ' ('.$supplierOrder->logistic_name.')' : '')
+            .($supplierOrder->tracking_number ? ', suivi '.$supplierOrder->tracking_number : '').'.');
+    }
+
+    /** Paiement + préparation CJ + délai maximal du transporteur (« 12-20 » jours). */
+    private function expectedHubDate(SupplierOrder $supplierOrder): \Illuminate\Support\Carbon
+    {
+        $aging = (string) ($supplierOrder->payload['aging'] ?? '');
+        if ($aging === '') {
+            $aging = (string) optional($supplierOrder->items()->with('supplierVariant.supplierProduct')->first()?->supplierVariant?->supplierProduct)->logistic_aging;
+        }
+        preg_match_all('/\d+/', $aging, $m);
+        $days = $m[0] ? max(array_map('intval', $m[0])) : 30;
+
+        return now()->addDays(min(120, $days + (int) $this->driver->supplier()->setting('supplier_processing_days', 3)));
     }
 
     /** Transporteur préféré, sinon celui retenu à l'import, sinon le moins cher. */

@@ -1733,7 +1733,7 @@
                 "diaspo": "Identités DIASPO à vérifier",
                 "maritime": "Envois avion et maritime à suivre",
                 "messages": "Messages support à lire",
-                "supplier_orders": "Commandes CJ à envoyer ou à vérifier"
+                "supplier_orders": "Commandes CJ à envoyer, à réceptionner ou en retard"
             }
         },
         "otp": {

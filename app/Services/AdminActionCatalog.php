@@ -95,9 +95,13 @@ class AdminActionCatalog
             }
         }
 
-        $add('supplier_orders', 'admin.suppliers.cj.orders.index', \App\Models\SupplierOrder::whereIn('status', [
-            ...\App\Models\SupplierOrder::SUBMITTABLE, \App\Models\SupplierOrder::SUPPLIER_CANCELLED,
-        ]), fn ($r) => [$r->external_number.' · '.$r->statusLabel(), ['status' => $r->status], $r->status]);
+        $add('supplier_orders', 'admin.suppliers.cj.orders.index', \App\Models\SupplierOrder::where(fn ($q) => $q->whereIn('status', [
+            ...\App\Models\SupplierOrder::SUBMITTABLE, \App\Models\SupplierOrder::SUPPLIER_CANCELLED, \App\Models\SupplierOrder::DELIVERED,
+        ])->orWhere(fn ($late) => $late->late())), fn ($r) => [
+            $r->external_number.' · '.$r->statusLabel().($r->isLate() ? ' · En retard' : ''),
+            ['status' => $r->isLate() ? 'late' : $r->status],
+            $r->status.($r->isLate() ? ':late' : ''),
+        ]);
 
         $disputes = Dispute::withoutGlobalScope(AssoScope::NAME)->open();
         $shipments = DisputeShipment::withoutGlobalScope(AssoScope::NAME)

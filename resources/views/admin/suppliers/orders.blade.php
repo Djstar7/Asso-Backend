@@ -19,9 +19,24 @@
         </div>
     @endif
 
+    <div class="bg-dark-100 rounded-xl shadow-lg border border-dark-200 p-4 mb-4">
+        <form action="{{ route('admin.suppliers.cj.orders.receive') }}" method="POST" class="flex flex-wrap items-center gap-2">
+            @csrf
+            <label for="receive-code" class="text-sm text-white font-semibold"><i class="fas fa-barcode mr-1"></i>Réception à l’entrepôt</label>
+            <input id="receive-code" name="code" value="{{ old('code') }}" autofocus autocomplete="off" placeholder="Scannez ou saisissez le n° de suivi, le n° CJ ou le n° de commande"
+                   class="px-3 py-2 bg-dark-200 rounded text-white text-sm flex-1 min-w-[16rem]">
+            <button class="px-4 py-2 text-sm bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-lg"><i class="fas fa-box-open mr-1"></i>Marquer reçu</button>
+        </form>
+        <p class="text-xs text-gray-500 mt-2">Le client est prévenu de l’arrivée à Douala. En livraison à domicile, la course part aussitôt vers les livreurs ; en livraison par transporteur, remettez ensuite le colis depuis Expéditions.</p>
+    </div>
+
     <div class="flex flex-wrap gap-2 mb-4 text-xs">
-        @php($todo = collect($counts)->only([...\App\Models\SupplierOrder::SUBMITTABLE, 'submitting', 'supplier_cancelled'])->sum())
+        @php($todo = collect($counts)->only([...\App\Models\SupplierOrder::SUBMITTABLE, 'submitting', 'supplier_cancelled', 'delivered'])->sum())
         <a href="{{ route('admin.suppliers.cj.orders.index', ['status' => 'todo']) }}" class="px-2 py-1 rounded {{ $status === 'todo' ? 'bg-primary-600 text-white' : 'bg-dark-200 text-gray-300' }}">À traiter ({{ $todo }})</a>
+        <a href="{{ route('admin.suppliers.cj.orders.index', ['status' => 'transit']) }}" class="px-2 py-1 rounded {{ $status === 'transit' ? 'bg-primary-600 text-white' : 'bg-dark-200 text-gray-300' }}">Attendues à Douala ({{ $transitCount }})</a>
+        @if($lateCount > 0)
+            <a href="{{ route('admin.suppliers.cj.orders.index', ['status' => 'late']) }}" class="px-2 py-1 rounded {{ $status === 'late' ? 'bg-primary-600 text-white' : 'bg-red-900/50 text-red-200' }}">En retard ({{ $lateCount }})</a>
+        @endif
         @foreach(\App\Models\SupplierOrder::STATUS_LABELS as $value => $label)
             @if(($counts[$value] ?? 0) > 0)
                 <a href="{{ route('admin.suppliers.cj.orders.index', ['status' => $value]) }}" class="px-2 py-1 rounded {{ $status === $value ? 'bg-primary-600 text-white' : 'bg-dark-200 text-gray-300' }}">{{ $label }} ({{ $counts[$value] }})</a>
@@ -89,13 +104,28 @@
                                 </td>
                                 <td class="py-2 pr-4 max-w-xs">
                                     <span class="text-xs px-2 py-1 rounded {{ match(true) {
-                                        in_array($row->status, ['paid', 'shipped', 'delivered'], true) => 'bg-green-900/40 text-green-300',
+                                        in_array($row->status, ['paid', 'shipped', 'received'], true) => 'bg-green-900/40 text-green-300',
+                                        $row->status === 'delivered' => 'bg-blue-900/40 text-blue-300',
                                         in_array($row->status, ['failed', 'supplier_cancelled', 'awaiting_balance'], true) => 'bg-red-900/40 text-red-300',
                                         in_array($row->status, ['needs_review'], true) => 'bg-yellow-900/40 text-yellow-300',
                                         default => 'bg-dark-200 text-gray-300' } }}">{{ $row->statusLabel() }}</span>
+                                    @if($row->isLate())
+                                        <span class="text-xs px-2 py-1 rounded bg-red-900/40 text-red-300 ml-1">En retard</span>
+                                    @endif
                                     @if($row->tracking_number)
                                         <p class="text-xs text-gray-300 mt-1">Suivi : {{ $row->tracking_number }}</p>
                                     @endif
+                                    @if($row->logistics_event)
+                                        <p class="text-xs text-gray-400 mt-1">{{ \Illuminate\Support\Str::limit($row->logistics_event, 150) }}</p>
+                                    @endif
+                                    @if($row->hub_received_at)
+                                        <p class="text-xs text-green-300 mt-1">Reçue le {{ $row->hub_received_at->displayTz()->format('d/m H:i') }}{{ $row->receiver ? ' par '.$row->receiver->first_name : '' }}</p>
+                                    @elseif($row->expected_hub_at && in_array($row->status, \App\Models\SupplierOrder::RECEIVABLE, true))
+                                        <p class="text-xs text-gray-500 mt-1">Attendue à Douala vers le {{ $row->expected_hub_at->displayTz()->format('d/m') }}</p>
+                                    @endif
+                                    @foreach($row->disputes as $dispute)
+                                        <p class="text-xs mt-1 {{ $dispute->isOpen() ? 'text-yellow-300' : 'text-gray-400' }}"><i class="fas fa-scale-balanced mr-1"></i>Litige : {{ $dispute->stateLabel() }}</p>
+                                    @endforeach
                                     @if($row->last_error)
                                         <p class="text-xs text-red-300 mt-1 break-words">{{ \Illuminate\Support\Str::limit($row->last_error, 300) }}</p>
                                     @endif
@@ -110,7 +140,7 @@
                                             <button class="text-yellow-300 hover:text-white"><i class="fas fa-credit-card mr-1"></i>Payer quand même</button>
                                         </form>
                                     @endif
-                                    @if(in_array($row->status, ['paid', 'shipped'], true))
+                                    @if(in_array($row->status, ['paid', 'shipped', 'delivered'], true))
                                         <form action="{{ route('admin.suppliers.cj.orders.sync', $row) }}" method="POST">@csrf
                                             <button class="text-gray-300 hover:text-white"><i class="fas fa-rotate mr-1"></i>Relire chez CJ</button>
                                         </form>
@@ -119,6 +149,14 @@
                                                 <button class="text-yellow-300 hover:text-white"><i class="fas fa-forward mr-1"></i>Test : étape suivante</button>
                                             </form>
                                         @endif
+                                    @endif
+                                    @if(in_array($row->status, \App\Models\SupplierOrder::RECEIVABLE, true))
+                                        <form action="{{ route('admin.suppliers.cj.orders.receive-one', $row) }}" method="POST">@csrf
+                                            <button class="text-green-300 hover:text-white"><i class="fas fa-box-open mr-1"></i>Reçu à l’entrepôt</button>
+                                        </form>
+                                    @endif
+                                    @if(in_array($row->status, \App\Models\SupplierOrder::DISPUTABLE, true))
+                                        <a href="{{ route('admin.suppliers.cj.orders.dispute', $row) }}" class="block text-gray-300 hover:text-white"><i class="fas fa-scale-balanced mr-1"></i>Litige CJ</a>
                                     @endif
                                     @if($row->isSubmittable())
                                         <details>

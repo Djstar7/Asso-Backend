@@ -1733,7 +1733,7 @@
                 "diaspo": "DIASPO identity checks",
                 "maritime": "Air and sea freight to follow up",
                 "messages": "Unread support messages",
-                "supplier_orders": "CJ orders to send or check"
+                "supplier_orders": "CJ orders to send, receive or chase"
             }
         },
         "otp": {

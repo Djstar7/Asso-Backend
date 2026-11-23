@@ -21,7 +21,7 @@ use Illuminate\Support\Facades\DB;
  */
 class CjWebhooks
 {
-    /** Sujets activés chez CJ (commandes et suivi : utilisés aux lots 4 et 5). */
+    /** Sujets activés chez CJ : produits, stocks, commandes et suivi des colis. */
     public const TOPICS = ['product', 'stock', 'order', 'logistics'];
 
     public const SUBSCRIBE_BATCH = 100;
@@ -163,6 +163,8 @@ class CjWebhooks
             'STOCK' => $this->onStock(is_array($params) ? $params : [], $event->signature_verified),
             'ORDER' => app(\App\Services\Suppliers\SupplierManager::class)->driver(Supplier::CJ)->orders()
                 ->onWebhook(is_array($params) ? $params : [], (string) $event->message_type),
+            'LOGISTIC', 'LOGISTICS' => app(\App\Services\Suppliers\SupplierManager::class)->driver(Supplier::CJ)->orders()
+                ->onLogistics(is_array($params) ? $params : []),
             default => [SupplierWebhookEvent::IGNORED, 'Type d’alerte pas encore traité par ASSO.'],
         };
 

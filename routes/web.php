@@ -481,6 +481,10 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/suppliers/cj/orders', [\App\Http\Controllers\Admin\SupplierOrderController::class, 'index'])->name('suppliers.cj.orders.index');
         Route::put('/suppliers/cj/orders/settings', [\App\Http\Controllers\Admin\SupplierOrderController::class, 'updateSettings'])->name('suppliers.cj.orders.settings');
         Route::post('/suppliers/cj/orders/submit', [\App\Http\Controllers\Admin\SupplierOrderController::class, 'submit'])->name('suppliers.cj.orders.submit');
+        Route::post('/suppliers/cj/orders/receive', [\App\Http\Controllers\Admin\SupplierOrderController::class, 'receiveByCode'])->name('suppliers.cj.orders.receive');
+        Route::post('/suppliers/cj/orders/{supplierOrder}/receive', [\App\Http\Controllers\Admin\SupplierOrderController::class, 'receiveOne'])->name('suppliers.cj.orders.receive-one');
+        Route::get('/suppliers/cj/orders/{supplierOrder}/dispute', [\App\Http\Controllers\Admin\SupplierOrderController::class, 'disputeForm'])->name('suppliers.cj.orders.dispute');
+        Route::post('/suppliers/cj/orders/{supplierOrder}/dispute', [\App\Http\Controllers\Admin\SupplierOrderController::class, 'openDispute'])->name('suppliers.cj.orders.dispute.open');
         Route::post('/suppliers/cj/orders/{supplierOrder}/cancel', [\App\Http\Controllers\Admin\SupplierOrderController::class, 'cancel'])->name('suppliers.cj.orders.cancel');
         Route::post('/suppliers/cj/orders/{supplierOrder}/sync', [\App\Http\Controllers\Admin\SupplierOrderController::class, 'sync'])->name('suppliers.cj.orders.sync');
         Route::post('/suppliers/cj/orders/{supplierOrder}/sandbox-advance', [\App\Http\Controllers\Admin\SupplierOrderController::class, 'sandboxAdvance'])->name('suppliers.cj.orders.sandbox');

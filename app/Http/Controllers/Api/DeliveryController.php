@@ -107,6 +107,7 @@ class DeliveryController extends Controller
                     })
                     ->where('delivery_mode', Order::DELIVERY_LOCAL)
                     ->whereIn('status', ['confirmed', 'preparing'])
+                    ->notAwaitingSupplier()
                     ->findOrFail($id);
 
                 // Plafond de courses simultanées : le coursier ne transporte pas

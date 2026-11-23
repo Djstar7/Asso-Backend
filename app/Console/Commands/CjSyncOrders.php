@@ -14,7 +14,8 @@ use Illuminate\Console\Command;
  * Rattrapage des commandes CJ (les alertes CJ ne sont jamais renvoyées) :
  * - commandes ASSO payées dont la commande CJ n'a pas été préparée ;
  * - commandes CJ non payées dont la commande ASSO a été annulée entre-temps ;
- * - état, transporteur et suivi des commandes payées chez CJ.
+ * - état, transporteur et suivi des commandes payées chez CJ ;
+ * - état des litiges ouverts chez CJ.
  */
 class CjSyncOrders extends Command
 {
@@ -67,7 +68,23 @@ class CjSyncOrders extends Command
                 });
         }
 
-        $this->info("{$captured} commande(s) CJ préparée(s), {$closed} fermée(s), {$synced} relue(s) chez CJ, {$errors} erreur(s).");
+        $disputes = 0;
+        if ($supplier->isConnected()) {
+            \App\Models\SupplierDispute::whereNull('closed_at')
+                ->whereHas('supplierOrder', fn ($q) => $q->where('supplier_id', $supplier->id))
+                ->where(fn ($q) => $q->whereNull('last_synced_at')->orWhere('last_synced_at', '<', now()->subHours(3)))
+                ->eachById(function ($dispute) use ($driver, &$disputes, &$errors) {
+                    try {
+                        $driver->disputes()->sync($dispute);
+                        $disputes++;
+                    } catch (CjApiException $e) {
+                        $errors++;
+                        $dispute->forceFill(['last_error' => $e->describe(), 'last_synced_at' => now()])->save();
+                    }
+                });
+        }
+
+        $this->info("{$captured} commande(s) CJ préparée(s), {$closed} fermée(s), {$synced} relue(s) chez CJ, {$disputes} litige(s) relu(s), {$errors} erreur(s).");
 
         return self::SUCCESS;
     }
