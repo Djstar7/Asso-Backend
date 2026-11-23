@@ -1952,6 +1952,7 @@
             "product_references": "ASSO references",
             "categories": "Categories",
             "import_countries": "Import countries",
+            "suppliers": "Suppliers (dropshipping)",
             "packages": "Seller plans",
             "shipments": "Shipment tracking",
             "deliverers": "Couriers",

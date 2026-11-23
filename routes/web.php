@@ -460,6 +460,11 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::patch('/banners/{banner}/toggle-status', [BannerController::class, 'toggleStatus'])->name('banners.toggle-status');
 
         // Pays importés (Chine, Turquie, Dubaï…) — alimente la section "Produits importés" de l'app
+        // Fournisseurs de dropshipping (CJ, Printful) — admin uniquement : absentes de admin_access.routes.
+        Route::get('/suppliers', [\App\Http\Controllers\Admin\SupplierController::class, 'index'])->name('suppliers.index');
+        Route::put('/suppliers/cj', [\App\Http\Controllers\Admin\SupplierController::class, 'updateCj'])->name('suppliers.cj.update');
+        Route::post('/suppliers/cj/test', [\App\Http\Controllers\Admin\SupplierController::class, 'testCj'])->name('suppliers.cj.test');
+
         Route::get('/import-countries', [ImportCountryController::class, 'index'])->name('import-countries.index');
         Route::put('/import-countries/freight-rules', [ImportCountryController::class, 'updateFreightRules'])->name('import-countries.freight-rules');
         Route::post('/import-countries/hub', [ImportCountryController::class, 'createHub'])->name('import-countries.hub');

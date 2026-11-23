@@ -1,5 +1,9 @@
 /* Fiches des entrées ajoutées au menu : les titres, chemins et accès viennent du serveur. */
 const MENU_ARTICLES = {
+  suppliers: {
+    lead:'Les catalogues de dropshipping connectés à ASSO (CJdropshipping, puis Printful). Réservé à l’admin.',
+    body:()=>`${steps(['Copiez la clé API depuis la page '+k('My CJ API')+' du compte CJ, collez-la et enregistrez.','Cliquez sur '+k('Tester la connexion et relever le solde')+' : ASSO obtient un jeton CJ et affiche le solde en dollars.','Réglez la marge ASSO, la marge de change et le seuil d’alerte du solde, puis cochez '+k('Fournisseur actif')+'.'])}${note('warn','Bac à sable','Tant que la case Bac à sable est cochée, les commandes envoyées à CJ sont des commandes de test au paiement simulé. Décochez-la seulement pour vendre réellement.')}${note('info','Solde CJ','CJ se paie depuis un solde prépayé en dollars. Rechargez-le sur le site CJ avant qu’il passe sous le seuil d’alerte, sinon les commandes ne pourront pas être réglées.')}`
+  },
   divisions: {
     lead:'Les rubriques de la plateforme (Électronique, Immobilier…) et leurs chefs. Un chef ne voit que sa rubrique et touche un pourcentage de la commission ASSO de ses ventes.',
     body:()=>`${steps(['Cliquez sur '+k('Nouvelle rubrique')+', nommez-la et cochez ses catégories (ou choisissez Immobilier).','Ouvrez la rubrique et nommez son chef : nouveau compte (identifiants envoyés par e-mail) ou chef existant, avec son pourcentage.','Pour changer de taux, de chef ou mettre fin au mandat, utilisez les actions de la fiche : les ventes passées gardent leur chef et leur taux.','Le bouton '+k('Voir son espace')+' montre exactement ce que voit le chef.'])}
