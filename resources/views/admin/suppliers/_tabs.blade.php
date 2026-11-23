@@ -4,6 +4,7 @@
         ['route' => 'admin.suppliers.cj.categories', 'label' => 'Catégories CJ', 'icon' => 'fa-sitemap'],
         ['route' => 'admin.suppliers.cj.catalog', 'label' => 'Catalogue CJ', 'icon' => 'fa-magnifying-glass'],
         ['route' => 'admin.suppliers.cj.products', 'label' => 'Produits importés', 'icon' => 'fa-boxes-stacked'],
+        ['route' => 'admin.suppliers.cj.sync', 'label' => 'Synchronisation', 'icon' => 'fa-arrows-rotate'],
     ];
 @endphp
 <div class="flex flex-wrap gap-2 mb-6 border-b border-dark-200 pb-3">

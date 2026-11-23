@@ -40,6 +40,7 @@ class SupplierProduct extends Model
         'supplier_id', 'external_id', 'external_sku', 'product_id', 'external_category_id',
         'name', 'status', 'cost_usd', 'freight_usd', 'logistic_name', 'logistic_aging',
         'weight_g', 'main_image_url', 'payload_hash', 'payload', 'last_error', 'last_synced_at',
+        'subscribed_at', 'subscribe_failed_at',
     ];
 
     protected $casts = [
@@ -47,6 +48,8 @@ class SupplierProduct extends Model
         'freight_usd' => 'decimal:2',
         'payload' => 'array',
         'last_synced_at' => 'datetime',
+        'subscribed_at' => 'datetime',
+        'subscribe_failed_at' => 'datetime',
     ];
 
     protected $hidden = ['payload'];

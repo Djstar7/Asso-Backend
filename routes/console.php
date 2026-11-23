@@ -276,3 +276,12 @@ Schedule::command('backup:database')
 // Commissions des chefs de rubrique : rattrape un règlement, un déblocage ou un
 // remboursement manqué par les événements (voir DivisionCommissionService).
 Schedule::command('division:sync-commissions --days=120')->hourly()->withoutOverlapping(30);
+
+/*
+ * CJdropshipping : inscription des produits importés aux alertes CJ, puis
+ * relecture de nuit de toutes les fiches (CJ n'alerte pas sur les prix et ne
+ * renvoie jamais une alerte ratée). Heure du Cameroun, file d'attente : à
+ * 1 requête/s, 1 000 fiches demandent environ 40 minutes.
+ */
+Schedule::command('cj:subscribe-products')->everyFifteenMinutes()->withoutOverlapping(30);
+Schedule::command('cj:resync')->dailyAt('02:30')->timezone('Africa/Douala')->withoutOverlapping(60);
