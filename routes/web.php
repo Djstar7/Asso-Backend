@@ -464,6 +464,14 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/suppliers', [\App\Http\Controllers\Admin\SupplierController::class, 'index'])->name('suppliers.index');
         Route::put('/suppliers/cj', [\App\Http\Controllers\Admin\SupplierController::class, 'updateCj'])->name('suppliers.cj.update');
         Route::post('/suppliers/cj/test', [\App\Http\Controllers\Admin\SupplierController::class, 'testCj'])->name('suppliers.cj.test');
+        Route::get('/suppliers/cj/categories', [\App\Http\Controllers\Admin\SupplierCatalogController::class, 'categories'])->name('suppliers.cj.categories');
+        Route::post('/suppliers/cj/categories/sync', [\App\Http\Controllers\Admin\SupplierCatalogController::class, 'syncCategories'])->name('suppliers.cj.categories.sync');
+        Route::put('/suppliers/cj/categories/{supplierCategory}', [\App\Http\Controllers\Admin\SupplierCatalogController::class, 'mapCategory'])->name('suppliers.cj.categories.map');
+        Route::get('/suppliers/cj/catalog', [\App\Http\Controllers\Admin\SupplierCatalogController::class, 'search'])->name('suppliers.cj.catalog');
+        Route::post('/suppliers/cj/catalog/import', [\App\Http\Controllers\Admin\SupplierCatalogController::class, 'import'])->name('suppliers.cj.import');
+        Route::get('/suppliers/cj/products', [\App\Http\Controllers\Admin\SupplierCatalogController::class, 'products'])->name('suppliers.cj.products');
+        Route::post('/suppliers/cj/products/publish', [\App\Http\Controllers\Admin\SupplierCatalogController::class, 'publish'])->name('suppliers.cj.publish');
+        Route::post('/suppliers/cj/products/{supplierProduct}/retry', [\App\Http\Controllers\Admin\SupplierCatalogController::class, 'retry'])->name('suppliers.cj.retry');
 
         Route::get('/import-countries', [ImportCountryController::class, 'index'])->name('import-countries.index');
         Route::put('/import-countries/freight-rules', [ImportCountryController::class, 'updateFreightRules'])->name('import-countries.freight-rules');

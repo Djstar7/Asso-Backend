@@ -6,6 +6,7 @@
         <h1 class="text-2xl font-bold text-white">Fournisseurs</h1>
         <p class="text-gray-400">Catalogues de dropshipping connectés à ASSO. Les produits importés depuis un fournisseur sont vendus par une boutique ASSO et livrés à l'entrepôt de Douala avant la livraison au client.</p>
     </div>
+    @include('admin.suppliers._tabs')
 
     {{-- CJdropshipping --}}
     <div class="bg-dark-100 rounded-xl shadow-lg border border-dark-200 p-6 mb-6">

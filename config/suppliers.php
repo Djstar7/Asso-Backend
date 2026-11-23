@@ -21,6 +21,14 @@ return [
             'fx_buffer_percent' => 3,
             'balance_alert_usd' => 100,
             'from_country_code' => 'CN',
+            // Destination des colis CJ : l'entrepôt ASSO de Douala.
+            'to_country_code' => 'CM',
+            // Transporteur CJ préféré (ex. « CJPacket Ordinary ») ; vide = le moins cher.
+            'preferred_logistic' => null,
+            // Jours ajoutés au délai CJ : réception à Douala, contrôle, remise au livreur.
+            'hub_handling_days' => 3,
+            'images_per_product' => 4,
+            'max_variants' => 100,
         ],
     ],
 ];
