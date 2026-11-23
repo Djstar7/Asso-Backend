@@ -1732,7 +1732,8 @@
                 "support": "Tickets de support",
                 "diaspo": "Identités DIASPO à vérifier",
                 "maritime": "Envois avion et maritime à suivre",
-                "messages": "Messages support à lire"
+                "messages": "Messages support à lire",
+                "supplier_orders": "Commandes CJ à envoyer ou à vérifier"
             }
         },
         "otp": {

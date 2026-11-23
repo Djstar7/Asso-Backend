@@ -37,6 +37,11 @@ class CjDriver implements SupplierDriver
         return new CjCatalog($this->supplier, $this->client);
     }
 
+    public function orders(): CjOrders
+    {
+        return new CjOrders($this);
+    }
+
     public function webhooks(): CjWebhooks
     {
         return new CjWebhooks($this->supplier, $this->client);

@@ -50,6 +50,16 @@ class AppServiceProvider extends ServiceProvider
         // Register Conversation observer for automatic security message
         Conversation::observe(ConversationObserver::class);
 
+        // Commande tout juste payée (wallet, Mobile Money, carte…) : si elle contient
+        // des produits CJ, sa commande fournisseur est préparée après validation de
+        // la transaction (les lignes de commande existent alors).
+        \App\Models\Order::saved(function (\App\Models\Order $order) {
+            if ($order->payment_status === \App\Models\Order::PAYMENT_PAID && $order->status === 'pending'
+                && ! $order->is_wholesale && ($order->wasRecentlyCreated || $order->wasChanged('payment_status'))) {
+                \App\Jobs\CaptureSupplierOrderJob::dispatch($order->id)->afterCommit();
+            }
+        });
+
         // Dates affichées (back-office, documents) dans le fuseau du Cameroun :
         // $date->displayTz()->format('d/m/Y H:i'). Stockage et API restent en UTC.
         $displayTimezone = function (): string {

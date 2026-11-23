@@ -38,6 +38,19 @@ return [
             'resync_after_hours' => 20,
             // Produits suivis par les alertes CJ : 1000 au niveau 1 du compte CJ.
             'subscription_limit' => 1000,
+            // Commandes : envoi à CJ seulement après validation de l'admin (false),
+            // ou dès le paiement du client (true).
+            'auto_submit' => false,
+            // Écart toléré entre le coût CJ réel et le coût prévu à l'import avant
+            // de bloquer la commande pour vérification.
+            'cost_tolerance_percent' => 15,
+            // Adresse de livraison des colis CJ ; vide = celle de la boutique ASSO Import Douala.
+            'ship_to_name' => null,
+            'ship_to_phone' => null,
+            'ship_to_address' => null,
+            'ship_to_city' => 'Douala',
+            'ship_to_province' => 'Littoral',
+            'ship_to_zip' => null,
         ],
     ],
 ];
