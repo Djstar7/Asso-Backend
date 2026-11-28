@@ -287,11 +287,40 @@ class CjWebhookSyncTest extends TestCase
 
         $result = app(SupplierManager::class)->driver(Supplier::CJ)->webhooks()->syncSubscriptions();
 
-        $this->assertSame(['subscribed' => 1, 'unsubscribed' => 1, 'failed' => 1, 'error' => null], $result);
+        $this->assertSame(['subscribed' => 1, 'renewed' => 0, 'unsubscribed' => 1, 'failed' => 1, 'error' => null], $result);
         $this->assertNull(SupplierProduct::where('external_id', 'GONE')->first()->subscribed_at);
         $this->assertNotNull(SupplierProduct::where('external_id', 'A')->first()->subscribed_at);
         $this->assertNotNull(SupplierProduct::where('external_id', 'B')->first()->subscribe_failed_at);
         Http::assertSent(fn (HttpRequest $r) => str_ends_with($r->url(), 'webhook/product/subscribe') && $r->data()['productIds'] === ['A', 'B']);
+    }
+
+    public function test_subscriptions_are_renewed_before_cj_drops_them_after_30_days(): void
+    {
+        $this->cj->putSettings(['webhook_enabled_at' => now()->toIso8601String(), 'subscription_limit' => 3]);
+        $imported = $this->importedProduct();
+        $productId = $imported->product_id;
+        $imported->update(['subscribed_at' => now()->subDays(3)]);
+        SupplierProduct::create(['supplier_id' => $this->cj->id, 'external_id' => 'OLD', 'name' => 'old', 'status' => SupplierProduct::IMPORTED, 'product_id' => $productId, 'subscribed_at' => now()->subDays(26)]);
+        SupplierProduct::create(['supplier_id' => $this->cj->id, 'external_id' => 'OLDKO', 'name' => 'oldko', 'status' => SupplierProduct::IMPORTED, 'product_id' => $productId, 'subscribed_at' => now()->subDays(27)]);
+        Http::fake([
+            self::BASE.'webhook/product/subscribe' => Http::response($this->ok(['successProductIds' => ['OLD'], 'failProductIds' => ['OLDKO'], 'subscribeAll' => false])),
+        ]);
+        $webhooks = app(SupplierManager::class)->driver(Supplier::CJ)->webhooks();
+
+        $result = $webhooks->syncSubscriptions();
+
+        // Limite atteinte : seul le renouvellement passe, il ne consomme pas de place.
+        $this->assertSame(['subscribed' => 0, 'renewed' => 1, 'unsubscribed' => 0, 'failed' => 1, 'error' => null], $result);
+        $this->assertTrue(SupplierProduct::where('external_id', 'OLD')->first()->subscribed_at->isToday());
+        $ko = SupplierProduct::where('external_id', 'OLDKO')->first();
+        $this->assertNotNull($ko->subscribe_failed_at);
+        $this->assertFalse($ko->subscribed_at->isToday());
+        Http::assertSentCount(1);
+        Http::assertSent(fn (HttpRequest $r) => $r->data()['productIds'] === ['OLDKO', 'OLD']);
+
+        // Le refus n'est pas retenté avant le lendemain, et rien d'autre n'est dû.
+        $this->assertSame(0, $webhooks->syncSubscriptions()['renewed']);
+        Http::assertSentCount(1);
     }
 
     public function test_nightly_resync_queues_only_stale_products_and_prunes_old_alerts(): void

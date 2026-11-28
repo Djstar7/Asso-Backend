@@ -136,6 +136,12 @@ class CjOrders
             return;
         }
 
+        if (! $supplierOrder->external_order_id && ($problem = $this->shippingAddressProblem())) {
+            $supplierOrder->fail(SupplierOrder::NEEDS_REVIEW, $problem);
+
+            return;
+        }
+
         try {
             if (! $supplierOrder->external_order_id && ! $this->create($supplierOrder)) {
                 return;
@@ -644,7 +650,27 @@ class CjOrders
     }
 
     /** Adresse de l'entrepôt ASSO de Douala (réglages, sinon boutique ASSO Import Douala). */
-    private function shippingAddress(): array
+    /**
+     * Raison qui empêche d'envoyer une commande à CJ faute d'adresse de
+     * livraison exploitable (le transporteur et la douane joignent l'entrepôt
+     * par téléphone), ou null si l'adresse est complète.
+     */
+    public function shippingAddressProblem(): ?string
+    {
+        $address = $this->shippingAddress();
+        $missing = array_keys(array_filter([
+            'téléphone' => trim($address['shippingPhone']) === '',
+            'adresse' => trim($address['shippingAddress']) === '' || $address['shippingAddress'] === ImportHub::CITY,
+            'destinataire' => trim($address['shippingCustomerName']) === '',
+        ]));
+
+        return $missing
+            ? 'Adresse de l’entrepôt de Douala incomplète ('.implode(', ', $missing).') : remplissez « Livraison des colis CJ » dans l’onglet Commandes CJ, puis relancez l’envoi.'
+            : null;
+    }
+
+    /** Adresse de livraison envoyée à CJ (entrepôt ASSO de Douala). */
+    public function shippingAddress(): array
     {
         $supplier = $this->driver->supplier();
         $hub = ImportHub::shop();

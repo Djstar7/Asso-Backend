@@ -69,7 +69,10 @@
         <div class="bg-dark-100 rounded-xl shadow-lg border border-dark-200 p-6 space-y-5">
             <div>
                 <h2 class="text-lg font-semibold text-white mb-1"><i class="fas fa-eye mr-2"></i>Produits suivis</h2>
-                <p class="text-sm text-gray-300">{{ $subscribed }} / {{ $limit }} suivis par CJ, {{ $toSubscribe }} en attente.</p>
+                <p class="text-sm text-gray-300">{{ $subscribed }} / {{ $limit }} suivis par CJ, {{ $toSubscribe }} en attente. Le suivi est renouvelé automatiquement tous les 25 jours (CJ l’arrête après 30).</p>
+                @if($expired > 0)
+                    <p class="text-sm text-red-300"><i class="fas fa-triangle-exclamation mr-1"></i>{{ $expired }} produit(s) non renouvelé(s) depuis plus de 30 jours : CJ n’envoie plus leurs alertes. Cliquez sur « Inscrire maintenant » ou consultez l’erreur de l’onglet Connexion.</p>
+                @endif
                 <p class="text-xs text-gray-500 mb-2">CJ n’envoie d’alerte que pour les produits suivis. Inscription automatique toutes les 15 minutes.</p>
                 <form action="{{ route('admin.suppliers.cj.sync.subscribe') }}" method="POST">@csrf
                     <button class="px-3 py-1.5 text-xs bg-dark-200 text-gray-200 rounded-lg" @disabled(! $enabled)><i class="fas fa-rotate mr-1"></i>Inscrire maintenant</button>

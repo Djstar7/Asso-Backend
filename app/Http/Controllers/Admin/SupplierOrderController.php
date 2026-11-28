@@ -38,8 +38,12 @@ class SupplierOrderController extends Controller
                 ->orWhere('external_order_id', $search)->orWhere('tracking_number', $search));
         }
 
+        $orders = $this->suppliers->driver(Supplier::CJ)->orders();
+
         return view('admin.suppliers.orders', [
             'cj' => $cj,
+            'addressProblem' => $orders->shippingAddressProblem(),
+            'shipTo' => $orders->shippingAddress(),
             'orders' => $query->paginate(25)->withQueryString(),
             'status' => $status ?? 'todo',
             'counts' => SupplierOrder::where('supplier_id', $cj->id)->selectRaw('status, count(*) as n')->groupBy('status')->pluck('n', 'status')->all(),
@@ -59,6 +63,8 @@ class SupplierOrderController extends Controller
             'ship_to_city' => 'required|string|max:50',
             'ship_to_province' => 'required|string|max:50',
             'ship_to_zip' => 'nullable|string|max:20',
+            'ship_to_latitude' => 'nullable|numeric|between:-90,90',
+            'ship_to_longitude' => 'nullable|numeric|between:-180,180',
         ]);
         $data['auto_submit'] = (bool) ($data['auto_submit'] ?? false);
         Supplier::forCode(Supplier::CJ)->putSettings($data);

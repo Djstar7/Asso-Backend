@@ -26,6 +26,15 @@ class CjWebhooks
 
     public const SUBSCRIBE_BATCH = 100;
 
+    /**
+     * CJ ne garde un produit suivi que 30 jours après l'appel d'inscription ;
+     * un nouvel appel avec le même identifiant relance les 30 jours sans
+     * consommer de quota. On renouvelle avec quelques jours de marge.
+     */
+    public const SUBSCRIPTION_DAYS = 30;
+
+    public const RENEW_AFTER_DAYS = 25;
+
     public function __construct(private Supplier $supplier, private CjClient $client) {}
 
     /** Adresse donnée à CJ : le jeton secret du fournisseur est dans le chemin. */
@@ -93,11 +102,14 @@ class CjWebhooks
      * les produits importés (dans la limite du niveau du compte), désinscrit
      * ceux retirés ou dont la fiche a été supprimée.
      *
-     * @return array{subscribed: int, unsubscribed: int, failed: int, error: ?string}
+     * Renouvelle aussi les produits inscrits depuis plus de RENEW_AFTER_DAYS
+     * jours, avant que CJ ne cesse d'envoyer leurs alertes.
+     *
+     * @return array{subscribed: int, renewed: int, unsubscribed: int, failed: int, error: ?string}
      */
     public function syncSubscriptions(): array
     {
-        $result = ['subscribed' => 0, 'unsubscribed' => 0, 'failed' => 0, 'error' => null];
+        $result = ['subscribed' => 0, 'renewed' => 0, 'unsubscribed' => 0, 'failed' => 0, 'error' => null];
         $base = SupplierProduct::where('supplier_id', $this->supplier->id);
 
         $gone = (clone $base)->whereNotNull('subscribed_at')
@@ -115,6 +127,21 @@ class CjWebhooks
             $result['unsubscribed'] += count($chunk);
         }
 
+        $due = (clone $base)->where('status', SupplierProduct::IMPORTED)->whereNotNull('product_id')
+            ->where('subscribed_at', '<', now()->subDays(self::RENEW_AFTER_DAYS))
+            ->where(fn ($q) => $q->whereNull('subscribe_failed_at')->orWhere('subscribe_failed_at', '<', now()->subDay()))
+            ->orderBy('subscribed_at')->limit(1000)->pluck('external_id')->all();
+        foreach (array_chunk($due, self::SUBSCRIBE_BATCH) as $chunk) {
+            $outcome = $this->subscribe($chunk, $base);
+            if ($outcome['error']) {
+                $result['error'] = $outcome['error'];
+
+                return $result;
+            }
+            $result['renewed'] += $outcome['ok'];
+            $result['failed'] += $outcome['failed'];
+        }
+
         $room = (int) $this->supplier->setting('subscription_limit', 1000) - (clone $base)->whereNotNull('subscribed_at')->count();
         if ($room <= 0) {
             return $result;
@@ -125,31 +152,48 @@ class CjWebhooks
             ->orderBy('id')->limit($room)->pluck('external_id')->all();
 
         foreach (array_chunk($pending, self::SUBSCRIBE_BATCH) as $chunk) {
-            try {
-                $data = (array) $this->client->post('webhook/product/subscribe', ['productIds' => $chunk, 'subscribeAll' => false]);
-            } catch (CjApiException $e) {
-                $result['error'] = match ($e->cjCode) {
-                    1606010 => 'Les alertes produits ne sont pas activées chez CJ : cliquez sur « Activer les alertes CJ ».',
-                    1606011 => 'Limite de produits suivis atteinte pour le niveau du compte CJ.',
-                    default => 'Inscription refusée par CJ : '.$e->describe(),
-                };
+            $outcome = $this->subscribe($chunk, $base);
+            if ($outcome['error']) {
+                $result['error'] = $outcome['error'];
 
                 return $result;
             }
-            $ok = array_map('strval', (array) ($data['successProductIds'] ?? []));
-            $failed = array_values(array_diff($chunk, $ok));
-            if ($ok) {
-                (clone $base)->whereIn('external_id', $ok)->update(['subscribed_at' => now(), 'subscribe_failed_at' => null]);
-            }
-            if ($failed) {
-                // Déjà inscrit, ou produit qui n'existe plus : nouvel essai demain.
-                (clone $base)->whereIn('external_id', $failed)->update(['subscribe_failed_at' => now()]);
-            }
-            $result['subscribed'] += count($ok);
-            $result['failed'] += count($failed);
+            $result['subscribed'] += $outcome['ok'];
+            $result['failed'] += $outcome['failed'];
         }
 
         return $result;
+    }
+
+    /**
+     * Inscrit (ou réinscrit) un lot de produits chez CJ. Un produit refusé
+     * garde sa date d'inscription et sera retenté le lendemain.
+     *
+     * @param  list<string>  $chunk
+     * @return array{ok: int, failed: int, error: ?string}
+     */
+    private function subscribe(array $chunk, $base): array
+    {
+        try {
+            $data = (array) $this->client->post('webhook/product/subscribe', ['productIds' => $chunk, 'subscribeAll' => false]);
+        } catch (CjApiException $e) {
+            return ['ok' => 0, 'failed' => 0, 'error' => match ($e->cjCode) {
+                1606010 => 'Les alertes produits ne sont pas activées chez CJ : cliquez sur « Activer les alertes CJ ».',
+                1606011 => 'Limite de produits suivis atteinte pour le niveau du compte CJ.',
+                default => 'Inscription refusée par CJ : '.$e->describe(),
+            }];
+        }
+        $ok = array_map('strval', (array) ($data['successProductIds'] ?? []));
+        $failed = array_values(array_diff($chunk, $ok));
+        if ($ok) {
+            (clone $base)->whereIn('external_id', $ok)->update(['subscribed_at' => now(), 'subscribe_failed_at' => null]);
+        }
+        if ($failed) {
+            // Produit qui n'existe plus chez CJ, ou refus passager : nouvel essai demain.
+            (clone $base)->whereIn('external_id', $failed)->update(['subscribe_failed_at' => now()]);
+        }
+
+        return ['ok' => count($ok), 'failed' => count($failed), 'error' => null];
     }
 
     /** Traite une alerte enregistrée (appelé par ProcessCjWebhookJob). */

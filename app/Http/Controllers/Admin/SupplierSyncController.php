@@ -49,6 +49,7 @@ class SupplierSyncController extends Controller
                 ->selectRaw('status, count(*) as n')->groupBy('status')->pluck('n', 'status')->all(),
             'rejected24h' => (int) Cache::get('suppliers:cj:webhook-rejected', 0),
             'subscribed' => (clone $products)->whereNotNull('subscribed_at')->count(),
+            'expired' => (clone $products)->where('subscribed_at', '<', now()->subDays(\App\Services\Suppliers\Cj\CjWebhooks::SUBSCRIPTION_DAYS))->count(),
             'toSubscribe' => (clone $products)->where('status', SupplierProduct::IMPORTED)->whereNotNull('product_id')->whereNull('subscribed_at')->count(),
             'limit' => (int) $cj->setting('subscription_limit', 1000),
             'stale' => (clone $products)->whereIn('status', [SupplierProduct::IMPORTED, SupplierProduct::NO_SHIPPING, SupplierProduct::ERROR])

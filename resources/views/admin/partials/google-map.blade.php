@@ -1,5 +1,8 @@
 @php
     $fn = str_replace('-', '_', $id);
+    // Noms des champs du formulaire. state / postcode : remplis seulement s'ils sont fournis.
+    $names = array_merge(['latitude' => 'latitude', 'longitude' => 'longitude', 'address' => 'address',
+        'city' => 'city', 'country' => 'country', 'state' => null, 'postcode' => null], $fields ?? []);
     $hasCoords = !empty($latitude) && !empty($longitude);
 @endphp
 <div class="{{ $wrapperClass ?? 'bg-dark-200 border border-dark-300 rounded-lg p-6 mb-6' }}" id="{{ $id }}">
@@ -8,8 +11,8 @@
         {{ $label ?? 'Localisation GPS (Optionnel)' }}
         @if(!empty($required))<span class="text-red-400">*</span>@endif
     </h4>
-    @if(!empty($required) && ($errors->has('latitude') || $errors->has('longitude') || $errors->has('address')))
-        <p class="mb-3 text-sm text-red-400">{{ $errors->first('latitude') ?: $errors->first('longitude') ?: $errors->first('address') }}</p>
+    @if(!empty($required) && ($errors->has($names['latitude']) || $errors->has($names['longitude']) || $errors->has($names['address'])))
+        <p class="mb-3 text-sm text-red-400">{{ $errors->first($names['latitude']) ?: $errors->first($names['longitude']) ?: $errors->first($names['address']) }}</p>
     @endif
     <p class="text-sm text-gray-400 mb-4">
         <i class="fas fa-info-circle text-blue-500 mr-1"></i>
@@ -24,7 +27,7 @@
             </label>
             <input type="number"
                    step="any"
-                   name="latitude"
+                   name="{{ $names['latitude'] }}"
                    id="{{ $id }}_latitude"
                    class="w-full px-4 py-2 bg-dark-50 border border-dark-400 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-white placeholder-gray-500"
                    value="{{ $latitude ?? '' }}"
@@ -40,7 +43,7 @@
             </label>
             <input type="number"
                    step="any"
-                   name="longitude"
+                   name="{{ $names['longitude'] }}"
                    id="{{ $id }}_longitude"
                    class="w-full px-4 py-2 bg-dark-50 border border-dark-400 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-white placeholder-gray-500"
                    value="{{ $longitude ?? '' }}"
@@ -72,7 +75,7 @@
         <div class="flex gap-2">
             <div class="relative flex-1 min-w-0">
                 <input type="text"
-                       name="address"
+                       name="{{ $names['address'] }}"
                        id="{{ $id }}_address"
                        autocomplete="off"
                        role="combobox"
@@ -137,6 +140,7 @@
     const prefix = '{{ $id }}';
     const zoom = '{{ $zoom ?? '15' }}';
     const el = suffix => document.getElementById(`${prefix}_${suffix}`);
+    const names = @json($names);
 
     function setStatus(message, tone) {
         const colors = { info: 'text-gray-400', ok: 'text-green-400', error: 'text-red-400' };
@@ -149,12 +153,14 @@
     const normalize = value => (value || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 
     // Champs Ville / Pays du même formulaire (input ou select), s'ils existent.
-    function fillField(name, value) {
+    // key : city, country, state ou postcode (nom réel du champ dans `names`).
+    function fillField(key, value) {
         const form = el('address').form;
-        const field = form ? form.querySelector(`[name="${name}"]`) : null;
+        const name = names[key];
+        const field = form && name ? form.querySelector(`[name="${name}"]`) : null;
         if (!field || !value) return;
         // "Douala IV" (arrondissement) -> "Douala".
-        if (name === 'city') value = value.replace(/\s+[IVX]+$/, '');
+        if (key === 'city') value = value.replace(/\s+[IVX]+$/, '');
         if (field.tagName === 'SELECT') {
             const option = Array.from(field.options).find(o => o.value && normalize(o.value) === normalize(value));
             if (option) field.value = option.value;
@@ -168,6 +174,8 @@
         if (withAddress && data.display_name) el('address').value = data.display_name;
         fillField('city', a.city || a.town || a.village || a.municipality || a.county || a.state);
         fillField('country', a.country);
+        fillField('state', a.state || a.region);
+        fillField('postcode', a.postcode);
     }
 
     function renderMap(latitude, longitude) {
@@ -309,6 +317,8 @@
             renderMap(el('latitude').value, el('longitude').value);
             fillField('city', p.city || p.county || p.state);
             fillField('country', p.country);
+            fillField('state', p.state);
+            fillField('postcode', p.postcode);
             setStatus('Adresse placée sur la carte, ville et pays mis à jour.', 'ok');
             close();
         };

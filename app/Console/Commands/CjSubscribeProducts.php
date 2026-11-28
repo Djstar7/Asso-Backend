@@ -29,7 +29,7 @@ class CjSubscribeProducts extends Command
         }
 
         $result = $webhooks->syncSubscriptions();
-        $this->info("{$result['subscribed']} produit(s) inscrit(s), {$result['unsubscribed']} désinscrit(s), {$result['failed']} refusé(s).");
+        $this->info("{$result['subscribed']} produit(s) inscrit(s), {$result['renewed']} renouvelé(s), {$result['unsubscribed']} désinscrit(s), {$result['failed']} refusé(s).");
         if ($result['error']) {
             $supplier->recordError($result['error']);
             $this->error($result['error']);
