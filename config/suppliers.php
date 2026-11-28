@@ -41,6 +41,9 @@ return [
             // Commandes : envoi à CJ seulement après validation de l'admin (false),
             // ou dès le paiement du client (true).
             'auto_submit' => false,
+            // Fiche importée publiée tout de suite (visible dans l'app) si elle a du stock ;
+            // false = elle arrive inactive et l'admin la publie depuis « Produits importés ».
+            'auto_publish' => true,
             // Écart toléré entre le coût CJ réel et le coût prévu à l'import avant
             // de bloquer la commande pour vérification.
             'cost_tolerance_percent' => 15,

@@ -187,17 +187,42 @@
 
     <div class="bg-dark-100 rounded-xl shadow-lg border border-dark-200 p-6">
         <h2 class="text-lg font-semibold text-white mb-1"><i class="fas fa-warehouse mr-2"></i>Livraison des colis CJ et validation</h2>
-        <p class="text-xs text-gray-500 mb-1">Champs vides : nom, adresse et téléphone de la boutique « {{ \App\Support\ImportHub::NAME }} ». Indiquez une adresse précise (rue, repère) et un téléphone joignable : le transporteur et la douane s’en servent.</p>
+        <p class="text-xs text-gray-500 mb-1">Recherchez l’entrepôt (quartier, rue, lieu connu) ou utilisez « Ma position » sur place : l’adresse, la ville et la région se remplissent seules. Ajoutez un repère si besoin et un téléphone joignable : le transporteur et la douane s’en servent. Champs vides : ceux de la boutique « {{ \App\Support\ImportHub::NAME }} ».</p>
         <p class="text-xs text-gray-400 mb-4">Adresse envoyée à CJ : {{ $shipTo['shippingCustomerName'] }}, {{ $shipTo['shippingAddress'] }}, {{ $shipTo['shippingCity'] }} ({{ $shipTo['shippingProvince'] }}), tél. {{ $shipTo['shippingPhone'] ?: 'aucun' }}</p>
         <form action="{{ route('admin.suppliers.cj.orders.settings') }}" method="POST" class="grid gap-4 md:grid-cols-3 text-sm">
             @csrf @method('PUT')
-            @foreach([
-                'ship_to_name' => 'Destinataire', 'ship_to_phone' => 'Téléphone', 'ship_to_address' => 'Adresse',
-                'ship_to_city' => 'Ville', 'ship_to_province' => 'Région', 'ship_to_zip' => 'Code postal',
-            ] as $field => $label)
+            @php($hubShop = \App\Support\ImportHub::shop())
+            <label class="block">
+                <span class="text-gray-400">Destinataire (nom sur le colis)</span>
+                <input name="ship_to_name" value="{{ old('ship_to_name', $cj->setting('ship_to_name')) }}" maxlength="50"
+                       placeholder="{{ \App\Support\ImportHub::NAME }}" class="mt-1 w-full px-3 py-2 bg-dark-200 rounded text-white">
+                @error('ship_to_name')<span class="text-xs text-red-400">{{ $message }}</span>@enderror
+            </label>
+            <label class="block">
+                <span class="text-gray-400">Téléphone joignable</span>
+                <input name="ship_to_phone" type="tel" value="{{ old('ship_to_phone', $cj->setting('ship_to_phone')) }}" maxlength="20"
+                       placeholder="{{ $hubShop?->phone ?: 'Ex : 6XX XX XX XX' }}" class="mt-1 w-full px-3 py-2 bg-dark-200 rounded text-white">
+                @error('ship_to_phone')<span class="text-xs text-red-400">{{ $message }}</span>@enderror
+            </label>
+            <div class="md:col-span-3">
+                @include('admin.partials.google-map', [
+                    'id' => 'cj-hub-map',
+                    'label' => 'Localisation de l’entrepôt de Douala',
+                    'fields' => ['latitude' => 'ship_to_latitude', 'longitude' => 'ship_to_longitude', 'address' => 'ship_to_address',
+                        'city' => 'ship_to_city', 'country' => null, 'state' => 'ship_to_province', 'postcode' => 'ship_to_zip'],
+                    'latitude' => old('ship_to_latitude', $cj->setting('ship_to_latitude') ?? $hubShop?->latitude),
+                    'longitude' => old('ship_to_longitude', $cj->setting('ship_to_longitude') ?? $hubShop?->longitude),
+                    'address' => old('ship_to_address', $cj->setting('ship_to_address') ?: $hubShop?->address),
+                    'zoom' => 16,
+                    'wrapperClass' => 'bg-dark-200 border border-dark-300 rounded-lg p-4',
+                ])
+                @error('ship_to_address')<p class="text-xs text-red-400 mt-1">{{ $message }}</p>@enderror
+            </div>
+            @foreach(['ship_to_city' => 'Ville', 'ship_to_province' => 'Région', 'ship_to_zip' => 'Code postal (facultatif)'] as $field => $label)
                 <label class="block">
                     <span class="text-gray-400">{{ $label }}</span>
                     <input name="{{ $field }}" value="{{ old($field, $cj->setting($field)) }}" class="mt-1 w-full px-3 py-2 bg-dark-200 rounded text-white">
+                    @error($field)<span class="text-xs text-red-400">{{ $message }}</span>@enderror
                 </label>
             @endforeach
             <label class="block">

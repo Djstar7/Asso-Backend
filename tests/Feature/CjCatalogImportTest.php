@@ -155,9 +155,9 @@ class CjCatalogImportTest extends TestCase
         $product = Product::withoutGlobalScopes()->with('images', 'variants')->findOrFail($row->product_id);
         $hub = ImportHub::shop();
 
-        // Boutique ASSO Import Douala, détail, produit importé, inactif à la création.
+        // Boutique ASSO Import Douala, détail, produit importé, publié d'office (il a du stock).
         $this->assertSame($hub->id, $product->shop_id);
-        $this->assertSame('inactive', $product->status);
+        $this->assertSame('active', $product->status);
         $this->assertFalse((bool) $product->is_wholesale);
         $this->assertNull($product->origin_country);
         $this->assertSame($this->subcategory->id, $product->subcategory_id);
@@ -199,12 +199,30 @@ class CjCatalogImportTest extends TestCase
         $this->assertStringContainsString('Material: Cotton', (string) $product->getTranslation('characteristics', 'en'));
     }
 
+    public function test_a_product_without_stock_or_with_auto_publish_off_stays_offline(): void
+    {
+        $variants = array_map(fn ($v) => ['inventories' => [['countryCode' => 'CN', 'totalInventory' => 0]]] + $v, $this->detail()['variants']);
+        $this->fakeCj($this->detail(['variants' => $variants]));
+        $row = $this->import($this->category->id);
+        $this->assertSame(SupplierProduct::IMPORTED, $row->status, (string) $row->last_error);
+        $this->assertSame('inactive', Product::withoutGlobalScopes()->whereKey($row->product_id)->value('status'));
+
+        Product::withoutGlobalScopes()->whereKey($row->product_id)->forceDelete();
+        SupplierProduct::query()->delete();
+        Supplier::forCode(Supplier::CJ)->putSettings(['auto_publish' => false]);
+        Http::swap(new \Illuminate\Http\Client\Factory);
+        $this->fakeCj($this->detail());
+        $row = $this->import($this->category->id);
+        $this->assertSame('inactive', Product::withoutGlobalScopes()->whereKey($row->product_id)->value('status'));
+    }
+
     public function test_reimport_updates_prices_but_keeps_the_admin_status_and_photos(): void
     {
         $this->fakeCj($this->detail());
         $row = $this->import($this->category->id);
         $product = Product::withoutGlobalScopes()->findOrFail($row->product_id);
-        $product->update(['status' => 'active']);
+        // L'admin retire la fiche de la vente : la mise à jour CJ ne doit pas la republier.
+        $product->update(['status' => 'inactive']);
 
         $variants = $this->detail()['variants'];
         $variants[0]['variantSellPrice'] = 20.0;
@@ -215,7 +233,7 @@ class CjCatalogImportTest extends TestCase
         $row = $this->import();
 
         $product->refresh();
-        $this->assertSame('active', $product->status);
+        $this->assertSame('inactive', $product->status);
         $this->assertCount(2, $product->images()->get());
         // (20 + 5) × 600 × 1,03 × 1,25 = 19 312,5 → 19 350 ; une seule déclinaison avec options reste une déclinaison.
         $this->assertEquals(19350, (float) $product->price);
@@ -293,7 +311,8 @@ class CjCatalogImportTest extends TestCase
 
         $this->actingAs($admin)->post('/admin/suppliers/cj/catalog/import', ['pids' => ['../etc']])->assertSessionHasErrors('pids.0');
 
-        // Import réel puis publication depuis la liste.
+        // Import réel sans publication automatique, puis publication depuis la liste.
+        Supplier::forCode(Supplier::CJ)->putSettings(['auto_publish' => false]);
         Http::swap(new \Illuminate\Http\Client\Factory);
         $this->fakeCj($this->detail());
         $row = $this->import($this->category->id);

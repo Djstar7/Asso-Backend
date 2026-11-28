@@ -269,6 +269,31 @@ class CjOrderTest extends TestCase
         $this->assertSame('+237699000000', $this->sent('createOrderV2')[0]['shippingPhone']);
     }
 
+    public function test_the_hub_address_is_located_like_a_shop_address(): void
+    {
+        // Le formulaire reprend la localisation des boutiques, sur les champs ship_to_*.
+        $this->actingAs($this->admin)->get('/admin/suppliers/cj/orders')->assertOk()
+            ->assertSee('id="cj-hub-map_address"', false)
+            ->assertSee('name="ship_to_address"', false)
+            ->assertSee('name="ship_to_latitude"', false)
+            ->assertSee('"state":"ship_to_province"', false);
+
+        $this->actingAs($this->admin)->put('/admin/suppliers/cj/orders/settings', [
+            'cost_tolerance_percent' => 15, 'ship_to_name' => 'ASSO Import Douala', 'ship_to_phone' => '+237699000000',
+            'ship_to_address' => 'Rue Joss, Bonanjo, Douala, Littoral, Cameroun', 'ship_to_city' => 'Douala',
+            'ship_to_province' => 'Littoral', 'ship_to_latitude' => '4.043', 'ship_to_longitude' => '9.69',
+        ])->assertSessionHas('success');
+
+        $orders = app(SupplierManager::class)->driver(Supplier::CJ)->orders();
+        $this->assertNull($orders->shippingAddressProblem());
+        $this->assertSame('Rue Joss, Bonanjo, Douala, Littoral, Cameroun', $orders->shippingAddress()['shippingAddress']);
+        $this->assertEquals(4.043, (float) $this->cj->fresh()->setting('ship_to_latitude'));
+
+        $this->actingAs($this->admin)->put('/admin/suppliers/cj/orders/settings', [
+            'cost_tolerance_percent' => 15, 'ship_to_city' => 'Douala', 'ship_to_province' => 'Littoral', 'ship_to_latitude' => '123',
+        ])->assertSessionHasErrors('ship_to_latitude');
+    }
+
     public function test_cj_blocking_the_order_is_explained(): void
     {
         $this->responses['shopping/order/addCartConfirm'] = ['submitSuccess' => false, 'shipmentsId' => null, 'result' => 2,

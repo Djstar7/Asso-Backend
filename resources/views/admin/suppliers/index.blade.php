@@ -117,6 +117,11 @@
                     <input type="checkbox" name="is_active" value="1" @checked(old('is_active', $cj->is_active)) class="rounded bg-dark-200">
                     Fournisseur actif
                 </label>
+                <label class="inline-flex items-center gap-2 text-sm text-gray-300">
+                    <input type="hidden" name="auto_publish" value="0">
+                    <input type="checkbox" name="auto_publish" value="1" @checked(old('auto_publish', $cj->setting('auto_publish', true))) class="rounded bg-dark-200">
+                    Publier les produits importés tout de suite (visibles dans l’app s’ils ont du stock)
+                </label>
             </div>
 
             <div class="flex flex-wrap gap-3">

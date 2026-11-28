@@ -198,6 +198,8 @@ class CjConnectionTest extends TestCase
         $this->assertTrue($cj->is_active);
         $this->assertSame('CJ1@api@abcd9876', $cj->api_key);
         $this->assertSame(30.0, (float) $cj->setting('margin_percent'));
+        // Case non envoyée = décochée : les fiches importées arriveront inactives.
+        $this->assertFalse($cj->setting('auto_publish'));
 
         $page = $this->actingAs($admin)->get('/admin/suppliers')->assertOk();
         $page->assertSee('9876')->assertDontSee('CJ1@api@abcd9876')->assertSee('Sous le seuil');

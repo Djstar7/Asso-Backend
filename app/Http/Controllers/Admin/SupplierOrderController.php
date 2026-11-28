@@ -63,6 +63,8 @@ class SupplierOrderController extends Controller
             'ship_to_city' => 'required|string|max:50',
             'ship_to_province' => 'required|string|max:50',
             'ship_to_zip' => 'nullable|string|max:20',
+            'ship_to_latitude' => 'nullable|numeric|between:-90,90',
+            'ship_to_longitude' => 'nullable|numeric|between:-180,180',
         ]);
         $data['auto_submit'] = (bool) ($data['auto_submit'] ?? false);
         Supplier::forCode(Supplier::CJ)->putSettings($data);

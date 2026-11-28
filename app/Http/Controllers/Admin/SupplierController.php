@@ -27,6 +27,7 @@ class SupplierController extends Controller
             'api_key' => 'nullable|string|max:255',
             'is_sandbox' => 'boolean',
             'is_active' => 'boolean',
+            'auto_publish' => 'boolean',
             'margin_percent' => 'required|numeric|min:0|max:300',
             'fx_buffer_percent' => 'required|numeric|min:0|max:50',
             'balance_alert_usd' => 'required|numeric|min:0|max:1000000',
@@ -55,6 +56,7 @@ class SupplierController extends Controller
                 'margin_percent' => (float) $data['margin_percent'],
                 'fx_buffer_percent' => (float) $data['fx_buffer_percent'],
                 'balance_alert_usd' => (float) $data['balance_alert_usd'],
+                'auto_publish' => $request->boolean('auto_publish'),
             ]),
         ])->save();
 

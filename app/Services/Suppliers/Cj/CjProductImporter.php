@@ -29,8 +29,9 @@ use Illuminate\Support\Str;
  * - Produit de détail « importé » (sans pays d'origine : il reste dans le
  *   catalogue principal, pas dans l'onglet Import en gros).
  * - Prix en FCFA, transport CJ jusqu'à Douala inclus (SupplierPricing).
- * - Une nouvelle fiche arrive inactive : l'admin la relit puis la publie.
- *   Une mise à jour ne change jamais le statut choisi par l'admin.
+ * - Une nouvelle fiche est publiée tout de suite si elle a du stock (réglage
+ *   auto_publish, actif par défaut), sinon elle arrive inactive et l'admin la
+ *   publie. Une mise à jour ne change jamais le statut choisi par l'admin.
  */
 class CjProductImporter
 {
@@ -169,7 +170,7 @@ class CjProductImporter
             if ($product === null) {
                 $product = Product::create($attributes + [
                     'slug' => Product::uniqueSlug($row->name),
-                    'status' => 'inactive',
+                    'status' => $this->supplier->setting('auto_publish', true) && $attributes['stock'] > 0 ? 'active' : 'inactive',
                     'weight_category' => 'X-small',
                     'client_reference' => 'cj:'.$row->external_id,
                 ]);
