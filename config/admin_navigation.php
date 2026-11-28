@@ -37,6 +37,8 @@ return [
             ['id' => 'shops', 'route' => 'admin.shops.index', 'icon' => 'fa-store', 'match' => ['admin.shops.*'], 'badge' => 'pendingShopsCount'],
             ['id' => 'products', 'route' => 'admin.products.index', 'icon' => 'fa-box', 'match' => ['admin.products.*'], 'filter' => 'all_products'],
             ['id' => 'asso_products', 'route' => 'admin.products.index', 'icon' => 'fa-tags', 'match' => ['admin.products.*'], 'parameters' => ['asso' => 1], 'filter' => 'asso_products'],
+            ['id' => 'wholesale_products', 'route' => 'admin.products.index', 'icon' => 'fa-dolly', 'match' => ['admin.products.*'], 'parameters' => ['sale' => 'wholesale'], 'filter' => 'wholesale_products'],
+            ['id' => 'retail_products', 'route' => 'admin.products.index', 'icon' => 'fa-shopping-basket', 'match' => ['admin.products.*'], 'parameters' => ['sale' => 'retail'], 'filter' => 'retail_products'],
             ['id' => 'product_references', 'route' => 'admin.product-references.index', 'icon' => 'fa-barcode', 'match' => ['admin.product-references.*']],
             ['id' => 'categories', 'route' => 'admin.settings.categories', 'icon' => 'fa-th-large', 'match' => ['admin.settings.categories*', 'admin.settings.subcategories*']],
             ['id' => 'import_countries', 'route' => 'admin.import-countries.index', 'icon' => 'fa-globe', 'match' => ['admin.import-countries.*']],

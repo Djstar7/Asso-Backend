@@ -1960,6 +1960,8 @@
             "shops": "Shops",
             "products": "All products",
             "asso_products": "ASSO products",
+            "wholesale_products": "Wholesale products",
+            "retail_products": "Retail products",
             "product_references": "ASSO references",
             "categories": "Categories",
             "import_countries": "Import countries",

@@ -53,6 +53,14 @@ const MENU_ARTICLES = {
     lead:'La vue du catalogue limitée aux boutiques ASSO.',
     body:()=>`<p>Cette entrée ouvre la même gestion des produits avec le filtre ASSO. Pour les administrateurs, « Tous les produits » donne la vue complète. Les gestionnaires restent limités au périmètre ASSO.</p>${steps(['Recherchez le produit ou choisissez une boutique ASSO.','Ouvrez sa fiche pour consulter ou modifier les informations selon vos droits.','Utilisez les champs FR et EN pour les textes présentés aux clients.'])}`
   },
+  wholesale_products: {
+    lead:'Les produits vendus en gros, à part des produits au détail.',
+    body:()=>`<p>Cette rubrique ouvre la gestion des produits limitée à la vente en gros (prix selon la quantité, paliers). « Nouveau produit » depuis cette page coche d’office « Vendre en gros ».</p>${steps(['Recherchez le produit ou filtrez par boutique, catégorie ou statut : le filtre gros reste appliqué.','Ouvrez sa fiche pour vérifier les paliers de prix et la quantité minimale.','Pour voir tout le catalogue, utilisez « Tous les produits ».'])}`
+  },
+  retail_products: {
+    lead:'Les produits vendus à l’unité, sans vente en gros.',
+    body:()=>`<p>Cette rubrique ouvre la gestion des produits limitée à la vente au détail : tous les produits qui ne sont pas vendus en gros, importés ou locaux.</p>${steps(['Recherchez le produit ou filtrez par boutique, catégorie, origine ou statut : le filtre détail reste appliqué.','Ouvrez sa fiche pour consulter ou modifier les informations selon vos droits.','Un produit passé en gros quitte cette liste et rejoint « Produits en gros ».'])}`
+  },
   product_references: {
     lead:'Les références des produits ASSO et leur point de départ de livraison.',
     body:()=>`<p>Chaque produit ASSO, produits de gros compris, porte une référence. Tant qu’elle n’est pas placée sur la carte, la livraison part de la boutique ou de l’entrepôt ; une fois placée, elle part de la référence.</p>${steps(['Recherchez une référence par code, ville ou quartier.','Ouvrez-la pour la placer sur la carte, renseigner la ville et le pays, ou la désactiver.','Cliquez sur le nombre de produits pour voir les produits rattachés.'])}`
