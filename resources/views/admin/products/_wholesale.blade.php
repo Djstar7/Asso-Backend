@@ -19,7 +19,7 @@
         'options' => \App\Models\ImportShippingOption::activeForCountry($country->code)->get()
             ->map(fn ($o) => ['mode' => $o->mode, 'type' => $o->rate_type, 'rate' => (float) $o->rate_amount, 'days' => $o->lead_time_days])->values(),
     ]]);
-    $isWholesale = (bool) old('is_wholesale', $wholesaleProduct?->is_wholesale ?? false);
+    $isWholesale = (bool) old('is_wholesale', $wholesaleProduct?->is_wholesale ?? (request('sale') === 'wholesale'));
 @endphp
 
 <!-- Vente en gros (Import) -->

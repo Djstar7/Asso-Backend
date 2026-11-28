@@ -5,7 +5,13 @@
     <!-- Header -->
     <div class="mb-6 flex items-center justify-between">
         <div>
-            @if(request()->boolean('asso') || \App\Support\AssoScope::active())
+            @if(request('sale') === 'wholesale')
+            <h1 class="text-2xl font-bold text-white">Produits en gros</h1>
+            <p class="text-gray-400">Produits vendus en gros, avec prix selon la quantité</p>
+            @elseif(request('sale') === 'retail')
+            <h1 class="text-2xl font-bold text-white">Produits au détail</h1>
+            <p class="text-gray-400">Produits vendus à l’unité (hors vente en gros)</p>
+            @elseif(request()->boolean('asso') || \App\Support\AssoScope::active())
             <h1 class="text-2xl font-bold text-white">Produits ASSO</h1>
             <p class="text-gray-400">Produits des boutiques ASSO</p>
             @else
@@ -34,7 +40,7 @@
                 </button>
             </div>
 @adminCan('admin.products.create')
-            <a href="{{ route('admin.products.create') }}"
+            <a href="{{ route('admin.products.create', request('sale') === 'wholesale' ? ['sale' => 'wholesale'] : []) }}"
                class="px-4 py-2 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-lg hover:shadow-lg transition-all">
                 <i class="fas fa-plus mr-2"></i>
                 Nouveau Produit
@@ -48,6 +54,7 @@
     <div class="bg-dark-100 rounded-xl shadow-lg p-6 mb-6 border border-dark-200">
         <form method="GET" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
             @if(request()->boolean('asso'))<input type="hidden" name="asso" value="1">@endif
+            @if(in_array(request('sale'), ['wholesale', 'retail'], true))<input type="hidden" name="sale" value="{{ request('sale') }}">@endif
             <input type="text" name="search" value="{{ request('search') }}" placeholder="Rechercher..." class="px-4 py-2 bg-dark-50 border border-dark-300 text-white placeholder-gray-400 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
             <select name="shop_id" class="px-4 py-2 bg-dark-50 border border-dark-300 text-white rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
                 <option value="">Toutes les boutiques</option>

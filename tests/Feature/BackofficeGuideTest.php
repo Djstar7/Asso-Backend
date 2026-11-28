@@ -115,7 +115,7 @@ class BackofficeGuideTest extends TestCase
         $groups = $response->viewData('guideNavigation');
         $this->assertSame(['catalog', 'help'], array_column($groups, 'id'));
         $items = collect($groups)->flatMap(fn ($group) => $group['items']);
-        $this->assertSame(['products', 'product_references', 'guide'], $items->pluck('id')->all());
+        $this->assertSame(['products', 'wholesale_products', 'retail_products', 'product_references', 'guide'], $items->pluck('id')->all());
         $this->assertSame('Produits ASSO', $items->first()['label']);
         $this->assertNotContains('menu-database', $response->viewData('allowedPages'));
         $this->assertNotContains('menu-freight_bookings', $response->viewData('allowedPages'));

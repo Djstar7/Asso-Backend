@@ -1960,6 +1960,8 @@
             "shops": "Boutiques",
             "products": "Tous les produits",
             "asso_products": "Produits ASSO",
+            "wholesale_products": "Produits en gros",
+            "retail_products": "Produits au détail",
             "product_references": "Références ASSO",
             "categories": "Catégories",
             "import_countries": "Pays d’importation",

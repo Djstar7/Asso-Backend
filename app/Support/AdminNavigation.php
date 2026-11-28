@@ -30,8 +30,12 @@ class AdminNavigation
                     continue;
                 }
                 $active = $request->routeIs(...$item['match']);
-                if (isset($item['filter']) && ! $scoped) {
-                    $active = $active && ($request->boolean('asso') === ($item['filter'] === 'asso_products'));
+                if (isset($item['filter'])) {
+                    $parameters = $item['parameters'] ?? [];
+                    $active = $active && $request->query('sale') === ($parameters['sale'] ?? null);
+                    if (! $scoped) {
+                        $active = $active && $request->boolean('asso') === (bool) ($parameters['asso'] ?? false);
+                    }
                 }
                 // Related filtered pages can share a route, but never two current entries.
                 $active = $active && ! $hasActiveItem;

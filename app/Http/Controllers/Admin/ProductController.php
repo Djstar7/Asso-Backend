@@ -90,8 +90,12 @@ class ProductController extends Controller
         }
 
         // Filter wholesale only
-        if ($request->boolean('wholesale_only')) {
+        // Rubriques « Produits en gros » (sale=wholesale) et « Produits au détail » (sale=retail).
+        $sale = $request->query('sale');
+        if ($request->boolean('wholesale_only') || $sale === 'wholesale') {
             $query->where('is_wholesale', true);
+        } elseif ($sale === 'retail') {
+            $query->where(fn ($q) => $q->where('is_wholesale', false)->orWhereNull('is_wholesale'));
         }
 
         if ($request->filled('search')) {
