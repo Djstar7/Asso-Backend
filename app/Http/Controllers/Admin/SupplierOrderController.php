@@ -38,8 +38,12 @@ class SupplierOrderController extends Controller
                 ->orWhere('external_order_id', $search)->orWhere('tracking_number', $search));
         }
 
+        $orders = $this->suppliers->driver(Supplier::CJ)->orders();
+
         return view('admin.suppliers.orders', [
             'cj' => $cj,
+            'addressProblem' => $orders->shippingAddressProblem(),
+            'shipTo' => $orders->shippingAddress(),
             'orders' => $query->paginate(25)->withQueryString(),
             'status' => $status ?? 'todo',
             'counts' => SupplierOrder::where('supplier_id', $cj->id)->selectRaw('status, count(*) as n')->groupBy('status')->pluck('n', 'status')->all(),

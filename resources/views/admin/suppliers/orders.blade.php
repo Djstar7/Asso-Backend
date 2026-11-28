@@ -13,6 +13,11 @@
             <i class="fas fa-flask mr-1"></i>Bac à sable : les commandes envoyées à CJ sont des commandes de test, le paiement est simulé et rien n’est expédié. Décochez « Bac à sable » dans l’onglet Connexion pour vendre réellement.
         </div>
     @endif
+    @if($addressProblem)
+        <div class="mb-4 p-3 rounded-lg bg-red-900/30 border border-red-700 text-red-200 text-sm">
+            <i class="fas fa-location-dot mr-1"></i>{{ $addressProblem }} Aucune commande ne part chez CJ tant que ce n’est pas fait.
+        </div>
+    @endif
     @if($cj->balanceIsLow())
         <div class="mb-4 p-3 rounded-lg bg-red-900/30 border border-red-700 text-red-200 text-sm">
             <i class="fas fa-triangle-exclamation mr-1"></i>Solde CJ bas : {{ number_format((float) $cj->balance_usd, 2, ',', ' ') }} USD. Rechargez-le sur le site CJ pour que les commandes puissent être payées.
@@ -182,7 +187,8 @@
 
     <div class="bg-dark-100 rounded-xl shadow-lg border border-dark-200 p-6">
         <h2 class="text-lg font-semibold text-white mb-1"><i class="fas fa-warehouse mr-2"></i>Livraison des colis CJ et validation</h2>
-        <p class="text-xs text-gray-500 mb-4">Champs vides : nom, adresse et téléphone de la boutique « {{ \App\Support\ImportHub::NAME }} ».</p>
+        <p class="text-xs text-gray-500 mb-1">Champs vides : nom, adresse et téléphone de la boutique « {{ \App\Support\ImportHub::NAME }} ». Indiquez une adresse précise (rue, repère) et un téléphone joignable : le transporteur et la douane s’en servent.</p>
+        <p class="text-xs text-gray-400 mb-4">Adresse envoyée à CJ : {{ $shipTo['shippingCustomerName'] }}, {{ $shipTo['shippingAddress'] }}, {{ $shipTo['shippingCity'] }} ({{ $shipTo['shippingProvince'] }}), tél. {{ $shipTo['shippingPhone'] ?: 'aucun' }}</p>
         <form action="{{ route('admin.suppliers.cj.orders.settings') }}" method="POST" class="grid gap-4 md:grid-cols-3 text-sm">
             @csrf @method('PUT')
             @foreach([
