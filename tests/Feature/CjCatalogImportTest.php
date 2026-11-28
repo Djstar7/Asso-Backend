@@ -190,6 +190,8 @@ class CjCatalogImportTest extends TestCase
         $this->assertSame(1200, $w);
         $this->assertSame(IMAGETYPE_JPEG, $type);
         Http::assertNotSent(fn ($r) => str_contains($r->url(), '127.0.0.1'));
+        // Sans cette option, CJ ne renvoie aucun stock (recette du 28/11).
+        Http::assertSent(fn ($r) => str_contains($r->url(), 'product/query') && str_contains($r->url(), 'features=enable_inventory'));
 
         // Texte nettoyé, traduction anglaise enregistrée.
         $this->assertStringContainsString("Warm hoody with ears.\nMachine washable.", $product->description);

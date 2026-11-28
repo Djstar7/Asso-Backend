@@ -104,7 +104,8 @@ class CjCatalog
     /** Fiche détaillée avec toutes ses déclinaisons et leurs stocks. */
     public function product(string $pid): array
     {
-        return (array) $this->client->get('product/query', ['pid' => $pid]);
+        // Sans « enable_inventory », CJ renvoie inventories = null : stock lu à 0 partout.
+        return (array) $this->client->get('product/query', ['pid' => $pid, 'features' => 'enable_inventory']);
     }
 
     /**
